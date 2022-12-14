@@ -258,6 +258,9 @@ const (
 	// ComponentVersionControl is the component common to all version control operations.
 	ComponentVersionControl = "version-control"
 
+	// ComponentUsageReporting is the component responsible for reporting usage metrics.
+	ComponentUsageReporting = "usage-reporting"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -337,28 +340,8 @@ const (
 	// Off means mode is off
 	Off = "off"
 
-	// SchemeS3 is S3 file scheme, means upload or download to S3 like object
-	// storage
-	SchemeS3 = "s3"
-
-	// SchemeGCS is GCS file scheme, means upload or download to GCS like object
-	// storage
-	SchemeGCS = "gs"
-
-	// SchemeAZBlob is the Azure Blob Storage scheme, used as the scheme in the
-	// session storage URI to identify a storage account accessed over https.
-	SchemeAZBlob = "azblob"
-
-	// SchemeAZBlobHTTP is the Azure Blob Storage scheme, used as the scheme in the
-	// session storage URI to identify a storage account accessed over http.
-	SchemeAZBlobHTTP = "azblob-http"
-
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
-
-	// AZBlobTestURI specifies the storage account URL to use for Azure Blob
-	// Storage tests.
-	AZBlobTestURI = "TEST_AZBLOB_URI"
 
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
@@ -381,11 +364,17 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
-	// SchemeFile is a local disk file storage
+	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
+
+	// SchemeS3 is used for S3-like object storage
+	SchemeS3 = "s3"
+
+	// SchemeGCS is used for Google Cloud Storage
+	SchemeGCS = "gs"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
@@ -453,6 +442,12 @@ const (
 	// CertExtensionMFAVerified is used to mark certificates issued after an MFA
 	// check.
 	CertExtensionMFAVerified = "mfa-verified"
+	// CertExtensionPreviousIdentityExpires is the extension that stores an RFC3339
+	// timestamp representing the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
 	// CertExtensionClientIP is used to embed the IP of the client that created
 	// the certificate.
 	CertExtensionClientIP = "client-ip"
@@ -576,6 +571,10 @@ const (
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
+
+	// TraitInternalAzureIdentities is the variable used to store allowed
+	// Azure identities for local accounts.
+	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
 
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.

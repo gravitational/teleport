@@ -47,6 +47,9 @@ const (
 	// ProtocolSnowflake is TLS ALPN protocol value used to indicate Snowflake protocol.
 	ProtocolSnowflake Protocol = "teleport-snowflake"
 
+	// ProtocolCassandra is the TLS ALPN protocol value used to indicate Cassandra protocol.
+	ProtocolCassandra Protocol = "teleport-cassandra"
+
 	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
 	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
 
@@ -62,7 +65,6 @@ const (
 	// be included in the list of ALPN header for the proxy server to handle the connection properly.
 	ProtocolReverseTunnelV2 Protocol = "teleport-reversetunnelv2"
 
-	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP2 protocol
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"
 
@@ -95,8 +97,14 @@ const (
 var SupportedProtocols = append(
 	ProtocolsWithPing(ProtocolsWithPingSupport...),
 	append([]Protocol{
-		ProtocolHTTP2,
+		// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
+		// If Chrome resolves this, we can switch the prioritization. We may
+		// also be able to get around this if https://github.com/golang/go/issues/49918
+		// is implemented and we can enable HTTP2 websockets on our end, but
+		// it's less clear this will actually fix the issue.
 		ProtocolHTTP,
+		ProtocolHTTP2,
 		ProtocolProxySSH,
 		ProtocolReverseTunnel,
 		ProtocolAuth,
@@ -128,6 +136,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolSQLServer, nil
 	case defaults.ProtocolSnowflake:
 		return ProtocolSnowflake, nil
+	case defaults.ProtocolCassandra:
+		return ProtocolCassandra, nil
 	case defaults.ProtocolElasticsearch:
 		return ProtocolElasticsearch, nil
 	default:
@@ -146,6 +156,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolRedisDB,
 		ProtocolSQLServer,
 		ProtocolSnowflake,
+		ProtocolCassandra,
 		ProtocolElasticsearch,
 	}
 
@@ -163,6 +174,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolRedisDB,
 	ProtocolSQLServer,
 	ProtocolSnowflake,
+	ProtocolCassandra,
 	ProtocolElasticsearch,
 }
 
@@ -187,7 +199,7 @@ func ProtocolWithPing(protocol Protocol) Protocol {
 	return Protocol(string(protocol) + string(ProtocolPingSuffix))
 }
 
-// IsPingProcotol checks if the provided protocol is suffixed with Ping.
+// IsPingProtocol checks if the provided protocol is suffixed with Ping.
 func IsPingProtocol(protocol Protocol) bool {
 	return strings.HasSuffix(string(protocol), string(ProtocolPingSuffix))
 }

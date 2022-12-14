@@ -19,28 +19,29 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/githubactions"
 )
 
 type ghaIDTokenValidator interface {
 	Validate(context.Context, string) (*githubactions.IDTokenClaims, error)
 }
 
-func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*githubactions.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for Github join request")
+		return nil, trace.BadParameter("IDToken not provided for Github join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	claims, err := a.ghaIDTokenValidator.Validate(ctx, req.IDToken)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -48,13 +49,13 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		"token":  pt.GetName(),
 	}).Info("Github actions run trying to join cluster")
 
-	return trace.Wrap(checkGithubAllowRules(pt, claims))
+	return claims, trace.Wrap(checkGithubAllowRules(pt, claims))
 }
 
 func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDTokenClaims) error {
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("github join method only supports ProvisionTokenV2")
+		return trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
 	// If a single rule passes, accept the IDToken

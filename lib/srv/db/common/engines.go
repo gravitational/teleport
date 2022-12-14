@@ -20,12 +20,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cloud"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
 )
 
 var (
@@ -82,6 +82,8 @@ type EngineConfig struct {
 	Log logrus.FieldLogger
 	// Users handles database users.
 	Users Users
+	// DataDir is the Teleport data directory
+	DataDir string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

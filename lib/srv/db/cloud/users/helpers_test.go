@@ -20,10 +20,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestLookupMap(t *testing.T) {
@@ -50,7 +51,7 @@ func TestLookupMap(t *testing.T) {
 			for _, user := range []User{user1, user2, user3} {
 				userGet, found := lookup.getDatabaseUser(db, user.GetDatabaseUsername())
 
-				if utils.SliceContainsStr(db.GetManagedUsers(), user.GetDatabaseUsername()) {
+				if slices.Contains(db.GetManagedUsers(), user.GetDatabaseUsername()) {
 					require.True(t, found)
 					require.Equal(t, user, userGet)
 				} else {

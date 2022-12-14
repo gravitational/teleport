@@ -29,7 +29,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -42,10 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 const (
@@ -247,7 +246,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
-	tc := ns.nodeClient.Proxy.teleportClient
+	tc := ns.nodeClient.TC
 	targetAgent := selectKeyAgent(tc)
 
 	if targetAgent != nil {
@@ -267,14 +266,14 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the
 // server, if any.
-func selectKeyAgent(tc *TeleportClient) agent.Agent {
+func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.Debugf("Selecting system key agent.")
 		return tc.localAgent.sshAgent
 	case ForwardAgentLocal:
 		log.Debugf("Selecting local Teleport key agent.")
-		return tc.localAgent.Agent
+		return tc.localAgent.ExtendedAgent
 	default:
 		log.Debugf("No Key Agent selected.")
 		return nil
@@ -462,7 +461,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 			lastSize := terminalParams.Winsize()
 			lastWidth = int16(lastSize.Width)
 			lastHeight = int16(lastSize.Height)
-			log.Debugf("Recevied window size %v from node in session %v.", lastSize, event.GetString(events.SessionEventID))
+			log.Debugf("Received window size %v from node in session %v.", lastSize, event.GetString(events.SessionEventID))
 
 		// Update size of local terminal with the last size received from remote server.
 		case <-tickerCh.C:

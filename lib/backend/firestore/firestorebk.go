@@ -23,7 +23,10 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
+	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/grpc"
@@ -36,11 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 // Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML

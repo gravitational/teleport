@@ -22,16 +22,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
 )
 
 // AlertCommand implements the `tctl alerts` family of commands.
@@ -62,7 +61,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.alertCreate.Arg("message", "Alert body message").Required().StringVar(&c.message)
 	c.alertCreate.Flag("ttl", "Time duration after which the alert expires.").DurationVar(&c.ttl)
 	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high)").Default("low").EnumVar(&c.severity, "low", "medium", "high")
-	c.alertCreate.Flag("labels", labelHelp).StringVar(&c.labels)
+	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2").StringVar(&c.labels)
 }
 
 // TryRun takes the CLI command as an argument (like "alerts ls") and executes it.

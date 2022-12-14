@@ -15,10 +15,10 @@
 package handler
 
 import (
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-
-	"github.com/gravitational/trace"
 )
 
 // New creates an instance of Handler
@@ -28,7 +28,7 @@ func New(cfg Config) (*Handler, error) {
 	}
 
 	return &Handler{
-		cfg,
+		Config: cfg,
 	}, nil
 }
 
@@ -49,6 +49,8 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // Handler implements teleterm api service
 type Handler struct {
+	api.UnimplementedTerminalServiceServer
+
 	// Config is the service config
 	Config
 }

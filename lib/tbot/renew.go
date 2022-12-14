@@ -459,6 +459,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	expires := time.Now().Add(b.cfg.CertificateTTL)
 	params := auth.RegisterParams{
 		Token: token,
 		ID: auth.IdentityID{
@@ -471,6 +472,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		CAPath:             b.cfg.Onboarding.CAPath,
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		Expires:            &expires,
 	}
 	certs, err := auth.Register(params)
 	if err != nil {
@@ -498,7 +500,9 @@ func (b *Bot) renewIdentityViaAuth(
 	switch joinMethod {
 	// When using join methods that are repeatable - renew fully rather than
 	// renewing using existing credentials.
-	case types.JoinMethodIAM, types.JoinMethodGitHub:
+	case types.JoinMethodIAM,
+		types.JoinMethodGitHub,
+		types.JoinMethodCircleCI:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
@@ -645,17 +649,13 @@ func (b *Bot) renew(
 	// Purge the CA cache. We could be smarter about this in the future if
 	// desired, since generally CAs don't change that often.
 	b.clearCertAuthorities()
-
-	b.log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", b.cfg.RenewalInterval)
 	return nil
 }
 
 const renewalRetryLimit = 5
 
 func (b *Bot) renewLoop(ctx context.Context) error {
-	// TODO: what should this interval be? should it be user configurable?
-	// Also, must be < the validity period.
-	// TODO: validate that cert is actually renewable.
+	// TODO: validate that bot certificates are valid before attempting renewal
 
 	b.log.Infof(
 		"Beginning renewal loop: ttl=%s interval=%s",
@@ -711,9 +711,10 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 		}
 
 		if b.cfg.Oneshot {
-			b.log.Info("Oneshot mode enabled, exiting successfully.")
+			b.log.Info("Persisted certificates successfully. One-shot mode enabled so exiting.")
 			break
 		}
+		b.log.Infof("Persisted certificates successfully. Next renewal in approximately %s.", b.cfg.RenewalInterval)
 
 		select {
 		case <-ctx.Done():

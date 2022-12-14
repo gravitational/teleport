@@ -109,7 +109,8 @@ func newServer(t *testing.T, handler func(*ssh.ServerConn, <-chan ssh.NewChannel
 	hSigner := generateSigner(t)
 
 	config := &ssh.ServerConfig{
-		NoClientAuth: true,
+		NoClientAuth:  true,
+		ServerVersion: "SSH-2.0-Teleport",
 	}
 	config.AddHostKey(hSigner)
 

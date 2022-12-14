@@ -139,7 +139,7 @@ func TestDatabaseResource(t *testing.T) {
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbA",
+		Name:   "db-a",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -148,7 +148,7 @@ func TestDatabaseResource(t *testing.T) {
 	require.NoError(t, err)
 
 	dbB, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbB",
+		Name:   "db-b",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
@@ -179,7 +179,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Fetch specific database.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/dbB", types.KindDatabase), "--format=json"})
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
@@ -187,7 +187,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Remove a database.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/dbA", types.KindDatabase)})
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/db-a", types.KindDatabase)})
 	require.NoError(t, err)
 
 	// Fetch all databases again, should have 1.
@@ -331,7 +331,7 @@ const (
 	dbYAML = `kind: db
 version: v3
 metadata:
-  name: dbA
+  name: db-a
 spec:
   protocol: "postgres"
   uri: "localhost:5432"
@@ -339,7 +339,7 @@ spec:
 kind: db
 version: v3
 metadata:
-  name: dbB
+  name: db-b
 spec:
   protocol: "mysql"
   uri: "localhost:3306"`

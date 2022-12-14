@@ -387,7 +387,7 @@ teleport:
   storage:
     type: dir
     path: /var/lib/teleport/backend
-  auth_server: ${TELEPORT_AUTH_SERVER_LB}:443
+  auth_server: ${TELEPORT_AUTH_SERVER_LB}:3025
 
 auth_service:
   enabled: no

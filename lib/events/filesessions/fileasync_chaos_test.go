@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -36,8 +37,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/gravitational/trace"
 )
 
 // TestChaosUpload introduces failures in all stages of the async
@@ -63,9 +62,8 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanDir, err := os.MkdirTemp("", "teleport-streams")
-	require.NoError(t, err)
-	defer os.RemoveAll(scanDir)
+	scanDir := t.TempDir()
+	corruptedDir := t.TempDir()
 
 	var terminateConnection, failCreateAuditStream, failResumeAuditStream atomic.Uint64
 
@@ -114,10 +112,11 @@ func TestChaosUpload(t *testing.T) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		ScanDir:    scanDir,
-		ScanPeriod: scanPeriod,
-		Streamer:   faultyStreamer,
-		Clock:      clock,
+		ScanDir:      scanDir,
+		CorruptedDir: corruptedDir,
+		ScanPeriod:   scanPeriod,
+		Streamer:     faultyStreamer,
+		Clock:        clock,
 	})
 	require.NoError(t, err)
 	go uploader.Serve(ctx)

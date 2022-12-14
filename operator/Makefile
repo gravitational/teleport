@@ -5,49 +5,9 @@
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
 
-# CHANNELS define the bundle channels used in the bundle.
-# Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
-# To re-generate a bundle for other specific channels without changing the standard setup, you can:
-# - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
-# - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
-ifneq ($(origin CHANNELS), undefined)
-BUNDLE_CHANNELS := --channels=$(CHANNELS)
-endif
-
-# DEFAULT_CHANNEL defines the default channel used in the bundle.
-# Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
-# To re-generate a bundle for any other default channel without changing the default setup, you can:
-# - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
-# - use environment variables to overwrite this value (e.g export DEFAULT_CHANNEL="stable")
-ifneq ($(origin DEFAULT_CHANNEL), undefined)
-BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
-endif
-BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
-
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
-# This variable is used to construct full image tags for bundle and catalog images.
-#
-# For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# teleport.dev/operator-bundle:$VERSION and teleport.dev/operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= teleport.dev/operator
-
-# BUNDLE_IMG defines the image:tag used for the bundle.
-# You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
-
-# BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
-BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
-
-# USE_IMAGE_DIGESTS defines if images are resolved via tags or digests
-# You can enable this value if you would like to use SHA Based Digests
-# To enable set flag to true
-USE_IMAGE_DIGESTS ?= false
-ifeq ($(USE_IMAGE_DIGESTS), true)
-	BUNDLE_GEN_FLAGS += --use-image-digests
-endif
-
 # Image URL to use all building/pushing image targets
 IMG ?= teleport-operator:latest
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
@@ -56,6 +16,28 @@ ENVTEST_K8S_VERSION = 1.23
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
+
+# include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
+include ../build.assets/images.mk
+
+# Configure which compiler and buildbox to use
+OS ?= $(shell go env GOOS)
+ARCH ?= $(shell go env GOARCH)
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+COMPILER ?= x86_64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX)
+else ifeq ("$(ARCH)","386")
+COMPILER ?= x86_64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX)
+else ifeq ("$(ARCH)","arm")
+COMPILER ?= arm-linux-gnueabihf-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
+else ifeq ("$(ARCH)","arm64")
+COMPILER ?= aarch64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
+endif
+endif
 
 .PHONY: all
 all: build
@@ -102,11 +84,10 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 		../api/proto/teleport/legacy/types/types.proto
 	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
 
-	cp ./config/crd/bases/* ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/
 # Some comments have `{{xyz}}` which triggers the golang templating engine when installing the chart.
 # We don't want that, so we escape them.
-	sed -i 's/`{{/{{ `{{/g' ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/*.yaml
-	sed -i 's/}}`/}}` }}/g' ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/*.yaml
+	$(foreach file, $(wildcard $(CURDIR)/config/crd/bases/*), \
+		$(shell sed 's/`{{/{{ `{{/g;s/}}`/}}` }}/g' $(file) > $(CURDIR)/../examples/chart/teleport-cluster/charts/teleport-operator/templates/$(notdir $(file))))
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -140,7 +121,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} .. -f ./Dockerfile
+	docker buildx build --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(PLATFORM_BUILDBOX) \
+		--build-arg COMPILER_NAME=$(COMPILER) -t ${IMG} --load .. -f ./Dockerfile
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.

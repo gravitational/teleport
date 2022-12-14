@@ -21,23 +21,21 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
-
-	"cloud.google.com/go/storage"
-	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/api/option"
-	"google.golang.org/grpc"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -160,7 +158,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 // afterObjectDelete is a passthrough function to delete an object
 func afterObjectDelete(ctx context.Context, object *storage.ObjectHandle, err error) error {
-	return nil
+	return err
 }
 
 // ComposerRun is a passthrough function that runs composer
@@ -297,7 +295,7 @@ func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
-	return strings.TrimPrefix(filepath.Join(h.Path, string(sessionID)+".tar"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

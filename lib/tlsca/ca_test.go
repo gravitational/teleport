@@ -24,14 +24,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/fixtures"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // TestPrincipals makes sure that SAN extension of generated x509 cert gets
@@ -194,4 +194,48 @@ func TestKubeExtensions(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, out.Renewable)
 	require.Empty(t, cmp.Diff(out, &identity))
+}
+
+func TestAzureExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:        "alice@example.com",
+		Groups:          []string{"admin"},
+		Impersonator:    "bob@example.com",
+		Usage:           []string{teleport.UsageAppsOnly},
+		AzureIdentities: []string{"azure-identity-1", "azure-identity-2"},
+		RouteToApp: RouteToApp{
+			SessionID:     "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15",
+			ClusterName:   "teleport.example.com",
+			Name:          "azure-app",
+			AzureIdentity: "azure-identity-3",
+		},
+		TeleportCluster: "tele-cluster",
+		Expires:         expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity))
+	require.Equal(t, "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15", out.RouteToApp.SessionID)
 }

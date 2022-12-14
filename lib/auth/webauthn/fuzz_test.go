@@ -20,9 +20,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/stretchr/testify/require"
 )
 
 func FuzzParseCredentialCreationResponseBody(f *testing.F) {

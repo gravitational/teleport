@@ -28,19 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -49,6 +40,18 @@ import (
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func init() {
@@ -262,18 +265,22 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}()
 
 	var errs []error
-	for errChan != nil {
+Outer:
+	for {
 		select {
 		// Use the first client to successfully connect in syncConnect.
 		case clt := <-cltChan:
+			go func() {
+				for range errChan {
+				}
+			}()
 			return clt, nil
 		case err, ok := <-errChan:
-			if ok {
-				// Add a new line to make errs human readable.
-				errs = append(errs, trace.Wrap(err, ""))
-				continue
+			if !ok {
+				break Outer
 			}
-			errChan = nil
+			// Add a new line to make errs human readable.
+			errs = append(errs, trace.Wrap(err, ""))
 		}
 	}
 
@@ -581,6 +588,15 @@ func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
 	clt := *c
 	clt.callOpts = append(clt.callOpts, opts...)
 	return &clt
+}
+
+// DevicesClient returns an unadorned Device Trust client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a devices client when calling this method, but all RPCs will return
+// "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
+	return devicepb.NewDeviceTrustServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -962,7 +978,7 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 	if err != nil {
 		// Underlying ListResources for kube server was not available, use fallback KubeService.
 		// ListResources returns NotImplemented if ResourceType is unknown.
-		// DELETE IN 12.0.0
+		// DELETE IN 13.0.0
 		if trace.IsNotImplemented(err) {
 			return c.getKubeServersFallback(ctx)
 		}
@@ -986,7 +1002,7 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 
 // getKubeServersFallback previous implementation of `GetKubeServers` function
 // using `GetKubeServices` call.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) getKubeServersFallback(ctx context.Context) ([]types.KubeServer, error) {
 	resources, err := c.GetKubeServices(ctx)
 	if err != nil {
@@ -1020,7 +1036,7 @@ func (c *Client) DeleteKubernetesServer(ctx context.Context, hostID, name string
 // deleteKubeServerFallback deletes a named Kube Service using legacy API call
 // `DeleteKubeService`.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) deleteKubeServerFallback(ctx context.Context, name string) error {
 	err := c.DeleteKubeService(ctx, name)
 	return trace.Wrap(err)
@@ -1041,7 +1057,7 @@ func (c *Client) DeleteAllKubernetesServers(ctx context.Context) error {
 // deleteAllKubeServersFallback deletes all kubernetes servers using legacy API call
 // `DeleteAllKubeServices`.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) deleteAllKubernetesServersFallback(ctx context.Context) error {
 	err := c.DeleteAllKubeServices(ctx)
 	return trace.Wrap(err)
@@ -1063,7 +1079,7 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 
 // UpsertKubeService is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	server, ok := s.(*types.ServerV2)
 	if !ok {
@@ -1077,7 +1093,7 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 
 // UpsertKubeServiceV2 is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	server, ok := s.(*types.ServerV2)
 	if !ok {
@@ -1092,7 +1108,7 @@ func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*type
 
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
 		Namespace:    defaults.Namespace,
@@ -1175,16 +1191,52 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 
 // GetAppSessions gets all application web sessions.
 func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	resp, err := c.grpc.GetAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	var (
+		nextToken string
+		sessions  []types.WebSession
+	)
+
+	// Leverages ListAppSessions instead of GetAppSessions to prevent
+	// the server from having to send all sessions in a single message.
+	// If there are enough sessions it can cause the max message size to be
+	// exceeded.
+	for {
+		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return sessions, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListAppSessions(
+		ctx,
+		&proto.ListAppSessionsRequest{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			User:      user,
+		},
+		c.callOpts...,
+	)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, "", trail.FromGRPC(err)
 	}
 
 	out := make([]types.WebSession, 0, len(resp.GetSessions()))
 	for _, v := range resp.GetSessions() {
 		out = append(out, v)
 	}
-	return out, nil
+	return out, resp.NextPageToken, nil
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
@@ -1205,10 +1257,11 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    req.Username,
-		PublicAddr:  req.PublicAddr,
-		ClusterName: req.ClusterName,
-		AWSRoleARN:  req.AWSRoleARN,
+		Username:      req.Username,
+		PublicAddr:    req.PublicAddr,
+		ClusterName:   req.ClusterName,
+		AWSRoleARN:    req.AWSRoleARN,
+		AzureIdentity: req.AzureIdentity,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1279,9 +1332,16 @@ func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUse
 
 // GenerateAppToken creates a JWT token with application access.
 func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	traits := map[string]*wrappers.StringValues{}
+	for traitName, traitValues := range req.Traits {
+		traits[traitName] = &wrappers.StringValues{
+			Values: traitValues,
+		}
+	}
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
 		Username: req.Username,
 		Roles:    req.Roles,
+		Traits:   traits,
 		URI:      req.URI,
 		Expires:  req.Expires,
 	})
@@ -1306,7 +1366,7 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 }
 
 // DeleteKubeService deletes a named kubernetes service.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{
 		Name: name,
@@ -1315,7 +1375,7 @@ func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 }
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{}, c.callOpts...)
 	return trace.Wrap(err)
@@ -1515,9 +1575,6 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1530,9 +1587,6 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
-		// An old server would send RedirectURL instead of RedirectURLs
-		// DELETE IN 11.0.0
-		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1544,9 +1598,6 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	// An old server would expect RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
@@ -1973,6 +2024,10 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 	for _, rawEvent := range response.Items {
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {
+			if trace.IsBadParameter(err) {
+				log.Warnf("skipping unknown event: %v", err)
+				continue
+			}
 			return nil, "", trace.Wrap(err)
 		}
 		decodedEvents = append(decodedEvents, event)
@@ -2728,24 +2783,6 @@ func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTrack
 	}
 
 	req := &proto.CreateSessionTrackerRequest{SessionTracker: v1}
-
-	// DELETE IN 11.0.0
-	// Early v9 versions use a flattened out types.SessionTrackerV1
-	req.ID = v1.Spec.SessionID
-	req.Type = v1.Spec.Kind
-	req.Reason = v1.Spec.Reason
-	req.Invited = v1.Spec.Invited
-	req.Hostname = v1.Spec.Hostname
-	req.Address = v1.Spec.Address
-	req.ClusterName = v1.Spec.ClusterName
-	req.Login = v1.Spec.Login
-	req.Expires = v1.Spec.Expires
-	req.KubernetesCluster = v1.Spec.KubernetesCluster
-	req.HostUser = v1.Spec.HostUser
-	if len(v1.Spec.Participants) > 0 {
-		req.Initiator = &v1.Spec.Participants[0]
-	}
-
 	tracker, err := c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -2766,6 +2803,30 @@ func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
 	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var sessions []types.SessionTracker
+	for {
+		session, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		sessions = append(sessions, session)
+	}
+
+	return sessions, nil
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (c *Client) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	stream, err := c.grpc.GetActiveSessionTrackersWithFilter(ctx, filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2881,5 +2942,17 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 	_, err := c.grpc.UpsertClusterAlert(ctx, &proto.UpsertClusterAlertRequest{
 		Alert: alert,
 	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
+	_, err := c.grpc.ChangePassword(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
+
 	return trail.FromGRPC(err)
 }

@@ -19,10 +19,12 @@ package proxy
 import (
 	"context"
 	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -46,8 +48,24 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	}
 
 	go func() {
+		// reconcileTicker is used to force reconciliation when the watcher was
+		// previously informed that a `kube_cluster` resource exists/changed but the
+		// creation/update operation failed - e.g. login to AKS/EKS clusters can
+		// fail due to missing permissions.
+		// Once this happens, the state of the resource watcher won't change until
+		// a new update operation is triggered (which can take a lot of time).
+		// This results in the service not being able to enroll the failing cluster,
+		// even if the original issue was already fixed because we won't run reconciliation again.
+		// We force the reconciliation to make sure we don't drift from watcher state if
+		// the issue was fixed.
+		reconcileTicker := time.NewTicker(2 * time.Minute)
+		defer reconcileTicker.Stop()
 		for {
 			select {
+			case <-reconcileTicker.C:
+				if err := s.reconciler.Reconcile(ctx); err != nil {
+					s.log.WithError(err).Error("Failed to reconcile.")
+				}
 			case <-s.reconcileCh:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
 					s.log.WithError(err).Error("Failed to reconcile.")
@@ -162,6 +180,7 @@ func (m *monitoredKubeClusters) get() types.ResourcesWithLabelsMap {
 func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
+		s.CloudClients,
 		cluster,
 		s.log,
 		s.CheckImpersonationPermissions,
@@ -176,6 +195,7 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
+		s.CloudClients,
 		cluster,
 		s.log,
 		s.CheckImpersonationPermissions,

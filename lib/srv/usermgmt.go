@@ -24,6 +24,7 @@ import (
 	"os/user"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -118,7 +119,7 @@ type HostUsers interface {
 	doWithUserLock(func(types.SemaphoreLease) error) error
 
 	// SetHostUserDeletionGrace sets the grace period before a user
-	// can be deleted, used so integration tests dont need to sleep
+	// can be deleted, used so integration tests don't need to sleep
 	SetHostUserDeletionGrace(time.Duration)
 }
 
@@ -163,7 +164,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
-			if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+			if isUnknownGroupError(err, types.TeleportServiceGroup) {
 				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
 			}
 			return nil, nil, trace.Wrap(err)
@@ -283,6 +284,15 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 	return trace.Wrap(err)
 }
 
+// isUnknownGroupError returns whether the error from LookupGroup is an unknown group error.
+//
+// LookupGroup is supposed to return an UnknownGroupError, but due to an existing issue
+// may instead return a generic "no such file or directory" error when sssd is installed.
+// See github issue - https://github.com/golang/go/issues/40334
+func isUnknownGroupError(err error, groupName string) bool {
+	return errors.Is(err, user.UnknownGroupError(groupName)) || strings.HasSuffix(err.Error(), syscall.ENOENT.Error())
+}
+
 // DeleteAllUsers deletes all host users in the teleport service group.
 func (u *HostUserManagement) DeleteAllUsers() error {
 	users, err := u.backend.GetAllUsers()
@@ -291,7 +301,7 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	}
 	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 	if err != nil {
-		if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+		if isUnknownGroupError(err, types.TeleportServiceGroup) {
 			log.Debugf("'teleport-service' group not found, not deleting users")
 			return nil
 		}

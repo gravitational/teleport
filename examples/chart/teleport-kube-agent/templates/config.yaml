@@ -19,10 +19,18 @@ metadata:
   {{- end }}
 data:
   teleport.yaml: |
+    {{- if (ge (semver .teleportVersion).Major 11) }}
     version: v3
+    {{- end }}
     teleport:
-      auth_token: "/etc/teleport-secrets/auth-token"
+      join_params:
+        method: "{{ .Values.joinParams.method }}"
+        token_name: "/etc/teleport-secrets/auth-token"
+      {{- if (ge (semver .teleportVersion).Major 11) }}
       proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
+      {{- else }}
+      auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+      {{- end }}
       {{- if .Values.caPin }}
       ca_pin: {{- toYaml .Values.caPin | nindent 8 }}
       {{- end }}
@@ -73,8 +81,8 @@ data:
     db_service:
       {{- if contains "db" (.Values.roles | toString) }}
       enabled: true
-      {{- if not (or (.Values.awsDatabases) (.Values.databases) (.Values.databaseResources)) }}
-        {{- fail "at least one of 'awsDatabases', 'databases' and 'databaseResources' is required in chart values when db role is enabled, see README" }}
+      {{- if not (or (.Values.awsDatabases) (.Values.azureDatabases) (.Values.databases) (.Values.databaseResources)) }}
+        {{- fail "at least one of 'awsDatabases', 'azureDatabases', 'databases' or 'databaseResources' is required in chart values when db role is enabled, see README" }}
       {{- end }}
       {{- if .Values.awsDatabases }}
       aws:
@@ -91,6 +99,10 @@ data:
         {{- end }}
         {{- toYaml .Values.awsDatabases | nindent 6 }}
       {{- end }}
+      {{- if .Values.azureDatabases }}
+      azure:
+        {{- toYaml .Values.azureDatabases | nindent 6 }}
+      {{- end}}
       {{- if .Values.databases }}
       databases:
         {{- range $db := .Values.databases }}

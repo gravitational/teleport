@@ -165,26 +165,33 @@ $ helm install teleport-kube-agent . \
 --set "databaseResources[0].labels.${DB_RESOURCE_KEY?}=${DB_RESOURCE_VALUE?}"
 ```
 
-### Auto-discovery mode (AWS only)
+### Auto-discovery mode (AWS)
 
-To use Teleport database access in auto-discovery mode, you will also need:
-- the database types you are attempting to auto-discover (`$DB_TYPES`)
-- the AWS region(s) you would like to run auto-discovery in (`$DB_REGIONS`)
-- the AWS resource tags if you want to target only certain databases (`$DB_TAGS`)
+To use Teleport database access in AWS database auto-discovery mode, you will also need:
+- the database types you are attempting to auto-discover (`types`)
+- the AWS region(s) you would like to run auto-discovery in (`regions`)
+- the AWS resource tags if you want to target only certain databases (`tags`)
 
-To install the agent in database auto-discovery mode, run:
+See the [AWS databases Helm chart reference](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/#awsDatabases)
+for an example of installing an agent with AWS database auto-discovery.
 
-```sh
-$ helm install teleport-kube-agent . \
-  --create-namespace \
-  --namespace teleport \
-  --set roles=db \
-  --set proxyAddr=${PROXY_ENDPOINT?} \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "awsDatabases[0].types=${DB_TYPES?}" \
-  --set "awsDatabases[0].regions=${DB_REGIONS?}" \
-  --set "awsDatabases[0].tags=${DB_TAGS?}"
-```
+### Auto-discovery mode (Azure)
+
+To use Teleport database access in Azure database auto-discovery mode, you will also need:
+- the database types you are attempting to auto-discover (`types`)
+- the Azure resource tags if you want to target only certain databases (`tags`)
+
+You can optionally specify:
+- the Azure subscription(s) to auto-discover in (`subscriptions`)
+- the Azure region(s) to auto-discover in (`regions`)
+- the Azure resource-group(s) to auto-discover in (`resource_groups`)
+
+The default for each of these optional settings is `[*]`, which will auto-discover in all
+subscriptions, regions, or resource groups accessible by the Teleport service
+principal in Azure.
+
+See the [Azure databases Helm chart reference](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/#azureDatabases)
+for an example of installing an agent with Azure database auto-discovery.
 
 ### Manual configuration mode
 

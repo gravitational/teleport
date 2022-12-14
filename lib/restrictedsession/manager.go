@@ -18,8 +18,8 @@ package restrictedsession
 
 import (
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 )
 
 // RestrictionsWatcherClient is used by changeset to fetch a list
@@ -32,20 +32,20 @@ type RestrictionsWatcherClient interface {
 // Manager starts and stop enforcing restrictions for a given session.
 type Manager interface {
 	// OpenSession starts enforcing restrictions for a cgroup with cgroupID
-	OpenSession(ctx *srv.ServerContext, cgroupID uint64)
+	OpenSession(ctx *bpf.SessionContext, cgroupID uint64)
 	// CloseSession stops enforcing restrictions for a cgroup with cgroupID
-	CloseSession(ctx *srv.ServerContext, cgroupID uint64)
+	CloseSession(ctx *bpf.SessionContext, cgroupID uint64)
 	// Close stops the manager, cleaning up any resources
 	Close()
 }
 
-// NOP is a stubbed implementation of Manager for cases where the real thing is not used.
+// Stubbed out Manager interface for cases where the real thing is not used.
 type NOP struct{}
 
-func (NOP) OpenSession(ctx *srv.ServerContext, cgroupID uint64) {
+func (NOP) OpenSession(ctx *bpf.SessionContext, cgroupID uint64) {
 }
 
-func (NOP) CloseSession(ctx *srv.ServerContext, cgroupID uint64) {
+func (NOP) CloseSession(ctx *bpf.SessionContext, cgroupID uint64) {
 }
 
 func (NOP) UpdateNetworkRestrictions(r *NetworkRestrictions) error {

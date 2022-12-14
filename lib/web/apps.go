@@ -21,6 +21,10 @@ package web
 import (
 	"context"
 	"net/http"
+	"strings"
+
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -33,22 +37,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	appClusterName := p.ByName("site")
 
-	identity, err := ctx.GetIdentity()
+	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get a list of application servers and their proxied apps.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,13 +64,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	var apps types.Apps
-	for _, server := range appServers {
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if !server.GetApp().IsTCP() {
-			apps = append(apps, server.GetApp())
-		}
-	}
+	apps := removeUnsupportedApps(appServers)
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
@@ -80,7 +75,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		TotalCount: len(apps),
 	}, nil
 }
 
@@ -361,4 +356,22 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
+}
+
+// removeUnsupportedApps filters unsupported (TCP, Cloud API-only) apps out of the list of app servers.
+func removeUnsupportedApps(appServers []types.AppServer) (apps types.Apps) {
+	for _, server := range appServers {
+		a := server.GetApp()
+		// Skip over API-only Cloud apps
+		if strings.HasPrefix(a.GetURI(), "cloud://") {
+			continue
+		}
+
+		// Skip over TCP apps since they cannot be accessed through web UI.
+		if server.GetApp().IsTCP() {
+			continue
+		}
+		apps = append(apps, server.GetApp())
+	}
+	return apps
 }

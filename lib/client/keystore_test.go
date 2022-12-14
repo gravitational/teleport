@@ -28,7 +28,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -41,11 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestListKeys(t *testing.T) {
@@ -278,7 +278,7 @@ func TestCheckKey(t *testing.T) {
 	key := s.makeSignedKey(t, idx, false)
 
 	// Swap out the key with a ECDSA SSH key.
-	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
@@ -397,7 +397,7 @@ func TestCheckKeyFIPS(t *testing.T) {
 	key := s.makeSignedKey(t, idx, false)
 
 	// Swap out the key with a ECDSA SSH key.
-	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 

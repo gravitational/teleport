@@ -18,19 +18,32 @@ package config
 
 import (
 	"context"
+	"strings"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 )
 
 const (
 	// defaultSSHHostCertPrefix is the default filename prefix for the SSH host
 	// certificate
 	defaultSSHHostCertPrefix = "ssh_host"
+
+	// sshHostCertSuffix is the suffix appended to the generated host certificate.
+	sshHostCertSuffix = "-cert.pub"
+
+	// sshHostUserCASuffix is the suffix appended to the user CA file.
+	sshHostUserCASuffix = "-user-ca.pub"
+
+	// sshHostTrimPrefix is the prefix that should be removed from the generated
+	// SSH CA.
+	sshHostTrimPrefix = "cert-authority "
 )
 
 // TemplateSSHHostCert contains parameters for the ssh_config config
@@ -69,11 +82,40 @@ func (c *TemplateSSHHostCert) Describe(destination bot.Destination) []FileDescri
 			Name: c.Prefix,
 		},
 		{
-			Name: c.Prefix + "-cert.pub",
+			Name: c.Prefix + sshHostCertSuffix,
+		},
+		{
+			Name: c.Prefix + sshHostUserCASuffix,
 		},
 	}
 
 	return ret
+}
+
+// exportSSHUserCAs generates SSH CAs.
+func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, error) {
+	var exported []string
+
+	for _, ca := range cas {
+		// Don't export trusted CAs.
+		if ca.GetClusterName() != localAuthName {
+			continue
+		}
+
+		for _, key := range ca.GetTrustedSSHKeyPairs() {
+			s, err := sshutils.MarshalAuthorizedKeysFormat(ca.GetClusterName(), key.PublicKey)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			// remove "cert-authority "
+			s = strings.TrimPrefix(s, sshHostTrimPrefix)
+
+			exported = append(exported, s)
+		}
+	}
+
+	return strings.Join(exported, "\n") + "\n", nil
 }
 
 // Render generates SSH host cert files.
@@ -104,7 +146,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	botCfg := bot.Config()
-	key.Cert, err = authClient.GenerateHostCert(key.MarshalSSHPublicKey(),
+	key.Cert, err = authClient.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
 		"", "", c.Principals,
 		clusterName, types.RoleNode, botCfg.CertificateTTL)
 	if err != nil {
@@ -127,6 +169,29 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	userCAs, err := bot.GetCertAuthorities(ctx, types.UserCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// get the local domain name, used to exclude trusted CAs
+	localAuthName, err := bot.Client().GetDomainName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	exportedCAs, err := exportSSHUserCAs(userCAs, localAuthName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userCAPath := c.Prefix + sshHostUserCASuffix
+	if err := dest.Write(userCAPath, []byte(exportedCAs)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	files = append(files, userCAPath)
 
 	log.Debugf("Wrote OpenSSH host cert files: %+v", files)
 

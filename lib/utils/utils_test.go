@@ -27,12 +27,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/gravitational/teleport/lib/fixtures"
-
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
@@ -91,7 +90,7 @@ func TestHostUUIDRegenerateEmpty(t *testing.T) {
 func TestSelfSignedCert(t *testing.T) {
 	t.Parallel()
 
-	creds, err := GenerateSelfSignedCert([]string{"example.com"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"})
 	require.NoError(t, err)
 	require.NotNil(t, creds)
 	require.Equal(t, 4, len(creds.PublicKey)/100)

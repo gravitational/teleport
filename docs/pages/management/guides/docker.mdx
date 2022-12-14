@@ -97,11 +97,11 @@ $ mkdir -p ~/teleport/config ~/teleport/data
 # This container will write the config and immediately exit--this is expected.
 $ docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
-  -v ~/teleport/config:/etc/teleport.d \
-  (=teleport.latest_oss_docker_image=) -c "teleport configure > /etc/teleport.d/teleport.yaml"
+  -v ~/teleport/config:/etc/teleport \
+  (=teleport.latest_oss_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
 # Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
-  -v ~/teleport/config:/etc/teleport.d \
+  -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
   (=teleport.latest_oss_docker_image=)
@@ -182,7 +182,7 @@ Enter your OTP token:
 After successfully authenticating you should see the following in your terminal:
 
 ```
-WARNING: You are using insecure connection to SSH proxy https://localhost:3080
+WARNING: You are using insecure connection to Teleport proxy https://localhost:3080
 > Profile URL:        https://localhost:3080
   Logged in as:       testuser
   Cluster:            localhost

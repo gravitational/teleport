@@ -30,10 +30,11 @@ func getAptPipelineBuilder() *OsPackageToolPipelineBuilder {
 		"drone-s3-aptrepo-pvc",
 		"deb",
 		"apt",
-		NewRepoBucketSecretNames(
+		NewRepoBucketSecrets(
 			"APT_REPO_NEW_AWS_S3_BUCKET",
 			"APT_REPO_NEW_AWS_ACCESS_KEY_ID",
 			"APT_REPO_NEW_AWS_SECRET_ACCESS_KEY",
+			"APT_REPO_NEW_AWS_ROLE",
 		),
 	)
 

@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -32,6 +33,7 @@ import (
 type SAMLConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -237,6 +239,16 @@ func (o *SAMLConnectorV2) GetMetadata() Metadata {
 	return o.Metadata
 }
 
+// Origin returns the origin value of the resource.
+func (o *SAMLConnectorV2) Origin() string {
+	return o.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (o *SAMLConnectorV2) SetOrigin(origin string) {
+	o.Metadata.SetOrigin(origin)
+}
+
 // SetExpiry sets expiry time for the object
 func (o *SAMLConnectorV2) SetExpiry(expires time.Time) {
 	o.Metadata.SetExpiry(expires)
@@ -360,7 +372,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
+	if name := o.Metadata.Name; slices.Contains(constants.SystemConnectors, name) {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
 	}
 	if o.Spec.AssertionConsumerService == "" {

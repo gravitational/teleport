@@ -18,7 +18,7 @@ sets Deployment annotations when specified if action is Upgrade:
       template:
         metadata:
           annotations:
-            checksum/config: 40ee068e95f9baae75f3b7f6ef1a62a7ffdf3d9005e74514e597dbd4c4af595e
+            checksum/config: 69e263080e9c222718c7fb92180c7367832071d7efd51e9bd6dcdb6326e6f9a8
             kubernetes.io/pod: test-annotation
             kubernetes.io/pod-different: 4
           labels:
@@ -86,7 +86,7 @@ sets Deployment labels when specified if action is Upgrade:
     template:
       metadata:
         annotations:
-          checksum/config: e23c34c3027af13bb06e161dfe1fe316312a1d5621ef217502a5c76596e49668
+          checksum/config: f472b546dffe5369ea3263c8ee806e71ff2782c951b6f8233835606d17eeae12
         labels:
           app: RELEASE-NAME
           app.kubernetes.io/name: teleport-kube-agent

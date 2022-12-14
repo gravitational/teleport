@@ -13,8 +13,14 @@ limitations under the License.
 
 package keys
 
-import "context"
+import (
+	"github.com/gravitational/trace"
+)
 
-func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*PrivateKey, error) {
-	return getOrGenerateYubiKeyPrivateKey(ctx, touchRequired)
+func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
+	priv, err := getOrGenerateYubiKeyPrivateKey(touchRequired)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
+	}
+	return priv, nil
 }

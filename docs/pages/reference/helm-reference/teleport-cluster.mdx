@@ -599,10 +599,8 @@ Normally the version of Teleport being used will match the version of the chart 
 
 You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
 
-See these links for information on Docker image versions:
-
-- [Community Docker image information](../../installation.mdx?scope=oss#docker)
-- [Enterprise Docker image information](../../installation.mdx?scope=enterprise#docker)
+See our [installation guide](../../installation.mdx#docker) for information on
+Docker image versions.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -749,6 +747,16 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `custom` | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
 
 ## `persistence`
+
+<Details title="Read this if using Kubernetes 1.23+ on EKS" opened={false}>
+
+Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
+without additional configuration.
+
+See [AWS documentation on the EBS CSI driver](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) for more details.
+This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
+
+</Details>
 
 ### `persistence.enabled`
 

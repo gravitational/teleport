@@ -32,6 +32,12 @@ rules:
   - teleportroles/status
   - teleportusers
   - teleportusers/status
+  - teleportgithubconnectors
+  - teleportgithubconnectors/status
+  - teleportoidcconnectors
+  - teleportoidcconnectors/status
+  - teleportsamlconnectors
+  - teleportsamlconnectors/status
   verbs:
   - get
   - list

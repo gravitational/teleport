@@ -191,30 +191,6 @@ done && ls -l`)
 	return commands
 }
 
-type s3Settings struct {
-	region      string
-	source      string
-	target      string
-	stripPrefix string
-}
-
-// uploadToS3Step generates an S3 upload step
-func uploadToS3Step(s s3Settings) step {
-	return step{
-		Name:  "Upload to S3",
-		Image: "plugins/s3",
-		Settings: map[string]value{
-			"bucket":       {fromSecret: "AWS_S3_BUCKET"},
-			"access_key":   {fromSecret: "AWS_ACCESS_KEY_ID"},
-			"secret_key":   {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			"region":       {raw: s.region},
-			"source":       {raw: s.source},
-			"target":       {raw: s.target},
-			"strip_prefix": {raw: s.stripPrefix},
-		},
-	}
-}
-
 // tagPipelines builds all applicable tag pipeline combinations
 func tagPipelines() []pipeline {
 	var ps []pipeline
@@ -296,7 +272,7 @@ func tagPipeline(b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes()
+	p.Volumes = []volume{volumeAwsConfig, volumeDocker}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -314,7 +290,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: tagEnvironment,
-			Volumes:     dockerVolumeRefs(),
+			Volumes:     []volumeRef{volumeRefDocker},
 			Commands:    tagBuildCommands(b),
 		},
 		{
@@ -322,11 +298,19 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(b),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",
@@ -410,7 +394,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   fi
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+  release_params="" # List of "-F releaseId=XXX" parameters to curl
 
   for product in $products; do
     status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -419,8 +403,11 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
       cat $WORKSPACE_DIR/curl_out.txt
       exit 1
     fi
-    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%%20/g')"
+
+    release_params="$release_params -F releaseId=$product@$VERSION"
   done
+
+  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
 done`,
 			b.Description(packageType, extraQualifications...), b.os, b.arch),
 	}
@@ -440,11 +427,9 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	environment := map[string]value{
-		"ARCH":                  {raw: b.arch},
-		"TMPDIR":                {raw: "/go"},
-		"ENT_TARBALL_PATH":      {raw: "/go/artifacts"},
-		"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
-		"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+		"ARCH":             {raw: b.arch},
+		"TMPDIR":           {raw: "/go"},
+		"ENT_TARBALL_PATH": {raw: "/go/artifacts"},
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
@@ -478,8 +463,14 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := dockerVolumes()
-	packageDockerVolumeRefs := dockerVolumeRefs()
+	packageDockerVolumes := []volume{
+		volumeDocker,
+		volumeAwsConfig,
+	}
+	packageDockerVolumeRefs := []volumeRef{
+		volumeRefDocker,
+		volumeRefAwsConfig,
+	}
 	packageDockerService := dockerService()
 
 	switch packageType {
@@ -494,8 +485,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			`rm -rf $GNUPG_DIR`,
 		)
 		// RPM builds require tmpfs to hold the key material in memory.
-		packageDockerVolumes = dockerVolumes(volumeTmpfs)
-		packageDockerVolumeRefs = dockerVolumeRefs(volumeRefTmpfs)
+		packageDockerVolumes = append(packageDockerVolumes, volumeTmpfs)
+		packageDockerVolumeRefs = append(packageDockerVolumeRefs, volumeRefTmpfs)
 		packageDockerService = dockerService(volumeRefTmpfs)
 	case debPackage:
 		packageBuildCommands = append(packageBuildCommands,
@@ -504,6 +495,34 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	default:
 		panic("packageType is not set")
 	}
+
+	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
+	})
+	assumeBuildRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+			awsSecretAccessKey: value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+			role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Build AWS Role",
+	})
+	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Upload AWS Role",
+	})
 
 	pipelineName := fmt.Sprintf("%s-%s", dependentPipeline, packageType)
 
@@ -525,17 +544,18 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
+		assumeDownloadRoleStep,
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"AWS_REGION":    {raw: "us-west-2"},
+				"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
 			},
 			Commands: tagDownloadArtifactCommands(b),
+			Volumes:  []volumeRef{volumeRefAwsConfig},
 		},
+		assumeBuildRoleStep,
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
@@ -548,11 +568,12 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		assumeUploadRoleStep,
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",

@@ -167,7 +167,11 @@ func (r *TrackingReader) Count() uint64 {
 func (r *TrackingReader) Read(b []byte) (int, error) {
 	n, err := r.r.Read(b)
 	atomic.AddUint64(&r.count, uint64(n))
-	return n, trace.Wrap(err)
+
+	// This has to use the original error type or else utilities using the connection
+	// (like io.Copy, which is used by the oxy forwarder) may incorrectly categorize
+	// the error produced by this and terminate the connection unnecessarily.
+	return n, err
 }
 
 // TrackingWriter is an io.Writer that counts the total number of bytes

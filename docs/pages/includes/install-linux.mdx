@@ -14,7 +14,7 @@
         # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
         $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
           https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
-        | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
         $ sudo apt-get update
         $ sudo apt-get install teleport
@@ -90,7 +90,7 @@
           -o /usr/share/keyrings/teleport-archive-keyring.asc
         # Add the Teleport APT repository
         $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main" \
-        | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
         $ sudo apt-get update
         $ sudo apt-get install teleport
@@ -120,15 +120,14 @@ Next, use the appropriate commands for your environment to install your package.
 For example, use the following commands to install Teleport on a machine with an
 x86-64 chip via tarball:
 
-
 ```code
 $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
 # <checksum> <filename>
 $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
 $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
 # Verify that the checksums match
-$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-$ cd teleport
+$ tar -xvf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+$ cd teleport-ent
 $ sudo ./install
 ```
 
@@ -141,8 +140,8 @@ $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-am
 $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
 $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
 # Verify that the checksums match
-$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
-$ cd teleport
+$ tar -xvf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
+$ cd teleport-ent
 $ sudo ./install
 ```
 
@@ -163,7 +162,7 @@ $ sudo ./install
         # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-apt-repos/main.go#L26
         $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
           https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=cloud.major_version=)" \
-        | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
         $ sudo apt-get update
         $ sudo apt-get install teleport
         ```

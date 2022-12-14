@@ -20,12 +20,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 func TestDefaultPrompt_PromptCredential(t *testing.T) {

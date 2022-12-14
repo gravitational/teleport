@@ -18,22 +18,40 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
-	"github.com/gravitational/trace"
 )
 
-// ListServers lists servers
-func (s *Handler) ListServers(ctx context.Context, req *api.ListServersRequest) (*api.ListServersResponse, error) {
-	servers, err := s.DaemonService.ListServers(ctx, req.ClusterUri)
+// GetAllServers returns a full list of nodes without pagination or sorting.
+func (s *Handler) GetAllServers(ctx context.Context, req *api.GetAllServersRequest) (*api.GetAllServersResponse, error) {
+	servers, err := s.DaemonService.GetAllServers(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListServersResponse{}
+	response := &api.GetAllServersResponse{}
 	for _, srv := range servers {
 		response.Servers = append(response.Servers, newAPIServer(srv))
+	}
+
+	return response, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination
+func (s *Handler) GetServers(ctx context.Context, req *api.GetServersRequest) (*api.GetServersResponse, error) {
+	resp, err := s.DaemonService.GetServers(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.GetServersResponse{
+		TotalCount: int32(resp.TotalCount),
+		StartKey:   resp.StartKey,
+	}
+	for _, srv := range resp.Servers {
+		response.Agents = append(response.Agents, newAPIServer(srv))
 	}
 
 	return response, nil

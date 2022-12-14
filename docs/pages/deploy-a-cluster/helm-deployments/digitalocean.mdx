@@ -45,20 +45,19 @@ While the Kubernetes cluster is being provisioned, follow the "Getting Started" 
 
 ## Step 2/4. Install Teleport 
 
-Add the Teleport repository to Helm.
-
-```code
-$ helm repo add teleport https://charts.releases.teleport.dev
-```
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 Install Teleport in your Kubernetes cluster using the `teleport-cluster` Helm chart.
 ```code
 $ CLUSTERNAME=tele.example.com # replace with your preferred domain name
 $ EMAIL_ADDR=dodemo@goteleport.com # replace with your email
-$ helm install teleport-cluster teleport/teleport-cluster --create-namespace --namespace=teleport-cluster \
+$ helm install teleport-cluster teleport/teleport-cluster \
+  --create-namespace \
+  --namespace=teleport-cluster \
   --set clusterName=$CLUSTERNAME \
   --set acme=true \
-  --set acmeEmail=$EMAIL_ADDR
+  --set acmeEmail=$EMAIL_ADDR \
+  --version (=teleport.version=)
 NAME: teleport-cluster
 LAST DEPLOYED: Tue Oct 26 17:01:21 2021
 NAMESPACE: teleport-cluster
@@ -93,8 +92,8 @@ $ kubectl --namespace teleport-cluster exec deploy/teleport-cluster -- tctl user
 ```
 
 Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.teleporters.dev:443/web/invite/<invite-token>` in the above case).
-<Figure align="left" bordered caption="Setup user">
-  ![Setup user](../../../img/helm/digitalocean/setup-user.png)
+<Figure align="left" bordered caption="Set up user">
+  ![Set up user](../../../img/helm/digitalocean/setup-user.png)
 </Figure>
 
 
@@ -179,10 +178,6 @@ Enter your OTP token:
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-### Grant Kubernetes cluster access to your user
-
-(!docs/pages/includes/kubernetes-access/rbac.mdx!)
-
 ### Select the Kubernetes cluster
 
 ```code
@@ -208,6 +203,6 @@ Teleport keeps an audit log of access to a Kubernetes cluster. In the screenshot
 ## Next steps
 
 - [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
-- [Setup CI/CD Access with Teleport](../../kubernetes-access/guides/cicd.mdx)
+- [Set up CI/CD Access with Teleport](../../kubernetes-access/guides/cicd.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

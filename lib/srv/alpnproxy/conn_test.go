@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -134,7 +133,7 @@ func TestPingConnection(t *testing.T) {
 
 		r, w := makePingConn(t)
 		defer r.Close()
-		defer w.Close()
+		defer w.Close() // This call may be a noop, but it's here just in case.
 
 		// readResult struct is used to store the result of a read.
 		type readResult struct {
@@ -165,15 +164,15 @@ func TestPingConnection(t *testing.T) {
 				for {
 					n, err := r.Read(buf)
 					if err != nil {
-						switch {
+						switch err {
 						// Since we're partially reading the message, the last
 						// read will return an EOF. In this case, do nothing
 						// and send the remaining bytes.
-						case errors.Is(err, io.EOF):
+						case io.EOF:
 						// The connection will be closed only if the test is
 						// completed. The read result will be empty, so return
 						// the function to complete the goroutine.
-						case errors.Is(err, io.ErrClosedPipe):
+						case io.ErrClosedPipe:
 							return
 						// Any other error should fail the test and complete the
 						// goroutine.
@@ -204,6 +203,14 @@ func TestPingConnection(t *testing.T) {
 		}
 
 		require.Len(t, aggregator, len(dataWritten)*nWrites, "Wrong messages written")
+
+		require.NoError(t, w.Close())
+
+		res := <-resChan
+		// If there's an error here, it means the error was not io.EOF or io.ErrPipeClosed, as those should have been discarded
+		// by the goroutine above. This likely means that the errors in PingConn were wrapped with trace.Wrap, which can break
+		// callers of net.Conn.
+		require.NoError(t, res.err, "there should be no error on close, check if the errors have been wrapped with trace.Wrap")
 	})
 
 	t.Run("ConcurrentWrites", func(t *testing.T) {

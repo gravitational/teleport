@@ -19,29 +19,8 @@ package restrictedsession
 import (
 	"net"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 )
-
-// Config holds configuration for the RestrictedSession service.
-type Config struct {
-	// Enabled if this service will try and install BPF programs on this system.
-	Enabled bool
-
-	// EventsBufferSize is the size (in pages) of the perf buffer for events.
-	EventsBufferSize *int
-}
-
-// CheckAndSetDefaults checks BPF configuration.
-func (c *Config) CheckAndSetDefaults() error {
-	var perfBufferPageCount = defaults.PerfBufferPageCount
-
-	if c.EventsBufferSize == nil {
-		c.EventsBufferSize = &perfBufferPageCount
-	}
-
-	return nil
-}
 
 func compactIP(ip net.IP) net.IP {
 	if ipv4 := ip.To4(); ipv4 != nil {

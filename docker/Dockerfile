@@ -1,6 +1,5 @@
-# The base image (buildbox:latest) is built by running `make -C build.assets`
-# from the base repo directory $GOPATH/gravitational.com/teleport
-FROM public.ecr.aws/gravitational/teleport-buildbox:teleport11
+ARG BUILDBOX
+FROM $BUILDBOX
 
 # DEBUG=1 is needed for the Web UI to be loaded from static assets instead
 # of the binary

@@ -2,6 +2,7 @@ version: v1
 deps:
   # gogo/protobuf v1.3.2, keep in sync with build.assets/Makefile.
   - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
+  - buf.build/googleapis/googleapis:beb34b4050abfcfff72ff5cc6a28f0afa4043ce0
 lint:
   use:
     - DEFAULT
@@ -14,6 +15,7 @@ lint:
   except:
     # Allow Google API-style responses (CreateFoo returns Foo).
     # See https://cloud.google.com/apis/design/standard_methods.
+    - RPC_REQUEST_RESPONSE_UNIQUE
     - RPC_RESPONSE_STANDARD_NAME
   ignore:
     - teleport/legacy/client/proto/authservice.proto
@@ -26,10 +28,12 @@ lint:
     # Allow package/directory mismatch for legacy protos.
     PACKAGE_DIRECTORY_MATCH:
       - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/events/devicetrust.proto
       - teleport/legacy/types/webauthn/webauthn.proto
     # Allow non-versioned packages for legacy protos.
     PACKAGE_VERSION_SUFFIX:
       - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/events/devicetrust.proto
       - teleport/legacy/types/webauthn/webauthn.proto
 breaking:
   use:

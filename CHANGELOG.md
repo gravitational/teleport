@@ -1652,7 +1652,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/access-controls/access-request-plugins/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](./docs/pages/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
-*   [Jira Server](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira-server.mdx) and [Jira Cloud](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira-cloud.mdx)
+*   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx) 
 *   [Slack](./docs/pages/access-controls/access-request-plugins/ssh-approval-slack.mdx)
 *   [Mattermost](./docs/pages/access-controls/access-request-plugins/ssh-approval-mattermost.mdx)
 

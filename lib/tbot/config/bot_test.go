@@ -56,6 +56,10 @@ type mockAuth struct {
 	t           *testing.T
 }
 
+func (m *mockAuth) GetDomainName(ctx context.Context) (string, error) {
+	return m.clusterName, nil
+}
+
 func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: m.clusterName,
@@ -74,14 +78,12 @@ func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
 
 func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
-	require.Equal(m.t, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: m.clusterName,
-	}, id)
+	require.Equal(m.t, m.clusterName, id.DomainName)
 	require.False(m.t, loadKeys)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.HostCA,
+		// Pretend to be the correct type.
+		Type:        id.Type,
 		ClusterName: m.clusterName,
 		ActiveKeys: types.CAKeySet{
 			TLS: []*types.TLSKeyPair{
@@ -109,12 +111,12 @@ func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, lo
 
 func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
-	require.Equal(m.t, types.HostCA, caType)
 	require.False(m.t, loadKeys)
 
 	// We'll just wrap GetCertAuthority()'s dummy CA.
 	ca, err := m.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
+		// Just pretend to be whichever type of CA was requested.
+		Type:       caType,
 		DomainName: m.clusterName,
 	}, loadKeys, opts...)
 	require.NoError(m.t, err)

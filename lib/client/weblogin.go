@@ -32,6 +32,8 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,13 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 const (
@@ -276,7 +274,7 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 
 	if insecure {
 		// Skip https cert verification, print a warning that this is insecure.
-		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
+		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to Teleport proxy %v\n", proxyAddr)
 		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
 	} else if pool != nil {
 		// use custom set of trusted CAs

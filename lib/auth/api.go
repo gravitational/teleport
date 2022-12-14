@@ -20,11 +20,12 @@ import (
 	"context"
 	"io"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -689,6 +690,10 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// GetKubernetesCluster returns a kubernetes cluster resource identified by name.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -699,6 +704,13 @@ type DiscoveryAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// CreateKubernetesCluster creates a new kubernetes cluster resource.
+	CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
+	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
+	// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+	DeleteKubernetesCluster(ctx context.Context, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1046,6 +1058,21 @@ func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoi
 		accessPoint:              base,
 		ReadDiscoveryAccessPoint: cache,
 	}
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (w *DiscoveryWrapper) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return w.NoCache.CreateKubernetesCluster(ctx, cluster)
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return w.NoCache.UpdateKubernetesCluster(ctx, cluster)
+}
+
+// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+func (w *DiscoveryWrapper) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	return w.NoCache.DeleteKubernetesCluster(ctx, name)
 }
 
 // Close closes all associated resources

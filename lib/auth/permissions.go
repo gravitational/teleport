@@ -22,15 +22,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate/builder"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate/builder"
 )
 
 // NewAdminContext returns new admin auth context
@@ -145,17 +145,12 @@ Loop:
 	return lockTargets
 }
 
-// UseSearchAsRoles extends the roles of the Checker on the current Context with
-// the set of roles the user is allowed to search as.
-func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName string) error {
-	if len(c.Checker.GetAllowedResourceIDs()) > 0 {
-		return trace.AccessDenied("user is currently logged in with a search-based access request, cannot further extend roles for search")
-	}
+// UseExtraRoles extends the roles of the Checker on the current Context with
+// the given extra roles.
+func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, roles []string) error {
 	var newRoleNames []string
-	// include existing roles
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
-	// extend with allowed search_as_roles
-	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleNames = append(newRoleNames, roles...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
 	// set new roles on the context user and create a new access checker
@@ -278,6 +273,12 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// Adjust expiry based on locally mapped roles.
 	ttl := time.Until(u.Identity.Expires)
 	ttl = checker.AdjustSessionTTL(ttl)
+	var previousIdentityExpires time.Time
+	if u.Identity.MFAVerified != "" {
+		prevIdentityTTL := time.Until(u.Identity.PreviousIdentityExpires)
+		prevIdentityTTL = checker.AdjustSessionTTL(prevIdentityTTL)
+		previousIdentityExpires = time.Now().Add(prevIdentityTTL)
+	}
 
 	kubeUsers, kubeGroups, err := checker.CheckKubeGroupsAndUsers(ttl, false)
 	// IsNotFound means that the user has no k8s users or groups, which is fine
@@ -295,14 +296,15 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// This prevents downstream users from accidentally using the unmapped
 	// identity information and confusing who's accessing a resource.
 	identity := tlsca.Identity{
-		Username:         user.GetName(),
-		Groups:           user.GetRoles(),
-		Traits:           accessInfo.Traits,
-		Principals:       principals,
-		KubernetesGroups: kubeGroups,
-		KubernetesUsers:  kubeUsers,
-		TeleportCluster:  a.clusterName,
-		Expires:          time.Now().Add(ttl),
+		Username:                user.GetName(),
+		Groups:                  user.GetRoles(),
+		Traits:                  accessInfo.Traits,
+		Principals:              principals,
+		KubernetesGroups:        kubeGroups,
+		KubernetesUsers:         kubeUsers,
+		TeleportCluster:         a.clusterName,
+		Expires:                 time.Now().Add(ttl),
+		PreviousIdentityExpires: previousIdentityExpires,
 
 		// These fields are for routing and restrictions, safe to re-use from
 		// unmapped identity.
@@ -595,6 +597,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 					},
 				},
 			})
@@ -714,7 +717,10 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindKubernetesCluster, services.RW()),
 					},
+					// wildcard any cluster available.
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	}

@@ -30,6 +30,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -51,6 +55,14 @@ const (
 	credentialAuthHeaderElem   = "Credential"
 	signedHeaderAuthHeaderElem = "SignedHeaders"
 	signatureAuthHeaderElem    = "Signature"
+	// TargetHeader is a header containing the API target.
+	// Format: target_version.operation
+	// Example: DynamoDB_20120810.Scan
+	TargetHeader = "X-Amz-Target"
+	// AmzJSON1_0 is an AWS Content-Type header that indicates the media type is JSON.
+	AmzJSON1_0 = "application/x-amz-json-1.0"
+	// AmzJSON1_1 is an AWS Content-Type header that indicates the media type is JSON.
+	AmzJSON1_1 = "application/x-amz-json-1.1"
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -129,8 +141,8 @@ func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil || req.Body == http.NoBody {
 		return []byte{}, nil
 	}
-	// req.Body is closed during drainBody call.
-	payload, err := drainBody(req.Body)
+	// req.Body is closed during tryDrainBody call.
+	payload, err := tryDrainBody(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,16 +152,20 @@ func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
 	return payload, nil
 }
 
-// drainBody drains the body, close the reader and returns the read bytes.
-func drainBody(b io.ReadCloser) ([]byte, error) {
-	payload, err := io.ReadAll(b)
+// tryDrainBody tries to drain and close the body, returning the read bytes.
+// It may fail to completely drain the body if the size of the body exceeds MaxHTTPRequestSize.
+func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
+	defer func() {
+		if closeErr := b.Close(); closeErr != nil {
+			err = trace.NewAggregate(err, closeErr)
+		}
+	}()
+	payload, err = utils.ReadAtMost(b, teleport.MaxHTTPRequestSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		err = trace.Wrap(err)
+		return
 	}
-	if err = b.Close(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return payload, nil
+	return
 }
 
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
@@ -306,4 +322,41 @@ func (roles Roles) FindRolesByName(name string) (result Roles) {
 		}
 	}
 	return
+}
+
+// UnmarshalRequestBody reads and unmarshals a JSON request body into a protobuf Struct wrapper.
+// If the request is not a recognized AWS JSON media type, or the body cannot be read, or the body
+// is not valid JSON, then this function returns a nil value and an error.
+// The protobuf Struct wrapper is useful for serializing JSON into a protobuf, because otherwise when the
+// protobuf is marshaled it will re-marshall a JSON string field with escape characters or base64 encode
+// a []byte field.
+// Examples showing differences:
+// - JSON string in proto: `{"Table": "some-table"}` --marshal to JSON--> `"{\"Table\": \"some-table\"}"`
+// - bytes in proto: []byte --marshal to JSON--> `eyJUYWJsZSI6ICJzb21lLXRhYmxlIn0K` (base64 encoded)
+// - *Struct in proto: *Struct --marshal to JSON--> `{"Table": "some-table"}` (unescaped JSON)
+func UnmarshalRequestBody(req *http.Request) (*apievents.Struct, error) {
+	contentType := req.Header.Get("Content-Type")
+	if !isJSON(contentType) {
+		return nil, trace.BadParameter("invalid JSON request Content-Type: %q", contentType)
+	}
+	jsonBody, err := GetAndReplaceReqBody(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s := &apievents.Struct{}
+	if err := s.UnmarshalJSON(jsonBody); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s, nil
+}
+
+// isJSON returns true if the Content-Type is recognized as standard JSON or any non-standard
+// Amazon Content-Type header that indicates JSON media type.
+func isJSON(contentType string) bool {
+	switch contentType {
+	case "application/json", AmzJSON1_0, AmzJSON1_1:
+		return true
+	default:
+		return false
+	}
 }

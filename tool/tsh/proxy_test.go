@@ -62,7 +62,6 @@ func TestSSH(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *service.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
-			cfg.Proxy.SSHAddr.Addr = localListenerAddr()
 		}),
 	)
 
@@ -83,7 +82,7 @@ func TestSSH(t *testing.T) {
 }
 
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
-	tshHome := mustLogin(t, s)
+	tshHome, _ := mustLogin(t, s)
 	err := Run(context.Background(), []string{
 		"ssh",
 		s.root.Config.Hostname,
@@ -104,7 +103,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 }
 
 func testLeafClusterSSHAccess(t *testing.T, s *suite) {
-	tshHome := mustLogin(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
+	tshHome, _ := mustLogin(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
 	require.Eventually(t, func() bool {
 		err := Run(context.Background(), []string{
 			"ssh",
@@ -131,7 +130,7 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 
 func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// login to root
-	tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+	tshHome, _ := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
 
 	// Switch to leaf cluster
 	err := Run(context.Background(), []string{
@@ -180,6 +179,74 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	})
 }
 
+// TestSSHLoadAllCAs verifies "tsh ssh" command with loadAllCAs=true.
+func TestSSHLoadAllCAs(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	tests := []struct {
+		name string
+		opts []testSuiteOptionFunc
+	}{
+		{
+			name: "TLS routing enabled",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					cfg.Auth.LoadAllCAs = true
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+			},
+		},
+		{
+			name: "TLS routing disabled",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+					cfg.Auth.LoadAllCAs = true
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTestSuite(t, tc.opts...)
+
+			leafProxySSHAddr, err := s.leaf.ProxySSHAddr()
+			require.NoError(t, err)
+
+			// Login to root
+			tshHome, _ := mustLogin(t, s)
+
+			// Connect to leaf node
+			err = Run(context.Background(), []string{
+				"ssh", "-d",
+				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
+				s.leaf.Config.SSH.Addr.Host(),
+				"echo", "hello",
+			}, setHomePath(tshHome))
+			require.NoError(t, err)
+
+			// Connect to leaf node with Jump host
+			err = Run(context.Background(), []string{
+				"ssh", "-d",
+				"-J", leafProxySSHAddr.String(),
+				s.leaf.Config.Hostname,
+				"echo", "hello",
+			}, setHomePath(tshHome))
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestProxySSH verifies "tsh proxy ssh" functionality
 func TestProxySSH(t *testing.T) {
 	createAgent(t)
@@ -192,6 +259,7 @@ func TestProxySSH(t *testing.T) {
 			name: "TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -200,6 +268,7 @@ func TestProxySSH(t *testing.T) {
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -230,15 +299,21 @@ func TestProxySSH(t *testing.T) {
 				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()))
 				require.Error(t, err)
 
+				// login into Teleport
+				homePath, kubeConfigPath := mustLogin(t, s)
+
 				// Should succeed with login
-				err = runProxySSH(proxyRequest, setHomePath(mustLogin(t, s)))
+				err = runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
 				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
 
-				err := runProxySSH(proxyRequest, setHomePath(mustLogin(t, s)), setMockSSOLogin(t, s))
+				// login into Teleport
+				homePath, kubeConfigPath := mustLogin(t, s)
+
+				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
 				require.NoError(t, err)
 			})
 
@@ -253,12 +328,104 @@ func TestProxySSH(t *testing.T) {
 				t.Parallel()
 
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
-				err := runProxySSH(invalidLoginRequest, setHomePath(mustLogin(t, s)), setMockSSOLogin(t, s))
+
+				// login into Teleport
+				homePath, kubeConfigPath := mustLogin(t, s)
+
+				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
 				require.Error(t, err)
 				require.True(t, utils.IsHandshakeFailedError(err), "expected handshake error, got %v", err)
 			})
 		})
+	}
+}
 
+// TestProxySSHJumpHost verifies "tsh proxy ssh -J" functionality.
+func TestProxySSHJumpHost(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	createAgent(t)
+
+	tests := []struct {
+		name string
+		opts []testSuiteOptionFunc
+	}{
+		{
+			name: "TLS routing enabled for root and leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+			},
+		},
+		{
+			name: "TLS routing enabled for root and disabled for leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+			},
+		},
+		{
+			name: "TLS routing disabled for root and enabled for leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+			},
+		},
+		{
+			name: "TLS routing disabled for root and leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTestSuite(t, tc.opts...)
+
+			runProxySSHJump := func(opts ...cliOption) error {
+				proxyRequest := fmt.Sprintf("%s:%d",
+					s.leaf.Config.Proxy.SSHAddr.Host(),
+					s.leaf.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
+				return Run(context.Background(), []string{
+					"--insecure", "proxy", "ssh", "-J", s.leaf.Config.Proxy.WebAddr.Addr, proxyRequest,
+				}, opts...)
+			}
+
+			// login to root
+			tshHome, _ := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+
+			// Connect to leaf node though proxy jump host. This should automatically
+			// reissue leaf certs from the root without explicility switching clusters.
+			err := runProxySSHJump(setHomePath(tshHome))
+			require.NoError(t, err)
+
+			// Terminate root cluster.
+			err = s.root.Close()
+			require.NoError(t, err)
+
+			// Since we've already retrieved valid leaf certs, we should be able to connect without root.
+			err = runProxySSHJump(setHomePath(tshHome))
+			require.NoError(t, err)
+		})
 	}
 }
 
@@ -281,13 +448,13 @@ func TestTSHProxyTemplate(t *testing.T) {
 
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, tshConfigPath)
-	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0777))
+	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0o777))
 	require.NoError(t, os.WriteFile(tshConfigFile, []byte(fmt.Sprintf(`
 proxy_templates:
 - template: '^(\w+)\.(root):(.+)$'
   proxy: "%v"
   host: "$1:$3"
-`, s.root.Config.Proxy.WebAddr.Addr)), 0644))
+`, s.root.Config.Proxy.WebAddr.Addr)), 0o644))
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
@@ -296,7 +463,7 @@ Host *
   HostName %%h
   StrictHostKeyChecking no
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
-`, tshPath)), 0644)
+`, tshPath)), 0o644)
 
 	// Connect to "localnode" with OpenSSH.
 	mustRunOpenSSHCommand(t, sshConfigFile, "localnode.root",
@@ -446,7 +613,9 @@ func createAgent(t *testing.T) string {
 	sockDir := "test"
 	sockName := "agent.sock"
 
-	keyring := agent.NewKeyring()
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(keyring), nil
 	})
@@ -472,17 +641,22 @@ func setMockSSOLogin(t *testing.T, s *suite) cliOption {
 	}
 }
 
-func mustLogin(t *testing.T, s *suite, args ...string) string {
+func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
 	tshHome := t.TempDir()
+	kubeConfig := filepath.Join(t.TempDir(), teleport.KubeConfigFile)
 	args = append([]string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 	}, args...)
-	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
+	err := Run(context.Background(), args,
+		setMockSSOLogin(t, s),
+		setHomePath(tshHome),
+		setKubeConfigPath(kubeConfig),
+	)
 	require.NoError(t, err)
-	return tshHome
+	return tshHome, kubeConfig
 }
 
 // login with new temp tshHome and set it in Env. This is useful
@@ -520,7 +694,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "ssh_config")
-	err = os.WriteFile(configPath, buff.Bytes(), 0600)
+	err = os.WriteFile(configPath, buff.Bytes(), 0o600)
 	require.NoError(t, err)
 
 	return configPath
@@ -636,6 +810,7 @@ func Test_chooseProxyCommandTemplate(t *testing.T) {
 	tests := []struct {
 		name             string
 		commands         []dbcmd.CommandAlternative
+		randomPort       bool
 		wantTemplate     *template.Template
 		wantTemplateArgs map[string]any
 		wantOutput       string
@@ -652,7 +827,7 @@ func Test_chooseProxyCommandTemplate(t *testing.T) {
 			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 
-Use the following command to connect to the database:
+Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ echo "hello world"
 `,
 		},
@@ -677,7 +852,60 @@ Use the following command to connect to the database:
 			},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 
-Use one of the following commands to connect to the database:
+Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
+
+  * default: 
+
+  $ echo "hello world"
+
+  * alternative: 
+
+  $ echo "goodbye world"
+
+`,
+		},
+		{
+			name: "single command, random port",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+			},
+			randomPort:       true,
+			wantTemplate:     dbProxyAuthTpl,
+			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
+  $ echo "hello world"
+`,
+		},
+		{
+			name: "multiple commands, random port",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+				{
+					Description: "alternative",
+					Command:     exec.Command("echo", "goodbye world"),
+				},
+			},
+			randomPort:   true,
+			wantTemplate: dbProxyAuthMultiTpl,
+			wantTemplateArgs: map[string]any{
+				"commands": []templateCommandItem{
+					{Description: "default", Command: "echo \"hello world\""},
+					{Description: "alternative", Command: "echo \"goodbye world\""},
+				},
+			},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
   * default: 
 
@@ -702,7 +930,8 @@ Use one of the following commands to connect to the database:
 			templateArgs["database"] = "mydb"
 			templateArgs["cluster"] = "mycluster"
 			templateArgs["address"] = "127.0.0.1:64444"
-			templateArgs["type"] = dbProtocolToText(defaults.ProtocolMySQL)
+			templateArgs["type"] = defaults.ReadableDatabaseProtocol(defaults.ProtocolMySQL)
+			templateArgs["randomPort"] = tt.randomPort
 
 			buf := new(bytes.Buffer)
 			err := tpl.Execute(buf, templateArgs)

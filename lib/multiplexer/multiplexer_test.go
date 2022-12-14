@@ -35,22 +35,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgproto3/v2"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/constants"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer/test"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	"github.com/jackc/pgproto3/v2"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 // TestMux tests multiplexing protocols
 // using the same listener.
 func TestMux(t *testing.T) {
-	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	// TestMux tests basic use case of multiplexing TLS
@@ -651,7 +651,7 @@ func TestMux(t *testing.T) {
 		certPool.AppendCertsFromPEM(caCert)
 
 		// Sign server certificate.
-		serverRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+		serverRSAKey, err := native.GenerateRSAPrivateKey()
 		require.NoError(t, err)
 		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   pkix.Name{CommonName: "localhost"},
@@ -811,7 +811,9 @@ func TestProtocolString(t *testing.T) {
 }
 
 // server is used to implement test.PingerServer
-type server struct{}
+type server struct {
+	test.UnimplementedPingerServer
+}
 
 func (s *server) Ping(ctx context.Context, req *test.Request) (*test.Response, error) {
 	return &test.Response{Payload: "grpc backend"}, nil

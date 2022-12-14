@@ -65,6 +65,12 @@ func TestGetProxyAddress(t *testing.T) {
 			targetAddr: "192.168.1.1:3030",
 		},
 		{
+			info:       "valid, socks5 endpoint can be set in https_proxy",
+			env:        []env{{name: "https_proxy", val: "socks5://proxy:1234"}},
+			proxyAddr:  "proxy:1234",
+			targetAddr: "192.168.1.1:3030",
+		},
+		{
 			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches domain",
 			env: []env{
 				{name: "https_proxy", val: "http://proxy:1234"},
@@ -162,7 +168,7 @@ func buildProxyAddr(addr, user, pass string) (string, error) {
 		return addr, nil
 	}
 	userInfo := url.UserPassword(user, pass)
-	if strings.HasPrefix(addr, "http") {
+	if strings.HasPrefix(addr, "http") || strings.HasPrefix(addr, "socks5") {
 		u, err := url.Parse(addr)
 		if err != nil {
 			return "", trace.Wrap(err)

@@ -32,9 +32,10 @@
 //!    it didn't allocate but needs to hold on to, is responsible for copying it to its
 //!    own respective heap.
 //!
-//! In practice, this means that all the functions called from Go (those prefixed with
-//! `pub unsafe extern "C"`) MUST NOT hang on to any of the pointers passed in to them after
-//! they return. All pointer data that needs to persist MUST be copied into Rust-owned memory.
+//! In practice, this means that all the functions called from Go (those
+//! prefixed with `pub unsafe extern "C"`) MUST NOT hang on to any of the
+//! pointers passed in to them after they return. All pointer data that needs to
+//! persist MUST be copied into Rust-owned memory.
 
 mod cliprdr;
 mod errors;
@@ -64,7 +65,7 @@ use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString, NulError};
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
@@ -188,8 +189,8 @@ pub unsafe extern "C" fn connect_rdp(
     allow_directory_sharing: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
-    let addr = from_go_string(go_addr);
-    let username = from_go_string(go_username);
+    let addr = from_c_string(go_addr);
+    let username = from_c_string(go_username);
     let cert_der = from_go_array(cert_der, cert_der_len);
     let key_der = from_go_array(key_der, key_der_len);
 
@@ -264,7 +265,7 @@ fn connect_rdp_inner(
         .tcp
         .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
     let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
-    let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
+    let protocols = x224::Protocols::ProtocolSSL as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
 
@@ -667,61 +668,76 @@ impl<S: Read + Write> RdpClient<S> {
         }
     }
 
-    pub fn write_client_device_list_announce(
+    fn write_rdpdr(&mut self, messages: Messages) -> RdpResult<()> {
+        let chan = &rdpdr::CHANNEL_NAME.to_string();
+        for message in messages {
+            self.mcs.write(chan, message)?;
+        }
+        Ok(())
+    }
+
+    pub fn handle_client_device_list_announce(
         &mut self,
         req: rdpdr::ClientDeviceListAnnounce,
     ) -> RdpResult<()> {
-        self.rdpdr
-            .write_client_device_list_announce(req, &mut self.mcs)
+        let messages = self.rdpdr.handle_client_device_list_announce(req)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_info_response(
         &mut self,
         res: SharedDirectoryInfoResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_info_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_info_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_create_response(
         &mut self,
         res: SharedDirectoryCreateResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_create_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_create_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_delete_response(
         &mut self,
         res: SharedDirectoryDeleteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_delete_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_delete_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_list_response(
         &mut self,
         res: SharedDirectoryListResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_list_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_list_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_read_response(
         &mut self,
         res: SharedDirectoryReadResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_read_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_read_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_write_response(
         &mut self,
         res: SharedDirectoryWriteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_write_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_write_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_move_response(
         &mut self,
         res: SharedDirectoryMoveResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_move_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_move_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -878,7 +894,7 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
         rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, sd_announce.name);
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.write_client_device_list_announce(new_drive) {
+    match rdp_client.handle_client_device_list_announce(new_drive) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to announce new drive: {:?}", e);
@@ -1352,6 +1368,64 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
     res
 }
 
+#[repr(C)]
+pub struct ReasonOrError {
+    reason: *const c_char,
+    err: CGOErrCode,
+}
+
+/// get_server_disconnect_reason gets the reason the server disconnected the rdp session as communicated by the Set Error Info PDU
+/// (https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a21a1bd9-2303-49c1-90ec-3932435c248c).
+/// If no error has occured it returns an empty string.
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
+///
+/// It is the responsibility of the caller to call free_go_string on the return value's reason
+/// field if the error field is CGOErrCode::ErrCodeSuccess. If the error field is any other value
+/// the caller must not call free_go_string on the reason field.
+#[no_mangle]
+pub unsafe extern "C" fn get_server_disconnect_reason(client_ptr: *mut Client) -> ReasonOrError {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return ReasonOrError {
+                reason: ptr::null(),
+                err: cgo_error,
+            };
+        }
+    };
+
+    let rdp_client = match client.rdp_client.lock() {
+        Ok(rdp_client) => rdp_client,
+        Err(e) => {
+            error!("{:?}", e);
+            return ReasonOrError {
+                reason: ptr::null(),
+                err: CGOErrCode::ErrCodeFailure,
+            };
+        }
+    };
+
+    let reason = rdp_client.global.get_server_disconnect_reason();
+    let reason = match to_c_string(&reason) {
+        Ok(reason) => reason,
+        Err(e) => {
+            error!("{:?}", e);
+            return ReasonOrError {
+                reason: ptr::null(),
+                err: CGOErrCode::ErrCodeFailure,
+            };
+        }
+    };
+
+    ReasonOrError {
+        reason,
+        err: CGOErrCode::ErrCodeSuccess,
+    }
+}
+
 /// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
 ///
 /// # Safety
@@ -1368,7 +1442,7 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 /// s must be a C-style null terminated string.
 /// s is cloned here, and the caller is responsible for
 /// ensuring its memory is freed.
-unsafe fn from_go_string(s: *const c_char) -> String {
+unsafe fn from_c_string(s: *const c_char) -> String {
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
@@ -1387,6 +1461,27 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
     // In other words, all pointer data that needs to persist after this function returns MUST
     // be copied into Rust-owned memory.
     slice::from_raw_parts(data, len as usize).to_vec()
+}
+
+/// to_c_string can be used to return string values over the Go boundary.
+/// To avoid memory leaks, the Go function must call free_go_string once
+/// it's done with the memory.
+///
+/// See https://doc.rust-lang.org/std/ffi/struct.CString.html#method.into_raw
+fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
+    let c_string = CString::new(s)?;
+    Ok(c_string.into_raw())
+}
+
+/// See the docstring for to_c_string.
+///
+/// # Safety
+///
+/// s must be a pointer originally created by to_c_string
+#[no_mangle]
+pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
+    // retake pointer to free memory
+    let _ = CString::from_raw(s);
 }
 
 #[repr(C)]
@@ -1420,7 +1515,7 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
         unsafe {
             SharedDirectoryAnnounce {
                 directory_id: cgo.directory_id,
-                name: from_go_string(cgo.name),
+                name: from_c_string(cgo.name),
             }
         }
     }
@@ -1542,7 +1637,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
                 is_empty: cgo_fso.is_empty,
-                path: UnixPath::from(from_go_string(cgo_fso.path)),
+                path: UnixPath::from(from_c_string(cgo_fso.path)),
             }
         }
     }
@@ -1882,6 +1977,6 @@ pub(crate) type Message = Vec<u8>;
 pub(crate) type Messages = Vec<Message>;
 
 /// Encode is an object that can be encoded for sending to the RDP server.
-trait Encode: std::fmt::Debug {
+pub(crate) trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Message>;
 }

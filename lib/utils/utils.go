@@ -34,15 +34,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	"k8s.io/apimachinery/pkg/util/validation"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // WriteContextCloser provides close method with context
@@ -450,6 +450,12 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 		list = append(list, strconv.Itoa(i))
 	}
 	return PortList{ports: list}, nil
+}
+
+// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
+func HostUUIDExistsLocally(dataDir string) bool {
+	_, err := ReadHostUUID(dataDir)
+	return err == nil
 }
 
 // ReadHostUUID reads host UUID from the file in the data dir

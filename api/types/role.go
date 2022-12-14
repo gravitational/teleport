@@ -21,14 +21,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -129,13 +129,18 @@ type Role interface {
 
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
-	// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+	// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
 	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
 
 	// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
 	GetAWSRoleARNs(RoleConditionType) []string
-	// SetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	// SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to assume.
 	SetAWSRoleARNs(RoleConditionType, []string)
+
+	// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+	GetAzureIdentities(RoleConditionType) []string
+	// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+	SetAzureIdentities(RoleConditionType, []string)
 
 	// GetWindowsDesktopLabels gets the Windows desktop labels this role
 	// is allowed or denied access to.
@@ -159,14 +164,27 @@ type Role interface {
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
 
-	// GetSearchAsRoles returns the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	GetSearchAsRoles() []string
-	// SetSearchAsRoles sets the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	SetSearchAsRoles([]string)
+	// GetSearchAsRoles returns the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	GetSearchAsRoles(RoleConditionType) []string
+	// SetSearchAsRoles sets the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	SetSearchAsRoles(RoleConditionType, []string)
+
+	// GetPreviewAsRoles returns the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	GetPreviewAsRoles(RoleConditionType) []string
+	// SetPreviewAsRoles sets the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	SetPreviewAsRoles(RoleConditionType, []string)
 
 	// GetHostGroups gets the list of groups this role is put in when users are provisioned
 	GetHostGroups(RoleConditionType) []string
@@ -543,7 +561,7 @@ func (r *RoleV5) GetImpersonateConditions(rct RoleConditionType) ImpersonateCond
 	return *cond
 }
 
-// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
 func (r *RoleV5) SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions) {
 	if rct == Allow {
 		r.Spec.Allow.Impersonate = &cond
@@ -566,6 +584,23 @@ func (r *RoleV5) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
 		r.Spec.Allow.AWSRoleARNs = arns
 	} else {
 		r.Spec.Deny.AWSRoleARNs = arns
+	}
+}
+
+// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+func (r *RoleV5) GetAzureIdentities(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AzureIdentities
+	}
+	return r.Spec.Deny.AzureIdentities
+}
+
+// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+func (r *RoleV5) SetAzureIdentities(rct RoleConditionType, identities []string) {
+	if rct == Allow {
+		r.Spec.Allow.AzureIdentities = identities
+	} else {
+		r.Spec.Deny.AzureIdentities = identities
 	}
 }
 
@@ -792,6 +827,11 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	for _, arn := range r.Spec.Allow.AWSRoleARNs {
 		if arn == Wildcard {
 			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
+		}
+	}
+	for _, identity := range r.Spec.Allow.AzureIdentities {
+		if identity == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in allow.azure_identities")
 		}
 	}
 	checkWildcardSelector := func(labels Labels) error {
@@ -1237,22 +1277,62 @@ func (r *RoleV5) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
 }
 
-// GetSearchAsRoles returns the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) GetSearchAsRoles() []string {
-	if r.Spec.Allow.Request == nil {
+// GetSearchAsRoles returns the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV5) GetSearchAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.Request == nil {
 		return nil
 	}
-	return r.Spec.Allow.Request.SearchAsRoles
+	return roleConditions.Request.SearchAsRoles
 }
 
-// SetSearchAsRoles sets the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) SetSearchAsRoles(roles []string) {
-	if r.Spec.Allow.Request == nil {
-		r.Spec.Allow.Request = &AccessRequestConditions{}
+// SetSearchAsRoles sets the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV5) SetSearchAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
 	}
-	r.Spec.Allow.Request.SearchAsRoles = roles
+	if roleConditions.Request == nil {
+		roleConditions.Request = &AccessRequestConditions{}
+	}
+	roleConditions.Request.SearchAsRoles = roles
+}
+
+// GetPreviewAsRoles returns the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV5) GetPreviewAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		return nil
+	}
+	return roleConditions.ReviewRequests.PreviewAsRoles
+}
+
+// SetPreviewAsRoles sets the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV5) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		roleConditions.ReviewRequests = &AccessReviewConditions{}
+	}
+	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }

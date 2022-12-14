@@ -22,12 +22,12 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestHA tests scenario with multiple database services proxying the same database.

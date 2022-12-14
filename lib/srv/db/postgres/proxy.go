@@ -21,16 +21,15 @@ import (
 	"crypto/tls"
 	"net"
 
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgproto3/v2"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jackc/pgproto3/v2"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Proxy proxies connections from Postgres clients to database services
@@ -109,54 +108,81 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 // Returns the startup message that contains initial connect parameters and
 // the upgraded TLS connection.
 func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgproto3.StartupMessage, utils.TLSConn, *pgproto3.Backend, error) {
-	// Backend acts as a server for the Postgres wire protocol.
-	backend := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
-	startupMessage, err := backend.ReceiveStartupMessage()
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-	p.Log.Debugf("Received startup message: %#v.", startupMessage)
-	// When initiating an encrypted connection, psql will first check with
-	// the server whether it supports TLS by sending an SSLRequest message.
-	//
-	// Once the server has indicated the support (by sending 'S' in reply),
-	// it will send a StartupMessage with the connection parameters such as
-	// user name, database name, etc.
-	//
-	// https://www.postgresql.org/docs/13/protocol-flow.html#id-1.10.5.7.11
-	switch m := startupMessage.(type) {
-	case *pgproto3.SSLRequest:
-		if p.TLSConfig == nil {
-			// Send 'N' back to make the client connect without TLS. Happens
-			// when client connects through the local TLS proxy.
+	receivedSSLRequest := false
+	receivedGSSEncRequest := false
+	for {
+		// Backend acts as a server for the Postgres wire protocol.
+		backend := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
+		startupMessage, err := backend.ReceiveStartupMessage()
+		if err != nil {
+			return nil, nil, nil, trace.Wrap(err)
+		}
+		p.Log.Debugf("Received startup message: %#v.", startupMessage)
+		// When initiating an encrypted connection, psql will first check with
+		// the server whether it supports TLS by sending an SSLRequest message.
+		//
+		// Once the server has indicated the support (by sending 'S' in reply),
+		// it will send a StartupMessage with the connection parameters such as
+		// user name, database name, etc.
+		//
+		// https://www.postgresql.org/docs/13/protocol-flow.html#id-1.10.5.7.11
+		switch m := startupMessage.(type) {
+		case *pgproto3.SSLRequest:
+			if receivedSSLRequest {
+				// avoid receiving the same request over and over.
+				return nil, nil, nil, trace.BadParameter("received more than one SSLRequest")
+			}
+			receivedSSLRequest = true
+			if p.TLSConfig == nil {
+				// Send 'N' back to make the client connect without TLS. Happens
+				// when client connects through the local TLS proxy.
+				_, err := clientConn.Write([]byte("N"))
+				if err != nil {
+					return nil, nil, nil, trace.Wrap(err)
+				}
+			} else {
+				// Send 'S' back to indicate TLS support to the client.
+				_, err := clientConn.Write([]byte("S"))
+				if err != nil {
+					return nil, nil, nil, trace.Wrap(err)
+				}
+				// Upgrade the connection to TLS and wait for the next message
+				// which should be of the StartupMessage type.
+				clientConn = tls.Server(clientConn, p.TLSConfig)
+			}
+			// The client may then choose to either close the connection or issue
+			// another request.
+			// We loop again to receive another message.
+			continue
+		case *pgproto3.GSSEncRequest:
+			if receivedGSSEncRequest {
+				// avoid receiving the same request over and over.
+				return nil, nil, nil, trace.BadParameter("received more than one GSSEncRequest")
+			}
+			receivedGSSEncRequest = true
+			// Send 'N' back to make the client connect without GSS encryption.
 			_, err := clientConn.Write([]byte("N"))
 			if err != nil {
 				return nil, nil, nil, trace.Wrap(err)
 			}
-		} else {
-			// Send 'S' back to indicate TLS support to the client.
-			_, err := clientConn.Write([]byte("S"))
-			if err != nil {
-				return nil, nil, nil, trace.Wrap(err)
+			// The client may then choose to either close the connection or issue
+			// another request.
+			// We loop again to receive another message.
+			continue
+		case *pgproto3.StartupMessage:
+			// TLS connection between the client and this proxy has been
+			// established, just return the startup message.
+			switch tlsConn := clientConn.(type) {
+			case *tls.Conn:
+				return m, tlsConn, backend, nil
+			case *alpnproxy.PingConn:
+				return m, tlsConn, backend, nil
+			default:
+				return nil, nil, nil, trace.BadParameter(
+					"expected tls connection, got %T", clientConn)
 			}
-			// Upgrade the connection to TLS and wait for the next message
-			// which should be of the StartupMessage type.
-			clientConn = tls.Server(clientConn, p.TLSConfig)
 		}
-		return p.handleStartup(ctx, clientConn)
-	case *pgproto3.StartupMessage:
-		// TLS connection between the client and this proxy has been
-		// established, just return the startup message.
-		switch tlsConn := clientConn.(type) {
-		case *tls.Conn:
-			return m, tlsConn, backend, nil
-		case *alpnproxy.PingConn:
-			return m, tlsConn, backend, nil
-		default:
-			return nil, nil, nil, trace.BadParameter(
-				"expected tls connection, got %T", clientConn)
-		}
+		return nil, nil, nil, trace.BadParameter(
+			"unsupported startup message: %#v", startupMessage)
 	}
-	return nil, nil, nil, trace.BadParameter(
-		"unsupported startup message: %#v", startupMessage)
 }

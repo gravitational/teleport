@@ -23,22 +23,22 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
@@ -104,8 +104,10 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 		types.KindApp:                     rc.createApp,
 		types.KindDatabase:                rc.createDatabase,
+		types.KindKubernetesCluster:       rc.createKubeCluster,
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
+		types.KindNode:                    rc.createNode,
 	}
 	rc.config = config
 
@@ -562,6 +564,28 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client auth.ClientI, r
 	return nil
 }
 
+func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	cluster, err := services.UnmarshalKubeCluster(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+			}
+			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("kubernetes cluster %q has been updated\n", cluster.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("kubernetes cluster %q has been created\n", cluster.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createDatabase(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	database, err := services.UnmarshalDatabase(raw.Raw)
 	if err != nil {
@@ -604,6 +628,20 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	return trace.Wrap(err)
 }
 
+func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !rc.force {
+		return trace.AlreadyExists("nodes cannot be created, only upserted")
+	}
+
+	_, err = client.UpsertNode(ctx, server)
+	return trace.Wrap(err)
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -612,7 +650,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 	}
-	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
+	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
@@ -744,6 +782,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("database %q has been deleted\n", rc.ref.Name)
+	case types.KindKubernetesCluster:
+		if err = client.DeleteKubernetesCluster(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("kubernetes cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -761,7 +804,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		deleted := 0
 		var errs []error
 		for _, desktop := range desktops {
-			if desktop.GetName() != rc.ref.Name {
+			if desktop.GetName() == rc.ref.Name {
 				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
 					errs = append(errs, err)
 					continue
@@ -1225,7 +1268,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		if len(out) == 0 {
-			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
+			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
 		}
 		return &kubeServerCollection{servers: out}, nil
 	case types.KindNetworkRestrictions:
@@ -1260,6 +1303,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &databaseCollection{databases: []types.Database{database}}, nil
+	case types.KindKubernetesCluster:
+		if rc.ref.Name == "" {
+			clusters, err := client.GetKubernetesClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &kubeClusterCollection{clusters: clusters}, nil
+		}
+		cluster, err := client.GetKubernetesCluster(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &kubeClusterCollection{clusters: []types.KubeCluster{cluster}}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {

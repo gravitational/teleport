@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -235,20 +234,6 @@ func (c HostCertParams) Check() error {
 	return nil
 }
 
-// ChangePasswordReq defines a request to change user password
-type ChangePasswordReq struct {
-	// User is user ID
-	User string
-	// OldPassword is user current password
-	OldPassword []byte `json:"old_password"`
-	// NewPassword is user new password
-	NewPassword []byte `json:"new_password"`
-	// SecondFactorToken is user 2nd factor token
-	SecondFactorToken string `json:"second_factor_token"`
-	// WebauthnResponse is Webauthn sign response
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
-}
-
 // UserCertParams defines OpenSSH user certificate parameters
 type UserCertParams struct {
 	// CASigner is the signer that will sign the public key of the user with the CA private key
@@ -287,6 +272,11 @@ type UserCertParams struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
 	// SourceIP is an IP that certificate should be pinned to.

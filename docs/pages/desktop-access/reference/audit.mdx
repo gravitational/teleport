@@ -96,9 +96,7 @@ Emitted when a client disconnects from the desktop.
   "ei": 0,
   "event": "windows.desktop.session.end",
   "login": "administrator",
-  "participants": [
-    "alice"
-  ],
+  "participants": ["alice"],
   "recorded": true,
   "session_start": "2022-02-16T16:43:30.459Z",
   "session_stop": "2022-02-16T16:46:50.894Z",
@@ -153,6 +151,85 @@ were received.
   "proto": "tdp",
   "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
   "time": "2022-02-16T16:43:40.010217Z",
+  "uid": "e45d9890-38a9-4580-8572-35fa0192b123",
+  "user": "alice"
+}
+```
+
+## desktop.directory.share (TDP04I/W)
+
+Emitted when Teleport starts sharing a directory on a local machine to the remote desktop.
+
+```json
+{
+  "addr.remote": "192.168.1.206:3389",
+  "cluster_name": "root",
+  "code": "TDP04I", // TDP04W if the operation failed
+  "desktop_addr": "192.168.1.206:3389",
+  "directory_id": 2,
+  "directory_name": "local-files",
+  "ei": 0,
+  "event": "desktop.directory.share",
+  "proto": "tdp",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "success": true, // false if the operation failed
+  "time": "2022-10-21T22:36:27.314409Z",
+  "uid": "e45d9890-38a9-4580-8572-35fa0192b123",
+  "user": "alice"
+}
+```
+
+## desktop.directory.read (TDP05I/W)
+
+Emitted when Teleport reads data from a file on the local machine and sends it to a program on the remote desktop.
+In order to avoid capturing sensitive data, the event only records the offset from the start of the file from which
+the read began and the number of bytes that were sent.
+
+```json
+{
+  "addr.remote": "192.168.1.206:3389",
+  "cluster_name": "root",
+  "code": "TDP05I", // TDP05W if the operation failed
+  "desktop_addr": "192.168.1.206:3389",
+  "directory_id": 2,
+  "directory_name": "local-files",
+  "ei": 0,
+  "event": "desktop.directory.read",
+  "file_path": "powershell-scripts/a-script.ps1", // relative path from the root of the shared directory (local-files in this case)
+  "length": 734, // the number of bytes read
+  "offset": 0, // the offset from the start of the file from which the read began
+  "proto": "tdp",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "success": true, // false if the operation failed
+  "time": "2022-10-21T22:36:27.314409Z",
+  "uid": "e45d9890-38a9-4580-8572-35fa0192b123",
+  "user": "alice"
+}
+```
+
+## desktop.directory.write (TDP06I/W)
+
+Emitted when Teleport writes data from the remote desktop to a file on the local machine.
+In order to avoid capturing sensitive data, the event only records the offset from the start
+of the file from which the write began and the number of bytes that were written.
+
+```json
+{
+  "addr.remote": "192.168.1.206:3389",
+  "cluster_name": "root",
+  "code": "TDP06I", // TDP06W if the operation failed
+  "desktop_addr": "192.168.1.206:3389",
+  "directory_id": 2,
+  "directory_name": "local-files",
+  "ei": 0,
+  "event": "desktop.directory.read",
+  "file_path": "powershell-scripts/a-script.ps1", // relative path from the root of the shared directory (local-files in this case)
+  "length": 734, // the number of bytes written
+  "offset": 0, // the offset from the start of the file from which the write began
+  "proto": "tdp",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "success": true, // false if the operation failed
+  "time": "2022-10-21T22:36:27.314409Z",
   "uid": "e45d9890-38a9-4580-8572-35fa0192b123",
   "user": "alice"
 }

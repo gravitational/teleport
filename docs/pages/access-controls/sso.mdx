@@ -63,6 +63,7 @@ $ tctl get users/<username>
 $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl get users
 ```
+
 </ScopedBlock>
 
 Here is an example of a temporary `user` resource created when the GitHub user
@@ -214,9 +215,9 @@ The following authentication connectors are supported:
 
 |Type|Description|
 |---|---|
-|None|If no authentication connector is created, Teleport will use local authentication based user information stored in the Auth Service backend. You can manage user data via the `tctl users` command. |
+|None|If no authentication connector is created, Teleport will use local authentication based user information stored<br/> in the Auth Service backend. You can manage user data via the `tctl users` command. |
 |`saml`| The SAML connector type uses the [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language) to authenticate users and query their group membership.|
-|`oidc`| The OIDC connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) to authenticate users and query their group membership.|
+|`oidc`| The OIDC connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) to authenticate users<br/> and query their group membership.|
 |`github`| The GitHub connector uses GitHub SSO to authenticate users and query their group membership.|
 
 </ScopedBlock>
@@ -445,8 +446,6 @@ spec:
       '*': '*'
 ```
 
-<ScopedBlock scope={["cloud", "enterprise"]}>
-
 ### Provider-Specific Workarounds
 
 Certain SSO providers may require or benefit from changes to Teleport's SSO
@@ -463,8 +462,6 @@ values to match your identity provider:
 - `okta` (OIDC): Required when using Okta as an OIDC provider.
 
 At this time, the `spec.provider` field should not be set for any other identity providers.
-
-</ScopedBlock>
 
 ## Working with an external email identity
 
