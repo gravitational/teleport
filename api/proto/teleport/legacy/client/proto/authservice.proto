@@ -2195,6 +2195,15 @@ service AuthService {
   // DeleteAllDatabaseServers removes all registered database proxy servers.
   rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
 
+  // GetAllDatabaseServices returns all DatabaseService resources.
+  rpc GetAllDatabaseServices(google.protobuf.Empty) returns (types.DatabaseServiceV1List);
+  // UpsertDatabaseService registers a new DatabaseService.
+  rpc UpsertDatabaseService(types.UpsertDatabaseServiceRequest) returns (google.protobuf.Empty);
+  // DeleteDatabaseService removes the specified DatabaseService.
+  rpc DeleteDatabaseService(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllDatabaseServices removes all registered DatabaseServices.
+  rpc DeleteAllDatabaseServices(google.protobuf.Empty) returns (google.protobuf.Empty);
+
   // SignDatabaseCSR generates client certificate used by proxy to
   // authenticate with a remote database service.
   rpc SignDatabaseCSR(DatabaseCSRRequest) returns (DatabaseCSRResponse);

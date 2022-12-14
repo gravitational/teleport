@@ -3861,6 +3861,38 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
 }
 
+// GetAllDatabaseServices returns all DatabaseService resources.
+func (a *ServerWithRoles) GetAllDatabaseServices(ctx context.Context) (*types.DatabaseServiceV1List, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.NotImplemented("no DatabaseService service")
+}
+
+// UpsertDatabaseService creates or updates a new DatabaseService resource.
+func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
+	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.NotImplemented("no DatabaseService service")
+}
+
+// DeleteAllDatabaseServices removes all DatabaseService resources.
+func (a *ServerWithRoles) DeleteAllDatabaseServices(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.NotImplemented("no DatabaseService service")
+}
+
+// DeleteDatabaseService removes a specific DatabaseService resource.
+func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.NotImplemented("no DatabaseService service")
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
