@@ -136,7 +136,7 @@ $CA_CERT_YAML = $CA_CERT_PEM | ForEach-Object { "        " + $_  } | Out-String
 
 $NET_BIOS_NAME = (Get-ADDomain).NetBIOSName
 $LDAP_USERNAME = "$NET_BIOS_NAME\$SAM_ACCOUNT_NAME"
-$LDAP_USER_SID=(Get-ADUser -Identity svc-teleport).SID.Value
+$LDAP_USER_SID=(Get-ADUser -Identity $SAM_ACCOUNT_NAME).SID.Value
 
 $COMPUTER_NAME = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Name
 $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
