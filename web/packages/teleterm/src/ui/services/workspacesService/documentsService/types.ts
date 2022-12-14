@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import * as uri from 'teleterm/ui/uri';
+
 export type Kind =
   | 'doc.access_requests'
   | 'doc.cluster'
@@ -24,7 +26,7 @@ export type Kind =
   | 'doc.terminal_tsh_kube';
 
 interface DocumentBase {
-  uri: string;
+  uri: uri.DocumentUri;
   title: string;
   kind: Kind;
 }
@@ -37,7 +39,7 @@ export interface DocumentTshNode extends DocumentBase {
   kind: 'doc.terminal_tsh_node';
   status: 'connecting' | 'connected' | 'disconnected';
   serverId: string;
-  serverUri: string;
+  serverUri: uri.ServerUri;
   rootClusterId: string;
   leafClusterId?: string;
   login?: string;
@@ -47,7 +49,7 @@ export interface DocumentTshKube extends DocumentBase {
   kind: 'doc.terminal_tsh_kube';
   status: 'connecting' | 'connected' | 'disconnected';
   kubeId: string;
-  kubeUri: string;
+  kubeUri: uri.KubeUri;
   kubeConfigRelativePath: string;
   rootClusterId: string;
   leafClusterId?: string;
@@ -55,8 +57,8 @@ export interface DocumentTshKube extends DocumentBase {
 
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
-  gatewayUri?: string;
-  targetUri: string;
+  gatewayUri?: uri.GatewayUri;
+  targetUri: uri.DatabaseUri;
   targetUser: string;
   targetName: string;
   targetSubresourceName?: string;
@@ -65,12 +67,12 @@ export interface DocumentGateway extends DocumentBase {
 
 export interface DocumentCluster extends DocumentBase {
   kind: 'doc.cluster';
-  clusterUri: string;
+  clusterUri: uri.ClusterUri;
 }
 
 export interface DocumentAccessRequests extends DocumentBase {
   kind: 'doc.access_requests';
-  clusterUri: string;
+  clusterUri: uri.ClusterUri;
   state: AccessRequestDocumentState;
   requestId: string;
 }
@@ -96,8 +98,8 @@ export type Document =
   | DocumentTerminal;
 
 export type CreateGatewayDocumentOpts = {
-  gatewayUri?: string;
-  targetUri: string;
+  gatewayUri?: uri.GatewayUri;
+  targetUri: uri.DatabaseUri;
   targetName: string;
   targetUser: string;
   targetSubresourceName?: string;
@@ -106,16 +108,16 @@ export type CreateGatewayDocumentOpts = {
 };
 
 export type CreateClusterDocumentOpts = {
-  clusterUri: string;
+  clusterUri: uri.ClusterUri;
 };
 
 export type CreateTshKubeDocumentOptions = {
-  kubeUri: string;
+  kubeUri: uri.KubeUri;
   kubeConfigRelativePath?: string;
 };
 
 export type CreateAccessRequestDocumentOpts = {
-  clusterUri: string;
+  clusterUri: uri.ClusterUri;
   state: AccessRequestDocumentState;
   title?: string;
   requestId?: string;

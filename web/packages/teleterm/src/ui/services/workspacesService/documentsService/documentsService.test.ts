@@ -5,9 +5,9 @@ import { Document, DocumentGateway, DocumentTshNode } from './types';
 
 function getMockedDocuments(): Document[] {
   return [
-    { uri: 'test1', kind: 'doc.terminal_shell', title: 'T1' },
-    { uri: 'test2', kind: 'doc.terminal_shell', title: 'T2' },
-    { uri: 'test3', kind: 'doc.terminal_shell', title: 'T3' },
+    { uri: '/docs/test1', kind: 'doc.terminal_shell', title: 'T1' },
+    { uri: '/docs/test2', kind: 'doc.terminal_shell', title: 'T2' },
+    { uri: '/docs/test3', kind: 'doc.terminal_shell', title: 'T3' },
   ];
 }
 
@@ -54,12 +54,12 @@ test('get document should return the document', () => {
 describe('document should be added', () => {
   const mockedDocuments = getMockedDocuments();
   const newDocument: DocumentGateway = {
-    uri: 'new-doc',
+    uri: '/docs/new-doc',
     title: 'New doc',
     kind: 'doc.gateway',
-    gatewayUri: '',
-    targetUri: '',
-    targetName: '',
+    gatewayUri: '/gateways/123',
+    targetUri: '/clusters/bar/dbs/quux',
+    targetName: 'quux',
     targetUser: 'foo',
   };
 
@@ -106,12 +106,12 @@ test('only TSH node documents should be returned', () => {
   const service = createService(mockedDocks);
 
   const tshNodeDocument: DocumentTshNode = {
-    uri: 'test1',
+    uri: '/docs/test1',
     kind: 'doc.terminal_tsh_node',
     title: 'TSH',
-    serverId: '',
+    serverId: 'bar',
     login: '',
-    serverUri: '',
+    serverUri: '/clusters/foo/servers/bar',
     status: 'connecting',
     rootClusterId: '',
   };
@@ -126,12 +126,12 @@ test('only gateway documents should be returned', () => {
   const service = createService(mockedDocks);
 
   const gatewayDocument: DocumentGateway = {
-    uri: 'test1',
+    uri: '/docs/test1',
     kind: 'doc.gateway',
     title: 'gw',
-    gatewayUri: '',
-    targetUri: '',
-    targetName: '',
+    gatewayUri: '/gateways/123',
+    targetUri: '/clusters/bar/dbs/quux',
+    targetName: 'quux',
     targetUser: 'foo',
   };
 

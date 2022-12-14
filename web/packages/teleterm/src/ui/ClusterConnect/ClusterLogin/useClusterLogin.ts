@@ -21,6 +21,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 import * as types from 'teleterm/ui/services/clusters/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
@@ -183,7 +184,7 @@ export default function useClusterLogin(props: Props) {
 export type State = ReturnType<typeof useClusterLogin>;
 
 export type Props = {
-  clusterUri: string;
+  clusterUri: RootClusterUri;
   onCancel(): void;
   onSuccess?(): void;
 };

@@ -15,7 +15,7 @@ it('returns the result of actionToRetry if no error is thrown', async () => {
 
   const actualReturnValue = await retryWithRelogin(
     undefined,
-    '',
+    '/clusters/foo',
     actionToRetry
   );
 
@@ -45,7 +45,7 @@ it('opens the login modal window and calls actionToRetry again on successful rel
   jest
     .spyOn(appContext.modalsService, 'openClusterConnectDialog')
     .mockImplementation(({ onSuccess }) => {
-      onSuccess('');
+      onSuccess('/clusters/foo');
 
       // Dialog cancel function.
       return { closeDialog: () => {} };

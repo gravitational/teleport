@@ -22,13 +22,14 @@ import {
 } from 'teleterm/ui/services/keyboardShortcuts';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { useNewTabOpener } from 'teleterm/ui/TabHost/useNewTabOpener';
+import { ClusterUri } from 'teleterm/ui/uri';
 
 export function useTabShortcuts({
   documentsService,
   localClusterUri,
 }: {
   documentsService: DocumentsService;
-  localClusterUri: string;
+  localClusterUri: ClusterUri;
 }) {
   const { openClusterTab } = useNewTabOpener({
     documentsService,

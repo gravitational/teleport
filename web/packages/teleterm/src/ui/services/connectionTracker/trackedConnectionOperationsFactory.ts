@@ -1,4 +1,4 @@
-import { routing } from 'teleterm/ui/uri';
+import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 
@@ -176,13 +176,7 @@ export class TrackedConnectionOperationsFactory {
     };
   }
 
-  private getClusterUris({
-    rootClusterId,
-    leafClusterId,
-  }: {
-    rootClusterId: string;
-    leafClusterId: string;
-  }): { rootClusterUri: string; leafClusterUri: string } {
+  private getClusterUris({ rootClusterId, leafClusterId }) {
     const rootClusterUri = routing.getClusterUri({
       rootClusterId,
     });
@@ -192,16 +186,18 @@ export class TrackedConnectionOperationsFactory {
     });
 
     return {
-      rootClusterUri,
+      rootClusterUri: rootClusterUri as RootClusterUri,
       leafClusterUri:
-        rootClusterUri === leafClusterUri ? undefined : leafClusterUri,
+        rootClusterUri === leafClusterUri
+          ? undefined
+          : (leafClusterUri as LeafClusterUri),
     };
   }
 }
 
 interface TrackedConnectionOperations {
-  rootClusterUri: string;
-  leafClusterUri: string;
+  rootClusterUri: RootClusterUri;
+  leafClusterUri: LeafClusterUri;
 
   activate(): void;
 

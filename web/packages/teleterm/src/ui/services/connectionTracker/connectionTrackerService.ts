@@ -22,8 +22,7 @@ import {
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
-
-import { routing } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -173,7 +172,9 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       )
         .flatMap(clusterUri => {
           const docService =
-            this._workspacesService.getWorkspaceDocumentService(clusterUri);
+            this._workspacesService.getWorkspaceDocumentService(
+              clusterUri as RootClusterUri
+            );
           return docService?.getDocuments();
         })
         .filter(Boolean)

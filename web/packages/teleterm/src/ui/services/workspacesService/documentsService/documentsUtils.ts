@@ -1,9 +1,9 @@
-import { routing } from 'teleterm/ui/uri';
+import { ClusterOrResourceUri, routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { Document } from './types';
 
-export function getResourceUri(document: Document): string {
+export function getResourceUri(document: Document): ClusterOrResourceUri {
   switch (document.kind) {
     case 'doc.cluster':
       return document.clusterUri;

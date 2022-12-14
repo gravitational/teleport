@@ -23,6 +23,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { IAppContext } from 'teleterm/ui/types';
 import { GatewayProtocol, makeDatabase } from 'teleterm/ui/services/clusters';
+import { DatabaseUri } from 'teleterm/ui/uri';
 
 import { MenuLoginTheme } from '../MenuLoginTheme';
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
@@ -119,7 +120,7 @@ function ConnectButton({
   protocol,
   onConnect,
 }: {
-  dbUri: string;
+  dbUri: DatabaseUri;
   protocol: GatewayProtocol;
   onConnect: (dbUser: string) => void;
 }) {
@@ -165,7 +166,7 @@ function getMenuLoginOptions(
   };
 }
 
-async function getDatabaseUsers(appContext: IAppContext, dbUri: string) {
+async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
   try {
     const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
       appContext.clustersService.getDbUsers(dbUri)

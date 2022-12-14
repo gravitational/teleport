@@ -198,9 +198,9 @@ test('parse returns correct result for a database name suggestion', async () => 
         isBarCollapsed: false,
         pending: getEmptyPendingAccessRequest(),
       },
-      localClusterUri: 'test_uri',
+      localClusterUri: '/clusters/test_uri',
       documents: [],
-      location: '',
+      location: '/docs/1',
     }));
   jest
     .spyOn(ResourcesServiceMock.prototype, 'fetchDatabases')
@@ -209,7 +209,7 @@ test('parse returns correct result for a database name suggestion', async () => 
         agentsList: [
           {
             hostname: 'foobar',
-            uri: '',
+            uri: '/clusters/test_uri/dbs/foobar',
             name: '',
             desc: '',
             protocol: '',
@@ -380,7 +380,7 @@ test('parse returns correct result for an SSH host suggestion right after user@'
             hostname: 'bazbar',
             name: '',
             addr: '',
-            uri: '',
+            uri: '/clusters/foo/servers/bazbar',
             tunnel: false,
             labelsList: null,
           },
@@ -390,19 +390,17 @@ test('parse returns correct result for an SSH host suggestion right after user@'
       });
     });
   jest
-    .spyOn(ClustersServiceMock.prototype, 'searchServers')
-    .mockImplementation(() => {
-      return [
-        {
-          hostname: 'bazbar',
-          name: '',
-          addr: '',
-          uri: '',
-          tunnel: false,
-          labelsList: null,
-        },
-      ];
-    });
+    .spyOn(WorkspacesServiceMock.prototype, 'getActiveWorkspace')
+    .mockImplementation(() => ({
+      accessRequests: {
+        assumed: {},
+        isBarCollapsed: false,
+        pending: getEmptyPendingAccessRequest(),
+      },
+      localClusterUri: '/clusters/test_uri',
+      documents: [],
+      location: '/docs/1',
+    }));
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined, undefined),
@@ -439,7 +437,7 @@ test('parse returns correct result for a partial match on an SSH host suggestion
             hostname: 'bazbar',
             name: '',
             addr: '',
-            uri: '',
+            uri: '/clusters/foo/servers/bazbar',
             tunnel: false,
             labelsList: null,
           },
@@ -456,9 +454,9 @@ test('parse returns correct result for a partial match on an SSH host suggestion
         isBarCollapsed: false,
         pending: getEmptyPendingAccessRequest(),
       },
-      localClusterUri: 'test_uri',
+      localClusterUri: '/clusters/test_uri',
       documents: [],
-      location: '',
+      location: '/docs/1',
     }));
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),

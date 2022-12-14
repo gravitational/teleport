@@ -3,11 +3,28 @@ import * as grpc from '@grpc/grpc-js';
 
 import * as api from 'teleterm/services/tshd/v1/tshd_events_service_pb';
 import * as apiService from 'teleterm/services/tshd/v1/tshd_events_service_grpc_pb';
+import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
 import { SubscribeToTshdEvent } from 'teleterm/types';
 
-export type ReloginRequest = api.ReloginRequest.AsObject;
-export type SendNotificationRequest = api.SendNotificationRequest.AsObject;
+export interface ReloginRequest extends api.ReloginRequest.AsObject {
+  rootClusterUri: uri.RootClusterUri;
+  gatewayCertExpired?: GatewayCertExpired;
+}
+export interface GatewayCertExpired extends api.GatewayCertExpired.AsObject {
+  gatewayUri: uri.GatewayUri;
+  targetUri: uri.DatabaseUri;
+}
+
+export interface SendNotificationRequest
+  extends api.SendNotificationRequest.AsObject {
+  cannotProxyGatewayConnection?: CannotProxyGatewayConnection;
+}
+export interface CannotProxyGatewayConnection
+  extends api.CannotProxyGatewayConnection.AsObject {
+  gatewayUri: uri.GatewayUri;
+  targetUri: uri.DatabaseUri;
+}
 
 /**
  * Starts tshd events server.

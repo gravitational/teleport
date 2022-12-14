@@ -22,60 +22,60 @@ function getMockDocuments(): Document[] {
   return [
     {
       kind: 'doc.blank',
-      uri: 'test_uri_1',
+      uri: '/docs/test_uri_1',
       title: 'Test 1',
     },
     {
       kind: 'doc.blank',
-      uri: 'test_uri_2',
+      uri: '/docs/test_uri_2',
       title: 'Test 2',
     },
     {
       kind: 'doc.blank',
-      uri: 'test_uri_3',
+      uri: '/docs/test_uri_3',
       title: 'Test 3',
     },
     {
       kind: 'doc.gateway',
-      uri: 'test_uri_4',
+      uri: '/docs/test_uri_4',
       title: 'Test 4',
-      gatewayUri: '',
-      targetUri: '',
+      gatewayUri: '/gateways/gateway4',
+      targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'foo',
     },
     {
       kind: 'doc.gateway',
-      uri: 'test_uri_5',
+      uri: '/docs/test_uri_5',
       title: 'Test 5',
-      gatewayUri: '',
-      targetUri: '',
+      gatewayUri: '/gateways/gateway5',
+      targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'bar',
     },
     {
       kind: 'doc.cluster',
-      uri: 'test_uri_6',
+      uri: '/docs/test_uri_6',
       title: 'Test 6',
-      clusterUri: 'none',
+      clusterUri: '/clusters/foo',
     },
     {
       kind: 'doc.cluster',
-      uri: 'test_uri_7',
+      uri: '/docs/test_uri_7',
       title: 'Test 7',
-      clusterUri: 'test_uri',
+      clusterUri: '/clusters/test_uri',
     },
     {
       kind: 'doc.cluster',
-      uri: 'test_uri_8',
+      uri: '/docs/test_uri_8',
       title: 'Test 8',
-      clusterUri: 'test_uri_8',
+      clusterUri: '/clusters/test_uri_8',
     },
     {
       kind: 'doc.cluster',
-      uri: 'test_uri_9',
+      uri: '/docs/test_uri_9',
       title: 'Test 9',
-      clusterUri: 'test_uri_9',
+      clusterUri: '/clusters/test_uri_9',
     },
   ];
 }
@@ -120,15 +120,15 @@ function getTestSetup({ documents }: { documents: Document[] }) {
           isBarCollapsed: false,
           pending: getEmptyPendingAccessRequest(),
         },
-        localClusterUri: 'test_uri',
+        localClusterUri: '/clusters/test_uri',
         documents: [],
-        location: '',
+        location: '/docs/1',
       };
     },
     useState: jest.fn(),
     state: {
       workspaces: {},
-      rootClusterUri: '',
+      rootClusterUri: '/clusters/test_uri',
     },
   };
 
@@ -209,8 +209,8 @@ test('open new tab', () => {
     documents: [],
   });
   const mockedClusterDocument: DocumentCluster = {
-    clusterUri: 'test',
-    uri: 'test',
+    clusterUri: '/clusters/test',
+    uri: '/docs/test',
     title: 'Test',
     kind: 'doc.cluster',
   };

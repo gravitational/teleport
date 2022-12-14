@@ -35,15 +35,15 @@ export default {
 
 const rootClusterDoc = {
   kind: 'doc.cluster' as const,
-  clusterUri: '/clusters/localhost',
-  uri: '/docs/123',
+  clusterUri: '/clusters/localhost' as const,
+  uri: '/docs/123' as const,
   title: 'sample',
 };
 
 const leafClusterDoc = {
   kind: 'doc.cluster' as const,
-  clusterUri: '/clusters/localhost/leaves/foo',
-  uri: '/docs/456',
+  clusterUri: '/clusters/localhost/leaves/foo' as const,
+  uri: '/docs/456' as const,
   title: 'sample',
 };
 

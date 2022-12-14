@@ -1,13 +1,14 @@
+import { RootClusterUri } from 'teleterm/ui/uri';
+
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
 
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
-
 import { Workspace, WorkspacesService } from './workspacesService';
 
 describe('restoring workspace', () => {
   function getTestSetup(options: {
-    clusterUri: string; // assumes that only one cluster can be added
+    clusterUri: RootClusterUri; // assumes that only one cluster can be added
     persistedWorkspaces: Record<string, Workspace>;
   }) {
     const statePersistenceService: Partial<StatePersistenceService> = {
@@ -44,7 +45,7 @@ describe('restoring workspace', () => {
       kind: 'doc.cluster',
       title: 'Cluster Test',
       clusterUri: options.clusterUri,
-      uri: 'docs/test-cluster-uri',
+      uri: '/docs/test-cluster-uri',
     };
 
     const workspacesService = new WorkspacesService(
@@ -76,11 +77,11 @@ describe('restoring workspace', () => {
       documents: [
         {
           kind: 'doc.terminal_shell',
-          uri: 'docs/some_uri',
+          uri: '/docs/some_uri',
           title: '/Users/alice/Documents',
         },
       ],
-      location: 'docs/some_uri',
+      location: '/docs/some_uri',
     };
 
     const { workspacesService, clusterDocument } = getTestSetup({

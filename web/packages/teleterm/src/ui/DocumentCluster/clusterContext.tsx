@@ -20,7 +20,7 @@ import { useStore, Store } from 'shared/libs/stores';
 
 import { tsh } from 'teleterm/ui/services/clusters/types';
 import { IAppContext } from 'teleterm/ui/types';
-import { routing } from 'teleterm/ui/uri';
+import { ClusterUri, DocumentUri, KubeUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 type State = {
@@ -37,11 +37,8 @@ class ClusterContext extends Store<State> {
   private _cluster: tsh.Cluster;
 
   readonly appCtx: IAppContext;
-
-  readonly clusterUri: string;
-
-  readonly documentUri: string;
-
+  readonly clusterUri: ClusterUri;
+  readonly documentUri: DocumentUri;
   readonly state: State = {
     navLocation: '/resources/servers',
     clusterName: '',
@@ -52,7 +49,11 @@ class ClusterContext extends Store<State> {
     statusText: '',
   };
 
-  constructor(appCtx: IAppContext, clusterUri: string, documentUri: string) {
+  constructor(
+    appCtx: IAppContext,
+    clusterUri: ClusterUri,
+    documentUri: DocumentUri
+  ) {
     super();
     this.clusterUri = clusterUri;
     this.documentUri = documentUri;
@@ -72,7 +73,7 @@ class ClusterContext extends Store<State> {
     });
   };
 
-  connectKube = (kubeUri: string) => {
+  connectKube = (kubeUri: KubeUri) => {
     this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
   };
 
@@ -143,12 +144,6 @@ class ClusterContext extends Store<State> {
   changeSearchValue = (searchValue: string) => {
     this.setState({ searchValue });
   };
-
-  getApps() {
-    return this.appCtx.clustersService.searchApps(this.clusterUri, {
-      search: this.state.searchValue,
-    });
-  }
 
   getSyncStatus() {
     return this.appCtx.clustersService.getClusterSyncStatus(this.clusterUri);

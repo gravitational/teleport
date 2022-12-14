@@ -3,9 +3,9 @@ import { screen } from '@testing-library/react';
 import { fireEvent, render } from 'design/utils/testing';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { Cluster } from 'teleterm/services/tshd/v1/cluster_pb';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { IAppContext } from 'teleterm/ui/types';
+import { Cluster } from 'teleterm/services/tshd/types';
 
 import { ShareFeedback } from './ShareFeedback';
 
@@ -28,7 +28,7 @@ test('email field is not prefilled with the username if is not an email', () => 
     .mockImplementation(() => {
       return {
         loggedInUser: { name: 'alice' },
-      } as Cluster.AsObject;
+      } as Cluster;
     });
 
   jest
@@ -53,7 +53,7 @@ test('email field is prefilled with the username if it looks like an email', () 
         loggedInUser: {
           name: 'bob@prod.com',
         },
-      } as Cluster.AsObject;
+      } as Cluster;
     });
 
   jest
