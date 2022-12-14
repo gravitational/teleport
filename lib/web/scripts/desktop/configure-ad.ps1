@@ -142,11 +142,11 @@ $COMPUTER_NAME = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Name
 $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
 $LDAP_ADDR="$COMPUTER_IP" + ":636"
 
-$DESKTOP_ACCESS_CONFIG_YAML=@'
+$DESKTOP_ACCESS_CONFIG_YAML=@"
 version: v3
 teleport:
-  auth_token: {0}
-  proxy_server: {1}
+  auth_token: $TELEPORT_PROVISION_TOKEN
+  proxy_server: $TELEPORT_PROXY_PUBLIC_ADDR
 
 auth_service:
   enabled: no
@@ -158,19 +158,19 @@ proxy_service:
 windows_desktop_service:
   enabled: yes
   ldap:
-    addr:     '{2}'
-    domain:   '{3}'
-    username: '{4}'
-    sid: '{5}'
-    server_name: '{6}'
+    addr:     '$LDAP_ADDR'
+    domain:   '$DOMAIN_NAME'
+    username: '$LDAP_USERNAME'
+    sid: '$LDAP_USER_SID'
+    server_name: '$COMPUTER_NAME'
     insecure_skip_verify: false
     ldap_ca_cert: |
-{7}
+$CA_CERT_YAML
   discovery:
     base_dn: '*'
   labels:
-    teleport.internal/resource-id: {8}
-'@ -f $TELEPORT_PROVISION_TOKEN, $TELEPORT_PROXY_PUBLIC_ADDR, $LDAP_ADDR, $DOMAIN_NAME, $LDAP_USERNAME, $LDAP_USER_SID, $COMPUTER_NAME, $CA_CERT_YAML, $TELEPORT_INTERNAL_RESOURCE_ID
+    teleport.internal/resource-id: $TELEPORT_INTERNAL_RESOURCE_ID
+"@
 
 $OUTPUT=@'
 
