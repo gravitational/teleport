@@ -422,7 +422,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	}
 	var activeDirectorySID *string = &s.cfg.SID
 	if s.cfg.SID == "" {
-		s.cfg.Log.Warnf(`Your ldap config is missing the SID of the user you're
+		s.cfg.Log.Warnf(`Your LDAP config is missing the SID of the user you're
 		using to sign in. This is set to become a strict requirement by May 2023,
 		please update your configuration file before then.`)
 		activeDirectorySID = nil
