@@ -1,0 +1,80 @@
+# This example demonstrates how to tune Kubernetes scheduling constraints through the chart.
+# The fictional cluster runs on 3 zones and has a dedicated node set for the proxies.
+# Proxy nodes are tainted and labeled with `teleport.dev/role: proxy`.
+# Auth data is stored in a PVC, so it cannot be scaled-up. However, we can run multiple proxy replicas.
+clusterName: teleport.example.com
+
+auth:
+  resources:
+    requests:
+      cpu: "3"
+      memory: "6GiB"
+    limits:
+      cpu: "3"
+      memory: "6GiB"
+
+proxy:
+  resources:
+    requests:
+      cpu: "1"
+      memory: "4GiB"
+    limits:
+      cpu: "1"
+      memory: "4GiB"
+  highAvailability:
+    replicaCount: 5
+    podDisruptionBudget:
+      enabled: false
+      minAvailable: 3
+
+  tolerations:
+    - key: "telelport.dev/role"
+      operator: "Equal"
+      value: "proxy"
+      effect: "NoSchedule"
+
+  affinity:
+    # proxy pods MUST run on proxy nodes
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: teleport.dev/role
+                operator: In
+                values:
+                  - auth
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        # We try to avoid running all proxy pods on the same zone
+        - weight: 30
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - proxy
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                    - RELEASE-NAME
+            topologyKey: topology.kubernetes.io/zone
+        # We really don't want to stack proxy pods on the same node
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - proxy
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                    - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+
+highAvailability:
+  certManager:
+    enabled: true
+    issuerName: letsencrypt-production
