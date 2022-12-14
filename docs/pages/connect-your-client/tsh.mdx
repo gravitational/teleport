@@ -13,7 +13,7 @@ You will learn how to:
   reverse tunnels.
 - Explore a cluster and execute commands on specific nodes in the cluster.
 - Share interactive shell sessions with colleagues or join someone else's session.
-- Replay recorded interactive sessions.
+- List and replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your
 terminal for the CLI reference.
@@ -176,7 +176,7 @@ A Teleport cluster can be configured for multiple user identity sources. For exa
 $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Log in using GitHub as an SSO provider, assuming the GitHub connector is called "github"
-$ tsh --proxy=proxy.example.com --auth=github --user=admin login
+$ tsh --proxy=proxy.example.com --auth=github login
 ```
 
 </ScopedBlock>
@@ -187,7 +187,7 @@ $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 $ tsh --proxy=mytenant.teleport.sh --auth=local --user=admin login
 
 # Log in using GitHub as an SSO provider, assuming the GitHub connector is called "github"
-$ tsh --proxy=mytenant.teleport.sh --auth=github --user=admin login
+$ tsh --proxy=mytenant.teleport.sh --auth=github login
 ```
 
 </ScopedBlock>
@@ -795,10 +795,10 @@ In either of those files you can add define an alias such as:
 
 ```yaml
 aliases:
-    "l": "tsh login --auth=okta --user=alice"
+    "l": "tsh login --auth=okta"
 ```
 
-From now on, `tsh l` will resolve to `tsh login --auth=okta --user=alice`.
+From now on, `tsh l` will resolve to `tsh login --auth=okta`.
 
 You can also change the defaults for regular `tsh` commands:
 
@@ -840,6 +840,46 @@ The alias substitution happens before the command line flags are fully parsed. T
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
+```
+
+# Interactive Recording
+
+Within the Teleport cluster the Server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
+The same listings, including Desktop Access sessions, are available in the Web Console under Session Recordings in the Activity section.
+
+## List and Play Recordings
+
+Get the list of recorded sessions. By default, recordings for the past 24 hours are shown.
+The time range can be customized with the `--last`, `--from-utc`, and `--to-utc` flags.
+
+```code
+$ tsh recordings ls
+ID                                   Type Participants Hostname Timestamp           
+------------------------------------ ---- ------------ -------- ------------------- 
+b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC 
+c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC 
+d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC 
+```
+
+To play sessions, use the `tsh play <sessionid>` command. The screen will reset playing the interactive session with the timestamp in the upper right.
+
+```code
+$ tsh play c0a02222-70dc-4be8-9308-7b7901d2d600
+root@ubuntu:/# df                                                                     2022-11-26T21:20:52.715Z
+Filesystem     1K-blocks    Used Available Use% Mounted on
+overlay         20959212 4387284  16571928  21% /
+tmpfs              65536       0     65536   0% /dev
+tmpfs            1982720       0   1982720   0% /sys/fs/cgroup
+/dev/nvme0n1p1  20959212 4387284  16571928  21% /etc/hosts
+shm                65536       0     65536   0% /dev/shm
+tmpfs            3410436      12   3410424   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs            1982720       0   1982720   0% /proc/acpi
+tmpfs            1982720       0   1982720   0% /sys/firmware
+root@ubuntu:/# exit
+exit
+
+
+end of session playback
 ```
 
 ## Further reading

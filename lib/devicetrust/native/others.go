@@ -37,3 +37,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 func signChallenge(chal []byte) (sig []byte, err error) {
 	return nil, errPlatformNotSupported
 }
+
+func getDeviceCredential() (*devicepb.DeviceCredential, error) {
+	return nil, errPlatformNotSupported
+}
