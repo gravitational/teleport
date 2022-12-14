@@ -1270,6 +1270,10 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
       - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
       - [ ] `type: local`, `second_factor: "on"`, log in with OTP
       - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
+      - [ ] `type: local`, `second_factor: "on"`, log in with passwordless auth
+      - [ ] Verify that the passwordless credential picker works.
+         - To make the picker show up, you need to add the same MFA device with passwordless
+           capabilities to multiple users.
       - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
          - For those you might want to use clusters that are deployed on the web, specified in
            parens. Or set up the connectors on a local enterprise cluster following [the guide from
