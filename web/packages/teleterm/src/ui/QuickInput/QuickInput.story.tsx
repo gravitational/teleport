@@ -66,7 +66,13 @@ export const Story = () => {
 
   return (
     <AppContextProvider value={appContext}>
-      <QuickInput />
+      <div
+        css={`
+          height: 40px;
+        `}
+      >
+        <QuickInput />
+      </div>
     </AppContextProvider>
   );
 };
