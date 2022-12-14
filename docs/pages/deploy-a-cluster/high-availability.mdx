@@ -18,8 +18,8 @@ This includes:
 
 - **A Layer Four load balancer** to direct traffic from users and services to an
   available `teleport` process.
-- A **key-value store** for Auth Service state and audit events that all
-  `teleport` instances can access. This requires permissions for `teleport`
+- A **key-value store** for Auth Service state and audit events that all Auth
+  Service instances can access. This requires permissions for Auth Service
   instances to manage records within the key-value store.
 - An **object storage service** for session recordings uploaded by the Auth
   Service. This requires permissions for `teleport` instances to manage objects
@@ -46,14 +46,10 @@ load balancer to the corresponding port on an available Teleport instance:
 
 | Port | Description |
 | - | - |
-| `3021` | Port used by Teleport Proxy Service instances to dial agents in [Proxy Peering mode](../management/operations/proxy-peering.mdx). |
-| `3022` | SSH port. This is Teleport's equivalent of port `22` for SSH. |
 | `3023` | SSH port for clients connect to. The Proxy Service will forward this connection to port `3022` on the destination Node. |
 | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
-| `3025` | TLS port used by the Auth Service to serve its gRPC API to Teleport services  in a cluster. |
 | `443` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 | `3026` | HTTPS Kubernetes proxy |
-| `3027` | Kubernetes Service |
 | `3028` | Desktop Service |
 | `3036` | MySQL port |
 | `5432` | Postgres port |
@@ -70,21 +66,23 @@ events:
 
 - Amazon DynamoDB
 - Google Cloud Firestore
-- etcd
 
 For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration (which
 we will describe in more detail in the [Configuration](#configuration) section)
 names a table or collection where Teleport stores cluster state and audit
-events. For etcd, Teleport uses namespaces within item keys to identify audit
-events and cluster state data.
+events. 
 
 The Teleport Auth Service manages the creation of any required DynamoDB tables
 or Firestore collections itself, and does not require them to exist in advance.
 
+The Auth Service can also store cluster state in self-hosted etcd deployments.
+In this case, Teleport uses namespaces within item keys to identify cluster
+state data.
+
 <Admonition title="Required permissions">
 
 In your cloud provider's RBAC solution (e.g., AWS or Google Cloud IAM), your
-Teleport instances need permissions to read from and write to your chosen
+Auth Service instances need permissions to read from and write to your chosen
 key/value store, as well as to create tables and collections (if your key/value
 store supports them).
 
@@ -106,15 +104,18 @@ to prevent unexpected behavior, you should not create it in advance.
 
 <Admonition title="Required permissions">
 
-In your cloud provider's RBAC solution, your Teleport instances need
+In your cloud provider's RBAC solution, your Auth Service instances need
 permissions to create, read from, and write to buckets.
 
 </Admonition>
 
 ## TLS credential provisioning 
 
-High-availability Teleport deployments require an automated system to fetch
-certificates from Let's Encrypt and provision Teleport instances with them. 
+High-availability Teleport deployments require an automated system to fetch TLS
+credentials from a certificate authority like Let's Encrypt, AWS Certificate
+Manager, Digicert, or a trusted internal authority. The system must then
+provision Teleport Proxy Service instances with these credentials and renew them
+periodically. 
 
 If you are running a single instance of the Teleport Auth Service and Proxy
 Service, you can configure this instance to fetch credentials for itself from
@@ -123,18 +124,17 @@ challenge](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01), where
 Teleport demonstrates that it controls the ALPN server at the HTTPS address of
 your Teleport Proxy Service.
 
-For high-availability deployments, however, it is much more efficient to use a
-separate system to request TLS credentials from Let's Encrypt and provision
-Teleport instances with them. In this case, with multiple Teleport instances
-behind a load balancer, you will need to use the [ACME
+For high-availability deployments that use Let's Encrypt to supply TLS
+credentials to Teleport instances running behind a load balancer, you will need
+to use the [ACME
 DNS-01](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge)
 challenge to demonstrate domain name ownership to Let's Encrypt. In this
 challenge, your TLS credential provisioning system creates a DNS TXT record with
 a value expected by Let's Encrypt.
 
-In the configuration we are demonstrating in this guide, each Teleport instance
-expects TLS credentials for HTTPS to be available at the file paths
-`/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
+In the configuration we are demonstrating in this guide, each Teleport Proxy
+Service instance expects TLS credentials for HTTPS to be available at the file
+paths `/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
 (certificate).
 
 ## DNS service
@@ -148,10 +148,12 @@ You must create a DNS A record that points to the address of your load balancer.
 
 <Admonition title="Required permissions">
 
-The TLS credential provisioner we mentioned earlier needs permissions to manage
-DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. If you are
-using cloud-managed solutions, you should use your cloud provider's RBAC system
-(e.g., AWS IAM) to grant a role to the Proxy Service to manage DNS records. 
+If you are using Let's Encrypt to provide TLS credentials to your Teleport
+instances, the TLS credential system  we mentioned earlier needs permissions to
+manage DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. If you
+are using cloud-managed solutions, you should use your cloud provider's RBAC
+system (e.g., AWS IAM) to grant a role to the Proxy Service to manage DNS
+records. 
 
 </Admonition>
 
@@ -166,19 +168,16 @@ will show you how to configure each binary for high availability.
 ### Open ports
 
 Ensure that, on each Teleport instance, the following ports allow traffic from
-the load balancer. If you do not plan to run a service associated with a given
-port, you can plan to leave that port closed.
+the load balancer. The Proxy Service uses these ports to communicate with
+Teleport users and services. If you do not plan to run a service associated with
+a given port, you can plan to leave that port closed.
 
 | Port | Description |
 | - | - |
-| `3021` | Port used by Teleport Proxy Service instances to dial agents in [Proxy Peering mode](../management/operations/proxy-peering.mdx). |
-| `3022` | SSH port. This is Teleport's equivalent of port `22` for SSH. |
 | `3023` | SSH port for clients connect to. The Proxy Service will forward this connection to port `3022` on the destination Node. |
 | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
-| `3025` | TLS port used by the Auth Service to serve its gRPC API to Teleport services  in a cluster. |
 | `443` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 | `3026` | HTTPS Kubernetes proxy |
-| `3027` | Kubernetes Service |
 | `3028` | Desktop Service |
 | `3036` | MySQL port |
 | `5432` | Postgres port |
@@ -188,7 +187,7 @@ port, you can plan to leave that port closed.
 ### License file
 
 If you are deploying Teleport Enterprise, you need to download a license file
-and make it available to your Teleport instances.
+and make it available to your Teleport Auth Service instances.
 
 To obtain your license file, visit the [Teleport customer
 dashboard](https://dashboard.gravitational.com/web/login) and log in. Click
@@ -197,7 +196,7 @@ permissions and the option to download your license file:
 
 ![License File modal](../../img/enterprise/license.png)
 
-The license file must be available to each Teleport instance at
+The license file must be available to each Teleport Auth Service instance at
 `/var/lib/teleport/license.pem`. 
 
 ### Configuration
@@ -356,7 +355,7 @@ performing as expected:
 ### Deploy Teleport services
 
 Once your high-availability Teleport deployment is up and running, you can add
-2esources by launching Teleport services. You can run these services in a
+resources by launching Teleport services. You can run these services in a
 separate network from your Teleport cluster. 
 
 To get started, read about registering:
