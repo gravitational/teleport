@@ -1,7 +1,7 @@
 ---
 authors: Rafał Cieślak (rafal.cieslak@goteleport.com)
 state: draft
- ---
+---
 
 # RFD 99 - Making bundled tsh available outside of Connect
 
