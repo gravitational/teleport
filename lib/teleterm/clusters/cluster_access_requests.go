@@ -267,17 +267,17 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 }
 
 func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
-	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
+	resourceIDsByCluster := req.GetNodeResourceIDsByCluster()
 
 	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
-		hostnames, err := services.GetResourceHostnames(ctx, clusterName, clt, resourceIDs)
+		details, err := services.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for id, hostname := range hostnames {
+		for id, d := range details {
 			resourceDetails[id] = ResourceDetails{
-				Hostname: hostname,
+				Hostname: d.Hostname,
 			}
 		}
 	}

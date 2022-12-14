@@ -1482,20 +1482,7 @@ func roleAllowsResource(
 
 type ListResourcesRequestOption func(*proto.ListResourcesRequest)
 
-func GetResourceIDsByCluster(req types.AccessRequest) map[string][]types.ResourceID {
-	resourceIDsByCluster := make(map[string][]types.ResourceID)
-	for _, resourceID := range req.GetRequestedResourceIDs() {
-		if resourceID.Kind != types.KindNode {
-			// The only detail we want, for now, is the server hostname, so we
-			// can skip all other resource kinds as a minor optimization.
-			continue
-		}
-		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
-	}
-	return resourceIDsByCluster
-}
-
-func GetResourceHostnames(ctx context.Context, clusterName string, lister ResourceLister, ids []types.ResourceID) (map[string]string, error) {
+func GetResourceDetails(ctx context.Context, clusterName string, lister ResourceLister, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
 	var nodeIDs []types.ResourceID
 	for _, resourceID := range ids {
 		if resourceID.Kind != types.KindNode {
@@ -1516,7 +1503,7 @@ func GetResourceHostnames(ctx context.Context, clusterName string, lister Resour
 		return nil, trace.Wrap(err)
 	}
 
-	result := make(map[string]string)
+	result := make(map[string]types.ResourceDetails)
 	for _, resource := range resources {
 		hn, ok := resource.(interface{ GetHostname() string })
 		if !ok {
@@ -1527,7 +1514,9 @@ func GetResourceHostnames(ctx context.Context, clusterName string, lister Resour
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		}
-		result[types.ResourceIDToString(id)] = hn.GetHostname()
+		result[types.ResourceIDToString(id)] = types.ResourceDetails{
+			Hostname: hn.GetHostname(),
+		}
 	}
 
 	return result, nil
