@@ -11,6 +11,30 @@ to programatically interact with the API. [tsh and tctl](../reference/cli.mdx) u
 
 ## Go client
 
+Starting with Teleport 12, the API client is a versioned Go module.
+
+The API client uses the same versioning scheme as Teleport itself, and upholds the same
+compabitility rules. Namely, a client can talk to Teleport servers that are at the same
+major version or one major version ahead. For example, a v11 API client is compabible
+with a Teleport 12 cluster.
+
+The inverse is not necessarily true - a v12 API client may work with a v11 Teleport cluster,
+but this is not an officially supported configuration and is not guaranteed to work.
+
+To add a dependency on Teleport's API module, you first need to determine the version
+of the API module you'd like to pull in. For example, if you want to use the API module
+that corresponds to the Teleport 12.0.1 release, run the following:
+
+```
+$ go get github.com/gravitational/teleport/api/v12@v12.0.1
+```
+
+In this example, `github.com/gravitational/teleport/api/v12` is the module path, and
+`v12.0.1` is the the version.
+
+The import path in Go programs using this module will be 
+`github.com/gravitational/teleport/api/v12`, and the package name is `api`.
+
 Here is what you can do with the Go Client:
  - Integrating with external tools, which we have already done 
    for [several tools](../access-controls/access-request-plugins/index.mdx),
@@ -20,5 +44,4 @@ Here is what you can do with the Go Client:
  - Performing CRUD actions on resources, such as `roles`, `auth connectors`, and `provisioning tokens`.
  - Dynamically configuring Teleport.
 
-Create an API client in 3 minutes with the [Getting Started
-Guide](./getting-started.mdx).
+Create an API client in 3 minutes with the [Getting Started Guide](./getting-started.mdx).

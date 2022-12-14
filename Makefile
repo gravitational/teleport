@@ -870,13 +870,13 @@ update-api-import-path:
 	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam desktop_access_rdp linux"
 	$(MAKE) grpc
 
-# make tag - prints a tag to use with git for the current version
+# make update-tag - tags (and pushes) the current version
 # 	To put a new release on Github:
 # 		- bump VERSION variable
 # 		- run make setver
 # 		- commit changes to git
-# 		- build binaries with 'make release'
-# 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
+# 		- build binaries with `make release`
+# 		- run `make update-tag`
 .PHONY: update-tag
 update-tag:
 	@test $(VERSION)
