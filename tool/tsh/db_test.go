@@ -70,6 +70,14 @@ func TestDatabaseLogin(t *testing.T) {
 		Name:     "mssql",
 		Protocol: defaults.ProtocolSQLServer,
 		URI:      "localhost:1433",
+	}, service.Database{
+		Name:     "dynamodb",
+		Protocol: defaults.ProtocolDynamoDB,
+		URI:      "", // uri must be blank for DynamoDB.
+		AWS: service.DatabaseAWS{
+			AccountID: "12345",
+			Region:    "us-west-1",
+		},
 	})
 
 	authServer := authProcess.GetAuthServer()
@@ -110,6 +118,12 @@ func TestDatabaseLogin(t *testing.T) {
 			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
 		},
+		{
+			databaseName:          "dynamodb",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for DynamoDB.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for DynamoDB.
+		},
 	}
 
 	// Note: keystore currently races when multiple tsh clients work in the
@@ -130,8 +144,8 @@ func TestDatabaseLogin(t *testing.T) {
 			// Verify certificates.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
 			require.NoError(t, err)
-			require.Len(t, certs, test.expectCertsLen)
-			require.Len(t, keys, test.expectKeysLen)
+			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
+			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
 		})
 	}
 
@@ -491,6 +505,12 @@ func TestFormatDatabaseConnectArgs(t *testing.T) {
 			cluster:   "",
 			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
 			wantFlags: []string{"svc"},
+		},
+		{
+			name:      "match user name, dynamodb",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolDynamoDB, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
 		},
 	}
 	for _, tt := range tests {

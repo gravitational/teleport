@@ -379,12 +379,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
-		return trace.Wrap(err)
+
+	if requiresLocalProxyTunnel(routeToDatabase.Protocol) && !cf.LocalProxyTunnel {
+		return trace.BadParameter("%v proxy works only in the tunnel mode. Please add --tunnel flag to enable it",
+			defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol))
 	}
 
-	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
-		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
+	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
+		return trace.Wrap(err)
 	}
 
 	rootCluster, err := client.RootClusterName(cf.Context)
@@ -861,6 +863,16 @@ func envVarCommand(format, key, value string) (string, error) {
 
 	default:
 		return "", trace.BadParameter("unsupported format %q", format)
+	}
+}
+
+// requiresLocalProxyTunnel returns whether the given protocol requires a local proxy with the --tunnel flag.
+func requiresLocalProxyTunnel(protocol string) bool {
+	switch protocol {
+	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
+		return true
+	default:
+		return false
 	}
 }
 

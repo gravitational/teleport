@@ -508,3 +508,91 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestDynamoDBEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc            string
+		target          string // from X-Amz-Target in requests
+		region          string
+		wantService     string
+		wantSigningName string
+		wantEndpoint    string
+		wantErrMsg      string
+	}{
+		{
+			desc:            "dynamodb target in us west",
+			target:          "DynamoDB_20120810.Scan",
+			region:          "us-west-1",
+			wantService:     "DynamoDB",
+			wantSigningName: "dynamodb",
+			wantEndpoint:    "dynamodb.us-west-1.amazonaws.com:443",
+		},
+		{
+			desc:            "dynamodb target in china",
+			target:          "DynamoDB_20120810.Scan",
+			region:          "cn-north-1",
+			wantService:     "DynamoDB",
+			wantSigningName: "dynamodb",
+			wantEndpoint:    "dynamodb.cn-north-1.amazonaws.com.cn:443",
+		},
+		{
+			desc:            "dynamodb streams target in us west",
+			target:          "DynamoDBStreams_20120810.ListStreams",
+			region:          "us-west-1",
+			wantService:     "DynamoDB Streams",
+			wantSigningName: "dynamodb",
+			wantEndpoint:    "streams.dynamodb.us-west-1.amazonaws.com:443",
+		},
+		{
+			desc:            "dynamodb streams target in china",
+			target:          "DynamoDBStreams_20120810.ListStreams",
+			region:          "cn-north-1",
+			wantService:     "DynamoDB Streams",
+			wantSigningName: "dynamodb",
+			wantEndpoint:    "streams.dynamodb.cn-north-1.amazonaws.com.cn:443",
+		},
+		{
+			desc:            "dax target in us west",
+			target:          "AmazonDAXV3.ListTags",
+			region:          "us-west-1",
+			wantService:     "DAX",
+			wantSigningName: "dax",
+			wantEndpoint:    "dax.us-west-1.amazonaws.com:443",
+		},
+		{
+			desc:            "dax target in china",
+			target:          "AmazonDAXV3.ListTags",
+			region:          "cn-north-1",
+			wantService:     "DAX",
+			wantSigningName: "dax",
+			wantEndpoint:    "dax.cn-north-1.amazonaws.com.cn:443",
+		},
+		{
+			desc:       "unrecognizable target",
+			target:     "DDB.Scan",
+			wantErrMsg: "is not recognized",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			service, err := ParseDynamoDBServiceFromTarget(tt.target)
+			if tt.wantErrMsg != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				return
+			}
+			require.Equal(t, tt.wantService, service)
+			signingName, err := DynamoDBServiceToSigningName(service)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSigningName, signingName)
+			prefix, err := DynamoDBEndpointPrefixForService(service)
+			require.NoError(t, err)
+			endpoint := prefix + DynamoDBEndpointSuffixForRegion(tt.region)
+			require.Equal(t, tt.wantEndpoint, endpoint)
+		})
+	}
+}

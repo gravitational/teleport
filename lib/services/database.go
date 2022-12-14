@@ -166,7 +166,8 @@ func ValidateDatabase(db types.Database) error {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
-	} else if db.GetProtocol() == defaults.ProtocolCassandra && db.GetAWS().Region != "" && db.GetAWS().AccountID != "" {
+	} else if (db.GetProtocol() == defaults.ProtocolCassandra || db.GetProtocol() == defaults.ProtocolDynamoDB) && db.GetAWS().Region != "" && db.GetAWS().AccountID != "" {
+		// TODO(gavin): refactor this check into a helper func "requires URI validation"
 		// In case of cloud hosted Cassandra doesn't require URI validation.
 	} else if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)

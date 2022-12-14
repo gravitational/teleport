@@ -19,6 +19,8 @@ package types
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -477,6 +479,155 @@ func TestDatabaseSelfHosted(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, DatabaseTypeSelfHosted, database.GetType())
 			require.False(t, database.IsCloudHosted())
+		})
+	}
+}
+
+func TestDynamoDBConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc       string
+		uri        string
+		region     string
+		account    string
+		wantSpec   DatabaseSpecV3
+		wantErrMsg string
+	}{
+		{
+			desc:    "dynamodb with account and region and empty URI is correct",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: ".us-west-1.amazonaws.com:443",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "dynamodb with account and AWS URI and empty region is correct",
+			uri:     "dynamodb.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: ".us-west-1.amazonaws.com:443",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "dynamodb with account and AWS URI suffix and empty region is correct",
+			uri:     ".us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: ".us-west-1.amazonaws.com:443",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "dynamodb with account and region and matching AWS URI suffix region is correct",
+			uri:     "us-west-1.amazonaws.com",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: ".us-west-1.amazonaws.com:443",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "dynamodb with account and region and matching AWS URI region is correct",
+			uri:     "dynamodb.us-west-1.amazonaws.com",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: ".us-west-1.amazonaws.com:443",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "dynamodb with account and region and custom URI is correct",
+			uri:     "localhost:8080",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "localhost:8080",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:       "dynamodb with region and different AWS URI suffix region is an error",
+			uri:        "us-west-2.amazonaws.com",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "does not match the configured URI",
+		},
+		{
+			desc:       "dynamodb with region and different AWS URI region is an error",
+			uri:        "dynamodb.us-west-2.amazonaws.com",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "does not match the configured URI",
+		},
+		{
+			desc:       "dynamodb invalid AWS URI is an error",
+			uri:        "a.streams.dynamodb.us-west-1.amazonaws.com",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "invalid DynamoDB endpoint",
+		},
+		{
+			desc:       "dynamodb custom URI and empty region is an error",
+			account:    "12345",
+			wantErrMsg: "region is empty",
+		},
+		{
+			desc:       "dynamodb empty URI and empty region is an error",
+			account:    "12345",
+			wantErrMsg: "is empty",
+		},
+		{
+			desc:       "dynamodb with missing account id",
+			wantErrMsg: "account ID is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			database, err := NewDatabaseV3(Metadata{
+				Name: "test",
+			}, DatabaseSpecV3{
+				Protocol: "dynamodb",
+				URI:      tt.uri,
+				AWS: AWS{
+					Region:    tt.region,
+					AccountID: tt.account,
+				},
+			})
+			if tt.wantErrMsg != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			diff := cmp.Diff(tt.wantSpec, database.Spec, cmpopts.IgnoreFields(DatabaseSpecV3{}, "Protocol"))
+			require.Empty(t, diff)
 		})
 	}
 }

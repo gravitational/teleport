@@ -253,8 +253,11 @@ func onDatabaseLogin(cf *CLIConf) error {
 
 	// Print after-login message.
 	templateData := map[string]string{
-		"name":           routeToDatabase.ServiceName,
-		"connectCommand": utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, routeToDatabase)),
+		"name": routeToDatabase.ServiceName,
+	}
+
+	if database.GetProtocol() != defaults.ProtocolDynamoDB {
+		templateData["connectCommand"] = utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, routeToDatabase))
 	}
 
 	if shouldUseLocalProxyForDatabase(tc, &routeToDatabase) {
@@ -270,13 +273,24 @@ func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
-	if r.Protocol == defaults.ProtocolMongoDB && r.Username == "" {
-		return trace.BadParameter("please provide the database user name using --db-user flag")
+	if r.Username == "" {
+		switch r.Protocol {
+		case defaults.ProtocolMongoDB, defaults.ProtocolDynamoDB:
+			return trace.BadParameter("please provide the database user name using the --db-user flag")
+		case defaults.ProtocolRedis:
+			// Default to "default" in the same way as Redis does. We need the username to check access on our side.
+			// ref: https://redis.io/commands/auth
+			r.Username = defaults.DefaultRedisUsername
+		}
 	}
-	if r.Protocol == defaults.ProtocolRedis && r.Username == "" {
-		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
-		// ref: https://redis.io/commands/auth
-		r.Username = defaults.DefaultRedisUsername
+	if r.Database != "" {
+		switch r.Protocol {
+		case defaults.ProtocolDynamoDB:
+			log.Warnf("Database %v protocol %v does not support --db-name flag, ignoring --db-name=%v",
+				r.ServiceName, defaults.ReadableDatabaseProtocol(r.Protocol), r.Database)
+			r.Database = ""
+		default:
+		}
 	}
 	return nil
 }
@@ -406,17 +420,11 @@ func onDatabaseEnv(cf *CLIConf) error {
 	}
 
 	if !dbprofile.IsSupported(*database) {
-		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
 	// MySQL requires ALPN local proxy in signle port mode.
 	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
-		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+		return trace.BadParameter(formatDbCmdUnsupportedTLSRouting(cf, database))
 	}
 
 	env, err := dbprofile.Env(tc, *database)
@@ -473,17 +481,11 @@ func onDatabaseConfig(cf *CLIConf) error {
 	// the remote proxy directly. Return errors here when direct connection
 	// does NOT work (e.g. when ALPN local proxy is required).
 	if isLocalProxyAlwaysRequired(database.Protocol) {
-		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
 	// MySQL requires ALPN local proxy in signle port mode.
 	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
-		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+		return trace.BadParameter(formatDbCmdUnsupportedTLSRouting(cf, database))
 	}
 
 	host, port := tc.DatabaseProxyHostPort(*database)
@@ -566,7 +568,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportC
 
 	// Some protocols (Snowflake, Elasticsearch) only works in the local tunnel mode.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if db.Protocol == defaults.ProtocolSnowflake || db.Protocol == defaults.ProtocolElasticsearch {
+	if requiresLocalProxyTunnel(db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
 		localProxyTunnel = true
 	}
 
@@ -730,6 +732,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 	routeToDatabase, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if routeToDatabase.Protocol == defaults.ProtocolDynamoDB {
+		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, routeToDatabase))
 	}
 	if err := maybeDatabaseLogin(cf, tc, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
@@ -1076,10 +1081,38 @@ func isLocalProxyAlwaysRequired(protocol string) bool {
 	switch protocol {
 	case defaults.ProtocolSQLServer,
 		defaults.ProtocolSnowflake,
-		defaults.ProtocolCassandra:
+		defaults.ProtocolCassandra,
+		defaults.ProtocolDynamoDB:
 		return true
 	default:
 		return false
+	}
+}
+
+// formatDbCmdUnsupportedDBProtocol is a helper func that formats the unsupported DB protocol error message.
+func formatDbCmdUnsupportedDBProtocol(cf *CLIConf, database *tlsca.RouteToDatabase) string {
+	return fmt.Sprintf(dbCmdUnsupportedDBProtocol,
+		cf.CommandWithBinary(),
+		defaults.ReadableDatabaseProtocol(database.Protocol),
+		getDbCmdAlternatives(database))
+}
+
+// formatDbCmdUnsupportedTLSRouting is a helper func that formats the unsupported TLS routing error message.
+func formatDbCmdUnsupportedTLSRouting(cf *CLIConf, database *tlsca.RouteToDatabase) string {
+	return fmt.Sprintf(dbCmdUnsupportedTLSRouting,
+		cf.CommandWithBinary(),
+		defaults.ReadableDatabaseProtocol(database.Protocol),
+		getDbCmdAlternatives(database))
+}
+
+// getDbCmdAlternatives is a helper func that returns alternative tsh commands for connecting to a database.
+func getDbCmdAlternatives(database *tlsca.RouteToDatabase) string {
+	switch database.Protocol {
+	case defaults.ProtocolDynamoDB:
+		// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
+		return `"tsh proxy db --tunnel"`
+	default:
+		return `"tsh db connect" or "tsh proxy db"`
 	}
 }
 
@@ -1099,31 +1132,33 @@ const (
 	// database subcommands are not supported because TLS routing is enabled.
 	dbCmdUnsupportedTLSRouting = `"%v" is not supported for %v databases when TLS routing is enabled on the Teleport Proxy Service.
 
-Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
+Please use %v to connect to the database.`
 
 	// dbCmdUnsupportedDBProtocol is the error message printed when some
 	// database subcommands are run against unsupported database protocols.
 	dbCmdUnsupportedDBProtocol = `"%v" is not supported for %v databases.
 
-Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
+Please use %v to connect to the database.`
 )
 
 var (
 	// dbConnectTemplate is the message printed after a successful "tsh db login" on how to connect.
 	dbConnectTemplate = template.Must(template.New("").Parse(`Connection information for database "{{ .name }}" has been saved.
 
+{{if .connectCommand -}}
 You can now connect to it using the following command:
 
   {{.connectCommand}}
+{{end -}}
 
 {{if .configCommand -}}
-Or view the connect command for the native database CLI client:
+You can view the connect command for the native database CLI client:
 
   {{ .configCommand }}
 
 {{end -}}
 {{if .proxyCommand -}}
-Or start a local proxy for database GUI clients:
+You can start a local proxy for database GUI clients:
 
   {{ .proxyCommand }}
 

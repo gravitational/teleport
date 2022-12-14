@@ -383,6 +383,10 @@ func (d *DatabaseV3) IsAWSKeyspaces() bool {
 	return d.GetType() == DatabaseTypeAWSKeyspaces
 }
 
+func (d *DatabaseV3) IsDynamoDB() bool {
+	return d.GetType() == DatabaseTypeDynamoDB
+}
+
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
 	_, ok := d.getAWSType()
@@ -398,8 +402,13 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 // getAWSType returns the database type.
 func (d *DatabaseV3) getAWSType() (string, bool) {
 	aws := d.GetAWS()
-	if aws.AccountID != "" && d.Spec.Protocol == DatabaseTypeCassandra {
-		return DatabaseTypeAWSKeyspaces, true
+	switch d.Spec.Protocol {
+	case DatabaseTypeCassandra:
+		if aws.AccountID != "" {
+			return DatabaseTypeAWSKeyspaces, true
+		}
+	case DatabaseTypeDynamoDB:
+		return DatabaseTypeDynamoDB, true
 	}
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
@@ -483,6 +492,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.Spec.Protocol == "" {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
+	}
+	if d.IsDynamoDB() {
+		// DynamoDB gets its own checking logic for its unusual config.
+		return trace.Wrap(d.checkAndSetDynamoDBDefaults())
 	}
 	if d.Spec.URI == "" {
 		switch {
@@ -597,11 +610,18 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 		}
 		if d.Spec.AWS.Region == "" {
-			region, err := awsutils.CassandraEndpointRegion(d.Spec.URI)
-			if err != nil {
-				return trace.Wrap(err)
+			var region string
+			var err error
+			switch {
+			case d.IsAWSKeyspaces():
+				region, err = awsutils.CassandraEndpointRegion(d.Spec.URI)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				d.Spec.AWS.Region = region
+			default:
+				return trace.BadParameter("database %q AWS region is empty", d.GetName())
 			}
-			d.Spec.AWS.Region = region
 		}
 	case azureutils.IsCacheForRedisEndpoint(d.Spec.URI):
 		// ResourceID is required for fetching Redis tokens.
@@ -633,6 +653,53 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.GetName())
 	case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.GetName())
+	}
+	return nil
+}
+
+// checkAndSetDynamoDBDefaults checks DynamoDB configuration and sets defaults.
+func (d *DatabaseV3) checkAndSetDynamoDBDefaults() error {
+	if d.Spec.AWS.AccountID == "" {
+		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
+	}
+
+	region, err := awsutils.DynamoDBRegionForEndpoint(d.Spec.URI)
+	switch {
+	case err != nil:
+		if d.Spec.AWS.Region == "" {
+			// the AWS region is empty and we can't derive it from the URI, so this is a config error.
+			return trace.BadParameter("database %q AWS region is empty and cannot be derived from the URI %q",
+				d.GetName(), d.Spec.URI)
+		}
+		if awsutils.IsAWSEndpoint(d.Spec.URI) {
+			// The user configured an AWS URI that which doesn't look like a DynamoDB endpoint.
+			// The URI must look like <service>.<region>.<partition> or <region>.<partition>
+			return trace.Wrap(err)
+		}
+	case d.Spec.AWS.Region == "":
+		// if the AWS region is empty we can just use the region extracted from the URI.
+		d.Spec.AWS.Region = region
+	case d.Spec.AWS.Region != region:
+		// if the AWS region is not empty but doesn't match the URI, this may indicate a user configuration mistake.
+		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q, "+
+			" omit the URI and it will be derived automatically for the configured AWS region",
+			d.GetName(), d.Spec.AWS.Region, region)
+	}
+
+	if d.Spec.URI == "" || awsutils.IsAWSEndpoint(d.Spec.URI) {
+		// The full URI will be constructed from the region depending on the incoming request,
+		// as: [dynamodb|streams.dynamodb|dax].<region>.<partition>
+		// Therefore we want just the suffix for an AWS endpoint.
+		suffix := awsutils.DynamoDBEndpointSuffixForRegion(d.Spec.AWS.Region)
+		if suffix != d.Spec.URI {
+			logrus.Warnf("overriding database %q AWS URI from %q to %q. "+
+				"The AWS service endpoint will be constructed based on requested DynamoDB operation.", d.GetName(), d.Spec.URI, suffix)
+			d.Spec.URI = suffix
+		}
+	} else {
+		// log a warning since this is not a "normal" configuration.
+		// If the user wants to send requests to some other endpoint (perhaps some other proxy?) then that's fine.
+		logrus.Warnf("database %q URI %q will be used, but it is not a valid AWS DynamoDB endpoint.", d.GetName(), d.Spec.URI)
 	}
 	return nil
 }
@@ -675,6 +742,8 @@ const (
 	DatabaseTypeAWSKeyspaces = "keyspace"
 	// DatabaseTypeCassandra is AWS-hosted Keyspace database.
 	DatabaseTypeCassandra = "cassandra"
+	// DatabaseTypeDynamoDB is a DynamoDB database.
+	DatabaseTypeDynamoDB = "dynamodb"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -85,6 +86,7 @@ func TestMain(m *testing.M) {
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestSQLServerEngine()
+	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
 }
 
@@ -1241,6 +1243,8 @@ type testContext struct {
 	cassandra map[string]testCassandra
 	// elasticsearch is a collection of Elasticsearch databases the test uses.
 	elasticsearch map[string]testElasticsearch
+	// dynamodb is a collection of DynamoDB databases the test uses.
+	dynamodb map[string]testDynamoDB
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1304,6 +1308,14 @@ type testElasticsearch struct {
 	// db is the test elasticsearch database server.
 	db *elasticsearch.TestServer
 	// resource is the resource representing this elasticsearch database.
+	resource types.Database
+}
+
+// testDynamoDB represents a single proxied DynamoDB database.
+type testDynamoDB struct {
+	// db is the test Dynamodb database server.
+	db *dynamodb.TestServer
+	// resource is the resource representing this DynamoDB database.
 	resource types.Database
 }
 
@@ -1731,6 +1743,34 @@ func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbS
 	return db, proxy, nil
 }
 
+// dynamodbClient returns a DynamoDB test client.
+func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbService, dbUser string) (*dynamodb.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolDynamoDB,
+		Username:    dbUser,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := dynamodb.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
@@ -1793,6 +1833,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		snowflake:     make(map[string]testSnowflake),
 		elasticsearch: make(map[string]testElasticsearch),
 		cassandra:     make(map[string]testCassandra),
+		dynamodb:      make(map[string]testDynamoDB),
 		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })

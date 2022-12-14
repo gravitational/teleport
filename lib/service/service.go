@@ -4523,13 +4523,12 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		proxyGetter := reversetunnel.NewConnectedProxyGetter()
+
 		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		proxyGetter := reversetunnel.NewConnectedProxyGetter()
-
 		defer func() {
 			if !shouldSkipCleanup {
 				warnOnErr(asyncEmitter.Close(), log)
