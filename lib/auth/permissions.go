@@ -597,6 +597,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 					},
 				},
 			})
