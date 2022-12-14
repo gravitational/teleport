@@ -46,7 +46,7 @@ type certRequest struct {
 	keyDER      []byte
 }
 
-func getCertRequest(username, domain string, clusterName string, ldapConfig LDAPConfig, activeDirectorySID *string) (*certRequest, error) {
+func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
@@ -60,12 +60,12 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for requirements.
-	san, err := SubjectAltNameExtension(username, domain)
+	san, err := SubjectAltNameExtension(req.Username, req.Domain)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: username},
+		Subject: pkix.Name{CommonName: req.Username},
 		// We have to pass SAN and ExtKeyUsage as raw extensions because
 		// crypto/x509 doesn't support what we need:
 		// - x509.ExtKeyUsage doesn't have the Smartcard Logon variant
@@ -78,12 +78,12 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 		},
 	}
 
-	if activeDirectorySID != nil {
+	if req.ActiveDirectorySID != nil {
 		adUserMapping, _ := asn1.Marshal(SubjectAltName[adSid]{
 			otherName[adSid]{
 				OID: ADUserMappingInternalOID,
 				Value: adSid{
-					Value: []byte(*activeDirectorySID),
+					Value: []byte(*req.ActiveDirectorySID),
 				},
 			}})
 		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
@@ -104,7 +104,7 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 	// CRLs in it. Each service can also handle RDP connections for a different
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
-	crlDN := crlDN(clusterName, ldapConfig)
+	crlDN := crlDN(req.ClusterName, req.LDAPConfig)
 	return &certRequest{csrPEM: csrPEM, crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN), keyDER: keyDER}, nil
 }
 
@@ -147,7 +147,7 @@ type GenerateCredentialsRequest struct {
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
-	certReq, err := getCertRequest(req.Username, req.Domain, req.ClusterName, req.LDAPConfig, req.ActiveDirectorySID)
+	certReq, err := getCertRequest(req)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -179,7 +179,7 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredent
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
-	certReq, err := getCertRequest(req.Username, req.Domain, req.ClusterName, req.LDAPConfig, nil)
+	certReq, err := getCertRequest(req)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
