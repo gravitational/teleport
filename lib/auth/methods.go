@@ -120,7 +120,12 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	}
 	if req.ClientMetadata != nil {
 		event.RemoteAddr = req.ClientMetadata.RemoteAddr
-		event.UserAgent = req.ClientMetadata.UserAgent
+		const maxUserAgentLen = 2048
+		if len(req.ClientMetadata.UserAgent) > maxUserAgentLen {
+			event.UserAgent = req.ClientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
+		} else {
+			event.UserAgent = req.ClientMetadata.UserAgent
+		}
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
