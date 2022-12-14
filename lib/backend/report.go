@@ -408,6 +408,7 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 // sensitive values.
 var sensitiveBackendPrefixes = []string{
 	"tokens",
+	"adduseru2fchallenges",
 	"usertoken",
 	// Global passwordless challenges, keyed by challenge, as per
 	// https://github.com/gravitational/teleport/blob/01775b73f138ff124ff0351209d629bb01836869/lib/services/local/users.go#L1510.
