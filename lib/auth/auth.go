@@ -2329,6 +2329,10 @@ type newMFADeviceFields struct {
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
 func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADeviceFields) (*types.MFADevice, error) {
+	if len(req.newDeviceName) > 31 {
+		return nil, trace.BadParameter("Device Name must be 30 characters or less")
+	}
+
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
