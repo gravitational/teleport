@@ -724,6 +724,11 @@
             "type": "array",
             "default": []
         },
+        "extraEnvFrom": {
+            "$id": "#/properties/extraEnvFrom",
+            "type": "array",
+            "default": []
+        },
         "extraVolumes": {
             "$id": "#/properties/extraVolumes",
             "type": "array",

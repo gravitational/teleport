@@ -125,6 +125,12 @@ spec:
       - name: "teleport"
         image: '{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ template "imageVersion" . }}'
         imagePullPolicy: {{ .Values.imagePullPolicy }}
+        {{- if .Values.extraEnvFrom }}
+        envFrom:
+        {{- if (gt (len .Values.extraEnvFrom) 0) }}
+          {{- toYaml .Values.extraEnvFrom | nindent 8 }}
+        {{- end }}
+        {{- end }}
         {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
         {{- if (gt (len .Values.extraEnv) 0) }}
