@@ -320,6 +320,8 @@ message RouteToApp {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is the AWS role to assume when accessing AWS API.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
+  // AzureIdentity is the Azure identity to assume when accessing Azure API.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -650,9 +652,37 @@ message GetAppSessionResponse {
 }
 
 // GetAppSessionsResponse contains all the requested application web sessions.
+// DELETE IN 13.0. Deprecated, use ListAppSessions instead
 message GetAppSessionsResponse {
   // Sessions is a list of application web sessions.
   repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
+}
+
+// ListAppSessionRequest are the parameters used to request an application web session.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListAppSessionsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Optional username which will filter the returned web sessions
+  // to include only those for the given user.
+  string user = 3;
+}
+
+// ListAppSessionResponse contains the requested application web session.
+message ListAppSessionsResponse {
+  // Sessions for the retrieved page.
+  repeated types.WebSessionV2 sessions = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // GetSnowflakeSessionsResponse contains all the requested Snowflake web sessions.
@@ -672,6 +702,8 @@ message CreateAppSessionRequest {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is AWS role the user wants to assume.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn"];
+  // AzureIdentity is Azure identity the user wants to assume.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -2078,7 +2110,10 @@ service AuthService {
   // GetAppSession gets an application web session.
   rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
   // GetAppSessions gets all application web sessions.
+  // DELETE IN 13.0. Deprecated, use ListAppSessions instead
   rpc GetAppSessions(google.protobuf.Empty) returns (GetAppSessionsResponse);
+  // ListAppSessions gets all application web sessions.
+  rpc ListAppSessions(ListAppSessionsRequest) returns (ListAppSessionsResponse);
   // CreateAppSession creates an application web session. Application web
   // sessions represent a browser session the client holds.
   rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);

@@ -16,6 +16,7 @@ package aws
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/services"
@@ -600,6 +602,58 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
 				}},
+			},
+		},
+		"Redshift Serverless discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+				},
+			},
+		},
+		"Redshift Serverless static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{
+						{
+							Name:     "redshift-serverless-1",
+							Protocol: "postgres",
+							URI:      fmt.Sprintf("%s:5439", aws.StringValue(cloudtest.RedshiftServerlessWorkgroup("redshift-serverless-1", "us-west-2").Endpoint.Address)),
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+				},
 			},
 		},
 	}
