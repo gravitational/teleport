@@ -7,9 +7,16 @@ usage() {
   exit 1
 }
 
+# Pulled from https://stackoverflow.com/a/26809278
 shell_array_to_json_array() {
-    shell_array=$@
-    printf "["; IFS=, ; printf "\"${shell_array[*]}\""; echo "]"
+    echo -n '['
+    while [ $# -gt 0 ]; do
+        x=${1//\\/\\\\}
+        echo -n \"${x//\"/\\\"}\"
+        [ $# -gt 1 ] && echo -n ', '
+        shift
+    done
+    echo ']'
 }
 
 # This is largely pulled from `build-common.sh` but modified for this use case
@@ -30,6 +37,7 @@ sign_and_notarize_binaries() {
   cat >"$goncfg" <<EOF
 {
   "source": $(shell_array_to_json_array $targets),
+  "bundle_id": "$bundle_id",
   "sign": {
     "application_identity": "$DEVELOPER_ID_APPLICATION"
   },
