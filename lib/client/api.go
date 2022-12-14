@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -68,6 +69,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -771,11 +773,18 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	if err := tc.ActivateKey(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Attempt device login. This activates a fresh key if successful.
+	if err := tc.AttemptDeviceLogin(ctx, key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Save profile to record proxy credentials
 	if err := tc.SaveProfile(tc.HomePath, true); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
 	}
+
 	return fn()
 }
 
@@ -3578,6 +3587,71 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	return key, nil
+}
+
+// AttemptDeviceLogin attempts device authentication for the current device.
+// It expects to receive the latest activated [key], as acquired via
+// [TeleportClient.Login], and augments the certificates within the key with
+// device extensions.
+//
+// If successful, the new device certificates are automatically activated (using
+// [TeleportClient.ActivateKey].)
+//
+// A nil response from this method doesn't mean that device authentication was
+// successful, as skipping the ceremony is valid for various reasons (Teleport
+// cluster doesn't support device authn, device wasn't enrolled, etc).
+// Use [TeleportClient.DeviceLogin] if you want more control over process.
+func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) error {
+	newCerts, err := tc.DeviceLogin(ctx, &devicepb.UserCertificates{
+		// Augment the SSH certificate.
+		// The TLS certificate is already part of the connection.
+		SshAuthorizedKey: key.Cert,
+	})
+	if err != nil {
+		log.WithError(err).Debug("Device Trust: device authentication failed")
+		return nil // Swallowed on purpose.
+	}
+
+	log.Debug("Device Trust: acquired augmented user certificates")
+	cp := *key
+	cp.Cert = newCerts.SshAuthorizedKey
+	cp.TLSCert = pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: newCerts.X509Der,
+	})
+	return trace.Wrap(tc.ActivateKey(ctx, &cp))
+}
+
+// dtAuthnRunCeremony is used to fake device authentication for tests.
+var dtAuthnRunCeremony = dtauthn.RunCeremony
+
+// DeviceLogin attempts to authenticate the current device with Teleport.
+// The device must be previously registered and enrolled for the authentication
+// to succeed (see `tsh device enroll`).
+//
+// DeviceLogin may fail for a variety of reasons, some of them legitimate
+// (non-Enterprise cluster, Device Trust is disabled, etc). Because of that, a
+// failure in this method may not warrant failing a broader action (for example,
+// `tsh login`).
+//
+// Device Trust is a Teleport Enterprise feature.
+func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+	// TODO(codingllama): Determine if Device Trust is supported/enabled.
+	//  One should only pay for the roundtrip if they actually use the feature.
+
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authClient, err := proxyClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newCerts, err := dtAuthnRunCeremony(ctx, authClient.DevicesClient(), certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newCerts, nil
 }
 
 // getSSHLoginFunc returns an SSHLoginFunc that matches client and cluster settings.
