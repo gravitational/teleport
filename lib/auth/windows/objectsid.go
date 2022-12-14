@@ -51,8 +51,11 @@ func (sid adSID) String() string {
 	return s
 }
 
-func decodeADSID(b []byte) adSID {
-
+func decodeADSID(b []byte) (adSID, error) {
+	len := len(b)
+	if len < 8 {
+		return adSID{}, trace.Errorf("AD SID response was too short to decode")
+	}
 	var sid adSID
 
 	sid.RevisionLevel = int(b[0])
@@ -67,13 +70,17 @@ func decodeADSID(b []byte) adSID {
 	for i := 0; i < sid.SubAuthorityCount; i++ {
 		var subAuthority int
 		for k := 0; k < size; k++ {
-			subAuthority = subAuthority | (int(b[offset+k])&0xFF)<<(8*k)
+			index := offset + k
+			if index >= len {
+				return adSID{}, trace.Errorf("AD SID response was too short to decode")
+			}
+			subAuthority = subAuthority | (int(b[index])&0xFF)<<(8*k)
 		}
 		sid.SubAuthorities = append(sid.SubAuthorities, subAuthority)
 		offset += size
 	}
 
-	return sid
+	return sid, nil
 }
 
 func ADSIDStringFromLDAPEntry(entry *ldap.Entry) (string, error) {
@@ -81,6 +88,9 @@ func ADSIDStringFromLDAPEntry(entry *ldap.Entry) (string, error) {
 	if len(bytes) == 0 {
 		return "", trace.Errorf("failed to find %v", AttrObjectSid)
 	}
-	sid := decodeADSID(bytes)
+	sid, err := decodeADSID(bytes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	return sid.String(), nil
 }
