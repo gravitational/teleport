@@ -297,6 +297,9 @@ func (c *Client) start() {
 			msg, err := c.cfg.Conn.ReadMessage()
 			if errors.Is(err, io.EOF) {
 				return
+			} else if tdp.IsNonFatalErr(err) {
+				c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
+				continue
 			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
