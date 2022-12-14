@@ -100,7 +100,7 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 
 ```
 
-To save yourself time later, you can use the same prompt to get the security identifier of your new service account by running
+To save yourself time later, you can use the same prompt to get the security identifier of your new service account by running this command:
 
 ```powershell
 Get-AdUser -Identity $SamAccountName | Select SID
