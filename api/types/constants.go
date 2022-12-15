@@ -306,6 +306,9 @@ const (
 	// KindLoginRule is a login rule resource.
 	KindLoginRule = "login_rule"
 
+	// KindPlugin represents a plugin instance
+	KindPlugin = "plugin"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 

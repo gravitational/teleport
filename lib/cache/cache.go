@@ -108,6 +108,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindPlugin},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -431,6 +432,7 @@ type Cache struct {
 	webSessionCache       types.WebSessionInterface
 	webTokenCache         types.WebTokenInterface
 	windowsDesktopsCache  services.WindowsDesktops
+	pluginsCache          services.Plugins
 	eventsFanout          *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -494,6 +496,7 @@ func (c *Cache) read() (readGuard, error) {
 			webToken:         c.webTokenCache,
 			release:          c.rw.RUnlock,
 			windowsDesktops:  c.windowsDesktopsCache,
+			plugins:          c.Config.Plugins,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -515,6 +518,7 @@ func (c *Cache) read() (readGuard, error) {
 		webSession:       c.Config.WebSession,
 		webToken:         c.Config.WebToken,
 		windowsDesktops:  c.Config.WindowsDesktops,
+		plugins:          c.Config.Plugins,
 		release:          nil,
 	}, nil
 }
@@ -541,6 +545,7 @@ type readGuard struct {
 	webSession       types.WebSessionInterface
 	webToken         types.WebTokenInterface
 	windowsDesktops  services.WindowsDesktops
+	plugins          services.Plugins
 	release          func()
 	released         bool
 }
@@ -606,6 +611,8 @@ type Config struct {
 	WebToken types.WebTokenInterface
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
+	// Plugins holds plugin instances
+	Plugins services.Plugins
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -756,6 +763,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:       local.NewIdentityService(config.Backend).WebSessions(),
 		webTokenCache:         local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:  local.NewWindowsDesktopService(config.Backend),
+		pluginsCache:          local.NewPluginsService(config.Backend),
 		eventsFanout:          services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2176,6 +2184,19 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
+}
+
+// GetPlugin returns a plugin instance by name
+func (c *Cache) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetPlugin")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.plugins.GetPlugin(ctx, name, withSecrets)
 }
 
 // ListResources is a part of auth.Cache implementation

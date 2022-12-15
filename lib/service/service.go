@@ -1921,6 +1921,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,
 		WindowsDesktops:  cfg.services,
+		Plugins:          cfg.services,
 		WebSession:       cfg.services.WebSessions(),
 		WebToken:         cfg.services.WebTokens(),
 		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),

@@ -230,6 +230,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter WindowsDesktops")
 			}
 			collections[resourceKind] = &windowsDesktops{watch: watch, Cache: c}
+		case types.KindPlugin:
+			if c.Plugins == nil {
+				return nil, trace.BadParameter("missing parameter Plugins")
+			}
+			collections[resourceKind] = &plugins{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2684,5 +2689,58 @@ func (s *kubeCluster) processEvent(ctx context.Context, event types.Event) error
 }
 
 func (s *kubeCluster) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type plugins struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *plugins) erase(ctx context.Context) error {
+	if err := s.pluginsCache.DeleteAllPlugins(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *plugins) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	// TODO
+	return func(ctx context.Context) error { return nil }, nil
+}
+
+func (s *plugins) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.pluginsCache.DeletePlugin(ctx, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.Plugin)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := s.pluginsCache.CreatePlugin(ctx, resource); err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+			// TODO
+			return trace.NotImplemented("UpdatePlugin")
+		}
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *plugins) watchKind() types.WatchKind {
 	return s.watch
 }

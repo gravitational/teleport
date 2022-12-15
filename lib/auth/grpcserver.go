@@ -4529,6 +4529,94 @@ func (g *GRPCServer) ListReleases(ctx context.Context, req *proto.ListReleasesRe
 	}, nil
 }
 
+// CreatePlugin creates a new plugin instance.
+func (g *GRPCServer) CreatePlugin(ctx context.Context, in *types.PluginV1) (*emptypb.Empty, error) {
+	err = auth.CreatePlugin(ctx, in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// GetPlugin returns a plugin instance by name.
+func (g *GRPCServer) GetPlugin(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.PluginV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	plugin, err := auth.GetPlugin(ctx, req.Name, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v1, ok := plugin.(*types.PluginV1)
+	if !ok {
+		return nil, trace.Errorf("unexpected plugin type: %T", plugin)
+	}
+	return v1, nil
+}
+
+// GetPlugins returns all plugin instances.
+func (g *GRPCServer) GetPlugins(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.PluginListV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	plugins, err := auth.GetPlugins(ctx, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pluginsV1 := make([]*types.PluginV1, 0, len(plugins))
+	for _, plugin := range plugins {
+		pluginV1, ok := plugin.(*types.PluginV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported plugin type %T", plugin)
+		}
+		pluginsV1 = append(pluginsV1, pluginV1)
+	}
+
+	return &types.PluginListV1{Plugins: pluginsV1}, nil
+}
+
+// DeletePlugin removes the specified plugin instance
+func (g *GRPCServer) DeletePlugin(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.DeletePlugin(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllPlugins removes all plugin instances.
+func (g *GRPCServer) DeleteAllPlugins(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.DeleteAllPlugins(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+>>>>>>> 40fdefca8f (Plugin dynamic configuration skeleton)
+}
+
+// SetPluginCredentials sets the credentials for the given plugin.
+func (g *GRPCServer) SetPluginCredentials(ctx context.Context, req *proto.SetPluginCredentialsRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.SetPluginCredentials(ctx, req.Name, req.Credentials)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

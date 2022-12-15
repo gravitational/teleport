@@ -198,6 +198,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.UsageReporter == nil {
 		cfg.UsageReporter = services.NewDiscardUsageReporter()
 	}
+	if cfg.Plugins == nil {
+		cfg.Plugins = local.NewPluginsService(cfg.Backend)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -247,6 +250,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
 		StatusInternal:        cfg.Status,
 		UsageReporter:         cfg.UsageReporter,
+		Plugins:               cfg.Plugins,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -326,6 +330,7 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.UsageReporter
+	services.Plugins
 	types.Events
 	events.IAuditLog
 }
@@ -3858,6 +3863,47 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	}
 
 	return nil
+}
+
+// CreatePlugin creates a new plugin instance.
+func (a *Server) CreatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error) {
+	if err := a.Services.Plugins.CreatePlugin(ctx, plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugin, nil
+}
+
+// GetPlugin returns a plugin instance by name.
+func (a *Server) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
+	plugin, err := a.Services.Plugins.GetPlugin(ctx, name, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugin, nil
+}
+
+// GetPlugins returns all plugin instances.
+func (a *Server) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
+	plugin, err := a.Services.Plugins.GetPlugins(ctx, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugin, nil
+}
+
+// DeletePlugin removes the specified plugin instance.
+func (a *Server) DeletePlugin(ctx context.Context, name string) error {
+	return trace.Wrap(a.Services.Plugins.DeletePlugin(ctx, name))
+}
+
+// DeleteAllPlugins removes all plugin instances.
+func (a *Server) DeleteAllPlugins(ctx context.Context) error {
+	return trace.Wrap(a.Services.Plugins.DeleteAllPlugins(ctx))
+}
+
+// SetPluginCredentials sets the credentials for the given plugin.
+func (a *Server) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
+	return trace.Wrap(a.Services.Plugins.SetPluginCredentials(ctx, name, creds))
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {

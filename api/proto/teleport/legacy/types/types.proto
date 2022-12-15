@@ -4717,3 +4717,112 @@ enum RequireMFAType {
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
 }
+
+// Plugin describes a single instance of a Teleport Plugin
+message PluginV1 {
+  // Kind is the database resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+
+  // Metadata is the resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+
+  PluginSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+
+  PluginStatusV1 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
+
+  // Credentials are "live" credentials to the 3rd party API.
+  // These are considered secrets.
+  PluginCredentialsV1 Credentials = 7 [(gogoproto.jsontag) = "credentials,omitempty"];
+}
+
+message PluginSpecV1 {
+  option (gogoproto.equal) = true;
+
+  // Settings include provider-specific options,
+  // as well as initial (short-lived or one-time-use) credentials
+  // to the 3rd party API. These are not considered secrets in the Teleport resource sense.
+  oneof Settings {
+    // Settings for the Slack access plugin
+    PluginSlackAccessSettings SlackAccessPlugin = 1 [(gogoproto.jsontag) = "slack_access,omitempty"];
+  }
+}
+
+message PluginSlackAccessSettings {
+  option (gogoproto.equal) = true;
+
+  PluginOAuth2AuthorizationCodeCredentials InitialCredentials = 1 [(gogoproto.jsontag) = "initial_credentials"];
+  string FallbackChannel = 2 [(gogoproto.jsontag) = "fallback_channel"];
+}
+
+message PluginOAuth2AuthorizationCodeCredentials {
+  option (gogoproto.equal) = true;
+
+  google.protobuf.Timestamp IssuedAt = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "issued_at,omitempty"
+  ];
+  string AuthorizationCode = 2 [(gogoproto.jsontag) = "authorization_code"];
+  string RedirectURI = 3 [(gogoproto.jsontag) = "redirect_uri"];
+}
+
+message PluginStatusV1 {
+  PluginStatusCode Code = 1 [(gogoproto.jsontag) = "code"];
+}
+
+enum PluginStatusCode {
+  // UNKNOWN is the default value when the plugin has not reported its status yet.
+  UNKNOWN = 0;
+  // STARTING means that the plugin has been notified of the configuration change,
+  // and is either starting or re-configuring.
+  STARTING = 1;
+  // RUNNING means the plugin reports running successfully.
+  RUNNING = 2;
+  // OTHER_ERROR indicates that an otherwise-unspecified error has been encountered.
+  OTHER_ERROR = 3;
+  // UNAUTHORIZED indicates that plugin is not able to authenticate to the 3rd party API.
+  // This could be a result of e.g. the user revoking the authorization on the API provider's side.
+  UNAUTHORIZED = 4;
+}
+
+// PluginCredentialsV1 represents "live" credentials
+// that are used by the plugin to authenticate to the 3rd party API.
+message PluginCredentialsV1 {
+  oneof Credentials {
+    PluginOAuth2AccessTokenCredentials OAuth2AccessToken = 1 [(gogoproto.jsontag) = "oauth2_access_token,omitempty"];
+  }
+}
+
+message PluginOAuth2AccessTokenCredentials {
+  google.protobuf.Timestamp IssuedAt = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "issued_at,omitempty"
+  ];
+  string AccessToken = 2;
+  string RefreshToken = 3;
+  google.protobuf.Timestamp ExpiresAt = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "expires_at,omitempty"
+  ];
+}
+
+// PluginList represents a list of plugin resources
+message PluginListV1 {
+  // Plugins is a list of plugin resources.
+  repeated PluginV1 plugins = 1;
+}

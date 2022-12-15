@@ -5324,6 +5324,82 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
+// CreatePlugin creates a new plugin instance.
+func (a *ServerWithRoles) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	plugin, err := a.authServer.CreatePlugin(ctx, plugin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetPlugin returns a plugin instance by name.
+func (a *ServerWithRoles) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbReadNoSecrets); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if withSecrets {
+		if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	plugin, err := a.authServer.GetPlugin(ctx, name, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugin, nil
+}
+
+// GetPlugins returns all plugin instances.
+func (a *ServerWithRoles) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbReadNoSecrets); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if withSecrets {
+		if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	plugins, err := a.authServer.GetPlugins(ctx, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugins, nil
+}
+
+// DeletePlugin removes the specified plugin instance.
+func (a *ServerWithRoles) DeletePlugin(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeletePlugin(ctx, name))
+}
+
+// DeleteAllPlugins removes all plugin instances.
+func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteAllPlugins(ctx))
+}
+
+// SetPluginCredentials sets the credentials for the given plugin.
+func (a *ServerWithRoles) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.SetPluginCredentials(ctx, name, creds))
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {

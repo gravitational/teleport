@@ -1,0 +1,206 @@
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package types
+
+import (
+	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+)
+
+// Plugin represents a plugin instance
+type Plugin interface {
+	// Resource provides common resource methods.
+	ResourceWithSecrets
+	Clone() Plugin
+	SetCredentials(PluginCredentials) error
+}
+
+// PluginCredentials are the credentials embedded in Plugin
+type PluginCredentials interface{}
+
+// CheckAndSetDefaults checks validity of all parameters and sets defaults.
+func (p *PluginV1) CheckAndSetDefaults() error {
+	p.setStaticFields()
+
+	if p.Kind == "" {
+		return trace.BadParameter("resource has an empty Kind field")
+	}
+	if p.Version == "" {
+		return trace.BadParameter("resource has an empty Version field")
+	}
+	if p.Spec.Settings == nil {
+		return trace.BadParameter("settings must be set")
+	}
+
+	switch settings := p.Spec.Settings.(type) {
+	case *PluginSpecV1_SlackAccessPlugin:
+		// Check settings.
+		if settings.SlackAccessPlugin == nil {
+			return trace.BadParameter("settings must be set")
+		}
+		if err := settings.SlackAccessPlugin.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Check credentials. Empty credentials are okay when first provisioning.
+		if p.Credentials == nil {
+			break
+		}
+		if p.Credentials.GetOAuth2AccessToken() == nil {
+			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
+		}
+		if err := p.Credentials.GetOAuth2AccessToken().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+func (p *PluginV1) WithoutSecrets() Resource {
+	if p.Credentials == nil {
+		return p
+	}
+
+	p2 := p.Clone().(*PluginV1)
+	p2.SetCredentials(nil)
+	return p2
+}
+
+func (p *PluginV1) setStaticFields() {
+	p.Kind = KindPlugin
+	p.Version = V1
+}
+
+// Clone returns a copy of the Plugin instance
+func (p *PluginV1) Clone() Plugin {
+	return proto.Clone(p).(*PluginV1)
+}
+
+// GetVersion returns resource version
+func (p *PluginV1) GetVersion() string {
+	return p.Version
+}
+
+// GetKind returns resource kind
+func (p *PluginV1) GetKind() string {
+	return p.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (p *PluginV1) GetSubKind() string {
+	return p.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (p *PluginV1) SetSubKind(s string) {
+	p.SubKind = s
+}
+
+// GetResourceID returns resource ID
+func (p *PluginV1) GetResourceID() int64 {
+	return p.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (p *PluginV1) SetResourceID(id int64) {
+	p.Metadata.ID = id
+}
+
+// GetMetadata returns object metadata
+func (p *PluginV1) GetMetadata() Metadata {
+	return p.Metadata
+}
+
+// SetMetadata sets object metadata
+func (p *PluginV1) SetMetadata(meta Metadata) {
+	p.Metadata = meta
+}
+
+// Expiry returns expiry time for the object
+func (p *PluginV1) Expiry() time.Time {
+	if p.Metadata.Expires != nil {
+		return *p.Metadata.Expires
+	}
+	return time.Time{}
+}
+
+// SetExpiry sets expiry time for the object
+func (p *PluginV1) SetExpiry(expires time.Time) {
+	p.Metadata.SetExpiry(expires)
+}
+
+// GetName returns the name of the User
+func (p *PluginV1) GetName() string {
+	return p.Metadata.Name
+}
+
+// SetName sets the name of the User
+func (p *PluginV1) SetName(e string) {
+	p.Metadata.Name = e
+}
+
+// SetPluginCredentials implements Plugin
+func (p *PluginV1) SetCredentials(creds PluginCredentials) error {
+	if creds == nil {
+		p.Credentials = nil
+		return nil
+	}
+	switch creds := creds.(type) {
+	case *PluginCredentialsV1:
+		p.Credentials = creds
+	default:
+		return trace.BadParameter("unsupported plugin type %T", creds)
+	}
+	return nil
+}
+
+func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
+	if s.FallbackChannel == "" {
+		return trace.BadParameter("fallback_channel must be set")
+	}
+
+	return nil
+}
+
+func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
+	if c.IssuedAt.IsZero() {
+		return trace.BadParameter("issued_at must be set")
+	}
+	if c.AuthorizationCode == "" {
+		return trace.BadParameter("authorization_code must be set")
+	}
+	if c.RedirectURI == "" {
+		return trace.BadParameter("redirect_uri must be set")
+	}
+
+	return nil
+}
+
+func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
+	if c.IssuedAt.IsZero() {
+		return trace.BadParameter("issued_at must be set")
+	}
+	if c.AccessToken == "" {
+		return trace.BadParameter("access_token must be set")
+	}
+
+	return nil
+}

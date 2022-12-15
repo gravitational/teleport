@@ -38,6 +38,7 @@ type Services interface {
 	types.WebSessionsGetter
 	types.WebTokensGetter
 	WindowsDesktops
+	Plugins
 }
 
 // RotationGetter returns the rotation state.

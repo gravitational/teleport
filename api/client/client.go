@@ -2996,6 +2996,7 @@ func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	return trail.FromGRPC(err)
 }
 
+<<<<<<< HEAD
 // GetLicense returns the license used to start the teleport enterprise auth server
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
 	resp, err := c.grpc.GetLicense(ctx, &proto.GetLicenseRequest{})
@@ -3008,9 +3009,72 @@ func (c *Client) GetLicense(ctx context.Context) (string, error) {
 // ListReleases returns a list of teleport enterprise releases
 func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) ([]*types.Release, error) {
 	resp, err := c.grpc.ListReleases(ctx, req)
+
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
 	return resp.Releases, nil
+}
+
+// CreatePlugin creates a new plugin instance.
+func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+	v1, ok := plugin.(*types.PluginV1)
+	if !ok {
+		return trace.BadParameter("unsupported plugin type %T", plugin)
+	}
+	_, err := c.grpc.CreatePlugin(ctx, v1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetPlugin returns the specified plugin instance.
+func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing plugin name")
+	}
+	plugin, err := c.grpc.GetPlugin(ctx, &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return plugin, nil
+}
+
+// GetPlugins returns all plugin instances.
+func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
+	items, err := c.grpc.GetPlugins(ctx, &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}, c.callOpts...)
+
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	plugins := make([]types.Plugin, 0, len(items.Plugins))
+	for _, plugin := range items.Plugins {
+		plugins = append(plugins, plugin)
+	}
+	return plugins, nil
+}
+
+// DeletePlugin removes the specified plugin instance.
+func (c *Client) DeletePlugin(ctx context.Context, name string) error {
+	_, err := c.grpc.DeletePlugin(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllPlugins removes all plugin instances.
+func (c *Client) DeleteAllPlugins(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllPlugins(ctx, &emptypb.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// SetPluginCredentials sets the credentials for the given plugin.
+func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
+	v1, ok := creds.(*types.PluginCredentialsV1)
+	if !ok {
+		return trace.BadParameter("unsupported plugin credentials type %T", creds)
+	}
+	_, err := c.grpc.SetPluginCredentials(ctx, &proto.SetPluginCredentialsRequest{
+		Name:        name,
+		Credentials: v1,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
 }

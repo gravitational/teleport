@@ -1593,6 +1593,7 @@ type ClientI interface {
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
+	services.Plugins
 	types.Events
 
 	types.WebSessionsGetter
