@@ -7,8 +7,8 @@ export function createMockFileStorage(): FileStorage {
       state[path] = json;
     },
 
-    get<T>(key: string): T {
-      return state[key] as T;
+    get<T>(key?: string): T {
+      return key ? state[key] : (state as T);
     },
 
     putAllSync() {},

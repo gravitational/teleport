@@ -10,7 +10,7 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
-import { ConfigServiceImpl } from 'teleterm/services/config';
+import { createConfigService } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
@@ -26,11 +26,19 @@ if (app.requestSingleInstanceLock()) {
 function initializeApp(): void {
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
-  const fileStorage = createFileStorage({
+  const appStateFileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'app_state.json'),
+    debounceWrites: true,
   });
-  const configService = new ConfigServiceImpl();
-  const windowsManager = new WindowsManager(fileStorage, settings);
+  const appConfigFileStorage = createFileStorage({
+    filePath: path.join(settings.userDataDir, 'app_config.json'),
+    debounceWrites: false,
+  });
+  const configService = createConfigService(
+    appConfigFileStorage,
+    settings.platform
+  );
+  const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', error => {
     logger.error('', error);
@@ -42,7 +50,7 @@ function initializeApp(): void {
     settings,
     logger,
     configService,
-    fileStorage,
+    fileStorage: appStateFileStorage,
     windowsManager,
   });
 
@@ -65,7 +73,7 @@ function initializeApp(): void {
   );
 
   app.on('will-quit', () => {
-    fileStorage.putAllSync();
+    appStateFileStorage.putAllSync();
     globalShortcut.unregisterAll();
     mainProcess.dispose();
   });

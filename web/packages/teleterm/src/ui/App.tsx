@@ -15,13 +15,21 @@ import ThemeProvider from './ThemeProvider';
 import { LayoutManager } from './LayoutManager';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
-  const { appearance } = ctx.mainProcessClient.configService.get();
   return (
     <StyledApp>
       <CatchError>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
-            <ThemeProvider appearanceConfig={appearance}>
+            <ThemeProvider
+              fonts={{
+                mono: ctx.mainProcessClient.configService.get(
+                  'fonts.monoFamily'
+                ).value,
+                sansSerif: ctx.mainProcessClient.configService.get(
+                  'fonts.sansSerifFamily'
+                ).value,
+              }}
+            >
               <AppInitializer>
                 <LayoutManager />
                 <ModalsHost />

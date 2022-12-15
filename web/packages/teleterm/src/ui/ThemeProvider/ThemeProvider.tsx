@@ -17,19 +17,20 @@ limitations under the License.
 import React from 'react';
 import { ThemeProvider, StyleSheetManager } from 'styled-components';
 
-import { AppearanceConfig } from 'teleterm/types';
-
 import { GlobalStyle } from './globals';
 import theme from './theme';
 
-export type TeletermThemeProvider = {
-  appearanceConfig?: AppearanceConfig;
+type TeletermThemeProvider = {
+  fonts: {
+    mono: string;
+    sansSerif: string;
+  };
 };
 
 const TeletermThemeProvider: React.FC<TeletermThemeProvider> = props => {
-  if (props?.appearanceConfig?.fonts) {
-    theme.font = props?.appearanceConfig?.fonts?.sansSerif;
-    theme.fonts = props?.appearanceConfig?.fonts;
+  if (props?.fonts) {
+    theme.font = props.fonts.sansSerif;
+    theme.fonts = props.fonts;
   }
 
   return (

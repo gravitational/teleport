@@ -1,4 +1,4 @@
-import { ConfigService } from 'teleterm/services/config';
+import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 
 import { KeyboardShortcutsService } from './keyboardShortcutsService';
 
@@ -24,9 +24,10 @@ test('do not call subscriber after it has been unsubscribed', () => {
 });
 
 function getTestSetup() {
-  const service = new KeyboardShortcutsService('darwin', {
-    get: () => ({ keyboardShortcuts: { 'tab-1': 'Command-1' } }),
-  } as unknown as ConfigService);
+  const service = new KeyboardShortcutsService(
+    'darwin',
+    createMockConfigService({ 'keymap.tab1': 'Command-1' })
+  );
   const subscriber = jest.fn();
   service.subscribeToEvents(subscriber);
   return { service, subscriber };

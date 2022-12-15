@@ -13,13 +13,33 @@ import {
 export class KeyboardShortcutsService {
   private eventsSubscribers = new Set<KeyboardShortcutEventSubscriber>();
   private keysToShortcuts = new Map<string, KeyboardShortcutType>();
+  private readonly shortcutsConfig: Record<KeyboardShortcutType, string>;
 
   constructor(
     private platform: Platform,
     private configService: ConfigService
   ) {
-    const config = this.configService.get();
-    this.recalculateKeysToShortcuts(config.keyboardShortcuts);
+    this.shortcutsConfig = {
+      'tab-1': this.configService.get('keymap.tab1').value,
+      'tab-2': this.configService.get('keymap.tab2').value,
+      'tab-3': this.configService.get('keymap.tab3').value,
+      'tab-4': this.configService.get('keymap.tab4').value,
+      'tab-5': this.configService.get('keymap.tab5').value,
+      'tab-6': this.configService.get('keymap.tab6').value,
+      'tab-7': this.configService.get('keymap.tab7').value,
+      'tab-8': this.configService.get('keymap.tab8').value,
+      'tab-9': this.configService.get('keymap.tab9').value,
+      'tab-close': this.configService.get('keymap.tabClose').value,
+      'tab-previous': this.configService.get('keymap.tabPrevious').value,
+      'tab-next': this.configService.get('keymap.tabNext').value,
+      'tab-new': this.configService.get('keymap.tabNew').value,
+      'open-quick-input': this.configService.get('keymap.openQuickInput').value,
+      'toggle-connections': this.configService.get('keymap.toggleConnections')
+        .value,
+      'toggle-clusters': this.configService.get('keymap.toggleClusters').value,
+      'toggle-identity': this.configService.get('keymap.toggleIdentity').value,
+    };
+    this.recalculateKeysToShortcuts(this.shortcutsConfig);
     this.attachKeydownHandler();
   }
 
@@ -29,6 +49,10 @@ export class KeyboardShortcutsService {
 
   unsubscribeFromEvents(subscriber: KeyboardShortcutEventSubscriber): void {
     this.eventsSubscribers.delete(subscriber);
+  }
+
+  getShortcutsConfig() {
+    return this.shortcutsConfig;
   }
 
   private attachKeydownHandler(): void {
