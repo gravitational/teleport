@@ -13308,6 +13308,8 @@ type AuthServiceClient interface {
 	// DeleteDatabaseService removes the specified DatabaseService.
 	DeleteDatabaseService(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDatabaseServices removes all registered DatabaseServices.
+	// If there's an error deleting the resources, there's no guarantee of a rollback.
+	// A subset of resources might be deleted while others still exist.
 	DeleteAllDatabaseServices(ctx context.Context, in *DeleteAllDatabaseServicesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SignDatabaseCSR generates client certificate used by proxy to
 	// authenticate with a remote database service.
@@ -16042,6 +16044,8 @@ type AuthServiceServer interface {
 	// DeleteDatabaseService removes the specified DatabaseService.
 	DeleteDatabaseService(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllDatabaseServices removes all registered DatabaseServices.
+	// If there's an error deleting the resources, there's no guarantee of a rollback.
+	// A subset of resources might be deleted while others still exist.
 	DeleteAllDatabaseServices(context.Context, *DeleteAllDatabaseServicesRequest) (*emptypb.Empty, error)
 	// SignDatabaseCSR generates client certificate used by proxy to
 	// authenticate with a remote database service.

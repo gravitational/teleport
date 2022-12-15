@@ -2220,6 +2220,8 @@ service AuthService {
   // DeleteDatabaseService removes the specified DatabaseService.
   rpc DeleteDatabaseService(types.ResourceRequest) returns (google.protobuf.Empty);
   // DeleteAllDatabaseServices removes all registered DatabaseServices.
+  // If there's an error deleting the resources, there's no guarantee of a rollback.
+  // A subset of resources might be deleted while others still exist.
   rpc DeleteAllDatabaseServices(DeleteAllDatabaseServicesRequest) returns (google.protobuf.Empty);
 
   // SignDatabaseCSR generates client certificate used by proxy to
