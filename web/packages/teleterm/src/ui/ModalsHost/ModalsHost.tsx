@@ -24,6 +24,8 @@ import { Dialog } from 'teleterm/ui/services/modals';
 
 import ClusterLogout from '../ClusterLogout/ClusterLogout';
 
+import { UsageData } from './modals/UsageData';
+
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
   const { regular: regularDialog, important: importantDialog } =
@@ -81,6 +83,22 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
+    case 'usage-data': {
+      return (
+        <UsageData
+          onCancel={handleClose}
+          onAllow={() => {
+            handleClose();
+            dialog.onAllow();
+          }}
+          onDecline={() => {
+            handleClose();
+            dialog.onDecline();
+          }}
+        />
+      );
+    }
+
     default: {
       return null;
     }

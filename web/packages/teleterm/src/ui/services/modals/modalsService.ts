@@ -173,8 +173,17 @@ export interface DialogDocumentsReopen {
   onCancel?(): void;
 }
 
+export interface DialogUsageData {
+  kind: 'usage-data';
+
+  onAllow(): void;
+
+  onDecline(): void;
+}
+
 export type Dialog =
   | DialogBase
   | DialogClusterConnect
   | DialogClusterLogout
-  | DialogDocumentsReopen;
+  | DialogDocumentsReopen
+  | DialogUsageData;
