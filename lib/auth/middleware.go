@@ -608,10 +608,6 @@ func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
 
 // ServeHTTP serves HTTP requests
 func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if r.TLS == nil {
 		trace.WriteError(w, trace.AccessDenied("missing authentication"))
 		return
@@ -623,6 +619,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// determine authenticated user based on the request parameters
+	ctx := r.Context()
 	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(r.TLS))
 	ctx = context.WithValue(ctx, ContextUser, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
