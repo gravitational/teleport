@@ -5,7 +5,7 @@ version: v3
 kubernetes_service:
   enabled: true
   listen_addr: 0.0.0.0:3026
-  public_addr: "{{ .Release.Name }}-auth.{{ .Release.Namespace }}.svc.cluster.local:3026"
+  public_addr: "{{ include "teleport-cluster.auth.serviceFQDN" . }}:3026"
 {{- if .Values.kubeClusterName }}
   kube_cluster_name: {{ .Values.kubeClusterName }}
 {{- else }}

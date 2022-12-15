@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-auth
+  name: {{ import "teleport-cluster.auth.serviceName" . }}
   namespace: {{ .Release.Namespace }}
   labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
 {{- if $auth.annotations.service }}
