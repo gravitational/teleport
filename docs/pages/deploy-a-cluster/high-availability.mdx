@@ -46,7 +46,7 @@ Teleport instance. This must not terminate TLS, and must transparently forward
 the TCP traffic it receives. In other words, this must be a Layer 4 load
 balancer, not a Layer 7 (e.g., HTTP) load balancer. 
 
-### Using TLS Routing
+### TLS Routing
 
 Your load balancer configuration depends on whether you will enable [TLS
 Routing](../management/guides/tls-routing.mdx) in your Teleport cluster.
@@ -63,15 +63,15 @@ The disadvantage of TLS Routing is that it is impossible to implement Layer 7
 load balancing for HTTPS traffic, since traffic that reaches the HTTPS port can
 use any supported protocol. 
 
-The approach we describe in this guide uses a Layer 4 load balancer for
-simplicity, but users that require a separate load balancer for HTTPS traffic
-should disable TLS Routing.
+The approach we describe in this guide uses only a Layer 4 load balancer to
+minimize the infrastructure you will deploy, but users that require a separate
+load balancer for HTTPS traffic should disable TLS Routing.
 
 ### Configuring the load balancer
 
 Configure the load balancer to forward traffic from the following ports on the
-load balancer to the corresponding port on an available Teleport instance,
-depending on whether you will enable TLS Routing:
+load balancer to the corresponding port on an available Teleport instance. The
+configuration depends on whether you will enable TLS Routing:
 
 <Tabs>
 <TabItem label="TLS Routing">
@@ -124,9 +124,9 @@ events.
 The Teleport Auth Service manages the creation of any required DynamoDB tables
 or Firestore collections itself, and does not require them to exist in advance.
 
-The Auth Service can also store cluster state in self-hosted etcd deployments.
-In this case, Teleport uses namespaces within item keys to identify cluster
-state data.
+The Auth Service can also store cluster state in self-hosted
+[etcd](https://etcd.io/) deployments. In this case, Teleport uses namespaces
+within item keys to identify cluster state data.
 
 <Admonition title="Required permissions">
 
@@ -194,7 +194,7 @@ paths `/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
 Set up a DNS zone where you can create records for Teleport, e.g., an Amazon
 Route 53 hosted zone or Google Cloud DNS zone.
 
-### Proxy Service records
+### Teleport Proxy Service records
 
 Users and services must be able to reach the Teleport Proxy Service in order to
 connect to your Teleport cluster. Since a high availability setup runs Teleport
@@ -231,9 +231,10 @@ application with Teleport:
 
 If you are using Let's Encrypt to provide TLS credentials to your Teleport
 instances, the TLS credential system we mentioned earlier needs permissions to
-manage DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. If you
-are using cloud-managed solutions, you should use your cloud provider's RBAC
-system (e.g., AWS IAM) to grant a role to the Proxy Service to manage DNS
+manage DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. 
+
+If you are using cloud-managed solutions, you should use your cloud provider's
+RBAC system (e.g., AWS IAM) to grant a role to the Proxy Service to manage DNS
 records. 
 
 </Admonition>
@@ -368,7 +369,7 @@ teleport:
 
 In the `storage` section, the `audit_sessions_uri` field names the bucket within
 Google Cloud Storage or an S3-compatible service to use for session recordings,
-and the remaining fields in `storage` are specific to each backend. 
+and the remaining fields are specific to each backend. 
 
 Consult our [Backends Reference](../reference/backends.mdx) for the values you
 should use.  
@@ -494,6 +495,8 @@ cluster of virtual machines in your cloud of choice:
 
 Teleport supports a range of Auth Service backends, and you can plan the best
 one for your use case in our [backends guide](../reference/backends.mdx).
+
+### Ensure high performance
 
 You should also get familiar with how to ensure that your Teleport deployment is
 performing as expected:
