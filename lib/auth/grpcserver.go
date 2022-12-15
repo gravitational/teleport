@@ -1136,7 +1136,7 @@ func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.De
 }
 
 // GetAllDatabaseServices returns all registered DatabaseServices.
-func (g *GRPCServer) GetAllDatabaseServices(ctx context.Context, _ *emptypb.Empty) (*types.DatabaseServiceV1List, error) {
+func (g *GRPCServer) GetAllDatabaseServices(ctx context.Context, _ *proto.GetAllDatabaseServicesRequest) (*proto.DatabaseServiceV1List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1146,11 +1146,22 @@ func (g *GRPCServer) GetAllDatabaseServices(ctx context.Context, _ *emptypb.Empt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return dbs, nil
+
+	ret := &proto.DatabaseServiceV1List{
+		Services: make([]*types.DatabaseServiceV1, len(dbs)),
+	}
+	for i, db := range dbs {
+		dbServiceV1, ok := db.(*types.DatabaseServiceV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected DatabaseService type: %T", db)
+		}
+		ret.Services[i] = dbServiceV1
+	}
+	return ret, nil
 }
 
 // UpsertDatabaseService registers a new database service.
-func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *types.UpsertDatabaseServiceRequest) (*emptypb.Empty, error) {
+func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1178,7 +1189,7 @@ func (g *GRPCServer) DeleteDatabaseService(ctx context.Context, req *types.Resou
 }
 
 // DeleteAllDatabaseServices removes all registered DatabaseServices.
-func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *proto.DeleteAllDatabaseServicesRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

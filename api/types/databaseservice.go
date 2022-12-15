@@ -32,8 +32,6 @@ type DatabaseService interface {
 
 	// GetResourceMatchers returns the resource matchers of the DatabaseService.
 	GetResourceMatchers() []Labels
-	// SetResourceMatchers sets the resource matchers.
-	SetResourceMatchers([]Labels)
 }
 
 // NewDatabaseServiceV1 creates a new DatabaseService instance.
@@ -66,11 +64,6 @@ func (s *DatabaseServiceV1) CheckAndSetDefaults() error {
 // GetResourceMatchers returns the resource matchers of the DatabaseService.
 func (s *DatabaseServiceV1) GetResourceMatchers() []Labels {
 	return s.Spec.ResourceMatchers
-}
-
-// SetResourceMatchers sets the resource matchers.
-func (s *DatabaseServiceV1) SetResourceMatchers(resourceMatchers []Labels) {
-	s.Spec.ResourceMatchers = resourceMatchers
 }
 
 // GetNamespace returns the resource namespace.

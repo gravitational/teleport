@@ -3862,7 +3862,7 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 }
 
 // GetAllDatabaseServices returns all DatabaseService resources.
-func (a *ServerWithRoles) GetAllDatabaseServices(ctx context.Context) (*types.DatabaseServiceV1List, error) {
+func (a *ServerWithRoles) GetAllDatabaseServices(ctx context.Context) ([]types.DatabaseService, error) {
 	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
