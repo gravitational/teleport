@@ -45,6 +45,7 @@ type Collector struct {
 
 	spanLock sync.RWMutex
 	spans    []*otlp.ScopeSpans
+	exported chan struct{}
 }
 
 // CollectorConfig configures how a Collector should be created.
@@ -54,12 +55,12 @@ type CollectorConfig struct {
 
 // NewCollector creates a new Collector based on the provided config.
 func NewCollector(cfg CollectorConfig) (*Collector, error) {
-	grpcLn, err := net.Listen("tcp4", "")
+	grpcLn, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	httpLn, err := net.Listen("tcp4", "")
+	httpLn, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,6 +77,7 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 		httpLn:     httpLn,
 		grpcServer: grpc.NewServer(grpc.Creds(creds)),
 		tlsConfing: tlsConfig,
+		exported:   make(chan struct{}, 1),
 	}
 
 	c.httpServer = &http.Server{Handler: c, TLSConfig: tlsConfig.Clone()}
@@ -186,14 +188,26 @@ func (c *Collector) Export(ctx context.Context, req *coltracepb.ExportTraceServi
 		c.spans = append(c.spans, span.ScopeSpans...)
 	}
 
+	select {
+	case c.exported <- struct{}{}:
+	default:
+	}
+
 	return &coltracepb.ExportTraceServiceResponse{}, nil
 }
 
+func (c *Collector) WaitForExport() {
+	<-c.exported
+}
+
+// Spans returns all collected spans and resets the collector
 func (c *Collector) Spans() []*otlp.ScopeSpans {
-	c.spanLock.RLock()
-	defer c.spanLock.RUnlock()
+	c.spanLock.Lock()
+	defer c.spanLock.Unlock()
 	spans := make([]*otlp.ScopeSpans, len(c.spans))
 	copy(spans, c.spans)
+
+	c.spans = nil
 
 	return spans
 }
