@@ -22,7 +22,7 @@ import (
 	"github.com/vulcand/predicate"
 )
 
-// AccesDecision represents the result of an access engine working through a set of rules.
+// AccessDecision represents the result of an access engine working through a set of rules.
 type AccessDecision int
 
 const (
