@@ -364,11 +364,11 @@ func TestProvisionTokenV2_GetSafeName(t *testing.T) {
 	t.Run("non-token join method", func(t *testing.T) {
 		tok, err := NewProvisionTokenFromSpec("12345678", time.Now(), ProvisionTokenSpecV2{
 			Roles:      []SystemRole{RoleNode},
-			JoinMethod: JoinMethodKubernetes,
-			Kubernetes: &ProvisionTokenSpecV2Kubernetes{
-				Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+			JoinMethod: JoinMethodGitHub,
+			GitHub: &ProvisionTokenSpecV2GitHub{
+				Allow: []*ProvisionTokenSpecV2GitHub_Rule{
 					{
-						ServiceAccount: "namespace:my-service-account",
+						Sub: "a-subject",
 					},
 				},
 			},
