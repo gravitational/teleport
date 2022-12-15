@@ -115,6 +115,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	}
 	rc.config = config
 
+	rc.GetHandlers = map[ResourceKind]ResourceGetHandler{}
+
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
 	rc.createCmd.Arg("filename", "resource definition file, empty for stdin").StringVar(&rc.filename)
 	rc.createCmd.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&rc.force)
@@ -204,7 +206,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.stdout)
+		return collection.WriteText(rc.stdout)
 	case teleport.YAML:
 		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:
@@ -224,7 +226,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client auth.ClientI) err
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, collection.resources()...)
+		resources = append(resources, collection.Resources()...)
 	}
 	if err := utils.WriteYAML(os.Stdout, resources); err != nil {
 		return trace.Wrap(err)

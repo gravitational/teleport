@@ -21,6 +21,8 @@ type OktaApplication interface {
 	GetGroups() []string
 	// GetAppLinks returns the Okta app links.
 	GetAppLinks() []OktaAppLink
+	// GetApplicationID returns the ID of the application.
+	GetApplicationID() string
 }
 
 // NewOktaApplicationV1 creates a new Okta application resource.
@@ -172,6 +174,11 @@ func (o *OktaApplicationV1) GetAppLinks() []OktaAppLink {
 		appLinks[i] = appLink
 	}
 	return appLinks
+}
+
+// GetApplicationID returns the ID of the application.
+func (o *OktaApplicationV1) GetApplicationID() string {
+	return o.Spec.Id
 }
 
 // MatchSearch goes through select field values and tries to

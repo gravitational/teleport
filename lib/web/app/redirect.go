@@ -80,12 +80,6 @@ const js = `
           cookie_value: hashParts[1],
         };
 
-        fetch('https://dev-53161101.okta.com/api/v1/sessions/me', {
-          method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
-          mode: 'cors', // no-cors, *cors, same-origin
-          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
-          credentials: 'include', // include, *same-origin, omit
-        }).then(response => {
           fetch('/x-teleport-auth', {
             method: 'POST',
             mode: 'same-origin',
@@ -110,7 +104,6 @@ const js = `
                   window.location.replace(url.origin)
               }
             }
-          });
         });
       })();
     </script>

@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/google/uuid"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -192,13 +191,13 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session 
 		if app.Origin() == types.OriginOkta {
 			oktaUrlBuilder := strings.Builder{}
 			// Set up the URL + IDP + Client ID
-			oktaUrlBuilder.WriteString("https://dev-53161101.okta.com/oauth2/v1/authorize?idp=0oa7ceq0x6G7LCqT25d7&client_id=0oa7ah8bngy7rQTzu5d7&")
-			// Set up some Okta OAuth specific query variables.
-			oktaUrlBuilder.WriteString("response_type=code&response_mode=query&scope=groups%20openid%20email&")
-			// Set up the redirect URL
-			redirectUri := url.QueryEscape(app.GetURI())
-			oktaUrlBuilder.WriteString("redirect_uri=" + redirectUri + "&")
-			oktaUrlBuilder.WriteString("state=" + uuid.NewString() + "&nonce=" + uuid.NewString())
+			oktaUrlBuilder.WriteString("https://dev-53161101.okta.com/sso/saml2/0oa7ceq0x6G7LCqT25d7/")
+			// Append SAML deep link to application
+			applicationLink, err := url.Parse(app.GetURI())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			oktaUrlBuilder.WriteString(applicationLink.Path)
 			h.log.Infof("Redirecting to %s", oktaUrlBuilder.String())
 			if err := cookie.SetSessionCookie(w, session.ws.GetUser(), session.ws.GetName()); err != nil {
 				return trace.Wrap(err)

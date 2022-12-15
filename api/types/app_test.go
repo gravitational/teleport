@@ -248,3 +248,44 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 		})
 	}
 }
+
+func TestIsOktaApp(t *testing.T) {
+	tests := []struct {
+		name           string
+		uri            string
+		expectedOutput bool
+	}{
+		{
+			name:           "okta app",
+			uri:            "https://anything.okta.com/blahblah",
+			expectedOutput: true,
+		},
+		{
+			name:           "not an okta app",
+			uri:            "https://somewhere.else/blahblah",
+			expectedOutput: false,
+		},
+		{
+			name:           "not an okta app but has okta.com in the name",
+			uri:            "https://somewhere.else/blahblah/blah.okta.com",
+			expectedOutput: false,
+		},
+		{
+			name:           "okta app with wrong scheme",
+			uri:            "http://somewhere.else/blahblah",
+			expectedOutput: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "TestApp",
+			}, AppSpecV3{
+				URI: tc.uri,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedOutput, app.IsOktaApp())
+		})
+	}
+}

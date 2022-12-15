@@ -45,6 +45,10 @@ type App struct {
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
 	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
+	// OktaRoles is a list of Okta roles for an Okta application.
+	OktaRoles []OktaRole `json:"oktaRoles,omitempty"`
+	// OktaApp if true, indicates that the app is an Okta application.
+	OktaApp bool `json:"oktaApp"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -59,6 +63,11 @@ type MakeAppsConfig struct {
 	Apps types.Apps
 	// Identity is identity of the logged in user.
 	Identity *tlsca.Identity
+}
+
+type OktaRole struct {
+	ID      string `json:"id"`
+	Display string `json:"display"`
 }
 
 // MakeApps creates server application objects
@@ -85,11 +94,26 @@ func MakeApps(c MakeAppsConfig) []App {
 			ClusterID:   c.AppClusterName,
 			FQDN:        fqdn,
 			AWSConsole:  teleApp.IsAWSConsole(),
+			OktaApp:     teleApp.IsOktaApp(),
 		}
 
 		if teleApp.IsAWSConsole() {
 			app.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
 				teleApp.GetAWSAccountID())
+		}
+
+		if teleApp.IsOktaApp() {
+			// Dummy valuews for now
+			app.OktaRoles = []OktaRole{
+				{
+					ID:      "okta-dev",
+					Display: "Okta Developers",
+				},
+				{
+					ID:      "okta-admin",
+					Display: "Okta Admin",
+				},
+			}
 		}
 
 		result = append(result, app)

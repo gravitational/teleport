@@ -85,7 +85,7 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) e
 	}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.WriteText(os.Stdout))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:

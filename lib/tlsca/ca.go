@@ -157,6 +157,8 @@ type Identity struct {
 	ClientIP string
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRoleARNs []string
+	// OktaRoles is a list of allowed Okta roles that a user can assume.
+	OktaRoles []string
 	// ActiveRequests is a list of UUIDs of active requests for this Identity.
 	ActiveRequests []string
 	// DisallowReissue is a flag that, if set, instructs the auth server to

@@ -61,6 +61,8 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
+	// IsOktaApp returns true if this app is an Okta application.
+	IsOktaApp() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// GetProtocol returns the application protocol.
@@ -232,6 +234,11 @@ func (a *AppV3) IsAWSConsole() bool {
 		}
 	}
 	return false
+}
+
+// IsOktaApp returns true if this app is an Okta application.
+func (a *AppV3) IsOktaApp() bool {
+	return a.Origin() == OriginOkta
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
