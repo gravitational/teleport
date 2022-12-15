@@ -40,8 +40,8 @@ import (
 func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
 	// newHostUsersBackend statically returns a valid backend or an error,
 	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostUsersBackend(uuid) //nolint:staticcheck
-	if err != nil {                           //nolint:staticcheck
+	backend, err := newHostUsersBackend(uuid) //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	if err != nil {                           //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		log.Warnf("Error making new HostUsersBackend: %s", err)
 		return nil
 	}
