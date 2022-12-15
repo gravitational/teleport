@@ -24,6 +24,8 @@ import (
 )
 
 func FuzzMongoRead(f *testing.F) {
+	f.Skip("Skipping Mongo Fuzz until driver updates are done")
+
 	f.Add([]byte{})
 	f.Add([]byte(" \x00\x00\x0000000000\xdc\a\x00\x000000000\xca\x010000000"))
 	f.Add([]byte(" \x00\x00\x0000000000\xdd\a\x00\x000000\x01000\x8e0000000000000"))
