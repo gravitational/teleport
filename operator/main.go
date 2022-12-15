@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 //nolint:goimports
+
 import (
 	"flag"
 	"os"
@@ -41,7 +42,6 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
 	"github.com/gravitational/teleport/operator/sidecar"
-	//+kubebuilder:scaffold:imports
 )
 
 var (

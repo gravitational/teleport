@@ -50,7 +50,6 @@ import (
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv3 "github.com/gravitational/teleport/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
-	//+kubebuilder:scaffold:imports
 )
 
 func fastEventually(t *testing.T, condition func() bool) {
