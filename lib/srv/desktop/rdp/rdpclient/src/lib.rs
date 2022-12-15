@@ -56,6 +56,7 @@ use rand::SeedableRng;
 use rdp::core::event::*;
 use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
+use rdp::core::global::ServerError;
 use rdp::core::mcs;
 use rdp::core::sec;
 use rdp::core::tpkt;
@@ -1128,27 +1129,47 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
 /// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
 /// handle_bitmap.
 ///
+/// The ErrCodeAndMessage value that's returned should be interpreted as:
+///
+/// The function ended due to a client disconnect
+/// ErrCodeAndMessage {
+///     message: "",
+///     err: CGOErrCode::ErrCodeSuccess,
+/// }
+///
+/// The function ended due to a server disconnect
+/// ErrCodeAndMessage {
+///     message: "some reason why the server disconnected",
+///     err: CGOErrCode::ErrCodeSuccess,
+/// }
+///
+/// The function ended due to an unexpected error
+/// ErrCodeAndMessage {
+///     message: "unexpected error message",
+///     err: CGOErrCode::ErrCodeFailure,
+/// }
+///
 /// # Safety
 ///
 /// `client_ptr` must be a valid pointer to a Client.
 /// `handle_bitmap` *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCode {
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCodeAndMessage {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
-            return cgo_error;
+            return ErrCodeAndMessage {
+                message: "invalid Rust client pointer".to_string(),
+                err_code: cgo_error,
+            }
+            .into();
         }
     };
-    if let Some(err) = read_rdp_output_inner(client) {
-        error!("{}", err);
-        CGOErrCode::ErrCodeFailure
-    } else {
-        CGOErrCode::ErrCodeSuccess
-    }
+
+    read_rdp_output_inner(client).into()
 }
 
-fn read_rdp_output_inner(client: &Client) -> Option<String> {
+fn read_rdp_output_inner(client: &Client) -> ErrCodeAndMessage {
     let tcp_fd = client.tcp_fd;
     let client_ref = client.go_ref;
 
@@ -1190,17 +1211,49 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             }
         });
         match res {
-            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
-            Err(e) => {
-                return Some(format!("RDP read failed: {:?}", e));
+            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => {
+                debug!("client disconnect detected");
+                return ErrCodeAndMessage {
+                    message: "".to_string(),
+                    err_code: CGOErrCode::ErrCodeSuccess,
+                };
             }
-            _ => {}
+            Err(RdpError::RdpError(rdp_err)) if rdp_err.kind() == RdpErrorKind::Disconnect => {
+                // RdpErrorKind::Disconnect means we encountered a Disconnect Provider Ultimatum.
+                // If we don't know why that was sent, return an error, otherwise return no error.
+                let server_error = client.rdp_client.lock().unwrap().global.server_error();
+                if server_error == ServerError::None {
+                    return ErrCodeAndMessage {
+                        message: "RDP server disconnected for an unknown reason".to_string(),
+                        err_code: CGOErrCode::ErrCodeFailure,
+                    };
+                }
+                debug!("server disconnect detected");
+                return ErrCodeAndMessage {
+                    message: server_error.to_string(),
+                    err_code: CGOErrCode::ErrCodeSuccess,
+                };
+            }
+            Err(e) => {
+                return ErrCodeAndMessage {
+                    message: format!("RDP read failed: {:?}", e),
+                    err_code: CGOErrCode::ErrCodeFailure,
+                };
+            }
+            Ok(()) => {}
         }
         if err != CGOErrCode::ErrCodeSuccess {
-            return Some("failed forwarding RDP bitmap frame".to_string());
+            return ErrCodeAndMessage {
+                message: "failed forwarding RDP bitmap frame".to_string(),
+                err_code: err,
+            };
         }
     }
-    None
+
+    ErrCodeAndMessage {
+        message: "RDP read failed for an unknown reason".to_string(),
+        err_code: CGOErrCode::ErrCodeFailure,
+    }
 }
 
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -1361,68 +1414,38 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
     };
 
     if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Both) {
-        error!("failed shutting down TCP socket: {:?}", err);
-        return CGOErrCode::ErrCodeFailure;
+        match err.kind() {
+            ErrorKind::NotConnected => {
+                debug!("tcp socket was not connected");
+                return CGOErrCode::ErrCodeSuccess;
+            }
+            _ => {
+                error!("failed shutting down TCP socket: {:?}", err);
+                return CGOErrCode::ErrCodeFailure;
+            }
+        }
     }
 
     res
 }
 
-#[repr(C)]
-pub struct ReasonOrError {
-    reason: *const c_char,
-    err: CGOErrCode,
+struct ErrCodeAndMessage {
+    message: String,
+    err_code: CGOErrCode,
 }
 
-/// get_server_disconnect_reason gets the reason the server disconnected the rdp session as communicated by the Set Error Info PDU
-/// (https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a21a1bd9-2303-49c1-90ec-3932435c248c).
-/// If no error has occured it returns an empty string.
-///
-/// # Safety
-///
-/// client_ptr must be a valid pointer to a Client.
-///
-/// It is the responsibility of the caller to call free_go_string on the return value's reason
-/// field if the error field is CGOErrCode::ErrCodeSuccess. If the error field is any other value
-/// the caller must not call free_go_string on the reason field.
-#[no_mangle]
-pub unsafe extern "C" fn get_server_disconnect_reason(client_ptr: *mut Client) -> ReasonOrError {
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return ReasonOrError {
-                reason: ptr::null(),
-                err: cgo_error,
-            };
-        }
-    };
+#[repr(C)]
+pub struct CGOErrCodeAndMessage {
+    message: *const c_char,
+    err_code: CGOErrCode,
+}
 
-    let rdp_client = match client.rdp_client.lock() {
-        Ok(rdp_client) => rdp_client,
-        Err(e) => {
-            error!("{:?}", e);
-            return ReasonOrError {
-                reason: ptr::null(),
-                err: CGOErrCode::ErrCodeFailure,
-            };
+impl From<ErrCodeAndMessage> for CGOErrCodeAndMessage {
+    fn from(enm: ErrCodeAndMessage) -> CGOErrCodeAndMessage {
+        CGOErrCodeAndMessage {
+            message: to_c_string(&enm.message).unwrap(),
+            err_code: enm.err_code,
         }
-    };
-
-    let reason = rdp_client.global.get_server_disconnect_reason();
-    let reason = match to_c_string(&reason) {
-        Ok(reason) => reason,
-        Err(e) => {
-            error!("{:?}", e);
-            return ReasonOrError {
-                reason: ptr::null(),
-                err: CGOErrCode::ErrCodeFailure,
-            };
-        }
-    };
-
-    ReasonOrError {
-        reason,
-        err: CGOErrCode::ErrCodeSuccess,
     }
 }
 
