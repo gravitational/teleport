@@ -37,7 +37,8 @@ This includes:
   credential provisioner will need to manage DNS records to demonstrate control
   over your domain name.
 
-{/* TODO: include a diagram--do this after filling in the rest of the details*/}
+![Diagram of a high-availability Teleport
+architecture](../../img/deploy-a-cluster/teleport-ha-architecture.png)
 
 ## Layer 4 load balancer
 
@@ -49,7 +50,7 @@ balancer, not a Layer 7 (e.g., HTTP) load balancer.
 ### TLS Routing
 
 Your load balancer configuration depends on whether you will enable [TLS
-Routing](../management/guides/tls-routing.mdx) in your Teleport cluster.
+Routing](../management/operations/tls-routing.mdx) in your Teleport cluster.
 
 With TLS Routing, the Teleport Proxy Service uses application-layer protocol
 negotiation (ALPN) to handle all communication with users and services via the
@@ -449,7 +450,6 @@ required settings for a high-availability Teleport deployment:
   (`enabled`) and instructed it to find an Enterprise license file at
   `/var/lib/license/license.pem` (`license_file`). Remove the `license_file`
   field if you are deploying the open source edition of Teleport. 
-
 - In the `proxy_service` section, we have enabled the Teleport Proxy Service
   (`enabled`) and instructed it to find its TLS credentials in the
   `/etc/teleport-tls` directory (`https_keypairs`).
