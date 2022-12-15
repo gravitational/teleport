@@ -25,4 +25,4 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {}
 
 func userCommandOSTweaks(cmd *exec.Cmd) {}
 
-func adjustOOMScore() error {}
+func adjustOOMScore() error { return nil }
