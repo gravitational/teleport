@@ -1406,7 +1406,7 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
     if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Both) {
         match err.kind() {
             ErrorKind::NotConnected => {
-                debug!("tcp socket was not connected");
+                debug!("TCP socket was not connected");
                 return CGOErrCode::ErrCodeSuccess;
             }
             _ => {
