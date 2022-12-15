@@ -987,7 +987,7 @@ func (c *installerCollection) writeText(w io.Writer) error {
 }
 
 type policyCollection struct {
-	policies []types.Policy
+	policies []types.AccessPolicy
 }
 
 func (c *policyCollection) resources() []types.Resource {

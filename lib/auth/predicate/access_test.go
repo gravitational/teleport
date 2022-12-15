@@ -98,19 +98,19 @@ func TestFnSanity(t *testing.T) {
 
 // TestCheckAccessToNode checks that `CheckAccessToNode` works properly.
 func TestCheckAccessToNode(t *testing.T) {
-	withNameAsLogin := types.NewPolicy("allow", types.AccessPolicySpecV1{
+	withNameAsLogin := types.NewAccessPolicy("allow", types.AccessPolicySpecV1{
 		Allow: map[string]string{
 			"node": "(node.login == user.name) || (add(user.name, \"-admin\") == node.login)",
 		},
 	})
 
-	denyMike := types.NewPolicy("allow", types.AccessPolicySpecV1{
+	denyMike := types.NewAccessPolicy("allow", types.AccessPolicySpecV1{
 		Deny: map[string]string{
 			"node": "node.login == \"mike\"",
 		},
 	})
 
-	checker := NewPredicateAccessChecker([]types.Policy{withNameAsLogin})
+	checker := NewPredicateAccessChecker([]types.AccessPolicy{withNameAsLogin})
 	access, err := checker.CheckAccessToNode(&Node{Login: "mike"}, &User{Name: "mike"})
 	require.NoError(t, err)
 	require.True(t, access)
@@ -123,7 +123,7 @@ func TestCheckAccessToNode(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, access)
 
-	checkerWithDeny := NewPredicateAccessChecker([]types.Policy{withNameAsLogin, denyMike})
+	checkerWithDeny := NewPredicateAccessChecker([]types.AccessPolicy{withNameAsLogin, denyMike})
 	access, err = checkerWithDeny.CheckAccessToNode(&Node{Login: "mike"}, &User{Name: "mike"})
 	require.NoError(t, err)
 	require.False(t, access)

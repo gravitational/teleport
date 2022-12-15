@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// UnmarshalPolicy unmarshals the Policy resource from JSON.
-func UnmarshalPolicy(data []byte, opts ...MarshalOption) (types.Policy, error) {
+// UnmarshalAccessPolicy unmarshals the AccessPolicy resource from JSON.
+func UnmarshalAccessPolicy(data []byte, opts ...MarshalOption) (types.AccessPolicy, error) {
 	var policy types.AccessPolicyV1
 
 	if len(data) == 0 {
@@ -52,8 +52,8 @@ func UnmarshalPolicy(data []byte, opts ...MarshalOption) (types.Policy, error) {
 	return &policy, nil
 }
 
-// MarshalPolicy marshals the Policy resource to JSON.
-func MarshalPolicy(policy types.Policy, opts ...MarshalOption) ([]byte, error) {
+// MarshalAccessPolicy marshals the AccessPolicy resource to JSON.
+func MarshalPolicy(policy types.AccessPolicy, opts ...MarshalOption) ([]byte, error) {
 	if err := policy.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

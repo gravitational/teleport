@@ -292,8 +292,8 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 	})
 }
 
-// CreatePolicy creates a new policy resource.
-func (s *AccessService) CreatePolicy(ctx context.Context, policy types.Policy) error {
+// CreateAccessPolicy creates a new access policy resource.
+func (s *AccessService) CreateAccessPolicy(ctx context.Context, policy types.AccessPolicy) error {
 	value, err := services.MarshalPolicy(policy)
 	if err != nil {
 		return trace.Wrap(err)
@@ -312,8 +312,8 @@ func (s *AccessService) CreatePolicy(ctx context.Context, policy types.Policy) e
 	return nil
 }
 
-// GetPolicy fetches a policy resource by name.
-func (s *AccessService) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
+// GetAccessPolicy fetches a access policy resource by name.
+func (s *AccessService) GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing policy name")
 	}
@@ -324,25 +324,26 @@ func (s *AccessService) GetPolicy(ctx context.Context, name string) (types.Polic
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalPolicy(item.Value,
+	return services.UnmarshalAccessPolicy(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
-// GetPolicies lists policies in the cluster.
-func (s *AccessService) GetPolicies(ctx context.Context) ([]types.Policy, error) {
+// GetAccessPolicies lists access policies in the cluster.
+func (s *AccessService) GetAccessPolicies(ctx context.Context) ([]types.AccessPolicy, error) {
 	startKey := backend.Key(policiesPrefix, "")
 	items, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]types.Policy, 0, len(items.Items))
-	for _, item := range items.Items {
-		policy, err := services.UnmarshalPolicy(item.Value,
+	out := make([]types.AccessPolicy, len(items.Items))
+	for i, item := range items.Items {
+		policy, err := services.UnmarshalAccessPolicy(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out = append(out, policy)
+
+		out[i] = policy
 	}
 	return out, nil
 }
