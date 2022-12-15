@@ -1166,6 +1166,20 @@ export const formatters: Formatters = {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
     },
   },
+  [eventCodes.BOT_JOIN]: {
+    type: 'bot.join',
+    desc: 'Bot Joined',
+    format: ({ bot_name, method }) => {
+      return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN]: {
+    type: 'instance.join',
+    desc: 'Instance Joined',
+    format: ({ node_name, role, method }) => {
+      return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
