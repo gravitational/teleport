@@ -294,9 +294,9 @@ func (c *Client) start() {
 		}
 
 		// Select the logger to use based on the error code.
-		log := c.cfg.Log.Info
+		logf := c.cfg.Log.Infof
 		if res.err_code == C.ErrCodeFailure {
-			log = c.cfg.Log.Error
+			logf = c.cfg.Log.Errorf
 		}
 
 		// Log a message to the user.
@@ -308,7 +308,7 @@ func (c *Client) start() {
 		} else {
 			logPrefix = "the RDP session ended unexpectedly with message: %v"
 		}
-		log(fmt.Sprintf(logPrefix, userMessage))
+		logf(logPrefix, userMessage)
 	}()
 
 	// User input streaming worker goroutine.
