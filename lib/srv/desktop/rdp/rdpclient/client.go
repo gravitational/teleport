@@ -277,20 +277,38 @@ func (c *Client) start() {
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		res := C.read_rdp_output(c.rustClient)
-		message := C.GoString(res.message)
-		C.free_c_string(res.message)
-		if message != "" {
-			if res.err_code == C.ErrCodeSuccess {
-				c.cfg.Log.Warnf("RDP server disconnected with reason: %v", message)
-			} else {
-				c.cfg.Log.Errorf("%v", message)
-			}
+
+		// Copy the returned message and free the C memory)
+		userMessage := C.GoString(res.user_message)
+		C.free_c_string(res.user_message)
+
+		// If the disconnect was initiated by the server or for
+		// an unknown reason, try to alert the user as to why via
+		// a TDP error message.
+		if res.disconnect_code != C.DisconnectCodeClient {
 			if err := c.cfg.Conn.WriteMessage(tdp.Error{
-				Message: fmt.Sprintf("The Windows Desktop disconnected. %v", message),
+				Message: fmt.Sprintf("The Windows Desktop disconnected: %v", userMessage),
 			}); err != nil {
 				c.cfg.Log.WithError(err).Error("error sending server disconnect reason over TDP")
 			}
 		}
+
+		// Select the logger to use based on the error code.
+		log := c.cfg.Log.Info
+		if res.err_code == C.ErrCodeFailure {
+			log = c.cfg.Log.Error
+		}
+
+		// Log a message to the user.
+		var logPrefix string
+		if res.disconnect_code == C.DisconnectCodeClient {
+			logPrefix = "the RDP client ended the session with message: %v"
+		} else if res.disconnect_code == C.DisconnectCodeServer {
+			logPrefix = "the RDP server ended the session with message: %v"
+		} else {
+			logPrefix = "the RDP session ended unexpectedly with message: %v"
+		}
+		log(fmt.Sprintf(logPrefix, userMessage))
 	}()
 
 	// User input streaming worker goroutine.
