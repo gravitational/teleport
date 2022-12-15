@@ -50,9 +50,12 @@ func TestSolverFn(t *testing.T) {
 	}, "x", TypeString, 2)
 
 	require.NoError(t, err)
-	require.Len(t, x, 2)
-	require.Equal(t, "\"BananA\"", x[0].String())
-	require.Equal(t, "\"BAnanA\"", x[1].String())
+
+	s := make([]string, len(x))
+	for i, v := range x {
+		s[i] = v.String()
+	}
+	require.ElementsMatch(t, []string{"\"BananA\"", "\"BAnanA\""}, s)
 }
 
 // TestSolverStringExpMultiSolution tests solving against a string equality expression with two solutions.
