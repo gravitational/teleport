@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func rotate(
+func rotate( //nolint:unused // used in skipped test
 	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc *service.TeleportProcess, phase string,
 ) {
 	t.Helper()
@@ -60,7 +60,8 @@ func rotate(
 	log.Infof("Triggered rotation: %s", phase)
 }
 
-func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
+func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup, //nolint:unused // used in skipped test
+) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
 	cfg := service.MakeDefaultConfig()
