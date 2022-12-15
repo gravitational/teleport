@@ -205,9 +205,9 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(ws, err)
 	}
 
-	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
-		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
-	}
+	handleProxyWebsocketConnErr(
+		proxyWebsocketConn(ws, serviceConnTLS), log)
+
 	return nil
 }
 
@@ -390,6 +390,33 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
+}
+
+// wasWebsocketClosedByClient handles the error returned by proxyWebsocketConn
+func handleProxyWebsocketConnErr(err error, log *logrus.Entry) {
+	if err == nil {
+		return
+	}
+
+	if agg, ok := trace.Unwrap(err).(trace.Aggregate); ok {
+		wsClosedByClient := false
+		for _, err := range agg.Errors() {
+			if ce, ok := trace.Unwrap(err).(*websocket.CloseError); ok {
+				switch ce.Code {
+				case websocket.CloseNoStatusReceived, // when the user hits "disconnect" from the menu
+					websocket.CloseGoingAway: // when the user closes the tab
+					wsClosedByClient = true
+				}
+			}
+		}
+		if wsClosedByClient {
+			log.Debug("Web socket closed by client")
+		} else {
+			log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
+		}
+	} else {
+		log.Errorf("Programming error: received unexpected error type from proxyWebsocketConn")
+	}
 }
 
 // createCertificateBlob creates Certificate BLOB
