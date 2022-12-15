@@ -1446,12 +1446,14 @@ func (a *Server) AugmentContextUserCertificates(
 	// Augment SSH certificate.
 	var newAuthorizedKey []byte
 	if sshCert != nil {
+		// Add some leeway to validAfter to avoid time skew errors.
+		validAfter := a.clock.Now().UTC().Add(-1 * time.Minute)
 		newSSHCert := &ssh.Certificate{
 			Key:             sshCert.Key,
 			CertType:        ssh.UserCert,
 			KeyId:           sshCert.KeyId,
 			ValidPrincipals: sshCert.ValidPrincipals,
-			ValidAfter:      sshCert.ValidAfter,
+			ValidAfter:      uint64(validAfter.Unix()),
 			// Use the same expiration as the x509 cert.
 			ValidBefore: uint64(x509Cert.NotAfter.Unix()),
 			Permissions: sshCert.Permissions,

@@ -1125,6 +1125,12 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devTag = "devicetag1"
 	const devCred = "devicecred1"
 
+	advanceClock := func(d time.Duration) {
+		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
+			fc.Advance(d)
+		}
+	}
+
 	tests := []struct {
 		name           string
 		x509PEM        []byte
@@ -1185,6 +1191,12 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			authCtx, err := testServer.APIConfig.Authorizer.Authorize(ctx)
 			require.NoError(t, err, "Authorize failed")
 
+			// Advance time before issuing new certs. This makes timestamp checks
+			// effective under fake clocks.
+			// 1m is enough to make tests fail if the timestamps aren't correct.
+			advanceClock(1 * time.Minute)
+			validAfter := testServer.Clock().Now().UTC().Add(-61 * time.Second)
+
 			// Test!
 			certs, err := authServer.AugmentContextUserCertificates(ctx, authCtx, test.opts)
 			require.NoError(t, err, "AugmentContextUserCertificates failed")
@@ -1193,6 +1205,9 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			// Assert X.509 certificate.
 			newXCert, _ := parseX509PEMAndIdentity(t, certs.TLS)
 			test.assertX509Cert(t, newXCert)
+			assert.True(t,
+				validAfter.Before(newXCert.NotBefore),
+				"got newXCert.NotBefore = %v, want > %v", newXCert.NotBefore, validAfter)
 			assert.Equal(t, xCert.NotAfter, newXCert.NotAfter, "newXCert.NotAfter mismatch")
 
 			// Assert SSH certificate.
@@ -1204,6 +1219,9 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			newSSHCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err, "ParseCertificate failed")
 			test.assertSSHCert(t, newSSHCert)
+			assert.True(t,
+				uint64(validAfter.Unix()) < newSSHCert.ValidAfter,
+				"got newSSHCert.ValidAfter = %v, want > %v", newSSHCert.ValidAfter, validAfter.Unix())
 			assert.Equal(t, uint64(xCert.NotAfter.Unix()), newSSHCert.ValidBefore, "newSSHCert.ValidBefore mismatch")
 		})
 	}
