@@ -1,5 +1,4 @@
 {{- $auth := mustMergeOverwrite .Values .Values.auth -}}
-{{- $persistence := (coalesce .Values.standalone .Values.persistence) -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -238,7 +237,7 @@ spec:
       - name: "data"
         {{- if and (.Values.persistence.enabled) ( and (not (eq .Values.chartMode "gcp")) (not (eq .Values.chartMode "aws"))) }}
         persistentVolumeClaim:
-          claimName: {{ if $persistence.existingClaimName }}{{ $persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
+          claimName: {{ if $auth.persistence.existingClaimName }}{{ $auth.persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
         {{- else }}
         emptyDir: {}
         {{- end }}

@@ -7,7 +7,6 @@ creates a PodSecurityPolicy when enabled in values and supported:
         seccomp.security.alpha.kubernetes.io/allowedProfileNames: docker/default,runtime/default
         seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
       name: RELEASE-NAME
-      namespace: NAMESPACE
     spec:
       allowPrivilegeEscalation: false
       fsGroup:

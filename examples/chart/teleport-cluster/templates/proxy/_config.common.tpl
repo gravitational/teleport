@@ -5,7 +5,7 @@ teleport:
   join_params:
     method: kubernetes
     token_name: "{{.Release.Name}}-proxy"
-  auth_server: "{{ .Release.Name }}-auth.{{ .Release.Namespace }}.svc.cluster.local:3025"
+  auth_server: "{{ include "teleport-cluster.auth.serviceFQDN" . }}:3025"
   log:
     severity: {{ $logLevel }}
     output: {{ .Values.log.output }}

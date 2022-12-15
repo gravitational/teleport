@@ -64,3 +64,15 @@ app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
 {{- end -}}
+
+{{/* ServiceNames are limited to 63 characters, we might have to truncate the ReleaseName
+     to make sure the auth serviceName won't exceed this limit */}}
+{{- define "teleport-cluster.auth.serviceName" -}}
+{{- .Release.Name | trunc 58 | trimSuffix "-" -}}-auth
+{{- end -}}
+
+{{/* In most places we want to use the FQDN instead of relying on Kubernetes ndots behaviour
+     for performance reasons */}}
+{{- define "teleport-cluster.auth.serviceFQDN" -}}
+{{ include "teleport-cluster.auth.serviceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+{{- end -}}
