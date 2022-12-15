@@ -1219,7 +1219,8 @@ fn read_rdp_output_inner(client: &Client) -> ErrCodeAndMessage {
             }
             Err(RdpError::RdpError(rdp_err)) if rdp_err.kind() == RdpErrorKind::Disconnect => {
                 // RdpErrorKind::Disconnect means we encountered a Disconnect Provider Ultimatum.
-                // If we don't know why that was sent, return an error, otherwise return no error.
+                // If we don't know why that was sent, return an failure, otherwise return a success with
+                // a message.
                 let server_error = client.rdp_client.lock().unwrap().global.server_error();
                 if server_error == ServerError::None {
                     return ErrCodeAndMessage {
