@@ -127,6 +127,9 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 // TestCARotation is a heavy integration test that through a rotation, the bot
 // receives credentials for a new CA.
 func TestBot_Run_CARotation(t *testing.T) {
+	// TODO(jakule): Re-enable this test https://github.com/gravitational/teleport/issues/19403
+	t.Skip("Temporary disable until it's fixed - flaky")
+
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("test skipped when -short provided")
