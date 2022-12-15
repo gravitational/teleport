@@ -45,13 +45,14 @@ func TestSolverIntEq(t *testing.T) {
 // TestSolverFn tests custom functions
 func TestSolverFn(t *testing.T) {
 	state := NewSolver()
-	x, err := state.PartialSolveForAll(context.Background(), constraint("lower(\"BANANA\") == x"), func(s []string) any {
+	x, err := state.PartialSolveForAll(context.Background(), constraint("upper(x) == \"BANANA\""), func(s []string) any {
 		return nil
-	}, "x", TypeString, 1)
+	}, "x", TypeString, 2)
 
 	require.NoError(t, err)
-	require.Len(t, x, 1)
-	require.Equal(t, "\"banana\"", x[0].String())
+	require.Len(t, x, 2)
+	require.Equal(t, "\"BananA\"", x[0].String())
+	require.Equal(t, "\"BAnanA\"", x[1].String())
 }
 
 // TestSolverStringExpMultiSolution tests solving against a string equality expression with two solutions.
