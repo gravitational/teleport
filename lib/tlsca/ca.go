@@ -183,6 +183,9 @@ type Identity struct {
 
 	// ConnectionDiagnosticID is used to add connection diagnostic messages when Testing a Connection.
 	ConnectionDiagnosticID string
+
+	// DeviceExtensions holds device-aware extensions for the identity.
+	DeviceExtensions DeviceExtensions
 }
 
 // RouteToApp holds routing information for applications.
@@ -234,6 +237,17 @@ type RouteToDatabase struct {
 func (r RouteToDatabase) String() string {
 	return fmt.Sprintf("Database(Service=%v, Protocol=%v, Username=%v, Database=%v)",
 		r.ServiceName, r.Protocol, r.Username, r.Database)
+}
+
+// DeviceExtensions holds device-aware extensions for the identity.
+type DeviceExtensions struct {
+	// DeviceID is the trusted device identifier.
+	DeviceID string
+	// AssetTag is the device inventory identifier.
+	AssetTag string
+	// CredentialID is the identifier for the credential used by the device to
+	// authenticate itself.
+	CredentialID string
 }
 
 // GetRouteToApp returns application routing data. If missing, returns an error.
@@ -441,6 +455,22 @@ var (
 	// When using the Test Connection feature, there's propagation of the ConnectionDiagnosticID.
 	// Each service (ex DB Agent) uses that to add checkpoints describing if it was a success or a failure.
 	ConnectionDiagnosticIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 13}
+)
+
+// Device Trust OIDs.
+// Namespace 1.3.9999.3.x.
+var (
+	// DeviceIDExtensionOID is a string extension that identifies the trusted
+	// device.
+	DeviceIDExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 1}
+
+	// DeviceAssetTagExtensionOID is a string extension containing the device
+	// inventory identifier.
+	DeviceAssetTagExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 2}
+
+	// DeviceCredentialIDExtensionOID is a string extension that identifies the
+	// credential used to authenticate the device.
+	DeviceCredentialIDExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 3}
 )
 
 // Subject converts identity to X.509 subject name
@@ -702,6 +732,26 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	// Device extensions.
+	if devID := id.DeviceExtensions.DeviceID; devID != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  DeviceIDExtensionOID,
+			Value: devID,
+		})
+	}
+	if devTag := id.DeviceExtensions.AssetTag; devTag != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  DeviceAssetTagExtensionOID,
+			Value: devTag,
+		})
+	}
+	if devCred := id.DeviceExtensions.CredentialID; devCred != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  DeviceCredentialIDExtensionOID,
+			Value: devCred,
+		})
+	}
+
 	return subject, nil
 }
 
@@ -889,6 +939,18 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.ConnectionDiagnosticID = val
+			}
+		case attr.Type.Equal(DeviceIDExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DeviceExtensions.DeviceID = val
+			}
+		case attr.Type.Equal(DeviceAssetTagExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DeviceExtensions.AssetTag = val
+			}
+		case attr.Type.Equal(DeviceCredentialIDExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DeviceExtensions.CredentialID = val
 			}
 		}
 	}
