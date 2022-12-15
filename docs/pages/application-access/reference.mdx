@@ -57,6 +57,10 @@ app_service:
     aws:
       # External ID used when assuming AWS roles for this application.
       external_id: "example-external-id"
+  - name: "azure-cli"
+    # Optional: For access to cloud provider APIs, specify the cloud provider.
+    # Allowed values are "AWS", "Azure", and "GCP".
+    cloud: "Azure"
 ```
 
 ## Application resource
@@ -144,6 +148,11 @@ Retrieves short-lived X.509 certificate for CLI application access.
 $ tsh app login grafana
 ```
 
+| Flag | Description |
+| - | - |
+| `--aws-role` | For AWS CLI access, the role ARN or role name of an AWS IAM role. |
+| `--azure-identity` | For Azure CLI access, the name or URI of an Azure managed identity to use for accessing the Azure CLI. |
+
 ### tsh app logout
 
 Removes CLI application access certificate.
@@ -180,3 +189,23 @@ $ curl $(tsh app config --format=uri) \
 | Flag | Description |
 | - | - |
 | `--format` | Optional print format, one of: `uri` to print app address, `ca` to print CA cert path, `cert` to print cert path, `key` print key path, `curl` to print example curl command.|
+
+### tsh az 
+
+Run an Azure CLI command via the Teleport Application Service:
+
+```code
+$ tsh az <command>
+```
+
+`<command>`: A valid command within the `az` CLI, including arguments and flags.
+See the [Azure
+documentation](https://learn.microsoft.com/en-us/cli/azure/reference-index?view=azure-cli-latest)
+for the full list of `az` CLI commands.
+
+To run this command, one of the user's roles must include the
+`spec.allow.azure_identities` field with one of the identities used by the
+Application Service. To learn how to set up secure access to Azure via Teleport,
+read [Protect the Azure CLI with Teleport Application
+Access](guides/azure.mdx).
+

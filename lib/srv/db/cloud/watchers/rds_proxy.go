@@ -15,6 +15,7 @@ package watchers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -145,6 +146,12 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 	}
 
 	return databases, nil
+}
+
+// String returns the fetcher's string description.
+func (f *rdsDBProxyFetcher) String() string {
+	return fmt.Sprintf("rdsDBProxyFetcher(Region=%v, Labels=%v)",
+		f.cfg.Region, f.cfg.Labels)
 }
 
 // getRDSProxies fetches all RDS Proxies using the provided client, up to the

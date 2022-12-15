@@ -54,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
+	// Import to register Redis engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/redis"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/utils"
@@ -811,6 +813,23 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
+		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
+		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
+			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
+				connectionDiagnosticID,
+				&types.ConnectionDiagnosticTrace{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "Access denied when accessing Database. Please check the Error message for more information.",
+					Error:   err.Error(),
+				},
+			)
+
+			if diagErr != nil {
+				return trace.Wrap(diagErr)
+			}
+		}
+
 		return trace.Wrap(err)
 	}
 	return nil

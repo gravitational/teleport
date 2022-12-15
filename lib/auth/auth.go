@@ -864,6 +864,13 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.Services.IAuditLog = auditLog
 }
 
+// GetEmitter fetches the current audit log emitter implementation.
+func (a *Server) GetEmitter() apievents.Emitter {
+	return a.emitter
+}
+
+// SetEmitter sets the current audit log emitter. Note that this is only safe to
+// use before main server start.
 func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
 }
@@ -873,7 +880,8 @@ func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 	a.Services.Enforcer = enforcer
 }
 
-// SetUsageReporter sets the server's usage reporter
+// SetUsageReporter sets the server's usage reporter. Note that this is only
+// safe to use before server start.
 func (a *Server) SetUsageReporter(reporter services.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
@@ -1014,6 +1022,8 @@ type certRequest struct {
 	appName string
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
+	// azureIdentity is the Azure identity to generate certificate for.
+	azureIdentity string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -1140,6 +1150,8 @@ type AppTestCertRequest struct {
 	SessionID string
 	// AWSRoleARN is optional AWS role ARN a user wants to assume to encode.
 	AWSRoleARN string
+	// AzureIdentity is the optional Azure identity a user wants to assume to encode.
+	AzureIdentity string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1180,6 +1192,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
+		azureIdentity:  req.AzureIdentity,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1429,6 +1442,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// See which Azure identities this user is allowed to assume.
+	azureIdentities, err := req.checker.CheckAzureIdentities(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
@@ -1450,11 +1469,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:   req.appSessionID,
-			PublicAddr:  req.appPublicAddr,
-			ClusterName: req.appClusterName,
-			Name:        req.appName,
-			AWSRoleARN:  req.awsRoleARN,
+			SessionID:     req.appSessionID,
+			PublicAddr:    req.appPublicAddr,
+			ClusterName:   req.appClusterName,
+			Name:          req.appName,
+			AWSRoleARN:    req.awsRoleARN,
+			AzureIdentity: req.azureIdentity,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -1469,12 +1489,14 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		PreviousIdentityExpires: req.previousIdentityExpires,
 		ClientIP:                req.clientIP,
 		AWSRoleARNs:             roleARNs,
+		AzureIdentities:         azureIdentities,
 		ActiveRequests:          req.activeRequests.AccessRequests,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
+		ConnectionDiagnosticID:  req.connectionDiagnosticID,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -2166,7 +2188,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		traits = user.GetTraits()
 
 	} else if req.AccessRequestID != "" {
-		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
+		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2242,7 +2264,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	return sess, nil
 }
 
-func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequestID string) (types.AccessRequest, error) {
+func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.Identity, user string, accessRequestID string) (types.AccessRequest, error) {
 	reqFilter := types.AccessRequestFilter{
 		User: user,
 		ID:   accessRequestID,
@@ -2266,7 +2288,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequestForUser(ctx, a, req); err != nil {
+	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2828,34 +2850,16 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	return a.Services.DeleteNamespace(namespace)
 }
 
-func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	if err := services.ValidateAccessRequestForUser(ctx, a, req,
-		// if request is in state pending, variable expansion must be applied
-		services.ExpandVars(req.GetState().IsPending()),
-	); err != nil {
-		return trace.Wrap(err)
-	}
-
-	ttl, err := a.calculateMaxAccessTTL(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
 	now := a.clock.Now().UTC()
+
 	req.SetCreationTime(now)
-	exp := now.Add(ttl)
-	// Set acccess expiry if an allowable default was not provided.
-	if req.GetAccessExpiry().Before(now) || req.GetAccessExpiry().After(exp) {
-		req.SetAccessExpiry(exp)
-	}
-	// By default, resource expiry should match access expiry.
-	req.SetExpiry(req.GetAccessExpiry())
-	// If the access-request is in a pending state, then the expiry of the underlying resource
-	// is capped to to PendingAccessDuration in order to limit orphaned access requests.
-	if req.GetState().IsPending() {
-		pexp := now.Add(defaults.PendingAccessDuration)
-		if pexp.Before(req.Expiry()) {
-			req.SetExpiry(pexp)
-		}
+
+	// Always perform variable expansion on creation only, this ensures the
+	// access request that is reviewed is the same that is approved.
+	expandOpts := services.ExpandVars(true)
+	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if req.GetDryRun() {
@@ -2864,10 +2868,12 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		return nil
 	}
 
+	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
+
 	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -3000,29 +3006,11 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	caps, err := services.CalculateAccessCapabilities(ctx, a, req)
+	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return caps, nil
-}
-
-// calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
-// based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
-// exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
-func (a *Server) calculateMaxAccessTTL(ctx context.Context, req types.AccessRequest) (time.Duration, error) {
-	minTTL := defaults.MaxAccessDuration
-	for _, roleName := range req.GetRoles() {
-		role, err := a.GetRole(ctx, roleName)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		roleTTL := time.Duration(role.GetOptions().MaxSessionTTL)
-		if roleTTL > 0 && roleTTL < minTTL {
-			minTTL = roleTTL
-		}
-	}
-	return minTTL, nil
 }
 
 // NewKeepAliver returns a new instance of keep aliver
