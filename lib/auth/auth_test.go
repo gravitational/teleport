@@ -1092,6 +1092,8 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 }
 
 func TestServer_AugmentContextUserCertificates(t *testing.T) {
+	t.Parallel()
+
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	ctx := context.Background()
@@ -1228,6 +1230,8 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 }
 
 func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
+	t.Parallel()
+
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	ctx := context.Background()
