@@ -209,6 +209,17 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			inputName: "valid-dynamodb-without-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
+				AWS: types.AWS{
+					Region:    "us-east-1",
+					AccountID: "1234567890",
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
