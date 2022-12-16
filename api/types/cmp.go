@@ -23,25 +23,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// protoMessage verifies *T is a proto.Message.
-type protoMessage[T any] interface {
-	proto.Message
-	*T
-}
-
-// isProtoEmpty returns true if provided proto-generated struct is empty,
-// ignoring XXX_* fields.
-func isProtoEmpty[T any, PT protoMessage[T]](t T) bool {
-	var empty T
-	return equalProtoIngoreXXXFields[T, PT](t, empty)
-}
-
-// equalProtoIngoreXXXFields returns true if provided proto-generated structs
-// are equal, ignoring XXX_* fields.
-func equalProtoIngoreXXXFields[T any, PT protoMessage[T]](a, b T) bool {
-	return cmp.Equal(a, b, cmp.FilterPath(isXXXField, cmp.Ignore()))
-}
-
-func isXXXField(path cmp.Path) bool {
-	return strings.HasPrefix(path.Last().String(), ".XXX_")
+// protoEqual returns true if provided proto messages are equal, ignoring the
+// XXX_* fields.
+func protoEqual(a, b proto.Message) bool {
+	return cmp.Equal(a, b, cmp.FilterPath(func(path cmp.Path) bool {
+		return strings.HasPrefix(path.Last().String(), ".XXX_")
+	}, cmp.Ignore()))
 }
