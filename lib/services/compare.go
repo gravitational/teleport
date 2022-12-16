@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"strings"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
@@ -28,9 +30,19 @@ func CompareResources(resA, resB types.Resource) int {
 	equal := cmp.Equal(resA, resB,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
-		cmpopts.EquateEmpty())
+		cmpopts.EquateEmpty(),
+		ignoreProtoXXXFields(),
+	)
 	if equal {
 		return Equal
 	}
 	return Different
+}
+
+// ignoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto
+// messages.
+func ignoreProtoXXXFields() cmp.Option {
+	return cmp.FilterPath(func(path cmp.Path) bool {
+		return strings.HasPrefix(path.Last().String(), ".XXX_")
+	}, cmp.Ignore())
 }
