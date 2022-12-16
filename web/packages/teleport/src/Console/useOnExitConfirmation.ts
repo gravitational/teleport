@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import session from 'teleport/services/websession';
+import { WebSession } from 'teleport/services/websession';
 
 import ConsoleContext from './consoleContext';
 import * as stores from './stores/types';
@@ -32,7 +32,7 @@ const TAB_MIN_AGE = 30000;
  *
  * @param ctx data that is shared between Console related components.
  */
-function useOnExitConfirmation(ctx: ConsoleContext) {
+function useOnExitConfirmation(ctx: ConsoleContext, session: WebSession) {
   React.useEffect(() => {
     /**
      * handleBeforeUnload listens for browser closes and refreshes.

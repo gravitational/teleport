@@ -16,12 +16,13 @@ limitations under the License.
 
 import { matchPath, useHistory } from 'react-router';
 
-import session from 'teleport/services/websession';
+import useWebSession from 'teleport/useWebSession';
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import { StickyCluster } from 'teleport/types';
 
 export default function useTopBar(ctx: Ctx, stickyCluster: StickyCluster) {
+  const webSession = useWebSession();
   const history = useHistory();
   const { clusterId, hasClusterUrl } = stickyCluster;
   const popupItems = ctx.storeNav.getTopMenuItems();
@@ -43,7 +44,7 @@ export default function useTopBar(ctx: Ctx, stickyCluster: StickyCluster) {
   }
 
   function logout() {
-    session.logout();
+    webSession.logout();
   }
 
   function changeCluster(value: string) {

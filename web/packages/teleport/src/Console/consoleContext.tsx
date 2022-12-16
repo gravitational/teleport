@@ -1,12 +1,9 @@
 /*
 Copyright 2019 Gravitational, Inc.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,7 +16,6 @@ import Logger from 'shared/libs/logger';
 import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
-import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
@@ -164,10 +160,6 @@ export default class ConsoleContext {
 
   fetchClusters() {
     return serviceClusters.fetchClusters();
-  }
-
-  logout() {
-    webSession.logout();
   }
 
   createTty(session: Session): Tty {
