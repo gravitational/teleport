@@ -21,6 +21,7 @@ package main
 import (
 	"strconv"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -32,41 +33,44 @@ func getRegistryKey(name string) (registry.Key, error) {
 		log.Debugf("Registry key %v doesn't exist, trying to create it", name)
 		reg, _, err = registry.CreateKey(registry.CURRENT_USER, name, registry.QUERY_VALUE|registry.CREATE_SUB_KEY|registry.SET_VALUE)
 		if err != nil {
-			log.Debugf("Can't create registry key %v", name)
+			log.Debugf("Can't create registry key %v: %v", name, err)
 			return reg, err
 		}
 	}
 	return reg, nil
 }
 
-// mustWriteDword writes DWORD value to the given registry key handle
-func mustWriteDword(k registry.Key, name string, value string) {
+// registryWriteDword writes a DWORD value to the given registry key handle
+func registryWriteDword(k registry.Key, name string, value string) (bool, error) {
 	dwordValue, err := strconv.ParseUint(value, 10, 32)
 	if err != nil {
-		log.Debugf("Failed to convert value %v to uint32: %T", value, err)
-		log.Fatal(err)
+		log.Debugf("Failed to convert value %v to uint32: %v", value, err)
+		return false, trace.Wrap(err)
 	}
 	err = k.SetDWordValue(name, uint32(dwordValue))
 	if err != nil {
-		log.Debugf("Failed to write dword %v: %v to registry key %v: %T", name, value, k, err)
-		log.Fatal(err)
+		log.Debugf("Failed to write dword %v: %v to registry key %v: %v", name, value, k, err)
+		return false, trace.Wrap(err)
 	}
+	return true, nil
 }
 
-// mustWriteString writes a string value (SZ) to the given registry key handle
-func mustWriteString(k registry.Key, name string, value string) {
+// registryWriteString writes a string (SZ) value to the given registry key handle
+func registryWriteString(k registry.Key, name string, value string) (bool, error) {
 	err := k.SetStringValue(name, value)
 	if err != nil {
-		log.Debugf("Failed to write string %v: %v to registry key %v: %T", name, value, k, err)
-		log.Fatal(err)
+		log.Debugf("Failed to write string %v: %v to registry key %v: %v", name, value, k, err)
+		return false, trace.Wrap(err)
 	}
+	return true, nil
 }
 
-// mustWriteStrings writes a multi-string value (MULTI_SZ) to the given registry key handle
-func mustWriteStrings(k registry.Key, name string, values []string) {
+// registryWriteMultiString writes a multi-string value (MULTI_SZ) to the given registry key handle
+func registryWriteMultiString(k registry.Key, name string, values []string) (bool, error) {
 	err := k.SetStringsValue(name, values)
 	if err != nil {
-		log.Debugf("Failed to write strings %v: %v to registry key %v: %T", name, values, k, err)
-		log.Fatal(err)
+		log.Debugf("Failed to write strings %v: %v to registry key %v: %v", name, values, k, err)
+		return false, trace.Wrap(err)
 	}
+	return true, nil
 }
