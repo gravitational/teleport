@@ -228,7 +228,7 @@ func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 	select {
 	case event := <-testCtx.emitter.C():
 		return event
-	case <-time.After(time.Second * 30):
+	case <-time.After(time.Second):
 		t.Fatalf("didn't receive any event after 1 second")
 	}
 	return nil
