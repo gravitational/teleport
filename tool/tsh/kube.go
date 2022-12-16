@@ -315,10 +315,10 @@ type ExecOptions struct {
 }
 
 // Run executes a validated remote execution against a pod.
-func (p *ExecOptions) Run() error {
+func (p *ExecOptions) Run(ctx context.Context) error {
 	var err error
 	if len(p.PodName) != 0 {
-		p.Pod, err = p.PodClient.Pods(p.Namespace).Get(context.TODO(), p.PodName, metav1.GetOptions{})
+		p.Pod, err = p.PodClient.Pods(p.Namespace).Get(ctx, p.PodName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -469,7 +469,7 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	}
 
 	p.PodClient = clientset.CoreV1()
-	return trace.Wrap(p.Run())
+	return trace.Wrap(p.Run(cf.Context))
 }
 
 type kubeSessionsCommand struct {
