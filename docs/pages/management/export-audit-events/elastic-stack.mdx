@@ -651,39 +651,56 @@ authority, certificate, and private key.
 
 ### Start the Event Handler
 
-To start the Event Handler, run the following command on your Event Handler
-host:
+Start the Teleport Teleport Event Handler as a daemon. To do so, create a
+systemd service definition at the path
+`/usr/lib/systemd/system/teleport-event-handler.service` with the following
+content: 
 
-```code
-$ teleport-event-handler start -d --config teleport-event-handler.toml
+```ini
+[Unit]
+Description=Teleport Event Handler
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport-event-handler start --config=/etc/teleport-event-handler.toml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport-event-handler.pid
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-Use the `-d` flag to print debug logs and identify any issues with
-starting the Event Handler. Once you have completed this guide and confirmed
-that the Event Handler runs as expected, you can run the command without the
-`-d` flag.
+Enable and start the plugin:
+
+```code
+$ sudo systemctl enable teleport-event-handler
+$ sudo systemctl start teleport-event-handler
+```
 
 <Details title="Choose when to start exporting events">
 
-You can configure when you would like the Event Handler to begin exporting
-events when you run the `start` command. This example will start exporting from
-May 5th, 2021:
+You can configure when you would like the Teleport Event Handler to begin
+exporting events when you run the `start` command. This example will start
+exporting from May 5th, 2021:
 
 ```code
 $ teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
 ```
 
-You can only determine the start time once, when first running the Event
-Handler. If you want to change the time frame later, remove the plugin state
-directory that you specified in the `storage` field of the handler's
+You can only determine the start time once, when first running the Teleport
+Event Handler. If you want to change the time frame later, remove the plugin
+state directory that you specified in the `storage` field of the handler's
 configuration file.
 
 </Details>
 
-Once the Event Handler starts, you will see notifications about scanned and
-forwarded events:
+Once the Teleport Event Handler starts, you will see notifications about scanned
+and forwarded events:
 
-```txt
+```code
+$ sudo journalctl -u teleport-event-handler
 DEBU   Event sent id:f19cf375-4da6-4338-bfdc-e38334c60fd1 index:0 ts:2022-09-21
 18:51:04.849 +0000 UTC type:cert.create event-handler/app.go:140
 ...
@@ -715,8 +732,25 @@ the event types for your Teleport audit events over time:
 
 ![Creating a visualization](../../../img/enterprise/plugins/elasticsearch/lens.png)
 
+## Troubleshooting connection issues
+
+If the Teleport Event Handler is displaying error logs while connecting to your
+Teleport Cluster, ensure that:
+
+- The certificate the Teleport Event Handler is using to connect to your
+  Teleport cluster is not past its expiration date. This is the value of the
+  `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
+- Ensure that in your Teleport Evant Handler configuration file
+  (`teleport-event-handler.toml`), you have provided the correct host *and* port
+  for the Teleport Proxy Service or Auth Service.
+
 ## Next steps
 
 Now that you are exporting your audit events to the Elastic Stack, consult our
 [audit event reference](../../reference/audit.mdx#event-types) so you can plan
 visualizations and alerts.
+
+While this guide uses the `tctl auth sign` command to issue credentials for the
+Teleport Event Handler, production clusters should use Machine ID for safer,
+more reliable renewals. Read [our guide](../../machine-id/getting-started.mdx)
+to getting started with Machine ID.
