@@ -1477,6 +1477,10 @@ message AuthPreferenceSpecV2 {
 
   // RequireMFAType is the type of MFA requirement enforced for this cluster.
   RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+
+  // DeviceTrust holds settings related to trusted device verification.
+  // Requires Teleport Enterprise.
+  DeviceTrust DeviceTrust = 13 [(gogoproto.jsontag) = "device_trust,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -1527,6 +1531,25 @@ message Webauthn {
   // By default no devices are denied.
   repeated string AttestationDeniedCAs = 3 [(gogoproto.jsontag) = "attestation_denied_cas,omitempty"];
   reserved 4; // bool Disabled
+}
+
+// DeviceTrust holds settings related to trusted device verification.
+// Requires Teleport Enterprise.
+message DeviceTrust {
+  // Mode of verification for trusted devices.
+  //
+  // The following modes are supported:
+  //
+  // - "off": disables both device authentication and authorization.
+  // - "optional": allows both device authentication and authorization, but
+  //   doesn't enforce the presence of device extensions for sensitive
+  //   endpoints.
+  // - "required": enforces the presence of device extensions for sensitive
+  //   endpoints.
+  //
+  // Mode is always "off" for OSS.
+  // Defaults to "optional" for Enterprise.
+  string Mode = 1 [(gogoproto.jsontag) = "mode,omitempty"];
 }
 
 // Namespace represents namespace resource specification
