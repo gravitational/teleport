@@ -20,6 +20,8 @@ import (
 	"context"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	clientPlayback "github.com/gravitational/teleport/lib/client/playback"
+
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 )
@@ -28,36 +30,26 @@ type ttyEventHandler struct{}
 
 // NewPlayer creates a player that streams a tty session
 // over the provided websocket connection.
-func NewTtyPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.FieldLogger) *Player {
-	p := &Player{
-		ws:                ws,
-		streamer:          streamer,
-		eventHandler:      ttyEventHandler{},
-		playState:         playStatePlaying,
-		log:               log,
-		sID:               sID,
-		playSpeed:         1.0,
-		delayCancelSignal: make(chan interface{}, 1),
-	}
-	return p
+func NewTtyPlayer(sID string, ws *websocket.Conn, streamer clientPlayback.Streamer, log logrus.FieldLogger) *Player {
+	return NewPlayer(sID, ws, streamer, log, &ttyEventHandler{})
 }
 
-func (e ttyEventHandler) handleEvent(ctx context.Context, payload eventHandlerPayload) error {
-	evt, pp := payload.event, payload.pp
+func (e ttyEventHandler) handleEvent(ctx context.Context, payload clientPlayback.EventHandlerPayload) error {
+	evt, pp := payload.Event, payload.Pp
 
 	switch e := evt.(type) {
 	case *apievents.SessionPrint:
-		pp.waitForDelay(e.DelayMilliseconds)
+		pp.WaitForDelay(e.DelayMilliseconds)
 
-		if err := pp.marshalAndSend(e); err != nil {
+		if err := pp.MarshalAndSend(e); err != nil {
 			return err
 		}
 	case *apievents.Resize, *apievents.SessionStart:
-		if err := pp.marshalAndSend(e); err != nil {
+		if err := pp.MarshalAndSend(e); err != nil {
 			return err
 		}
 	default:
-		pp.log.Warnf("session %v contains unexpected event type %T", pp.sID, evt)
+		pp.Log.Warnf("session %v contains unexpected event type %T", pp.SID, evt)
 	}
 
 	return nil

@@ -67,7 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	"github.com/gravitational/teleport/lib/auth/webauthncli"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/client/terminal"
+	"github.com/gravitational/teleport/lib/client/playback"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -2248,15 +2248,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	)
 	defer span.End()
 
-	var sessionEvents []events.EventFields
-	var stream []byte
-	if namespace == "" {
-		return trace.BadParameter(auth.MissingNamespaceError)
-	}
-	sid, err := session.ParseID(sessionID)
-	if err != nil {
-		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
-	}
 	// connect to the auth server (site) who made the recording
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -2266,36 +2257,17 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 
 	site := proxyClient.CurrentCluster()
 
-	// request events for that session (to get timing data)
-	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
+	return playSession(ctx, sessionID, site)
+}
+
+func playSession(ctx context.Context, sID string, stream playback.Streamer) error {
+	player, err := newSessionPlayer(ctx, sID, stream)
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
-	// Return an error if it is a desktop session
-	if len(sessionEvents) > 0 {
-		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
-			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
-			message := "Desktop sessions cannot be viewed with tsh." +
-				" Please use the browser to play this session." +
-				" Click on the URL to view the session in the browser:"
-			return trace.BadParameter("%s\n%s", message, url)
-		}
-	}
-
-	// read the stream into a buffer:
-	for {
-		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(tmp) == 0 {
-			break
-		}
-		stream = append(stream, tmp...)
-	}
-
-	return playSession(sessionEvents, stream)
+	player.Play()
+	return nil
 }
 
 func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
@@ -2332,30 +2304,40 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	return events, nil
 }
 
-// PlayFile plays the recorded session from a tar file
-func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
-	var sessionEvents []events.EventFields
-	var stream []byte
-	protoReader := events.NewProtoReader(tarFile)
-	playbackDir, err := os.MkdirTemp("", "playback")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer os.RemoveAll(playbackDir)
-	w, err := events.WriteForSSHPlayback(ctx, session.ID(sid), protoReader, playbackDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sessionEvents, err = w.SessionEvents()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	stream, err = w.SessionChunks()
-	if err != nil {
-		return trace.Wrap(err)
+type ReaderStreamer struct {
+	reader events.ProtoReader
+}
+
+func (r *ReaderStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	eventsChan := make(chan apievents.AuditEvent)
+	errorChan := make(chan error)
+
+	for {
+		event, err := r.reader.Read(ctx)
+
+		if err != nil {
+			if err != io.EOF {
+				errorChan <- err
+				break
+			} else {
+				close(eventsChan)
+			}
+		}
+
+		if event.GetIndex() >= startIndex {
+			eventsChan <- event
+		}
 	}
 
-	return playSession(sessionEvents, stream)
+	return eventsChan, errorChan
+}
+
+// PlayFile plays the recorded session from a tar file
+func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
+	protoReader := events.NewProtoReader(tarFile)
+	stream := &ReaderStreamer{reader: *protoReader}
+
+	return playSession(ctx, sid, stream)
 }
 
 // ExecuteSCP executes SCP command. It executes scp.Command using
@@ -4619,73 +4601,6 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 // FedRAMP/FIPS 140-2 mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
-}
-
-// playSession plays session in the terminal
-func playSession(sessionEvents []events.EventFields, stream []byte) error {
-	term, err := terminal.New(nil, nil, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer term.Close()
-
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsAttached() {
-		err := term.InitRaw(true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	player := newSessionPlayer(sessionEvents, stream, term)
-	errorCh := make(chan error)
-	// keys:
-	const (
-		keyCtrlC = 3
-		keyCtrlD = 4
-		keySpace = 32
-		keyLeft  = 68
-		keyRight = 67
-		keyUp    = 65
-		keyDown  = 66
-	)
-	// playback control goroutine
-	go func() {
-		defer player.EndPlayback()
-		var key [1]byte
-		for {
-			_, err := term.Stdin().Read(key[:])
-			if err != nil {
-				errorCh <- err
-				return
-			}
-			switch key[0] {
-			// Ctrl+C or Ctrl+D
-			case keyCtrlC, keyCtrlD:
-				return
-			// Space key
-			case keySpace:
-				player.TogglePause()
-			// <- arrow
-			case keyLeft, keyDown:
-				player.Rewind()
-			// -> arrow
-			case keyRight, keyUp:
-				player.Forward()
-			}
-		}
-	}()
-	// player starts playing in its own goroutine
-	player.Play()
-	// wait for keypresses loop to end
-	select {
-	case <-player.stopC:
-		fmt.Println("\n\nend of session playback")
-		return nil
-	case err := <-errorCh:
-		return trace.Wrap(err)
-	}
 }
 
 func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {

@@ -18,14 +18,12 @@ package playback
 
 import (
 	"context"
-	"errors"
-	"net"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/utils"
+	clientPlayback "github.com/gravitational/teleport/lib/client/playback"
 )
 
 type desktopEventHandler struct {
@@ -33,42 +31,19 @@ type desktopEventHandler struct {
 
 // NewPlayer creates a player that streams a desktop session
 // over the provided websocket connection.
-func NewDesktopPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.FieldLogger) *Player {
-	p := &Player{
-		ws:                ws,
-		streamer:          streamer,
-		eventHandler:      desktopEventHandler{},
-		playState:         playStatePlaying,
-		log:               log,
-		sID:               sID,
-		playSpeed:         1.0,
-		delayCancelSignal: make(chan interface{}, 1),
-	}
-	return p
+func NewDesktopPlayer(sID string, ws *websocket.Conn, streamer clientPlayback.Streamer, log logrus.FieldLogger) *Player {
+	return NewPlayer(sID, ws, streamer, log, &desktopEventHandler{})
 }
 
 // StreamSessionEvents streams the session's events as playback events over the websocket.
-func (e desktopEventHandler) handleEvent(ctx context.Context, payload eventHandlerPayload) error {
-	evt, pp := payload.event, payload.pp
+func (e desktopEventHandler) handleEvent(ctx context.Context, payload clientPlayback.EventHandlerPayload) error {
+	evt, pp := payload.Event, payload.Pp
 
 	switch e := evt.(type) {
 	case *apievents.DesktopRecording:
-		pp.waitForDelay(e.DelayMilliseconds)
-
-		msg, err := utils.FastMarshal(e)
-		if err != nil {
-			pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
-			if _, err := pp.ws.Write([]byte(`{"message":"error","errorText":"server error"}`)); err != nil {
-				pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
-			}
-			return err
-		}
-		if _, err := pp.ws.Write(msg); err != nil {
-			// We expect net.ErrClosed to arise when another goroutine returns before
-			// this one or the browser window is closed, both of which cause the websocket to close.
-			if !errors.Is(err, net.ErrClosed) {
-				pp.log.WithError(err).Error("failed to write DesktopRecording event over websocket")
-			}
+		pp.WaitForDelay(e.DelayMilliseconds)
+		if err := pp.MarshalAndSend(e); err != nil {
+			pp.Log.Debug("Failed to send Desktop recording")
 			return err
 		}
 	case *apievents.WindowsDesktopSessionStart, *apievents.WindowsDesktopSessionEnd:
@@ -78,7 +53,7 @@ func (e desktopEventHandler) handleEvent(ctx context.Context, payload eventHandl
 		// but may be useful in the future
 
 	default:
-		pp.log.Warnf("session %v contains unexpected event type %T", pp.sID, evt)
+		pp.Log.Warnf("session %v contains unexpected event type %T", pp.SID, evt)
 	}
 
 	return nil
