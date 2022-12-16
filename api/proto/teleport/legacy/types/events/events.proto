@@ -2954,7 +2954,7 @@ message CertificateCreate {
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
-// certificiate's generation counter fails to validate, possibly indicating a
+// certificate's generation counter fails to validate, possibly indicating a
 // stolen certificate and an invalid renewal attempt.
 message RenewableCertificateGenerationMismatch {
   // Metadata is a common event metadata.
@@ -2969,6 +2969,65 @@ message RenewableCertificateGenerationMismatch {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotJoin records a bot join event.
+message BotJoin {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // BotName is the name of the bot which has joined.
+  string BotName = 3 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // Method is the event field indicating what join method was used.
+  string Method = 4 [(gogoproto.jsontag) = "method,omitempty"];
+  // TokenName is the name of the provision token used to join.
+  string TokenName = 5 [(gogoproto.jsontag) = "token_name,omitempty"];
+  // Attributes is a map of attributes received from the join method provider.
+  google.protobuf.Struct Attributes = 6 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// InstanceJoin records an instance join event.
+message InstanceJoin {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // HostID is the unique host ID of the instance which attempted to join.
+  string HostID = 3 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // NodeName is the name of the instance which attempted to join.
+  string NodeName = 4 [(gogoproto.jsontag) = "node_name,omitempty"];
+  // Role is the role that the node requested when attempting to join.
+  string Role = 5 [(gogoproto.jsontag) = "role,omitempty"];
+  // Method is the event field indicating what join method was used.
+  string Method = 6 [(gogoproto.jsontag) = "method,omitempty"];
+  // TokenName is the name of the token used to join. This will be omitted
+  // for the 'token' join method where the token name is a secret value.
+  string TokenName = 7 [(gogoproto.jsontag) = "token_name,omitempty"];
+  // Attributes is a map of attributes received from the join method provider.
+  google.protobuf.Struct Attributes = 8 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 
@@ -3103,6 +3162,8 @@ message OneOf {
     events.DesktopSharedDirectoryStart DesktopSharedDirectoryStart = 106;
     events.DesktopSharedDirectoryRead DesktopSharedDirectoryRead = 107;
     events.DesktopSharedDirectoryWrite DesktopSharedDirectoryWrite = 108;
+    events.BotJoin BotJoin = 110;
+    events.InstanceJoin InstanceJoin = 111;
   }
 }
 
@@ -3212,6 +3273,15 @@ message Identity {
   repeated ResourceID AllowedResourceIDs = 22 [
     (gogoproto.jsontag) = "allowed_resource_ids,omitempty",
     (gogoproto.nullable) = false
+  ];
+  // PreviousIdentityExpires is the expiry time of the identity/cert that this
+  // identity/cert was derived from. It is used to determine a session's hard
+  // deadline in cases where both require_session_mfa and disconnect_expired_cert
+  // are enabled. See https://github.com/gravitational/teleport/issues/18544.
+  google.protobuf.Timestamp PreviousIdentityExpires = 23 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "prev_identity_expires"
   ];
 }
 

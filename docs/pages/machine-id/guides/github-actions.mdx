@@ -162,7 +162,7 @@ jobs:
      - name: Checkout repository
        uses: actions/checkout@v3
      - name: Fetch Teleport binaries
-       uses: gravitational/teleport-actions/setup@main
+       uses: teleport-actions/setup@v1
        with:
          version: (=teleport.major_version=)
      - name: Fetch credentials

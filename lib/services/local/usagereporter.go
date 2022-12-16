@@ -63,6 +63,10 @@ const (
 	// usageReporterSubmitDelay is a mandatory delay added to each batch submission
 	// to avoid spamming the prehog instance.
 	usageReporterSubmitDelay = time.Second * 1
+
+	// usageReporterRetryAttempts is the max number of attempts that
+	// should be made to submit a particular event before it's dropped
+	usageReporterRetryAttempts = 5
 )
 
 var (
@@ -99,13 +103,13 @@ var (
 	usageBatchesFailed = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Name:      teleport.MetricUsageBatchesFailed,
-		Help:      "a count of event batches that failed to submit",
+		Help:      "a count of event batches that had at least one event that failed to submit",
 	})
 
 	usageEventsDropped = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Name:      teleport.MetricUsageEventsDropped,
-		Help:      "a count of events dropped due to submission buffer overflow",
+		Help:      "a count of events dropped due to repeated errors or submission buffer overflow",
 	})
 
 	usagePrometheusCollectors = []prometheus.Collector{
@@ -129,7 +133,17 @@ func NewDiscardUsageReporter() *DiscardUsageReporter {
 }
 
 // submitFunc is a func that submits a batch of usage events.
-type UsageSubmitFunc func(reporter *UsageReporter, batch []*prehogapi.SubmitEventRequest) error
+type UsageSubmitFunc func(reporter *UsageReporter, batch []*SubmittedEvent) ([]*SubmittedEvent, error)
+
+// SubmittedEvent is an event that has been submitted
+type SubmittedEvent struct {
+	// Event is the Event to attempt to send
+	Event *prehogapi.SubmitEventRequest
+
+	// retriesRemaining is the number of attempts to make submitting this event
+	// before it's discarded
+	retriesRemaining int
+}
 
 type UsageReporter struct {
 	// Entry is a log entry
@@ -144,14 +158,14 @@ type UsageReporter struct {
 	// anonymizer is the anonymizer used for filtered audit events.
 	anonymizer utils.Anonymizer
 
-	// events receives batches incoming events from various Teleport components
-	events chan []*prehogapi.SubmitEventRequest
+	// events receives batches of incoming events from various Teleport components
+	events chan []*SubmittedEvent
 
 	// buf stores events for batching
-	buf []*prehogapi.SubmitEventRequest
+	buf []*SubmittedEvent
 
 	// submissionQueue queues events for submission
-	submissionQueue chan []*prehogapi.SubmitEventRequest
+	submissionQueue chan []*SubmittedEvent
 
 	// submit is the func that submits batches of events to a backend
 	submit UsageSubmitFunc
@@ -178,6 +192,10 @@ type UsageReporter struct {
 	// attempts.
 	submitDelay time.Duration
 
+	// retryAttempts is the number of attempts that should be made to
+	// submit a single event.
+	retryAttempts int
+
 	// receiveFunc is a callback for testing that's called when a batch has been
 	// received, but before it's been potentially enqueued, used to ensure sane
 	// sequencing in tests.
@@ -194,17 +212,31 @@ func (r *UsageReporter) runSubmit(ctx context.Context) {
 		case batch := <-r.submissionQueue:
 			t0 := time.Now()
 
-			if err := r.submit(r, batch); err != nil {
-				r.Warnf("Failed to submit batch of %d usage events: %v", len(batch), err)
-
+			if failed, err := r.submit(r, batch); err != nil {
+				r.WithField("batch_size", len(batch)).Warnf("failed to submit batch of usage events: %v", err)
 				usageBatchesFailed.Inc()
 
+				var resubmit []*SubmittedEvent
+				for _, e := range failed {
+					e.retriesRemaining--
+
+					if e.retriesRemaining > 0 {
+						resubmit = append(resubmit, e)
+					}
+				}
+
+				droppedCount := len(failed) - len(resubmit)
+				if droppedCount > 0 {
+					r.WithField("dropped_count", droppedCount).Warnf("dropping events due to error: %+v", err)
+					usageEventsDropped.Add(float64(droppedCount))
+				}
+
 				// Put the failed events back on the queue.
-				r.resubmitEvents(batch)
+				r.resubmitEvents(resubmit)
 			} else {
 				usageBatchesSubmitted.Inc()
 
-				r.Debugf("usage reporter successfully submitted batch of %d events", len(batch))
+				r.WithField("batch_size", len(batch)).Debug("successfully submitted batch of usage events")
 			}
 
 			usageBatchSubmissionDuration.Observe(time.Since(t0).Seconds())
@@ -230,8 +262,8 @@ func (r *UsageReporter) enqueueBatch() {
 		return
 	}
 
-	var events []*prehogapi.SubmitEventRequest
-	var remaining []*prehogapi.SubmitEventRequest
+	var events []*SubmittedEvent
+	var remaining []*SubmittedEvent
 	if len(r.buf) > r.maxBatchSize {
 		// Split the request and send the first batch. Any remaining events will
 		// sit in the buffer to send with the next batch.
@@ -241,7 +273,7 @@ func (r *UsageReporter) enqueueBatch() {
 		// The event buf is small enough to send in one request. We'll replace
 		// the buf to allow any excess memory from the last buf to be GC'd.
 		events = r.buf
-		remaining = make([]*prehogapi.SubmitEventRequest, 0, r.minBatchSize)
+		remaining = make([]*SubmittedEvent, 0, r.minBatchSize)
 	}
 
 	select {
@@ -251,11 +283,11 @@ func (r *UsageReporter) enqueueBatch() {
 
 		usageBatchesTotal.Inc()
 
-		r.Debugf("usage reporter has enqueued batch of %d events", len(events))
+		r.WithField("batch_size", len(events)).Debug("enqueued batch of usage events")
 	default:
 		// The queue is full, we'll try again later. Leave the existing buf in
 		// place.
-		r.Debugf("waiting to submit batch of %d events due to full queue", len(r.buf))
+		r.WithField("batch_size", len(r.buf)).Debug("waiting to submit batch due to full queue")
 	}
 }
 
@@ -279,7 +311,7 @@ func (r *UsageReporter) Run(ctx context.Context) {
 		case events := <-r.events:
 			// If the buffer's already full, just warn and discard.
 			if len(r.buf) >= r.maxBufferSize {
-				r.Warnf("Usage event buffer is full, %d events will be discarded", len(events))
+				r.WithField("discarded_count", len(events)).Warn("usage event buffer is full, events will be discarded")
 
 				usageEventsDropped.Add(float64(len(events)))
 				break
@@ -287,7 +319,7 @@ func (r *UsageReporter) Run(ctx context.Context) {
 
 			if len(r.buf)+len(events) > r.maxBufferSize {
 				keep := r.maxBufferSize - len(r.buf)
-				r.Warnf("Usage event buffer is full, %d events will be discarded", len(events)-keep)
+				r.WithField("discarded_count", len(events)-keep).Warn("usage event buffer is full, events will be discarded")
 				events = events[:keep]
 
 				usageEventsDropped.Add(float64(len(events) - keep))
@@ -311,25 +343,28 @@ func (r *UsageReporter) Run(ctx context.Context) {
 }
 
 func (r *UsageReporter) SubmitAnonymizedUsageEvents(events ...services.UsageAnonymizable) error {
-	var anonymized []*prehogapi.SubmitEventRequest
+	var submitted []*SubmittedEvent
 
 	for _, e := range events {
 		req := e.Anonymize(r.anonymizer)
 		req.ClusterName = r.anonymizer.AnonymizeString(r.clusterName.GetClusterName())
 		req.Timestamp = timestamppb.New(r.clock.Now())
-		anonymized = append(anonymized, &req)
+		submitted = append(submitted, &SubmittedEvent{
+			Event:            &req,
+			retriesRemaining: r.retryAttempts,
+		})
 
 		usageEventsSubmitted.Inc()
 	}
 
-	r.events <- anonymized
+	r.events <- submitted
 
 	return nil
 }
 
 // resubmitEvents resubmits events that have already been processed (in case of
 // some error during submission).
-func (r *UsageReporter) resubmitEvents(events []*prehogapi.SubmitEventRequest) {
+func (r *UsageReporter) resubmitEvents(events []*SubmittedEvent) {
 	usageEventsRequeuedTotal.Add(float64(len(events)))
 
 	r.events <- events
@@ -373,18 +408,22 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 
 	client := prehogclient.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
-	return func(reporter *UsageReporter, events []*prehogapi.SubmitEventRequest) error {
+	return func(reporter *UsageReporter, events []*SubmittedEvent) ([]*SubmittedEvent, error) {
+		var failed []*SubmittedEvent
+		var errors []error
+
 		// Note: the backend doesn't support batching at the moment.
 		for _, event := range events {
 			// Note: this results in retrying the entire batch, which probably
 			// isn't ideal.
-			req := connect.NewRequest(event)
+			req := connect.NewRequest(event.Event)
 			if _, err := client.SubmitEvent(ctx, req); err != nil {
-				return trace.Wrap(err)
+				failed = append(failed, event)
+				errors = append(errors, err)
 			}
 		}
 
-		return nil
+		return failed, trace.NewAggregate(errors...)
 	}, nil
 }
 
@@ -411,8 +450,8 @@ func NewUsageReporter(ctx context.Context, log logrus.FieldLogger, clusterName t
 			teleport.Component(teleport.ComponentUsageReporting),
 		),
 		anonymizer:      anonymizer,
-		events:          make(chan []*prehogapi.SubmitEventRequest, 1),
-		submissionQueue: make(chan []*prehogapi.SubmitEventRequest, 1),
+		events:          make(chan []*SubmittedEvent, 1),
+		submissionQueue: make(chan []*SubmittedEvent, 1),
 		submit:          submitter,
 		clock:           clockwork.NewRealClock(),
 		submitClock:     clockwork.NewRealClock(),
@@ -422,5 +461,6 @@ func NewUsageReporter(ctx context.Context, log logrus.FieldLogger, clusterName t
 		maxBatchAge:     usageReporterMaxBatchAge,
 		maxBufferSize:   usageReporterMaxBufferSize,
 		submitDelay:     usageReporterSubmitDelay,
+		retryAttempts:   usageReporterRetryAttempts,
 	}, nil
 }

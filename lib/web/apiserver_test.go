@@ -2993,21 +2993,37 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
-		Name:   "test-db-name",
-		Labels: map[string]string{"test-field": "test-value"},
-	}, types.DatabaseServerSpecV3{
-		Description: "test-description",
-		Protocol:    "test-protocol",
-		URI:         "test-uri",
-		Hostname:    "test-hostname",
-		HostID:      "test-hostID",
-	})
-	require.NoError(t, err)
-	db2, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "db2",
+		Name: "dbServer1",
 	}, types.DatabaseServerSpecV3{
 		Hostname: "test-hostname",
 		HostID:   "test-hostID",
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{
+				Name:        "db1",
+				Description: "test-description",
+				Labels:      map[string]string{"test-field": "test-value"},
+			},
+			Spec: types.DatabaseSpecV3{
+				Protocol: "test-protocol",
+				URI:      "test-uri",
+			},
+		},
+	})
+	require.NoError(t, err)
+	db2, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "dbServer2",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID",
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{
+				Name: "db2",
+			},
+			Spec: types.DatabaseSpecV3{
+				Protocol: "test-protocol",
+				URI:      "test-uri:1234",
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -3024,15 +3040,18 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Database{{
-		Name:     "test-db-name",
+		Name:     "db1",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Hostname: "test-uri",
 	}, {
-		Name:   "db2",
-		Type:   types.DatabaseTypeSelfHosted,
-		Labels: []ui.Label{},
+		Name:     "db2",
+		Type:     types.DatabaseTypeSelfHosted,
+		Labels:   []ui.Label{},
+		Protocol: "test-protocol",
+		Hostname: "test-uri",
 	}})
 }
 
@@ -4277,7 +4296,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	// Enable cloud feature.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -4365,7 +4384,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	// Enable cloud feature.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
 			return "", keys.NewPrivateKeyPolicyError(policy)
@@ -6603,11 +6622,15 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	err = env.server.Auth().UpsertRole(ctx, requestableRole)
 	require.NoError(t, err)
 
+	identity := tlsca.Identity{
+		Expires: env.clock.Now().Add(1 * time.Hour),
+	}
+
 	// Create and approve an access request for the requestable role.
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq)
+	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
