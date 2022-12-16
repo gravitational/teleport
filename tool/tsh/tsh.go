@@ -1482,7 +1482,13 @@ func onLogin(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
-
+		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+		kubeTLSServerName := ""
+		if tc.TLSRoutingEnabled {
+			log.Debug("Using Proxy SNI for kube TLS server name")
+			kubeHost, _ := tc.KubeProxyHostPort()
+			kubeTLSServerName = client.GetKubeTLSServerName(kubeHost)
+		}
 		filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 			OutputPath:           cf.IdentityFileOut,
 			Key:                  key,
@@ -1490,6 +1496,8 @@ func onLogin(cf *CLIConf) error {
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
 			KubeStoreAllCAs:      tc.LoadAllCAs,
+			KubeTLSServerName:    kubeTLSServerName,
+			KubeClusterName:      tc.KubernetesCluster,
 		})
 		if err != nil {
 			return trace.Wrap(err)
