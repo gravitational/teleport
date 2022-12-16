@@ -580,7 +580,11 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 	// we can't guess at what the user wants to do, so this command is for print purposes only,
 	// and it only works with a local proxy tunnel.
 	if !c.options.printFormat || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
-		return nil, trace.BadParameter("DynamoDB requires a local proxy tunnel. Use `tsh proxy db --tunnel <db>`")
+		svc := "<db>"
+		if c.db != nil && c.db.ServiceName != "" {
+			svc = c.db.ServiceName
+		}
+		return nil, trace.BadParameter("DynamoDB requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", svc)
 	}
 	args := []string{
 		"--endpoint", fmt.Sprintf("http://%v:%v/", c.options.localProxyHost, c.options.localProxyPort),

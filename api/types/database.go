@@ -610,11 +610,9 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 		}
 		if d.Spec.AWS.Region == "" {
-			var region string
-			var err error
 			switch {
 			case d.IsAWSKeyspaces():
-				region, err = awsutils.CassandraEndpointRegion(d.Spec.URI)
+				region, err := awsutils.CassandraEndpointRegion(d.Spec.URI)
 				if err != nil {
 					return trace.Wrap(err)
 				}

@@ -137,8 +137,6 @@ type dbAuth struct {
 	azureVirtualMachineCache *utils.FnCache
 }
 
-var _ Auth = (*dbAuth)(nil)
-
 // NewAuth returns a new instance of database access authenticator.
 func NewAuth(config AuthConfig) (Auth, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {

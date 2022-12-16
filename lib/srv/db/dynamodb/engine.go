@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -53,7 +55,9 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 // Engine handles connections from DynamoDB clients coming from Teleport
 // proxy over reverse tunnel.
 type Engine struct {
-	*libaws.SigningService
+	// signingSvc will be used by the engine to provide the AWS sigv4 authorization header
+	// required by AWS for request validation: https://docs.aws.amazon.com/general/latest/gr/signing-elements.html
+	signingSvc *libaws.SigningService
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// clientConn is a client connection.
@@ -85,7 +89,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	e.SigningService = svc
+	e.signingSvc = svc
 	return nil
 }
 
@@ -113,12 +117,14 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 	response := &http.Response{
-		Status:        http.StatusText(code),
-		StatusCode:    code,
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		ContentLength: int64(len(body)), // ContentLength is the authoritative value in the response - no need to add the header.
+		Status:     http.StatusText(code),
+		StatusCode: code,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		// ContentLength is the authoritative value in the response,
+		// no need to also add the "Content-Length" header (source: go doc http.Response.Header).
+		ContentLength: int64(len(body)),
 		Header: map[string][]string{
 			"Content-Type": {"application/json"},
 		},
@@ -158,6 +164,10 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) (err e
 // to the client.
 func (e *Engine) process(ctx context.Context, req *http.Request) error {
 	defer req.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	service, err := e.getService(req)
 	if err != nil {
@@ -175,12 +185,15 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// rewrite the request URL and headers before signing it.
+	reqCopy, err := rewriteRequest(ctx, req, uri, bytes.NewReader(body))
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	region := e.sessionCtx.Database.GetAWS().Region
 	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, region, e.sessionCtx.Database.GetAWS().AccountID)
-	// rewrite the request URL and headers before signing it.
-	reqCopy := rewriteRequest(req, uri)
-	signedReq, err := e.SigningService.SignRequest(reqCopy,
+	signedReq, err := e.signingSvc.SignRequest(reqCopy,
 		&libaws.SigningCtx{
 			SigningName:   signingName,
 			SigningRegion: region,
@@ -322,16 +335,17 @@ func (e *Engine) getTargetURI(service string) (string, error) {
 }
 
 // rewriteRequest rewrites the request to modify headers and the URL.
-func rewriteRequest(r *http.Request, uri string) *http.Request {
-	reqCopy := &http.Request{}
-	*reqCopy = *r
+func rewriteRequest(ctx context.Context, r *http.Request, uri string, body io.Reader) (*http.Request, error) {
+	reqCopy, err := http.NewRequestWithContext(ctx, r.Method, r.URL.String(), body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	reqCopy.Header = r.Header.Clone()
 
-	// set url to match the database uri.
-	u := *r.URL
-	u.Host = uri
-	u.Scheme = "https"
-	reqCopy.URL = &u
+	// force https and set url and host header to match the database uri.
+	reqCopy.URL.Scheme = "https"
+	reqCopy.Host = uri
+	reqCopy.URL.Host = uri
 
 	for key := range reqCopy.Header {
 		// Remove Content-Length header for SigV4 signing.
@@ -339,7 +353,7 @@ func rewriteRequest(r *http.Request, uri string) *http.Request {
 			reqCopy.Header.Del(key)
 		}
 	}
-	return reqCopy
+	return reqCopy, nil
 }
 
 // getURIHostname parses a URI to extract its hostname.

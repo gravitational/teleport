@@ -73,7 +73,7 @@ func TestDatabaseLogin(t *testing.T) {
 	}, service.Database{
 		Name:     "dynamodb",
 		Protocol: defaults.ProtocolDynamoDB,
-		URI:      "", // uri must be blank for DynamoDB.
+		URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
 		AWS: service.DatabaseAWS{
 			AccountID: "12345",
 			Region:    "us-west-1",

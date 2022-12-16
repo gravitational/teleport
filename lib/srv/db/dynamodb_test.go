@@ -45,8 +45,9 @@ func registerTestDynamoDBEngine() {
 
 func newTestDynamoDBEngine(ec common.EngineConfig) common.Engine {
 	return &dynamodb.Engine{
-		EngineConfig:      ec,
-		RoundTrippers:     make(map[string]http.RoundTripper),
+		EngineConfig:  ec,
+		RoundTrippers: make(map[string]http.RoundTripper),
+		// inject mock AWS credentials.
 		GetSigningCredsFn: staticAWSCredentials,
 	}
 }

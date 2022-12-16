@@ -256,6 +256,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		"name": routeToDatabase.ServiceName,
 	}
 
+	// DynamoDB does not support a connect command, so don't try to print one.
 	if database.GetProtocol() != defaults.ProtocolDynamoDB {
 		templateData["connectCommand"] = utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, routeToDatabase))
 	}
@@ -422,7 +423,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if !dbprofile.IsSupported(*database) {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
-	// MySQL requires ALPN local proxy in signle port mode.
+	// MySQL requires ALPN local proxy in single port mode.
 	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
 		return trace.BadParameter(formatDbCmdUnsupportedTLSRouting(cf, database))
 	}
@@ -483,7 +484,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if isLocalProxyAlwaysRequired(database.Protocol) {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
-	// MySQL requires ALPN local proxy in signle port mode.
+	// MySQL requires ALPN local proxy in single port mode.
 	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
 		return trace.BadParameter(formatDbCmdUnsupportedTLSRouting(cf, database))
 	}
@@ -568,7 +569,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportC
 
 	// Some protocols (Snowflake, Elasticsearch) only works in the local tunnel mode.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if requiresLocalProxyTunnel(db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
+	if requiresLocalProxyTunnel(db.Protocol) {
 		localProxyTunnel = true
 	}
 
@@ -1112,7 +1113,7 @@ func getDbCmdAlternatives(database *tlsca.RouteToDatabase) string {
 		// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
 		return `"tsh proxy db --tunnel"`
 	default:
-		return `"tsh db connect" or "tsh proxy db"`
+		return `"tsh db connect" or "tsh proxy db --tunnel"`
 	}
 }
 
