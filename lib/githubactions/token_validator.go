@@ -58,15 +58,15 @@ func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 }
 
 func (id *IDTokenValidator) issuerURL(GHESHost string) string {
-	proto := "https"
+	scheme := "https"
 	if id.insecure {
-		proto = "http"
+		scheme = "http"
 	}
 
 	if GHESHost == "" {
-		return fmt.Sprintf("%s://%s", proto, id.GitHubIssuerHost)
+		return fmt.Sprintf("%s://%s", scheme, id.GitHubIssuerHost)
 	}
-	return fmt.Sprintf("%s://%s/_services/token", proto, GHESHost)
+	return fmt.Sprintf("%s://%s/_services/token", scheme, GHESHost)
 }
 
 func (id *IDTokenValidator) Validate(ctx context.Context, GHESHost string, token string) (*IDTokenClaims, error) {
