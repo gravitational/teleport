@@ -36,7 +36,7 @@ func maxSizePerField(maxLength, customFields int) int {
 }
 
 // TrimToMaxSize trims the DatabaseSessionQuery message content. The maxSize is used to calculate
-// per-filed max size where only user input message fields DatabaseQuery and DatabaseQueryParameters are taken into
+// per-field max size where only user input message fields DatabaseQuery and DatabaseQueryParameters are taken into
 // account.
 func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
