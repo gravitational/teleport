@@ -30,25 +30,25 @@ type ghaIDTokenValidator interface {
 	Validate(context.Context, string, string) (*githubactions.IDTokenClaims, error)
 }
 
-func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*githubactions.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for Github join request")
+		return nil, trace.BadParameter("IDToken not provided for Github join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
+		return nil, trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
 	claims, err := a.ghaIDTokenValidator.Validate(
 		ctx, token.Spec.GitHub.EnterpriseServerHost, req.IDToken,
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -56,7 +56,7 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		"token":  pt.GetName(),
 	}).Info("Github actions run trying to join cluster")
 
-	return trace.Wrap(checkGithubAllowRules(token, claims))
+	return claims, trace.Wrap(checkGithubAllowRules(token, claims))
 }
 
 func checkGithubAllowRules(token *types.ProvisionTokenV2, claims *githubactions.IDTokenClaims) error {
