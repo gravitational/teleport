@@ -390,8 +390,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 9.0.0: remove checking for empty string.
-	if token.GetSubKind() != "" && token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
+	if token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid token")
 	}
 

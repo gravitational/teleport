@@ -18,6 +18,7 @@ package tbot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -25,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -115,7 +118,22 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		}
 
 		backoffPeriod := jitter(caRotationRetryBackoff)
-		b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
+
+		// If the error is due to the client being replaced with a new client
+		// as part of the credentials renewal. Ignore it, and immediately begin
+		// watching again with the new client. We can safely check for Canceled
+		// here, because if the context was actually canceled, it would've
+		// been caught in the error check immediately following watchCARotations
+		var statusErr interface {
+			GRPCStatus() *status.Status
+		}
+		isCancelledErr := errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled
+		if isCancelledErr {
+			b.log.Debugf("CA watcher detected client closing. Re-watching in %s.", backoffPeriod)
+		} else if err != nil {
+			b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
+		}
+
 		select {
 		case <-ctx.Done():
 			b.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")

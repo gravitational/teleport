@@ -708,6 +708,8 @@ message AppSpecV3 {
   Rewrite Rewrite = 5 [(gogoproto.jsontag) = "rewrite,omitempty"];
   // AWS contains additional options for AWS applications.
   AppAWS AWS = 6 [(gogoproto.jsontag) = "aws,omitempty"];
+  // Cloud identifies the cloud instance the app represents.
+  string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
 }
 
 // App is a specific application that a server proxies.
@@ -2281,6 +2283,9 @@ message RoleConditions {
   repeated string HostGroups = 21 [(gogoproto.jsontag) = "host_groups,omitempty"];
   // HostSudoers is a list of entries to include in a users sudoer file
   repeated string HostSudoers = 22 [(gogoproto.jsontag) = "host_sudoers,omitempty"];
+
+  // AzureIdentities is a list of Azure identities this role is allowed to assume.
+  repeated string AzureIdentities = 23 [(gogoproto.jsontag) = "azure_identities,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -4384,6 +4389,14 @@ message ConnectionDiagnosticTrace {
     RBAC_KUBE = 6;
     // KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
     KUBE_PRINCIPAL = 7;
+    // RBAC_DATABASE is for RBAC checks to database access (db_labels).
+    RBAC_DATABASE = 8;
+    // RBAC_DATABASE_LOGIN is for RBAC checks to database login (db_name and db_user).
+    RBAC_DATABASE_LOGIN = 9;
+    // DATABASE_DB_USER is used when checking whether the Database has the requested Database User.
+    DATABASE_DB_USER = 10;
+    // DATABASE_DB_NAME is used when checking whether the Database has the requested Database Name.
+    DATABASE_DB_NAME = 11;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.
@@ -4397,6 +4410,29 @@ message ConnectionDiagnosticTrace {
   string Details = 3 [(gogoproto.jsontag) = "details"];
   // Error contains the low level error message in case of a failure.
   string Error = 4 [(gogoproto.jsontag) = "error"];
+}
+
+// DatabaseServiceV1 is the representation of a DatabaseService (agent) process.
+message DatabaseServiceV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  DatabaseServiceSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DatabaseServiceSpecV1 is the DatabaseService Spec.
+message DatabaseServiceSpecV1 {
+  // ResourceMatchers is the configured match for Database resources.
+  repeated wrappers.LabelValues ResourceMatchers = 1 [
+    (gogoproto.jsontag) = "resources",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist

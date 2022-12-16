@@ -4482,6 +4482,7 @@ func (process *TeleportProcess) initApps() {
 				InsecureSkipVerify: app.InsecureSkipVerify,
 				Rewrite:            rewrite,
 				AWS:                aws,
+				Cloud:              app.Cloud,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -4891,8 +4892,8 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
 	if !isDebugMode() {
-		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck
-		if err != nil {                              //nolint:staticcheck
+		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+		if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 			return nil, trace.Wrap(err)
 		}
 		return fs, nil

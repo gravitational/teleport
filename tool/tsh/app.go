@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"text/template"
 	"time"
@@ -68,26 +69,43 @@ func onAppLogin(cf *CLIConf) error {
 		}
 	}
 
-	ws, err := tc.CreateAppSession(cf.Context, types.CreateAppSessionRequest{
-		Username:    tc.Username,
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: tc.SiteName,
-		AWSRoleARN:  arn,
-	})
+	var azureIdentity string
+	if app.IsAzureCloud() {
+		var err error
+		azureIdentity, err = getAzureIdentityFromFlags(cf, profile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Debugf("Azure identity is %q", azureIdentity)
+	}
+
+	request := types.CreateAppSessionRequest{
+		Username:      tc.Username,
+		PublicAddr:    app.GetPublicAddr(),
+		ClusterName:   tc.SiteName,
+		AWSRoleARN:    arn,
+		AzureIdentity: azureIdentity,
+	}
+
+	ws, err := tc.CreateAppSession(cf.Context, request)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
+
+	params := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp: proto.RouteToApp{
-			Name:        app.GetName(),
-			SessionID:   ws.GetName(),
-			PublicAddr:  app.GetPublicAddr(),
-			ClusterName: tc.SiteName,
-			AWSRoleARN:  arn,
+			Name:          app.GetName(),
+			SessionID:     ws.GetName(),
+			PublicAddr:    app.GetPublicAddr(),
+			ClusterName:   tc.SiteName,
+			AWSRoleARN:    arn,
+			AzureIdentity: azureIdentity,
 		},
 		AccessRequests: profile.ActiveRequests.AccessRequests,
-	})
+	}
+
+	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -101,12 +119,40 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
+	if app.IsAzureCloud() {
+		if azureIdentity == "" {
+			return trace.BadParameter("app is Azure Cloud but Azure identity is missing")
+		}
+
+		var args []string
+		if cf.Debug {
+			args = append(args, "--debug")
+		}
+		args = append(args, "az", "login", "--identity", "-u", azureIdentity)
+
+		// automatically login with right identity.
+		cmd := exec.Command(cf.executablePath, args...)
+		cmd.Stdin = os.Stdin
+		cmd.Stderr = os.Stderr
+		cmd.Stdout = os.Stdout
+
+		log.Debugf("Running automatic az login: %v", cmd.String())
+		err := cf.RunCommand(cmd)
+		if err != nil {
+			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", azureIdentity)
+		}
+
+		return azureCliTpl.Execute(os.Stdout, map[string]string{
+			"appName":  app.GetName(),
+			"identity": azureIdentity,
+		})
+	}
 	if app.IsTCP() {
 		return appLoginTCPTpl.Execute(os.Stdout, map[string]string{
 			"appName": app.GetName(),
 		})
 	}
-	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
+	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, arn, azureIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,6 +190,14 @@ var awsCliTpl = template.Must(template.New("").Parse(
 	`Logged into AWS app {{.awsAppName}}. Example AWS CLI command:
 
   tsh aws {{.awsCmd}}
+`))
+
+// azureCliTpl is the message that gets printed to a user upon successful login
+// into an Azure application.
+var azureCliTpl = template.Must(template.New("").Parse(
+	`Logged into Azure app "{{.appName}}".
+Your identity: {{.identity}}
+Example Azure CLI command: tsh az vm list
 `))
 
 // getRegisteredApp returns the registered application with the specified name.
@@ -224,7 +278,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "")
+	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "", app.AWSRoleARN, app.AzureIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -232,7 +286,7 @@ func onAppConfig(cf *CLIConf) error {
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster, awsARN, azureIdentity string) (string, error) {
 	var uri string
 	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
 		uri = fmt.Sprintf("https://%v", appPublicAddr)
@@ -267,31 +321,55 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		return curlCmd, nil
 	case appFormatJSON, appFormatYAML:
 		appConfig := &appConfigInfo{
-			appName, uri, profile.CACertPathForCluster(cluster),
-			profile.AppCertPath(appName), profile.KeyPath(), curlCmd,
+			Name:          appName,
+			URI:           uri,
+			CA:            profile.CACertPathForCluster(cluster),
+			Cert:          profile.AppCertPath(appName),
+			Key:           profile.KeyPath(),
+			Curl:          curlCmd,
+			AWSRoleARN:    awsARN,
+			AzureIdentity: azureIdentity,
 		}
 		out, err := serializeAppConfig(appConfig, format)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
 		return out, nil
-	}
-	return fmt.Sprintf(`Name:      %v
+	case "", "default":
+		cfg := fmt.Sprintf(`Name:      %v
 URI:       %v
 CA:        %v
 Cert:      %v
 Key:       %v
 `, appName, uri, profile.CACertPathForCluster(cluster),
-		profile.AppCertPath(appName), profile.KeyPath()), nil
+			profile.AppCertPath(appName), profile.KeyPath())
+		if awsARN != "" {
+			cfg = cfg + fmt.Sprintf("AWS ARN:   %v\n", awsARN)
+		}
+		if azureIdentity != "" {
+			cfg = cfg + fmt.Sprintf("Azure Id:  %v\n", azureIdentity)
+		}
+		return cfg, nil
+	default:
+		acceptedFormats := []string{
+			"", "default",
+			appFormatCURL,
+			appFormatJSON, appFormatYAML,
+			appFormatURI, appFormatCA, appFormatCert, appFormatKey,
+		}
+		return "", trace.BadParameter("invalid format, expected one of %q, got %q", acceptedFormats, format)
+	}
 }
 
 type appConfigInfo struct {
-	Name string `json:"name"`
-	URI  string `json:"uri"`
-	CA   string `json:"ca"`
-	Cert string `json:"cert"`
-	Key  string `json:"key"`
-	Curl string `json:"curl"`
+	Name          string `json:"name"`
+	URI           string `json:"uri"`
+	CA            string `json:"ca"`
+	Cert          string `json:"cert"`
+	Key           string `json:"key"`
+	Curl          string `json:"curl"`
+	AWSRoleARN    string `json:"aws_role_arn,omitempty"`
+	AzureIdentity string `json:"azure_identity,omitempty"`
 }
 
 func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error) {

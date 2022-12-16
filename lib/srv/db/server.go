@@ -16,7 +16,7 @@ limitations under the License.
 
 package db
 
-//nolint:goimports
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"crypto/tls"
@@ -813,6 +813,23 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
+		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
+		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
+			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
+				connectionDiagnosticID,
+				&types.ConnectionDiagnosticTrace{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "Access denied when accessing Database. Please check the Error message for more information.",
+					Error:   err.Error(),
+				},
+			)
+
+			if diagErr != nil {
+				return trace.Wrap(diagErr)
+			}
+		}
+
 		return trace.Wrap(err)
 	}
 	return nil
