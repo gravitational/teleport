@@ -1599,6 +1599,12 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 				s.Logger.Warn(err)
 			}
 			return nil
+		case sshutils.PuTTYWinadjRequest:
+			// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
+			// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
+			// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
+			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
+			return nil
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -1649,6 +1655,12 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		if err != nil {
 			s.Logger.Warn(err)
 		}
+		return nil
+	case sshutils.PuTTYWinadjRequest:
+		// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
+		// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
+		// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
+		// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
 		return nil
 	default:
 		return trace.BadParameter(
