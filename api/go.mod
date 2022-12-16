@@ -3,7 +3,6 @@ module github.com/gravitational/teleport/api
 go 1.18
 
 require (
-	github.com/aws/aws-sdk-go v1.44.157
 	github.com/go-piv/piv-go v1.10.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.5.9
@@ -46,7 +45,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russellhaering/goxmldsig v1.2.0 // indirect
