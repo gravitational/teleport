@@ -59,6 +59,7 @@ func UsersEquals(u types.User, other types.User) bool {
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
 			return a.Metadata.Name < b.Metadata.Name
 		}),
+		ignoreProtoXXXFields(),
 	)
 }
 

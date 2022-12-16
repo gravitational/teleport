@@ -45,7 +45,7 @@ import (
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"), ignoreProtoXXXFields())
 }
 
 // ValidateCertAuthority validates the CertAuthority
