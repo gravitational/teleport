@@ -546,7 +546,7 @@ func (s *session) launch() error {
 	}
 
 	s.io.On()
-	if err = executor.StreamWithContext(s.forwarder.ctx, options); err != nil {
+	if err = executor.Stream(options); err != nil {
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
 	}

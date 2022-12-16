@@ -1370,7 +1370,7 @@ func kubeExec(kubeConfig *rest.Config, args kubeExecArgs) error {
 		Stderr: args.stderr,
 		Tty:    args.tty,
 	}
-	return executor.StreamWithContext(context.TODO(), opts)
+	return executor.Stream(opts)
 }
 
 func kubeJoin(kubeConfig kube.ProxyConfig, tc *client.TeleportClient, sessionID string) (*client.KubeSession, error) {

@@ -411,7 +411,7 @@ func TestModeratedSessions(t *testing.T) {
 					stdoutWritter.Close()
 				}()
 				// start user session.
-				err := exec.StreamWithContext(testCtx.ctx, streamOpts)
+				err := exec.Stream(streamOpts)
 				// ignore closed pipes error.
 				if errors.Is(err, io.ErrClosedPipe) {
 					return nil

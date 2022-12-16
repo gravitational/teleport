@@ -155,12 +155,6 @@ func (e *wsStreamClient) Stream(options clientremotecommand.StreamOptions) error
 	return e.stream(conn, options)
 }
 
-// StreamWithContext calls Stream and discards the context.
-// It's used to satisfy the remotecommand.Executor interface.
-func (e *wsStreamClient) StreamWithContext(_ context.Context, options clientremotecommand.StreamOptions) error {
-	return e.Stream(options)
-}
-
 // ForwardPorts opens a listener at the specified port and waits for new connections.
 // once a connection is received, it waits for the upstream data and writes it
 // into the original connection.
