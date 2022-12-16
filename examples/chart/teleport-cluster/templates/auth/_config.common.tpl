@@ -40,10 +40,10 @@ auth_service:
       rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
     {{- if $authentication.webauthn }}
       {{- if $authentication.webauthn.attestationAllowedCas }}
-          attestation_allowed_cas: {{- toYaml $authentication.webauthn.attestationAllowedCas | nindent 12 }}
+      attestation_allowed_cas: {{- toYaml $authentication.webauthn.attestationAllowedCas | nindent 12 }}
       {{- end }}
       {{- if $authentication.webauthn.attestationDeniedCas }}
-          attestation_denied_cas: {{- toYaml $authentication.webauthn.attestationDeniedCas | nindent 12 }}
+      attestation_denied_cas: {{- toYaml $authentication.webauthn.attestationDeniedCas | nindent 12 }}
       {{- end }}
     {{- end }}
   {{- end }}

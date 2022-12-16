@@ -294,13 +294,79 @@ matches snapshot for auth-type.yaml:
 matches snapshot for auth-webauthn-legacy.yaml:
   1: |
     |-
-      Error: 'error converting YAML to JSON: yaml: line 20: mapping values are not allowed
-        in this context'
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            attestation_allowed_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            attestation_denied_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 matches snapshot for auth-webauthn.yaml:
   1: |
     |-
-      Error: 'error converting YAML to JSON: yaml: line 20: mapping values are not allowed
-        in this context'
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            attestation_allowed_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            attestation_denied_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 matches snapshot for aws-dynamodb-autoscaling.yaml:
   1: |
     |-
