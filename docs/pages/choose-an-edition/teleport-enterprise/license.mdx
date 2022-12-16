@@ -1,18 +1,41 @@
 ---
 title: Enterprise License File
-description: Teleport enterprise license file configuration parameters and requirements
+description: How to manage your Teleport Enterprise license file.
 ---
 
-This guide explains the use of a license file with Teleport Enterprise.
+Self-hosted Teleport Enterprise subscriptions require a valid license. In this
+guide, we will show you how to manage your Teleport Enterprise license file.
 
-Commercial self-hosted Teleport subscriptions require a valid license. The
-license file can be downloaded from the [Teleport Customer
-Portal](https://dashboard.gravitational.com/web/login). When downloading the
-file, the products you are licensed to use will be listed in the browser.
+## Managing your license file
+
+In a self-hosted Teleport Enterprise cluster, the Teleport Auth Service reads a
+license file in order to determine the scope and validity of your subscription.
+Follow the steps below to give your Teleport Auth Service instances access to
+your license file.
+
+### Download your license file
+
+To obtain your license file, visit the [Teleport customer
+dashboard](https://dashboard.gravitational.com/web/login) and log in. Click
+"DOWNLOAD LICENSE KEY". You will see your current Teleport Enterprise account
+permissions and the option to download your license file:
+
+![License File modal](../../../img/enterprise/license.png)
 
 The Teleport license file contains an X.509 certificate and the corresponding
-private key in PEM format. Place the downloaded file on your Teleport Auth
-Servers and set the `license_file` configuration parameter of your
+private key in PEM format. 
+
+### Add your license file to your Auth Service instances
+
+Make your license file available to your Teleport Auth Service instances. The
+way you will do this depends on whether you are running the Teleport Auth
+Service on a Linux host or on Kubernetes:
+
+<Tabs>
+<TabItem label="Linux Host">
+
+Place the downloaded file on each instance of the Teleport Auth Service you will
+run in your cluster and set the `license_file` configuration parameter of your
 `teleport.yaml` to point to the file location:
 
 ```yaml
@@ -22,19 +45,106 @@ auth_service:
 
 The `license_file` path can be either absolute or relative to the configured
 `data_dir`. If the license file path is not set, Teleport will look for the
-`license.pem` file in the configured `data_dir`.
+`license.pem` file in the configured `data_dir`, which is `/var/lib/teleport` by
+default.
 
-Only Auth Servers require the license. Proxies and Nodes that do not also run the Auth Service do not need the license.  
-    
-Attempts to use unlicensed products will result in an error message and users will be unable to use those products. For example, if you attempt to use Database Access without it being included in the license, you will get a message similar to:
+</TabItem>
+<TabItem label="Kubernetes">
+
+Rename your license file to `license.pem`.
+
+Create a secret called "license" in the namespace you are using to deploy
+Teleport:
+
 ```code
+$ kubectl -n teleport create secret generic license --from-file=license.pem
+```
+
+For the Teleport pod to load your license:
+
+- The secret must be named `license`
+- The secret must be in the same Kubernetes namespace as the Teleport pod
+- The license file in the secret to be named `license.pem`
+
+</TabItem>
+</Tabs>
+
+Only Auth Service instances require the license. Instances of other Teleport
+services do not need a license file unless they are also running the Auth
+Service.
+
+### Check your license expiration date
+
+Your Teleport Enterprise license contains an X.509 certificate that contains the
+expiration date of your license. 
+
+Run the following command to inspect the expiration date of your license,
+assuming your license is saved as `license.pem`:
+
+```code
+$ openssl x509 -text -in license.pem | grep "Not After"
+             Not After : Dec 16 19:43:40 2022 GMT
+```
+
+### Renew or update your license
+
+If you have changed your license agreement with Teleport, e.g., you have added
+or removed support for a feature, you must obtain your license file again and
+replace your existing license file on all Teleport Auth Service instances. You
+must also obtain a new license file after renewing your Teleport Enterprise
+license.
+
+Once you restart the Teleport Auth Service, any changes to the license will take
+effect.
+
+The Teleport Auth Service checks the expiration status of your license every
+hour. This means that, after you replace your license file and restart your Auth
+Service instances, it can take up to an hour to confirm the new license. 
+
+## When your license expires
+
+At 90 days before your Teleport Enterprise license expires, users will see an
+alert similar to the following when running `tsh login`, `tsh status`, or any
+`tctl command`:
+
+```text
+Your Teleport Enterprise Edition license will expire in 90 days on one or more
+of your auth servers. Please reach out to licenses@goteleport.com to obtain a
+new license. Inaction may lead to unplanned outage or degraded performance and
+support.
+```
+
+Users will see a similar message as a banner when accessing the Teleport Web UI:
+
+![License warning banner](../../../img/enterprise/license-warning.png)
+
+When your license expires, you will have a 30-day grace period before Teleport
+Enterprise features become disabled. 
+
+`tsh` users will see warnings indicating that Enterprise features are no longer
+available:
+
+```text
+Your Teleport Enterprise Edition license has expired on one or more of your auth
+servers. Please reach out to licenses@goteleport.com to obtain a new license.
+Inaction may lead to unplanned outage or degraded performance and support.
+```
+
+Teleport Web UI users will see an alert banner:
+
+![License expired banner](../../../img/enterprise/license-expired.png)
+
+Attempts to authenticate to Teleport via Single Sign-On connectors will fail.
+
+## Unlicensed Teleport features
+
+If users attempt to use a Teleport feature that your license does not allow,
+they will see an error message. For example, if you attempt to use Database
+Access without it being included in the license, you will get a message similar
+to:
+
+```text
 this Teleport cluster is not licensed for database access, please contact the cluster administrator
 ```
 
-## License updates and renewals
-
-If your license is updated for features and/or renewals an updated license file is required.  Download the updated license file
-from the [Teleport Customer
-Portal](https://dashboard.gravitational.com/web/login) and reinstall to all Teleport Auth Service instances.
-After restarting the Teleport Auth Service, any changes to the license will take effect.
 
