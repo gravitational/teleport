@@ -1939,13 +1939,13 @@ func listNodesAllClusters(cf *CLIConf) error {
 	nodeListingsResultChan := make(chan nodeListings)
 	nodeListingsCollectChan := make(chan nodeListings)
 	go func() {
-		var nodeListings nodeListings
+		var listings nodeListings
 		for {
 			select {
 			case items := <-nodeListingsResultChan:
-				nodeListings = append(nodeListings, items...)
+				listings = append(listings, items...)
 			case <-groupCtx.Done():
-				nodeListingsCollectChan <- nodeListings
+				nodeListingsCollectChan <- listings
 				return
 			}
 		}
@@ -1964,7 +1964,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			var nodeListings nodeListings
+			var listings nodeListings
 			for _, site := range sites {
 				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
 				if err != nil {
@@ -1972,7 +1972,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 				}
 
 				for _, node := range nodes {
-					nodeListings = append(nodeListings, nodeListing{
+					listings = append(listings, nodeListing{
 						Proxy:   profile.ProxyURL.Host,
 						Cluster: site.Name,
 						Node:    node,
@@ -1980,7 +1980,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 				}
 			}
 
-			nodeListingsCollectChan <- nodeListings
+			nodeListingsCollectChan <- listings
 			return nil
 		})
 
@@ -2030,8 +2030,7 @@ func printNodesWithClusters(nodes []nodeListing, verbose bool) {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
 	}
-
-	t.AsBuffer().WriteTo(os.Stdout)
+	fmt.Println(t.AsBuffer().String())
 }
 
 func serializeNodesWithClusters(nodes []nodeListing, format string) (string, error) {
