@@ -24,11 +24,11 @@ import (
 	"net"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection

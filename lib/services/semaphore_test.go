@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestAcquireSemaphoreRequest(t *testing.T) {

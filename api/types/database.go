@@ -23,13 +23,13 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 )
 
 // Database represents a database proxied by a database server.

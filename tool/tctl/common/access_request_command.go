@@ -26,13 +26,14 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // AccessRequestCommand implements `tctl users` set of commands

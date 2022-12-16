@@ -20,10 +20,10 @@ import (
 	"os"
 	"testing"
 
+	"gopkg.in/check.v1"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {

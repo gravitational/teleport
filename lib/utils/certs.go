@@ -26,12 +26,12 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // ParseKeyStorePEM parses signing key store from PEM encoded key pair

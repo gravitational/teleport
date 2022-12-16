@@ -35,10 +35,11 @@ import (
 	"time"
 	"unicode"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -57,9 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
