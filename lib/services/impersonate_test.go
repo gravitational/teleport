@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"testing"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestCheckImpersonate(t *testing.T) {

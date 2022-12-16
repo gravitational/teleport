@@ -19,12 +19,12 @@ package services
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 // TestMatchResourceLabels tests matching a resource against a selector.

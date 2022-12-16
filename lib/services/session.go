@@ -19,11 +19,11 @@ package services
 import (
 	"encoding/json"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // UnmarshalWebSession unmarshals the WebSession resource from JSON.

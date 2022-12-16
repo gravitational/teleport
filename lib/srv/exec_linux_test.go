@@ -29,8 +29,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to

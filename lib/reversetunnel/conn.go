@@ -24,11 +24,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"

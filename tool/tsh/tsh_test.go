@@ -34,13 +34,12 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 	yamlv2 "gopkg.in/yaml.v2"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"

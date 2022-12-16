@@ -21,10 +21,10 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // withRouterAuth authenticates requests then hands the request to a

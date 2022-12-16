@@ -20,11 +20,10 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
-
 	"go.uber.org/atomic"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const defaultQueueSize = 64

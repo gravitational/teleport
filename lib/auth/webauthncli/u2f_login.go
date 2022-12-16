@@ -24,9 +24,9 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/flynn/u2f/u2ftoken"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 

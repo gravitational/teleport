@@ -27,10 +27,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
 const (
