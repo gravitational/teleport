@@ -1,8 +1,11 @@
 import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
 import { waitFor } from '@testing-library/react';
+
 import renderHook, { act } from 'design/utils/renderHook';
 import makeUserContext from 'teleport/services/user/makeUserContext';
+import { getMockWebSession } from 'teleport/services/websession/test-utils';
+import { SessionContextProvider } from 'teleport/WebSessionContext';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { requestRolePending } from 'e-teleport/Workflow/fixtures';
@@ -121,9 +124,13 @@ test('flags for reviewer', async () => {
 });
 
 function Wrapper(props: any) {
+  const mockWebSession = getMockWebSession();
+
   return (
     <MemoryRouter initialEntries={[`web/requests/123`]}>
-      <Route path="web/requests/:requestId">{props.children}</Route>
+      <SessionContextProvider session={mockWebSession}>
+        <Route path="web/requests/:requestId">{props.children}</Route>
+      </SessionContextProvider>
     </MemoryRouter>
   );
 }

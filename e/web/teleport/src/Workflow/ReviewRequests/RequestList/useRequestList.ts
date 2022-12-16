@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import history from 'teleport/services/history';
+import useWebSession from 'teleport/useWebSession';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
 
 export default function useRequestList(ctx: TeleportContextE) {
+  const webSession = useWebSession();
   const { attempt, run, setAttempt } = useAttempt('processing');
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const {
@@ -28,7 +30,7 @@ export default function useRequestList(ctx: TeleportContextE) {
   function assumeRole(req: Row) {
     setAttempt({ status: 'processing' });
     ctx.workflowService
-      .applyPermission({ requestId: req.id })
+      .applyPermission({ requestId: req.id }, webSession)
       .then(expires => {
         ctx.storeAccessRequests.addAssumed(req, expires);
         history.reload();

@@ -1,5 +1,4 @@
 import React from 'react';
-import session from 'teleport/services/websession';
 import { ButtonSecondary, Text, Alert } from 'design';
 import Dialog, {
   DialogHeader,
@@ -7,8 +6,11 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
+import useWebSession from 'teleport/useWebSession';
 
 export default function RequestDenied({ reason }: Props) {
+  const webSession = useWebSession();
+
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -25,7 +27,7 @@ export default function RequestDenied({ reason }: Props) {
         </Text>
       </DialogContent>
       <DialogFooter>
-        <ButtonSecondary onClick={() => session.logout()}>
+        <ButtonSecondary onClick={() => webSession.logout()}>
           Logout
         </ButtonSecondary>
       </DialogFooter>

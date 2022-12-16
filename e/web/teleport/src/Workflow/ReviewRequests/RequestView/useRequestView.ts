@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import useWebSession from 'teleport/useWebSession';
 import history from 'teleport/services/history';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -11,6 +12,7 @@ import type { Attempt } from 'shared/hooks/useAttemptNext';
 import type { PrivateKeyAccessRequest } from 'teleport/components/PrivateKeyPolicy';
 
 export default function useRequestView(ctx: TeleportContextE) {
+  const webSession = useWebSession();
   const { requestId } = useParams<{ requestId: string }>();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
@@ -58,7 +60,7 @@ export default function useRequestView(ctx: TeleportContextE) {
   function assumeRole() {
     setAttempt({ status: 'processing' });
     ctx.workflowService
-      .applyPermission({ requestId: request.id })
+      .applyPermission({ requestId: request.id }, webSession)
       .then(expires => {
         ctx.storeAccessRequests.addAssumed(request, expires);
         history.reload();
