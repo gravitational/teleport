@@ -147,7 +147,7 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0
      rm -r golangci-lint*)
 
 # Install GCI
-RUN go install github.com/daixiang0/gci@v0.8.2
+RUN go install github.com/daixiang0/gci@v0.7.0
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
