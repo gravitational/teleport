@@ -76,6 +76,7 @@ function DiscoverContent() {
         selectedResourceKind={selectedResource.kind}
         onSelect={kind => onSelectResource(kind)}
         onNext={() => agentProps.nextStep()}
+        resourceState={agentProps.resourceState}
       />
     );
   }

@@ -27,6 +27,12 @@ import {
   DatabaseLocation,
 } from 'teleport/Discover/Database/resources';
 
+import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
+import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
+import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
+import { MutualTls } from 'teleport/Discover/Database/MutualTls';
+import { TestConnection } from 'teleport/Discover/Database/TestConnection';
+
 export const DatabaseResource: Resource<Database> = {
   kind: ResourceKind.Database,
   icon: <DatabaseIcon />,
@@ -62,16 +68,16 @@ export const DatabaseResource: Resource<Database> = {
         case DatabaseLocation.SelfHosted:
           configureResourceViews = [
             {
-              title: 'Deploy Database Agent',
-              component: InstallActiveDirectory,
+              title: 'Register a Database',
+              component: CreateDatabase,
             },
             {
-              title: 'Register a Database',
-              component: InstallActiveDirectory,
+              title: 'Deploy Database Agent',
+              component: DownloadScript,
             },
             {
               title: 'Configure mTLS',
-              component: InstallActiveDirectory,
+              component: MutualTls,
             },
           ];
 
@@ -85,16 +91,15 @@ export const DatabaseResource: Resource<Database> = {
       },
       {
         title: 'Configure Resource',
-        component: InstallActiveDirectory,
         views: configureResourceViews,
       },
       {
         title: 'Setup Access',
-        component: InstallActiveDirectory,
+        component: SetupAccess,
       },
       {
         title: 'Test Connection',
-        component: InstallActiveDirectory,
+        component: TestConnection,
       },
     ];
   },

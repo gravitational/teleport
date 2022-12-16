@@ -30,6 +30,7 @@ import {
   Mark,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
+import { getDatabaseProtocol } from '../resources';
 
 import { useCreateDatabase, State } from './useCreateDatabase';
 
@@ -45,6 +46,7 @@ export function CreateDatabaseView({
   attempt,
   createDbAndQueryDb,
   canCreateDatabase,
+  engine,
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
@@ -65,8 +67,7 @@ export function CreateDatabaseView({
       labels,
       name: dbName,
       uri: dbUri,
-      // TODO (lisa or ryan) hard coded for now as example.
-      protocol: 'postgres',
+      protocol: getDatabaseProtocol(engine),
       // TODO (lisa or ryan) add AWS fields
     });
   }

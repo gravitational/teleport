@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { ResourceKind } from 'teleport/Discover/Shared';
-
 import { State } from './useDiscover';
 
 export type AgentStepProps = {
@@ -28,7 +26,8 @@ export type AgentStepProps = {
   nextStep?: State['nextStep'];
   // prevStep decrements the `currentStep` to go to the prev step.
   prevStep?: State['prevStep'];
-  selectedResourceKind?: ResourceKind;
+  selectedResourceKind?: State['selectedResourceKind'];
+  resourceState?: State['resourceState'];
 };
 
 export type AgentStepComponent = (props: AgentStepProps) => JSX.Element;

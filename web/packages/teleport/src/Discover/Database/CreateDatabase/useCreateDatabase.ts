@@ -18,6 +18,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
 
+import { Database } from '../resources';
+
 import type { AgentStepProps } from '../../types';
 import type { CreateDatabaseRequest } from 'teleport/services/databases';
 import type { DbMeta } from 'teleport/Discover/useDiscover';
@@ -102,6 +104,7 @@ export function useCreateDatabase(props: AgentStepProps) {
     attempt,
     createDbAndQueryDb,
     canCreateDatabase: access.create,
+    engine: (props.resourceState as Database).engine,
   };
 }
 

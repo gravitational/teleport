@@ -16,6 +16,10 @@ limitations under the License.
 
 import React from 'react';
 
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/Database/resources';
 import { AuthType } from 'teleport/services/user';
 
 import { AddDatabase } from './AddDatabase';
@@ -48,5 +52,10 @@ const props = {
   token: { id: 'some-join-token-hash', expiry: null, expiryText: '4 hours' },
   createJoinToken() {
     return Promise.resolve(null);
+  },
+  selectedDb: {
+    engine: DatabaseEngine.PostgreSQL,
+    location: DatabaseLocation.AWS,
+    name: 'Postgres',
   },
 };

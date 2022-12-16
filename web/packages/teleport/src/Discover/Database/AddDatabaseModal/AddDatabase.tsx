@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -29,18 +29,17 @@ import {
   Link,
   Text,
 } from 'design';
-import Select, { Option } from 'shared/components/Select';
-import {
-  formatDatabaseInfo,
-  DbType,
-  DbProtocol,
-  DatabaseInfo,
-} from 'shared/services/databases';
 
 import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
 import useTeleport from 'teleport/useTeleport';
+import {
+  Database,
+  DatabaseEngine,
+  DatabaseLocation,
+  getDatabaseProtocol,
+} from 'teleport/Discover/Database/resources';
 
 import useAddDatabase, { State } from './useAddDatabase';
 
@@ -59,21 +58,10 @@ export function AddDatabase({
   onClose,
   isEnterprise,
   version,
+  selectedDb,
 }: Props & State) {
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
-  const [dbOptions] = useState<Option<DatabaseInfo>[]>(() =>
-    options.map(dbOption => {
-      return {
-        value: dbOption,
-        label: dbOption.title,
-      };
-    })
-  );
-
-  const [selectedDbOption, setSelectedDbOption] = useState<
-    Option<DatabaseInfo>
-  >(dbOptions[0]);
 
   const connectCmd =
     authType === 'sso'
@@ -90,7 +78,7 @@ export function AddDatabase({
       open={true}
     >
       <DialogHeader mb={4}>
-        <DialogTitle>Add Database</DialogTitle>
+        <DialogTitle>Add {selectedDb.name}</DialogTitle>
       </DialogHeader>
       <DialogContent>
         {attempt.status === 'processing' && (
@@ -101,30 +89,14 @@ export function AddDatabase({
         {attempt.status === 'failed' && (
           <StepsWithoutToken
             loginCommand={connectCmd}
-            addCommand={generateDbStartCmd(
-              selectedDbOption.value.type,
-              selectedDbOption.value.protocol,
-              host,
-              ''
-            )}
-            selectedDb={selectedDbOption}
-            onDbChange={(o: Option<DatabaseInfo>) => setSelectedDbOption(o)}
-            dbOptions={dbOptions}
+            addCommand={generateDbStartCmd(selectedDb, host, '')}
             isEnterprise={isEnterprise}
             version={version}
           />
         )}
         {attempt.status === 'success' && (
           <StepsWithToken
-            selectedDb={selectedDbOption}
-            onDbChange={(o: Option<DatabaseInfo>) => setSelectedDbOption(o)}
-            dbOptions={dbOptions}
-            command={generateDbStartCmd(
-              selectedDbOption.value.type,
-              selectedDbOption.value.protocol,
-              host,
-              token.id
-            )}
+            command={generateDbStartCmd(selectedDb, host, token.id)}
             expiry={token.expiryText}
             onRegenerateToken={createJoinToken}
             isEnterprise={isEnterprise}
@@ -142,9 +114,6 @@ export function AddDatabase({
 }
 
 type StepsWithTokenProps = {
-  selectedDb: Option<DatabaseInfo>;
-  onDbChange: (o: Option<DatabaseInfo>) => void;
-  dbOptions: Option<DatabaseInfo>[];
   command: string;
   expiry: string;
   onRegenerateToken: () => Promise<boolean>;
@@ -153,9 +122,6 @@ type StepsWithTokenProps = {
 };
 
 const StepsWithToken = ({
-  selectedDb,
-  onDbChange,
-  dbOptions,
   expiry,
   command,
   onRegenerateToken,
@@ -170,24 +136,9 @@ const StepsWithToken = ({
       {' - Download Teleport package to your computer '}
       <DownloadLinks isEnterprise={isEnterprise} version={version} />
     </Box>
-    <Box mb={4}>
-      <Text bold as="span">
-        Step 2
-      </Text>
-      {` - Select the database type and protocol to use`}
-      <Box mt={2}>
-        <Select
-          value={selectedDb}
-          onChange={onDbChange}
-          options={dbOptions}
-          isSearchable={true}
-          maxMenuHeight={220}
-        />
-      </Box>
-    </Box>
     <Box mb={2}>
       <Text bold as="span">
-        Step 3
+        Step 2
       </Text>
       {' - Generate the Teleport config file'}
       <Text mt="1">
@@ -201,7 +152,7 @@ const StepsWithToken = ({
     </Box>
     <Box mb={4}>
       <Text bold as="span">
-        Step 4
+        Step 3
       </Text>
       {' - Start the Teleport agent with the following parameters'}
       <TextSelectCopy mt="2" text="teleport start" />
@@ -220,9 +171,6 @@ const StepsWithToken = ({
 );
 
 type StepsWithoutTokenProps = {
-  selectedDb: Option<DatabaseInfo>;
-  onDbChange: (o: Option<DatabaseInfo>) => void;
-  dbOptions: Option<DatabaseInfo>[];
   isEnterprise: boolean;
   version: string;
   loginCommand: string;
@@ -232,9 +180,6 @@ type StepsWithoutTokenProps = {
 const StepsWithoutToken = ({
   loginCommand,
   addCommand,
-  selectedDb,
-  dbOptions,
-  onDbChange,
   isEnterprise,
   version,
 }: StepsWithoutTokenProps) => (
@@ -264,27 +209,12 @@ const StepsWithoutToken = ({
       <Text bold as="span">
         Step 4
       </Text>
-      {` - Select the database type and protocol to use`}
-      <Box mt={2}>
-        <Select
-          value={selectedDb}
-          onChange={onDbChange}
-          options={dbOptions}
-          isSearchable={true}
-          maxMenuHeight={220}
-        />
-      </Box>
-    </Box>
-    <Box mb={4}>
-      <Text bold as="span">
-        Step 5
-      </Text>
       {' - Generate the Teleport config file'}
       <TextSelectCopy mt="2" text={addCommand} />
     </Box>
     <Box mb={4}>
       <Text bold as="span">
-        Step 6
+        Step 5
       </Text>
       {' - Start the Teleport agent with the following parameters'}
       <TextSelectCopy mt="2" text="teleport start" />
@@ -302,12 +232,8 @@ const StepsWithoutToken = ({
   </>
 );
 
-const generateDbStartCmd = (
-  type: DbType,
-  protocol: DbProtocol,
-  host: string,
-  token: string
-) => {
+const generateDbStartCmd = (db: Database, host: string, token: string) => {
+  const protocol = getDatabaseProtocol(db.engine);
   let baseCommand = `teleport db configure create --token=${
     token || '[generated-join-token]'
   } --proxy=${host} --name=[db-name] --protocol=${protocol} --uri=[uri] -o file`;
@@ -319,34 +245,20 @@ const generateDbStartCmd = (
       `--ad-spn=MSSQLSvc/sqlserver.example.com:1433`;
   }
 
-  switch (type) {
-    case 'self-hosted':
+  switch (db.location) {
+    case DatabaseLocation.SelfHosted:
       return baseCommand;
-    case 'rds':
+    case DatabaseLocation.AWS:
+      if (db.engine === DatabaseEngine.RedShift) {
+        return `${baseCommand} --aws-region=[region] --aws-redshift-cluster-id=[cluster-id]`;
+      }
       return `${baseCommand} --aws-region=[region]`;
-    case 'redshift':
-      return `${baseCommand} --aws-region=[region] --aws-redshift-cluster-id=[cluster-id]`;
-    case 'gcp':
+    case DatabaseLocation.GCP:
       return `${baseCommand} --ca-cert-file=[instance-ca-filepath] --gcp-project-id=[project-id] --gcp-instance-id=[instance-id]`;
     default:
       return 'unknown type and protocol';
   }
 };
-
-const options: DatabaseInfo[] = [
-  formatDatabaseInfo('rds', 'postgres'),
-  formatDatabaseInfo('rds', 'mysql'),
-  formatDatabaseInfo('rds', 'sqlserver'),
-  formatDatabaseInfo('redshift', 'postgres'),
-  formatDatabaseInfo('gcp', 'postgres'),
-  formatDatabaseInfo('gcp', 'mysql'),
-  formatDatabaseInfo('gcp', 'sqlserver'),
-  formatDatabaseInfo('self-hosted', 'postgres'),
-  formatDatabaseInfo('self-hosted', 'mysql'),
-  formatDatabaseInfo('self-hosted', 'mongodb'),
-  formatDatabaseInfo('self-hosted', 'sqlserver'),
-  formatDatabaseInfo('self-hosted', 'redis'),
-];
 
 export type Props = {
   isEnterprise: boolean;
@@ -354,4 +266,5 @@ export type Props = {
   username: string;
   version: string;
   authType: AuthType;
+  selectedDb: Database;
 };

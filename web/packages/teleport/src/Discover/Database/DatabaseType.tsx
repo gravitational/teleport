@@ -70,8 +70,11 @@ export function DatabaseType(props: DatabaseTypeProps) {
 function getDatabaseIcon(database: Database) {
   switch (database.location) {
     case DatabaseLocation.AWS:
+    case DatabaseLocation.GCP:
       return <Cloud fontSize={22} />;
     case DatabaseLocation.SelfHosted:
+      return <DatabaseIcon fontSize={22} />;
+    default:
       return <DatabaseIcon fontSize={22} />;
   }
 }

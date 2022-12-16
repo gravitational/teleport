@@ -25,10 +25,16 @@ const Databases = styled.div`
 enum FilterType {
   All = 'All',
   AWS = 'AWS',
-  SelfHosted = 'Self Hosted',
+  GCP = 'GCP',
+  SelfHosted = 'Self-Hosted',
 }
 
-const FILTER_TYPES = [FilterType.All, FilterType.AWS, FilterType.SelfHosted];
+const FILTER_TYPES = [
+  FilterType.All,
+  FilterType.AWS,
+  FilterType.GCP,
+  FilterType.SelfHosted,
+];
 
 export function SelectDatabaseType() {
   const { resourceState, setResourceState } = useDiscover<Database>();
@@ -39,13 +45,19 @@ export function SelectDatabaseType() {
   for (const [index, database] of DATABASES.entries()) {
     switch (filter) {
       case FilterType.SelfHosted:
-        if (database.location === DatabaseLocation.AWS) {
+        if (database.location !== DatabaseLocation.SelfHosted) {
           continue;
         }
 
         break;
       case FilterType.AWS:
-        if (database.location === DatabaseLocation.SelfHosted) {
+        if (database.location !== DatabaseLocation.AWS) {
+          continue;
+        }
+
+        break;
+      case FilterType.GCP:
+        if (database.location !== DatabaseLocation.GCP) {
           continue;
         }
 
@@ -67,7 +79,7 @@ export function SelectDatabaseType() {
       <Flex alignItems="center" justifyContent="space-between" mb={4}>
         <Header>Select Deployment Type</Header>
 
-        <Box width="379px">
+        <Box width="470px">
           <SlideTabs
             appearance="round"
             size="medium"

@@ -96,6 +96,7 @@ describe('select resource', () => {
                 selectedResourceKind={kind}
                 onSelect={() => null}
                 onNext={() => null}
+                resourceState={null}
               />
             </DiscoverProvider>
           </FeaturesContextProvider>

@@ -17,6 +17,8 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { DatabaseEngine } from '../resources';
+
 import { CreateDatabaseView } from './CreateDatabase';
 
 import type { State } from './useCreateDatabase';
@@ -56,4 +58,5 @@ const props: State = {
   attempt: { status: '' },
   createDbAndQueryDb: () => null,
   canCreateDatabase: true,
+  engine: DatabaseEngine.PostgreSQL,
 };
