@@ -132,7 +132,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.WithError(err).Errorf("failed to send error response to DynamoDB client")
+		e.Log.WithError(err).Error("failed to send error response to DynamoDB client")
 		return
 	}
 }
