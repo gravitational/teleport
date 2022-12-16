@@ -24,13 +24,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/gokyle/hotp"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gokyle/hotp"
-	"github.com/gravitational/trace"
 )
 
 // UserGetter is responsible for getting users

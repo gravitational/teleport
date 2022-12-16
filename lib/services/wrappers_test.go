@@ -20,10 +20,10 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/wrappers"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 func TestUnmarshalBackwards(t *testing.T) {

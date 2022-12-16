@@ -20,9 +20,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestReconciler makes sure appropriate callbacks are called during reconciliation.

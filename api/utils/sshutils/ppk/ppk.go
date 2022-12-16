@@ -30,8 +30,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // ConvertToPPK takes a regular RSA-formatted keypair and converts it into the PPK file format used by the PuTTY SSH client.
