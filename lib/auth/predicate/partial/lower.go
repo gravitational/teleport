@@ -279,7 +279,7 @@ func lowerIdent(ctx *ctx, node *ast.Ident) (z3.Value, error) {
 	case "true":
 		return ctx.def.FromBool(true), nil
 	case "false":
-		return ctx.def.FromBool(true), nil
+		return ctx.def.FromBool(false), nil
 	default:
 		return ctx.resolve([]string{node.Name})
 	}
@@ -301,23 +301,41 @@ func lowerCallExpr(ctx *ctx, node *ast.CallExpr) (z3.Value, error) {
 		return nil, trace.BadParameter("expected basic lit function name, got %T", node.Fun)
 	}
 
-	// TODO(joel): impl additional functions
+	var fnGen func(*z3.Context) (z3.FuncDecl, error)
 	switch fn.Name {
 	case "upper":
-		upper, err := builtinUpper(ctx.def)
-		if err != nil {
-			return nil, err
-		}
-
-		return upper.Apply(args...), nil
+		fnGen = builtinUpper
 	case "lower":
-		lower, err := builtinLower(ctx.def)
-		if err != nil {
-			return nil, err
-		}
-
-		return lower.Apply(args...), nil
+		fnGen = builtinLower
+	case "split":
+		fnGen = builtinSplit
+	case "contains":
+		fnGen = builtinStringListContains
+	case "append":
+		fnGen = builtinStringListAppend
+	case "array":
+		fnGen = builtinStringListArray(len(args))
+	case "replace":
+		fnGen = builtinReplace
+	case "len":
+		// todo: len list?
+		fnGen = builtinLenString
+	case "regex":
+		fnGen = builtinRegex
+	case "matches":
+		fnGen = builtinMatches
+	case "contains_regex":
+		fnGen = builtinContainsRegex
+	case "first":
+		fnGen = builtinFirst
 	default:
 		return nil, trace.BadParameter("unknown function %v", fn.Name)
 	}
+
+	decl, err := fnGen(ctx.def)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return decl.Apply(args...), nil
 }

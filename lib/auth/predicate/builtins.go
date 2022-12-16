@@ -232,8 +232,13 @@ func builtinXor(a, b any) (any, error) {
 	}
 }
 
-func builtinSplit(a, b string) (any, error) {
-	return strings.Split(a, b), nil
+func builtinSplit(a, b string, before bool) (any, error) {
+	index := 1
+	if before {
+		index = 0
+	}
+
+	return strings.SplitN(a, b, 1)[index], nil
 }
 
 func builtinUpper(a string) (any, error) {
