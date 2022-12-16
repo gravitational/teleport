@@ -55,6 +55,7 @@ type Cluster struct {
 	// only present where the auth client can be queried
 	// and set with GetClusterFeatures
 	Features *proto.Features
+	LoggedInUser
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -62,25 +63,55 @@ func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
 }
 
-// GetClusterFeatures returns a list of features enabled/disabled by the auth server
-func (c *Cluster) GetClusterFeatures(ctx context.Context) (*proto.Features, error) {
-	var authPingResponse proto.PingResponse
+func (c *Cluster) GetClusterDetails(ctx context.Context) (*GetClusterDetailsResponse, error) {
+	var (
+		authClient   auth.ClientI
+		proxyClient  *client.ProxyClient
+		err          error
+		pingResponse proto.PingResponse
+		caps         *types.AccessCapabilities
+	)
 
-	err := addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	err = addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
 
-		authPingResponse, err = proxyClient.CurrentCluster().Ping(ctx)
-		return trace.Wrap(err)
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		pingResponse, err = authClient.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		caps, err = authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			RequestableRoles:   true,
+			SuggestedReviewers: true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return authPingResponse.ServerFeatures, nil
+	user := c.GetLoggedInUser()
+	user.SuggestedReviewers = caps.SuggestedReviewers
+	user.RequestableRoles = caps.RequestableRoles
+
+	return &GetClusterDetailsResponse{
+		Features:     pingResponse.ServerFeatures,
+		LoggedInUser: user,
+	}, nil
 }
 
 // GetRoles returns currently logged-in user roles
@@ -183,6 +214,9 @@ type LoggedInUser struct {
 	Roles []string
 	// ActiveRequests is the user active requests
 	ActiveRequests []string
+
+	SuggestedReviewers []string
+	RequestableRoles   []string
 }
 
 // addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
@@ -200,4 +234,9 @@ func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+type GetClusterDetailsResponse struct {
+	LoggedInUser
+	Features *proto.Features
 }
