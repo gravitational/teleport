@@ -21,19 +21,24 @@ shell_array_to_json_array() {
 
 # This is largely pulled from `build-common.sh` but modified for this use case
 sign_and_notarize_binaries() {
-  local output_zip="$1"
-  local bundle_id="$2"
-  local targets="${@:3}"
+  local bundle_id="$1"
+  local targets="${@:2}"
 
-  # XCode 12.
+  local notarization_zip="teleport.zip"
+
   local gondir=''
   gondir="$(mktemp -d)"
-  # Early expansion on purpose.
   #shellcheck disable=SC2064
   trap "rm -fr '$gondir'" EXIT
 
   # Gon configuration file needs a proper extension.
   local goncfg="$gondir/gon.json"
+  # Note that xcrun stapler does not support stapling zip files.
+  # Instead, Apple wants you to staple notarization tickets to binaries then
+  # rebuild the zip file. That being said, Apple also does not support
+  # binaries directly. Rather, they must be archived and then notarized.
+  # For details, see
+  # https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
   cat >"$goncfg" <<EOF
 {
   "source": $(shell_array_to_json_array $targets),
@@ -42,12 +47,12 @@ sign_and_notarize_binaries() {
     "application_identity": "$DEVELOPER_ID_APPLICATION"
   },
   "zip": {
-    "output_path": "$output_zip"
+    "output_path": "$notarization_zip"
   },
   "notarize": [{
-    "path": "$output_zip",
+    "path": "$notarization_zip",
     "bundle_id": "$bundle_id",
-    "staple": true
+    "staple": false
   }],
   "apple_id": {
     "username": "$APPLE_USERNAME",
@@ -60,6 +65,15 @@ EOF
   cat "$goncfg"
   ls -laht $target
   $DRY_RUN_PREFIX gon -log-level=debug "$goncfg"
+
+  echo "Received notarization for binaries, stapling..."
+
+  for BINARY in "$targets"; do
+    echo "Stapling $BINARY..."
+    xcrun stapler staple "$BINARY"
+  done
+
+  echo "Binary notarization complete"
 }
 
 # Don't follow sourced script.
@@ -85,7 +99,6 @@ for BINARY in "$@"; do
     fi
 done
 
-ZIP_FILE="teleport.zip"
-BUNDLE_ID="com.gravitational.$ZIP_FILE"
-echo "Notarizing $ZIP_FILE with bundle ID $BUNDLE_ID..."
-sign_and_notarize_binaries "$ZIP_FILE" "$BUNDLE_ID" $@
+BUNDLE_ID="com.gravitational.teleport"
+echo "Notarizing '$@' with bundle ID $BUNDLE_ID..."
+sign_and_notarize_binaries "$BUNDLE_ID" $@
