@@ -169,7 +169,7 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectRootCAs:   awsCertPool,
 		},
 		{
-			name:             "AWS Redishift",
+			name:             "AWS Redshift",
 			sessionDatabase:  newRedshiftDatabase(t, fixtures.SAMLOktaCertPEM),
 			expectServerName: "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com",
 			expectRootCAs:    awsCertPool,
