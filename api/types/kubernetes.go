@@ -274,17 +274,17 @@ func (k *KubernetesClusterV3) SetGCPConfig(cfg KubeGCP) {
 
 // IsAzure indentifies if the KubeCluster contains Azure details.
 func (k *KubernetesClusterV3) IsAzure() bool {
-	return !isProtoEmpty(k.Spec.Azure)
+	return !protoEqual(&k.Spec.Azure, &KubeAzure{})
 }
 
 // IsAWS indentifies if the KubeCluster contains AWS details.
 func (k *KubernetesClusterV3) IsAWS() bool {
-	return !isProtoEmpty(k.Spec.AWS)
+	return !protoEqual(&k.Spec.AWS, &KubeAWS{})
 }
 
 // IsGCP indentifies if the KubeCluster contains GCP details.
 func (k *KubernetesClusterV3) IsGCP() bool {
-	return !isProtoEmpty(k.Spec.GCP)
+	return !protoEqual(&k.Spec.GCP, &KubeGCP{})
 }
 
 // IsKubeconfig identifies if the KubeCluster contains kubeconfig data.

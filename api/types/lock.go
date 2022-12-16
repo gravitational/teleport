@@ -178,7 +178,7 @@ func (c *LockV2) CheckAndSetDefaults() error {
 
 // IsEmpty returns true if none of the target's fields is set.
 func (t LockTarget) IsEmpty() bool {
-	return isProtoEmpty(t)
+	return protoEqual(&t, &LockTarget{})
 }
 
 // IntoMap returns the target attributes in the form of a map.

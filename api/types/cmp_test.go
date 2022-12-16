@@ -19,88 +19,68 @@ package types
 import (
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsProtoEmpty(t *testing.T) {
+func TestProtoEqual(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name   string
-		input  AWS
+		inputA proto.Message
+		inputB proto.Message
 		assert require.BoolAssertionFunc
 	}{
 		{
-			name:   "empty",
-			input:  AWS{},
+			name: "true",
+			inputA: &AWS{
+				Region: "us-west-1",
+				RedshiftServerless: RedshiftServerless{
+					WorkgroupID: "id",
+				},
+			},
+			inputB: &AWS{
+				Region: "us-west-1",
+				RedshiftServerless: RedshiftServerless{
+					WorkgroupID: "id",
+				},
+			},
 			assert: require.True,
 		},
 		{
-			name: "not empty",
-			input: AWS{
-				Region: "us-west-1",
-			},
-			assert: require.False,
-		},
-		{
-			name: "empty with unrecognized bytes",
-			input: AWS{
+			name: "true ignoring XXX_unrecognized",
+			inputA: &AWS{
+				Region:           "us-west-1",
 				XXX_unrecognized: []byte{66, 0},
 			},
+			inputB: &AWS{
+				Region: "us-west-1",
+			},
 			assert: require.True,
 		},
 		{
-			name: "empty with nested unrecognized bytes",
-			input: AWS{
+			name: "true ignoring nested XXX_unrecognized",
+			inputA: &AWS{
+				Region: "us-west-1",
 				MemoryDB: MemoryDB{
 					XXX_unrecognized: []byte{99, 0},
 				},
 			},
-			assert: require.True,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assert(t, isProtoEmpty(test.input))
-		})
-	}
-}
-
-func TestEqualProtoIgnoreXXXFields(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		inputA AWS
-		inputB AWS
-		assert require.BoolAssertionFunc
-	}{
-		{
-			name: "equal",
-			inputA: AWS{
+			inputB: &AWS{
 				Region: "us-west-1",
-				RedshiftServerless: RedshiftServerless{
-					WorkgroupID: "id",
-				},
-			},
-			inputB: AWS{
-				Region: "us-west-1",
-				RedshiftServerless: RedshiftServerless{
-					WorkgroupID: "id",
-				},
 			},
 			assert: require.True,
 		},
 		{
-			name: "not equal",
-			inputA: AWS{
+			name: "false differrent values",
+			inputA: &AWS{
 				Region: "us-west-1",
 				RedshiftServerless: RedshiftServerless{
 					WorkgroupID: "id",
 				},
 			},
-			inputB: AWS{
+			inputB: &AWS{
 				Region: "us-west-1",
 				RedshiftServerless: RedshiftServerless{
 					WorkgroupID: "differrent-id",
@@ -109,34 +89,20 @@ func TestEqualProtoIgnoreXXXFields(t *testing.T) {
 			assert: require.False,
 		},
 		{
-			name: "equal ignoring XXX_unrecognized",
-			inputA: AWS{
-				Region:           "us-west-1",
-				XXX_unrecognized: []byte{66, 0},
-			},
-			inputB: AWS{
+			name: "false different types",
+			inputA: &AWS{
 				Region: "us-west-1",
 			},
-			assert: require.True,
-		},
-		{
-			name: "equal ignoring nested XXX_unrecognized",
-			inputA: AWS{
-				Region: "us-west-1",
-				MemoryDB: MemoryDB{
-					XXX_unrecognized: []byte{99, 0},
-				},
-			},
-			inputB: AWS{
+			inputB: &KubeAWS{
 				Region: "us-west-1",
 			},
-			assert: require.True,
+			assert: require.False,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			test.assert(t, equalProtoIngoreXXXFields(test.inputA, test.inputB))
+			test.assert(t, protoEqual(test.inputA, test.inputB))
 		})
 	}
 }
