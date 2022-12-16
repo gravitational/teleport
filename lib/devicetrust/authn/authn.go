@@ -82,7 +82,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// 2. Challenge.
 	chalResp := resp.GetChallenge()
 	if chalResp == nil {
-		return nil, trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
+		return nil, trace.BadParameter("unexpected payload from server, expected AuthenticateDeviceChallenge: %T", resp.Payload)
 	}
 	sig, err := signChallenge(chalResp.Challenge)
 	if err != nil {
@@ -105,7 +105,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// 3. User certificates.
 	newCerts := resp.GetUserCertificates()
 	if newCerts == nil {
-		return nil, trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
+		return nil, trace.BadParameter("unexpected payload from server, expected UserCertificates: %T", resp.Payload)
 	}
 	return newCerts, nil
 }
