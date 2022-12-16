@@ -126,8 +126,8 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// GetCluster returns full cluster information. It makes a request to the auth server.
-func (s *Service) GetCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+// ResolveFullCluster returns full cluster information. It makes a request to the auth server.
+func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
