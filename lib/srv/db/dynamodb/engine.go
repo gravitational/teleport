@@ -145,7 +145,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) (err e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer e.Audit.OnSessionEnd(context.TODO(), e.sessionCtx)
+	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
 	clientConnReader := bufio.NewReader(e.clientConn)
 	for {
