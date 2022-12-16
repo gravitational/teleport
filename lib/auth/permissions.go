@@ -803,6 +803,11 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 type contextKey string
 
 const (
+	// contextUserCertificate is the X.509 certificate used by the ContextUser to
+	// establish the mTLS connection.
+	// Holds a *x509.Certificate.
+	contextUserCertificate contextKey = "teleport-user-cert"
+
 	// ContextUser is a user set in the context of the request
 	ContextUser contextKey = "teleport-user"
 	// ContextClientAddr is a client address set in the context of the request
