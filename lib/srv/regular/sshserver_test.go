@@ -2455,6 +2455,28 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	require.Equal(t, "hello again\n", string(out))
 }
 
+// TestHandlePuTTYWinadj verifies that any request from the PuTTY SSH client for its "winadj"
+// channel is correctly responded to with a failure message and connections remain open.
+func TestHandlePuTTYWinadj(t *testing.T) {
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := context.Background()
+
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	defer se.Close()
+
+	// send a PuTTY winadj request to the server, there should be no errors
+	ok, err := se.SendRequest(ctx, sshutils.PuTTYWinadjRequest, true, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	// echo something to make sure the connection is still alive following the request
+	out, err := se.Output(ctx, "echo hello once more")
+	require.NoError(t, err)
+	require.Equal(t, "hello once more\n", string(out))
+}
+
 // upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
