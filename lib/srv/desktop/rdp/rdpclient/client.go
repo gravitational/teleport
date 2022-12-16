@@ -404,7 +404,7 @@ func (c *Client) start() {
 						return
 					}
 				} else {
-					c.cfg.Log.Warning("Recieved an empty clipboard message")
+					c.cfg.Log.Warning("Received an empty clipboard message")
 				}
 			case tdp.SharedDirectoryAnnounce:
 				if c.cfg.AllowDirectorySharing {
