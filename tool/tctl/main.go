@@ -15,6 +15,7 @@
 package main
 
 import (
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
@@ -24,5 +25,5 @@ func main() {
 	commands := common.Commands()
 	commands = append(commands, common.OSSCommands()...)
 
-	common.Run(commands)
+	common.Run(commands, authclient.Connect)
 }

@@ -50,6 +50,11 @@ type Config struct {
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
 func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+	return connectAndReturnClient(ctx, cfg)
+}
+
+// connectAndReturnClient returns the raw auth client rather than the client interface.
+func connectAndReturnClient(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
@@ -116,4 +121,18 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		}
 	}
 	return client, nil
+}
+
+// ConnectAndReturnExtendedAuthClient will connect to the auth client and then pass the underlying auth client to
+// the supplied creation function. We'll be able to create auth clients that have a superset of the auth.Client
+// interface this way.
+func ConnectAndReturnExtendedAuthClient(createExtendedAuthClient func(*auth.Client) auth.ClientI) func(context.Context, *Config) (auth.ClientI, error) {
+	return func(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+		client, err := connectAndReturnClient(ctx, cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return createExtendedAuthClient(client), nil
+	}
 }

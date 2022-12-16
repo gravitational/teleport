@@ -90,12 +90,15 @@ type CLICommand interface {
 	TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
+// AuthConnector is a function that connects to the auth server.
+type AuthConnector func(context.Context, *authclient.Config) (auth.ClientI, error)
+
 // Run is the same as 'make'. It helps to share the code between different
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand) {
-	err := TryRun(commands, os.Args[1:])
+func Run(commands []CLICommand, connectToAuth AuthConnector) {
+	err := TryRun(commands, os.Args[1:], connectToAuth)
 	if err != nil {
 		var exitError *toolcommon.ExitCodeError
 		if errors.As(err, &exitError) {
@@ -107,7 +110,7 @@ func Run(commands []CLICommand) {
 
 // TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
 // This is useful for testing tctl, because we can capture the returned error in tests.
-func TryRun(commands []CLICommand, args []string) error {
+func TryRun(commands []CLICommand, args []string, connectToAuth AuthConnector) error {
 	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
 
 	// app is the command line parser
@@ -192,7 +195,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	)
 	defer cancel()
 
-	client, err := authclient.Connect(ctx, clientConfig)
+	client, err := connectToAuth(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
