@@ -19,13 +19,12 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-
-	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Serve starts daemon service

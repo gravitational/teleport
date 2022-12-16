@@ -22,8 +22,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/identityfile"
 )
 
 // TestIdentityFileBasics verifies basic profile operations such as

@@ -19,10 +19,11 @@ package sqlbk
 import (
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 const (

@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -30,8 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 type ResourceCollection interface {

@@ -21,6 +21,8 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -28,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/stretchr/testify/require"
 )
 
 // TestInitCACert verifies automatic download of root certs for cloud databases.

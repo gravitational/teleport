@@ -24,10 +24,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
 )
 
 type mockClients struct {

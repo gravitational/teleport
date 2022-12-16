@@ -27,15 +27,14 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"google.golang.org/api/iterator"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"cloud.google.com/go/storage"
-	"github.com/google/uuid"
-	"google.golang.org/api/iterator"
-
-	"github.com/gravitational/trace"
 )
 
 // CreateUpload creates a multipart upload

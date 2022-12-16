@@ -25,6 +25,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -34,10 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
 )
 
 // transportConfig is configuration for a rewriting transport.

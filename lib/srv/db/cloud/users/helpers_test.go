@@ -20,10 +20,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func TestLookupMap(t *testing.T) {

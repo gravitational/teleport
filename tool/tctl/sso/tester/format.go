@@ -18,9 +18,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/ghodss/yaml"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func FormatString(description string, msg string) string {

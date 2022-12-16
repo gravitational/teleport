@@ -29,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -40,10 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 const (

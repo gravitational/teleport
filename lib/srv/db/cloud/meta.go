@@ -19,11 +19,6 @@ package cloud
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -34,9 +29,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // MetadataConfig is the cloud metadata service config.

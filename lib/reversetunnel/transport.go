@@ -25,6 +25,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -36,10 +38,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // NewTunnelAuthDialer creates a new instance of TunnelAuthDialer

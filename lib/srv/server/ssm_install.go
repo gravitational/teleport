@@ -26,11 +26,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 // SSMInstallerConfig represents configuration for an SSM install

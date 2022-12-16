@@ -23,11 +23,11 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 

@@ -21,10 +21,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, p httprouter.Params, session *session) error {

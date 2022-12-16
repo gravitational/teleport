@@ -19,11 +19,11 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // SessionTrackerService is a realtime session service that has information about
