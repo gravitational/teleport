@@ -31,6 +31,7 @@ linters:
     - govet
     - ineffassign
     - misspell
+    - nolintlint
     - revive
     - staticcheck
     - unconvert
@@ -55,10 +56,14 @@ linters-settings:
       - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
     skip-generated: true # Skip generated files.
     custom-order: true # Required for "sections" to take effect.
+  nolintlint:
+    allow-unused: true # Enabled because of conditional builds / build tags.
+    require-explanation: true
+    require-specific: true
 output:
   uniq-by-line: false
 
 run:
   skip-dirs-use-default: false
   timeout: 5m
-  go: '1.18'
+  go: '1.19'

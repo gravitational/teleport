@@ -16,7 +16,7 @@ limitations under the License.
 
 package main
 
-//nolint:goimports
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"flag"
 	"os"
