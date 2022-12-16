@@ -2,6 +2,7 @@ package testenv
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -75,7 +77,7 @@ func MustNew(opts ...Opt) *E {
 // New creates a new testenv.E.
 func New(opts ...Opt) (*E, error) {
 	e := &E{
-		augmentCertsFunc: echoAugmentCertsFunc,
+		augmentCertsFunc: fakeAugmentCertsFunc,
 		authorizer:       &noopAuthorizer{},
 		emitter:          &noopEmitter{},
 	}
@@ -104,10 +106,10 @@ func New(opts ...Opt) (*E, error) {
 
 	// Device service.
 	dtV1, err := devicetrustv1.New(devicetrustv1.ServiceParams{
-		AugmentCertsFunc: e.augmentCertsFunc,
-		Authorizer:       e.authorizer,
-		Emitter:          e.emitter,
-		Storage:          dtStorage,
+		AugmentContextCertsFunc: e.augmentCertsFunc,
+		Authorizer:              e.authorizer,
+		Emitter:                 e.emitter,
+		Storage:                 dtStorage,
 	})
 	if err != nil {
 		return nil, err
@@ -161,8 +163,14 @@ func New(opts ...Opt) (*E, error) {
 	return e, nil
 }
 
-func echoAugmentCertsFunc(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-	return certs, nil
+func fakeAugmentCertsFunc(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+	return &proto.Certs{
+		SSH: opts.SSHAuthorizedKey,
+		TLS: pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: []byte("<insert TLS cert here>"),
+		}),
+	}, nil
 }
 
 type noopAuthorizer struct{}

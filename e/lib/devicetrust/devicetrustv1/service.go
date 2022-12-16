@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -22,9 +23,8 @@ import (
 // All certificates must be valid, issued by the Teleport CA, match each other,
 // and conform to whatever checks the underlying implementation sees fit to
 // perform.
-// It is implemented by the OSS CAs and exposed via [auth.Server].
-// TODO(codingllama): Tweak signatures and wire it up once the OSS impls are available.
-type AugmentContextCertsFunc func(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+// See [lib.auth.Server.AugmentContextUserCertificates]
+type AugmentContextCertsFunc func(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 
 // Service implements the teleport.devicetrust.v1.DeviceTrustService RPC
 // service.
@@ -41,15 +41,17 @@ type Service struct {
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
-	AugmentCertsFunc AugmentContextCertsFunc
-	Authorizer       auth.Authorizer
-	Emitter          apievents.Emitter
-	Storage          *storage.S
+	AugmentContextCertsFunc AugmentContextCertsFunc
+	Authorizer              auth.Authorizer
+	Emitter                 apievents.Emitter
+	Storage                 *storage.S
 }
 
 // New creates a new DeviceTrustService implementer.
 func New(params ServiceParams) (*Service, error) {
 	switch {
+	case params.AugmentContextCertsFunc == nil:
+		return nil, trace.BadParameter("augmentContextCertsFunc required")
 	case params.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer required")
 	case params.Emitter == nil:
@@ -57,18 +59,10 @@ func New(params ServiceParams) (*Service, error) {
 	case params.Storage == nil:
 		return nil, trace.BadParameter("storage required")
 	}
-	// TODO(codingllama): Make augmentCertsFunc mandatory once the impl is
-	//  available.
-	augmentCertsFunc := params.AugmentCertsFunc
-	if augmentCertsFunc == nil {
-		augmentCertsFunc = func(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-			return nil, trace.NotImplemented("device authentication not implemented")
-		}
-	}
 
 	return &Service{
 		logger:           log.WithField(trace.Component, "devicetrust.service"),
-		augmentCertsFunc: augmentCertsFunc,
+		augmentCertsFunc: params.AugmentContextCertsFunc,
 		authorizer:       params.Authorizer,
 		emitter:          params.Emitter,
 		storage:          params.Storage,
@@ -321,19 +315,26 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 }
 
 func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
-	// No authorization checks required for this method, any user may authenticate
-	// devices.
+	// Authenticate the user, but do not perform any additional authorization
+	// checks. Any user may authenticate devices.
+	ctx := stream.Context()
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	c := &authnCeremony{
-		logger:           s.logger,
-		storage:          s.storage,
-		augmentCertsFunc: s.augmentCertsFunc,
+		logger:  s.logger,
+		storage: s.storage,
+		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+			certs, err := s.augmentCertsFunc(ctx, authCtx, opts)
+			return certs, trace.Wrap(err)
+		},
 	}
 	dev, err := c.AuthenticateDevice(stream)
 	// err handled below.
 
 	// Emit audit event.
-	ctx := stream.Context()
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
 		Metadata: apievents.Metadata{
 			Type: events.DeviceEvent,

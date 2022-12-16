@@ -1,23 +1,27 @@
 package devicetrustv1
 
 import (
+	"context"
 	"crypto"
 	_ "crypto/sha256" // imported for crypto.SHA256
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 type authnCeremony struct {
 	logger           *log.Entry
 	storage          *storage.S
-	augmentCertsFunc AugmentContextCertsFunc
+	augmentCertsFunc func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 }
 
 // AuthenticateDevice implements the trusted device authentication ceremony, as
@@ -125,10 +129,27 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 
 	// Augment certificates.
 	ctx := stream.Context()
-	newCerts, err := c.augmentCertsFunc(ctx, initReq.UserCertificates)
+	newCerts, err := c.augmentCertsFunc(ctx, &auth.AugmentUserCertificateOpts{
+		SSHAuthorizedKey: initReq.GetUserCertificates().GetSshAuthorizedKey(),
+		DeviceExtensions: &auth.DeviceExtensions{
+			DeviceID:     dev.Id,
+			AssetTag:     dev.AssetTag,
+			CredentialID: dev.Credential.Id,
+		},
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Decode TLS PEM to DER.
+	// The SSH certificate is already in the authorized_key format, despite what
+	// other comments might say.
+	block, _ := pem.Decode(newCerts.TLS)
+	if block == nil {
+		return trace.BadParameter("failed to decode X.509 PEM from Teleport CA")
+	}
+	x509DER := block.Bytes
+
 	// Record collected data.
 	if err := c.storage.RecordDeviceAuthnData(ctx, dev.Id, initReq.DeviceData); err != nil {
 		return trace.Wrap(err)
@@ -137,7 +158,10 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 	// 4. User certificates.
 	err = stream.Send(&devicepb.AuthenticateDeviceResponse{
 		Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
-			UserCertificates: newCerts,
+			UserCertificates: &devicepb.UserCertificates{
+				X509Der:          x509DER,
+				SshAuthorizedKey: newCerts.SSH,
+			},
 		},
 	})
 	return trace.Wrap(err)

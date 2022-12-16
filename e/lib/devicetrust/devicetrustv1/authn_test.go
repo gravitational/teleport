@@ -2,6 +2,8 @@ package devicetrustv1_test
 
 import (
 	"context"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -11,8 +13,10 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
@@ -124,7 +128,25 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			if len(gotCerts.SshAuthorizedKey) == 0 {
 				t.Error("Got empty SshAuthorizedKey, want non-empty")
 			}
-			wantCerts, _ := fakeAugmentFunc(ctx, initCerts)
+
+			// Extract the wanted certs from fakeAugmentFunc.
+			certsProto, _ := fakeAugmentFunc(ctx, &auth.Context{}, &auth.AugmentUserCertificateOpts{
+				SSHAuthorizedKey: initCerts.SshAuthorizedKey,
+				DeviceExtensions: &auth.DeviceExtensions{
+					DeviceID:     test.dev.Id,
+					AssetTag:     test.dev.AssetTag,
+					CredentialID: test.dev.Credential.Id,
+				},
+			})
+			block, _ := pem.Decode(certsProto.TLS)
+			if block == nil {
+				t.Fatal("Failed to decode fakeAugmentFunc X.509 PEM")
+			}
+			wantCerts := &devicepb.UserCertificates{
+				X509Der:          block.Bytes,
+				SshAuthorizedKey: certsProto.SSH,
+			}
+
 			if diff := cmp.Diff(wantCerts, gotCerts, protocmp.Transform()); diff != "" {
 				t.Errorf("AuthenticateDevice certificates mismatch (-want +got)\n%s", diff)
 			}
@@ -424,13 +446,44 @@ func createAndEnroll(ctx context.Context, devices devicepb.DeviceTrustServiceCli
 	return resp.GetSuccess().Device, key, nil
 }
 
-func fakeAugmentFunc(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-	sshCert := certs.SshAuthorizedKey
+func fakeAugmentFunc(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+	// Sanity checks.
+	switch {
+	case authCtx == nil:
+		return nil, errors.New("authCtx required")
+	case opts == nil:
+		return nil, errors.New("opts required")
+	case opts.DeviceExtensions == nil:
+		return nil, errors.New("opts.DeviceExtensions required")
+	case opts.DeviceExtensions.DeviceID == "":
+		return nil, errors.New("opts.DeviceExtensions.DeviceID required")
+	case opts.DeviceExtensions.AssetTag == "":
+		return nil, errors.New("opts.DeviceExtensions.AssetTag required")
+	case opts.DeviceExtensions.CredentialID == "":
+		return nil, errors.New("opts.DeviceExtensions.CredentialID required")
+	}
+
+	sshCert := opts.SSHAuthorizedKey
 	if sshCert != nil {
 		sshCert = append(sshCert, 9)
 	}
-	return &devicepb.UserCertificates{
-		X509Der:          []byte("<augmented mTLS cert goes here>"),
-		SshAuthorizedKey: sshCert,
+
+	// "Build" a fake TLS cert that includes device extension data.
+	// This is a roundabout way to make sure the server is passing in the correct
+	// information.
+	ext := opts.DeviceExtensions
+	tlsCert := fmt.Sprintf(""+
+		"<stand in for TLS cert:"+
+		"\n\tid=%v"+
+		"\n\tasset=%v"+
+		"\n\tcredential=%v>",
+		ext.DeviceID, ext.AssetTag, ext.CredentialID)
+
+	return &proto.Certs{
+		SSH: sshCert,
+		TLS: pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: []byte(tlsCert),
+		}),
 	}, nil
 }
