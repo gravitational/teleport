@@ -66,7 +66,7 @@ EOF
   
   # Workaround for https://github.com/mitchellh/gon/issues/43
   if ! output=$(gon -log-level=debug "$goncfg"); then
-    if ! (echo "$output" | grep -q "[$notarization_zip] File notarized!"); then
+    if ! (echo "$output" | grep -qF "[$notarization_zip] File notarized!"); then
       # Look for a success message. If none was received, then the tool really did fail.
       # Log the failure.
       echo "Notarization failed. Output:"
