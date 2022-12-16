@@ -396,7 +396,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	if err := adjustOOMScore(); err != nil {
+	if err := setNeutralOOMScore(); err != nil {
 		log.WithError(err).Warnf("failed to adjust OOM score")
 	}
 
