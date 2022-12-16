@@ -33,6 +33,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"github.com/mailgun/log"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/atomic"
@@ -265,8 +266,10 @@ func findMOTD(t *testing.T, sc *bufio.Scanner, motd string) {
 }
 
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
-// writes identity credentials to the specified path.
+// writes identity credentials to the specified path. It also supports
+// specifying the output format via `--format=<format>`.
 func TestLoginIdentityOut(t *testing.T) {
+	const kubeClusterName = "kubeTest"
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -276,30 +279,102 @@ func TestLoginIdentityOut(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
-
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	identPath := filepath.Join(t.TempDir(), "ident")
-
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--auth", connector.GetName(),
-		"--proxy", proxyAddr.String(),
-		"--out", identPath,
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+	kubeService, err := types.NewServer(kubeClusterName, types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{
+			{
+				Name: kubeClusterName,
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertKubeServiceV2(context.Background(), kubeService)
 	require.NoError(t, err)
 
-	_, err = client.KeyFromIdentityFile(identPath)
+	cases := []struct {
+		name               string
+		extraArgs          []string
+		validationFunc     func(t *testing.T, identityPath string)
+		requiresTLSRouting bool
+	}{
+		{
+			name: "write indentity out",
+			validationFunc: func(t *testing.T, identityPath string) {
+				_, err := client.KeyFromIdentityFile(identityPath)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:      "write identity in kubeconfig format with tls routing enabled",
+			extraArgs: []string{"--format", "kubernetes", "--kube-cluster", kubeClusterName},
+			validationFunc: func(t *testing.T, identityPath string) {
+				cfg, err := kubeconfig.Load(identityPath)
+				require.NoError(t, err)
+				kubeCtx := cfg.Contexts[cfg.CurrentContext]
+				require.NotNil(t, kubeCtx)
+				cluster := cfg.Clusters[kubeCtx.Cluster]
+				require.NotNil(t, cluster)
+				require.NotEmpty(t, cluster.TLSServerName)
+			},
+			requiresTLSRouting: true,
+		},
+		{
+			name:      "write identity in kubeconfig format with tls routing disabled",
+			extraArgs: []string{"--format", "kubernetes", "--kube-cluster", kubeClusterName},
+			validationFunc: func(t *testing.T, identityPath string) {
+				cfg, err := kubeconfig.Load(identityPath)
+				require.NoError(t, err)
+				kubeCtx := cfg.Contexts[cfg.CurrentContext]
+				require.NotNil(t, kubeCtx)
+				cluster := cfg.Clusters[kubeCtx.Cluster]
+				require.NotNil(t, cluster)
+				require.Empty(t, cluster.TLSServerName)
+			},
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			identPath := filepath.Join(t.TempDir(), "ident")
+			if tt.requiresTLSRouting {
+				switchProxyListenerMode(t, authServer, types.ProxyListenerMode_Multiplex)
+			}
+			err = Run(context.Background(), append([]string{
+				"login",
+				"--insecure",
+				"--debug",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--out", identPath,
+			}, tt.extraArgs...), setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+				return nil
+			})
+			require.NoError(t, err)
+			tt.validationFunc(t, identPath)
+		})
+	}
+}
+
+// switchProxyListenerMode switches the proxy listener mode to the specified mode
+// and schedules a reversion to the previous value once the sub-test completes.
+func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.ProxyListenerMode) {
+	networkCfg, err := authServer.GetClusterNetworkingConfig(context.Background())
 	require.NoError(t, err)
+	prevValue := networkCfg.GetProxyListenerMode()
+	networkCfg.SetProxyListenerMode(mode)
+	err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		networkCfg.SetProxyListenerMode(prevValue)
+		err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+		require.NoError(t, err)
+	})
 }
 
 func TestRelogin(t *testing.T) {
@@ -1086,7 +1161,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1097,7 +1173,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1107,7 +1184,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTimeout: time.Minute,
 			},
-		}, {
+		},
+		{
 			desc: "$DISPLAY not set",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1127,7 +1205,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1135,7 +1214,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1143,7 +1223,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1152,7 +1233,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1161,7 +1243,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Timeout=60",
 			opts:        []string{"ForwardX11Timeout=60"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1183,7 +1266,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1195,7 +1279,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1207,7 +1292,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1219,7 +1305,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1231,7 +1318,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
