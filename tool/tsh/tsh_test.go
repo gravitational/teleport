@@ -460,7 +460,7 @@ func TestLoginIdentityOut(t *testing.T) {
 		requiresTLSRouting bool
 	}{
 		{
-			name:      "write indentity out",
+			name: "write indentity out",
 			validationFunc: func(t *testing.T, identityPath string) {
 				_, err := client.KeyFromIdentityFile(identityPath)
 				require.NoError(t, err)
