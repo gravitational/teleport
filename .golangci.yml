@@ -56,7 +56,7 @@ linters-settings:
     skip-generated: true # Skip generated files.
     custom-order: true # Required for "sections" to take effect.
   nolintlint:
-    allow-unused: true
+    allow-unused: true # Enabled because of conditional builds / build tags.
     require-explanation: true
     require-specific: true
 output:
