@@ -5372,7 +5372,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			},
 		},
 		{
-			name:             "user choosed to impersonate invalid kube_users",
+			name:             "user chose to impersonate invalid kube_users",
 			roleFunc:         roleWithFullAccess,
 			kubeGroups:       validKubeGroups,
 			kubeUsers:        multiKubeUsers,
@@ -5397,7 +5397,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			},
 		},
 		{
-			name:               "user choosed to impersonate invalid kube_group",
+			name:               "user chose to impersonate invalid kube_group",
 			roleFunc:           roleWithFullAccess,
 			kubeGroups:         validKubeGroups,
 			kubeUsers:          multiKubeUsers,
