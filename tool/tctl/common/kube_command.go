@@ -74,7 +74,7 @@ func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
 	coll := &kubeServerCollection{servers: kubes, verbose: c.verbose}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.WriteText(os.Stdout))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:

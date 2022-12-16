@@ -44,6 +44,17 @@ import (
 // ResourceCreateHandler is the generic implementation of a resource creation handler
 type ResourceCreateHandler func(context.Context, auth.ClientI, services.UnknownResource) error
 
+// ResourceGetHandler is the generic implementation of a resource get handler
+type ResourceGetHandler func(context.Context, auth.ClientI, *GetCommandConfig) (ResourceCollection, error)
+
+// GetCommandConfig is the configuration to be passed to a ResourceGetHandler
+type GetCommandConfig struct {
+	Ref         services.Ref
+	WithSecrets bool
+	Namespace   string
+	Verbose     bool
+}
+
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
 
@@ -73,6 +84,7 @@ type ResourceCommand struct {
 	verbose bool
 
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
+	GetHandlers    map[ResourceKind]ResourceGetHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -109,6 +121,40 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindInstaller:               rc.createInstaller,
 		types.KindNode:                    rc.createNode,
 	}
+
+	rc.GetHandlers = map[ResourceKind]ResourceGetHandler{
+		types.KindUser:                    rc.getUser,
+		types.KindConnectors:              rc.getConnectors,
+		types.KindSAMLConnector:           rc.getSAMLConnector,
+		types.KindOIDCConnector:           rc.getOIDCConnector,
+		types.KindGithubConnector:         rc.getGithubConnector,
+		types.KindReverseTunnel:           rc.getReverseTunnel,
+		types.KindCertAuthority:           rc.getCertAuthority,
+		types.KindNode:                    rc.getNode,
+		types.KindAuthServer:              rc.getAuthServer,
+		types.KindProxy:                   rc.getProxy,
+		types.KindRole:                    rc.getRole,
+		types.KindNamespace:               rc.getNamespace,
+		types.KindTrustedCluster:          rc.getTrustedCluster,
+		types.KindRemoteCluster:           rc.getRemoteCluster,
+		types.KindSemaphore:               rc.getSemaphore,
+		types.KindKubeService:             rc.getKubeService,
+		types.KindClusterAuthPreference:   rc.getClusterAuthPreference,
+		types.KindClusterNetworkingConfig: rc.getClusterNetworkingConfig,
+		types.KindSessionRecordingConfig:  rc.getSessionRecordingConfig,
+		types.KindLock:                    rc.getLock,
+		types.KindDatabaseServer:          rc.getDatabaseServer,
+		types.KindKubeServer:              rc.getKubeServer,
+		types.KindNetworkRestrictions:     rc.getNetworkRestrictions,
+		types.KindApp:                     rc.getApp,
+		types.KindDatabase:                rc.getDatabase,
+		types.KindKubernetesCluster:       rc.getKubernetesCluster,
+		types.KindWindowsDesktopService:   rc.getWindowsDesktopService,
+		types.KindWindowsDesktop:          rc.getWindowsDesktop,
+		types.KindToken:                   rc.getToken,
+		types.KindInstaller:               rc.getInstaller,
+	}
+
 	rc.config = config
 
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
@@ -200,7 +246,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.stdout)
+		return collection.WriteText(rc.stdout)
 	case teleport.YAML:
 		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:
@@ -220,7 +266,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client auth.ClientI) err
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, collection.resources()...)
+		resources = append(resources, collection.Resources()...)
 	}
 	if err := utils.WriteYAML(os.Stdout, resources); err != nil {
 		return trace.Wrap(err)
@@ -976,411 +1022,514 @@ func (rc *ResourceCommand) IsForced() bool {
 	return rc.force
 }
 
+// getUser implements the `tctl get users` command.
+func (rc *ResourceCommand) getUser(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		users, err := client.GetUsers(gcc.WithSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &userCollection{users: users}, nil
+	}
+	user, err := client.GetUser(gcc.Ref.Name, gcc.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &userCollection{users: services.Users{user}}, nil
+}
+
+// getConnectors implements the `tctl get connectors` command.
+func (rc *ResourceCommand) getConnectors(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	sc, scErr := getSAMLConnectors(ctx, client, gcc.Ref.Name, gcc.WithSecrets)
+	oc, ocErr := getOIDCConnectors(ctx, client, gcc.Ref.Name, gcc.WithSecrets)
+	gc, gcErr := getGithubConnectors(ctx, client, gcc.Ref.Name, gcc.WithSecrets)
+	errs := []error{scErr, ocErr, gcErr}
+	allEmpty := len(sc) == 0 && len(oc) == 0 && len(gc) == 0
+	reportErr := false
+	for _, err := range errs {
+		if err != nil && !trace.IsNotFound(err) {
+			reportErr = true
+			break
+		}
+	}
+	var finalErr error
+	if allEmpty || reportErr {
+		finalErr = trace.NewAggregate(errs...)
+	}
+	return &connectorsCollection{
+		saml:   sc,
+		oidc:   oc,
+		github: gc,
+	}, finalErr
+}
+
+// getSAMLConnector implements the `tctl get saml` command.
+func (rc *ResourceCommand) getSAMLConnector(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	connectors, err := getSAMLConnectors(ctx, client, gcc.Ref.Name, gcc.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &samlCollection{connectors}, nil
+}
+
+// getOIDCConnector implements the `tctl get oidc` command.
+func (rc *ResourceCommand) getOIDCConnector(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	connectors, err := getOIDCConnectors(ctx, client, gcc.Ref.Name, gcc.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &oidcCollection{connectors}, nil
+}
+
+// getGithubConnector implements the `tctl get github` command.
+func (rc *ResourceCommand) getGithubConnector(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	connectors, err := getGithubConnectors(ctx, client, gcc.Ref.Name, gcc.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &githubCollection{connectors}, nil
+}
+
+// getReverseTunnel implements the `tctl get tunnel` command.
+func (rc *ResourceCommand) getReverseTunnel(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		tunnels, err := client.GetReverseTunnels(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &reverseTunnelCollection{tunnels: tunnels}, nil
+	}
+	tunnel, err := client.GetReverseTunnel(gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &reverseTunnelCollection{tunnels: []types.ReverseTunnel{tunnel}}, nil
+}
+
+// getCertAuthority implements the `tctl get cert_authority` command.
+func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.SubKind == "" && gcc.Ref.Name == "" {
+		var allAuthorities []types.CertAuthority
+		for _, caType := range types.CertAuthTypes {
+			authorities, err := client.GetCertAuthorities(ctx, caType, gcc.WithSecrets)
+			if err != nil {
+				if trace.IsBadParameter(err) {
+					log.Warnf("failed to get certificate authority: %v; skipping", err)
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			allAuthorities = append(allAuthorities, authorities...)
+		}
+		return &authorityCollection{cas: allAuthorities}, nil
+	}
+	id := types.CertAuthID{Type: types.CertAuthType(gcc.Ref.SubKind), DomainName: gcc.Ref.Name}
+	authority, err := client.GetCertAuthority(ctx, id, gcc.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
+}
+
+// getNode implements the `tctl get node` command.
+func (rc *ResourceCommand) getNode(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	nodes, err := client.GetNodes(ctx, gcc.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &serverCollection{servers: nodes}, nil
+	}
+	for _, node := range nodes {
+		if node.GetName() == gcc.Ref.Name || node.GetHostname() == gcc.Ref.Name {
+			return &serverCollection{servers: []types.Server{node}}, nil
+		}
+	}
+	return nil, trace.NotFound("node with ID %q not found", gcc.Ref.Name)
+}
+
+// getAuthServer implements the `tctl get auth_server` command.
+func (rc *ResourceCommand) getAuthServer(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	servers, err := client.GetAuthServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &serverCollection{servers: servers}, nil
+	}
+	for _, server := range servers {
+		if server.GetName() == gcc.Ref.Name || server.GetHostname() == gcc.Ref.Name {
+			return &serverCollection{servers: []types.Server{server}}, nil
+		}
+	}
+	return nil, trace.NotFound("auth server with ID %q not found", gcc.Ref.Name)
+}
+
+// getProxy implements the `tctl get proxy` command.
+func (rc *ResourceCommand) getProxy(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	servers, err := client.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &serverCollection{servers: servers}, nil
+	}
+	for _, server := range servers {
+		if server.GetName() == gcc.Ref.Name || server.GetHostname() == gcc.Ref.Name {
+			return &serverCollection{servers: []types.Server{server}}, nil
+		}
+	}
+	return nil, trace.NotFound("proxy with ID %q not found", gcc.Ref.Name)
+}
+
+// getRole implements the `tctl get role` command.
+func (rc *ResourceCommand) getRole(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		roles, err := client.GetRoles(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &roleCollection{roles: roles, verbose: gcc.Verbose}, nil
+	}
+	role, err := client.GetRole(ctx, gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &roleCollection{roles: []types.Role{role}, verbose: gcc.Verbose}, nil
+}
+
+// getNamespace implements the `tctl get namespace` command.
+func (rc *ResourceCommand) getNamespace(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		namespaces, err := client.GetNamespaces()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &namespaceCollection{namespaces: namespaces}, nil
+	}
+	ns, err := client.GetNamespace(gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
+}
+
+// getTrustedCluster implements the `tctl get trusted_cluster` command.
+func (rc *ResourceCommand) getTrustedCluster(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		trustedClusters, err := client.GetTrustedClusters(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
+	}
+	trustedCluster, err := client.GetTrustedCluster(ctx, gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
+}
+
+// getRemoteCluster implements the `tctl get remote_cluster` command.
+func (rc *ResourceCommand) getRemoteCluster(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		remoteClusters, err := client.GetRemoteClusters()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
+	}
+	remoteCluster, err := client.GetRemoteCluster(gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
+}
+
+// getSemaphore implements the `tctl get semaphore` command.
+func (rc *ResourceCommand) getSemaphore(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
+		SemaphoreKind: gcc.Ref.SubKind,
+		SemaphoreName: gcc.Ref.Name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &semaphoreCollection{sems: sems}, nil
+}
+
+// getKubeService implements the `tctl get kube_service` command.
+func (rc *ResourceCommand) getKubeService(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	servers, err := client.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &serverCollection{servers: servers}, nil
+	}
+	for _, server := range servers {
+		if server.GetName() == gcc.Ref.Name || server.GetHostname() == gcc.Ref.Name {
+			return &serverCollection{servers: []types.Server{server}}, nil
+		}
+	}
+	return nil, trace.NotFound("kube_service with ID %q not found", gcc.Ref.Name)
+}
+
+// getClusterAuthPreference implements the `tctl get cluster_auth_preference` command.
+func (rc *ResourceCommand) getClusterAuthPreference(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name != "" {
+		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
+	}
+	authPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &authPrefCollection{authPref}, nil
+}
+
+// getClusterNetworkingConfig implements the `tctl get cluster_networking_config` command.
+func (rc *ResourceCommand) getClusterNetworkingConfig(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name != "" {
+		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterNetworkingConfig)
+	}
+	netConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &netConfigCollection{netConfig}, nil
+}
+
+// getSessionRecordingConfig implements the `tctl get session_recording_config` command.
+func (rc *ResourceCommand) getSessionRecordingConfig(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name != "" {
+		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)
+	}
+	recConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &recConfigCollection{recConfig}, nil
+}
+
+// getLock implements the `tctl get lock` command.
+func (rc *ResourceCommand) getLock(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		locks, err := client.GetLocks(ctx, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &lockCollection{locks: locks}, nil
+	}
+	name := gcc.Ref.Name
+	if gcc.Ref.SubKind != "" {
+		name = gcc.Ref.SubKind + "/" + name
+	}
+	lock, err := client.GetLock(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &lockCollection{locks: []types.Lock{lock}}, nil
+}
+
+// getDatabaseServer implements the `tctl get db_server` command.
+func (rc *ResourceCommand) getDatabaseServer(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	servers, err := client.GetDatabaseServers(ctx, gcc.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &databaseServerCollection{servers: servers}, nil
+	}
+
+	var out []types.DatabaseServer
+	for _, server := range servers {
+		if server.GetName() == gcc.Ref.Name {
+			out = append(out, server)
+		}
+	}
+	if len(out) == 0 {
+		return nil, trace.NotFound("database server %q not found", gcc.Ref.Name)
+	}
+	return &databaseServerCollection{servers: out}, nil
+}
+
+// getKubeServer implements the `tctl get kube_server` command.
+func (rc *ResourceCommand) getKubeServer(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	servers, err := client.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &kubeServerCollection{servers: servers}, nil
+	}
+
+	var out []types.KubeServer
+	for _, server := range servers {
+		if server.GetName() == gcc.Ref.Name || server.GetHostname() == gcc.Ref.Name {
+			out = append(out, server)
+		}
+	}
+	if len(out) == 0 {
+		return nil, trace.NotFound("kubernetes server %q not found", gcc.Ref.Name)
+	}
+	return &kubeServerCollection{servers: out}, nil
+}
+
+// getNetworkRestrictions implements the `tctl get network_restrictions` command.
+func (rc *ResourceCommand) getNetworkRestrictions(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	nr, err := client.GetNetworkRestrictions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &netRestrictionsCollection{nr}, nil
+}
+
+// getApp implements the `tctl get app` command.
+func (rc *ResourceCommand) getApp(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		apps, err := client.GetApps(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &appCollection{apps: apps}, nil
+	}
+	app, err := client.GetApp(ctx, gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &appCollection{apps: []types.Application{app}}, nil
+}
+
+// getDatabase implements the `tctl get db` command.
+func (rc *ResourceCommand) getDatabase(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		databases, err := client.GetDatabases(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &databaseCollection{databases: databases}, nil
+	}
+	database, err := client.GetDatabase(ctx, gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &databaseCollection{databases: []types.Database{database}}, nil
+}
+
+// getKubernetesCluster implements the `tctl get kube_cluster` command.
+func (rc *ResourceCommand) getKubernetesCluster(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		clusters, err := client.GetKubernetesClusters(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &kubeClusterCollection{clusters: clusters}, nil
+	}
+	cluster, err := client.GetKubernetesCluster(ctx, gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &kubeClusterCollection{clusters: []types.KubeCluster{cluster}}, nil
+}
+
+// getWindowsDesktopService implements the `tctl get windows_desktop_service` command.
+func (rc *ResourceCommand) getWindowsDesktopService(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	services, err := client.GetWindowsDesktopServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &windowsDesktopServiceCollection{services: services}, nil
+	}
+
+	var out []types.WindowsDesktopService
+	for _, service := range services {
+		if service.GetName() == gcc.Ref.Name {
+			out = append(out, service)
+		}
+	}
+	if len(out) == 0 {
+		return nil, trace.NotFound("Windows desktop service %q not found", gcc.Ref.Name)
+	}
+	return &windowsDesktopServiceCollection{services: out}, nil
+}
+
+// getWindowsDesktop implements the `tctl get windows_desktop` command.
+func (rc *ResourceCommand) getWindowsDesktop(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gcc.Ref.Name == "" {
+		return &windowsDesktopCollection{desktops: desktops}, nil
+	}
+
+	var out []types.WindowsDesktop
+	for _, desktop := range desktops {
+		if desktop.GetName() == gcc.Ref.Name {
+			out = append(out, desktop)
+		}
+	}
+	if len(out) == 0 {
+		return nil, trace.NotFound("Windows desktop %q not found", gcc.Ref.Name)
+	}
+	return &windowsDesktopCollection{desktops: out}, nil
+}
+
+// getToken implements the `tctl get token` command.
+func (rc *ResourceCommand) getToken(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		tokens, err := client.GetTokens(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &tokenCollection{tokens: tokens}, nil
+	}
+	token, err := client.GetToken(ctx, gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
+}
+
+// getInstaller implements the `tctl get installer` command.
+func (rc *ResourceCommand) getInstaller(ctx context.Context, client auth.ClientI, gcc *GetCommandConfig) (ResourceCollection, error) {
+	if gcc.Ref.Name == "" {
+		installers, err := client.GetInstallers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &installerCollection{installers: installers}, nil
+	}
+	inst, err := client.GetInstaller(ctx, gcc.Ref.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &installerCollection{installers: []types.Installer{inst}}, nil
+}
+
 // getCollection lists all resources of a given type
 func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.ClientI) (ResourceCollection, error) {
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 
-	switch rc.ref.Kind {
-	case types.KindUser:
-		if rc.ref.Name == "" {
-			users, err := client.GetUsers(rc.withSecrets)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &userCollection{users: users}, nil
+	// locate a getter function if it's available
+	getter, found := rc.GetHandlers[ResourceKind(rc.ref.Kind)]
+	if found {
+		gc := &GetCommandConfig{
+			Ref:         rc.ref,
+			WithSecrets: rc.withSecrets,
+			Namespace:   rc.namespace,
+			Verbose:     rc.verbose,
 		}
-		user, err := client.GetUser(rc.ref.Name, rc.withSecrets)
+		collection, err := getter(ctx, client, gc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &userCollection{users: services.Users{user}}, nil
-	case types.KindConnectors:
-		sc, scErr := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		oc, ocErr := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		gc, gcErr := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		errs := []error{scErr, ocErr, gcErr}
-		allEmpty := len(sc) == 0 && len(oc) == 0 && len(gc) == 0
-		reportErr := false
-		for _, err := range errs {
-			if err != nil && !trace.IsNotFound(err) {
-				reportErr = true
-				break
-			}
-		}
-		var finalErr error
-		if allEmpty || reportErr {
-			finalErr = trace.NewAggregate(errs...)
-		}
-		return &connectorsCollection{
-			saml:   sc,
-			oidc:   oc,
-			github: gc,
-		}, finalErr
-	case types.KindSAMLConnector:
-		connectors, err := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &samlCollection{connectors}, nil
-	case types.KindOIDCConnector:
-		connectors, err := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &oidcCollection{connectors}, nil
-	case types.KindGithubConnector:
-		connectors, err := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &githubCollection{connectors}, nil
-	case types.KindReverseTunnel:
-		if rc.ref.Name == "" {
-			tunnels, err := client.GetReverseTunnels(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &reverseTunnelCollection{tunnels: tunnels}, nil
-		}
-		tunnel, err := client.GetReverseTunnel(rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &reverseTunnelCollection{tunnels: []types.ReverseTunnel{tunnel}}, nil
-	case types.KindCertAuthority:
-		if rc.ref.SubKind == "" && rc.ref.Name == "" {
-			var allAuthorities []types.CertAuthority
-			for _, caType := range types.CertAuthTypes {
-				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
-				if err != nil {
-					if trace.IsBadParameter(err) {
-						log.Warnf("failed to get certificate authority: %v; skipping", err)
-						continue
-					}
-					return nil, trace.Wrap(err)
-				}
-				allAuthorities = append(allAuthorities, authorities...)
-			}
-			return &authorityCollection{cas: allAuthorities}, nil
-		}
-		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
-		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
-	case types.KindNode:
-		nodes, err := client.GetNodes(ctx, rc.namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &serverCollection{servers: nodes}, nil
-		}
-		for _, node := range nodes {
-			if node.GetName() == rc.ref.Name || node.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []types.Server{node}}, nil
-			}
-		}
-		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
-	case types.KindAuthServer:
-		servers, err := client.GetAuthServers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
-		}
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []types.Server{server}}, nil
-			}
-		}
-		return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
-	case types.KindProxy:
-		servers, err := client.GetProxies()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
-		}
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []types.Server{server}}, nil
-			}
-		}
-		return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
-	case types.KindRole:
-		if rc.ref.Name == "" {
-			roles, err := client.GetRoles(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &roleCollection{roles: roles, verbose: rc.verbose}, nil
-		}
-		role, err := client.GetRole(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &roleCollection{roles: []types.Role{role}, verbose: rc.verbose}, nil
-	case types.KindNamespace:
-		if rc.ref.Name == "" {
-			namespaces, err := client.GetNamespaces()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &namespaceCollection{namespaces: namespaces}, nil
-		}
-		ns, err := client.GetNamespace(rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
-	case types.KindTrustedCluster:
-		if rc.ref.Name == "" {
-			trustedClusters, err := client.GetTrustedClusters(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
-		}
-		trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
-	case types.KindRemoteCluster:
-		if rc.ref.Name == "" {
-			remoteClusters, err := client.GetRemoteClusters()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
-		}
-		remoteCluster, err := client.GetRemoteCluster(rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
-	case types.KindSemaphore:
-		sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
-			SemaphoreKind: rc.ref.SubKind,
-			SemaphoreName: rc.ref.Name,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &semaphoreCollection{sems: sems}, nil
-	case types.KindKubeService:
-		servers, err := client.GetKubeServices(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
-		}
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []types.Server{server}}, nil
-			}
-		}
-		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
-
-	case types.KindClusterAuthPreference:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
-		}
-		authPref, err := client.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authPrefCollection{authPref}, nil
-	case types.KindClusterNetworkingConfig:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterNetworkingConfig)
-		}
-		netConfig, err := client.GetClusterNetworkingConfig(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &netConfigCollection{netConfig}, nil
-	case types.KindSessionRecordingConfig:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)
-		}
-		recConfig, err := client.GetSessionRecordingConfig(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &recConfigCollection{recConfig}, nil
-	case types.KindLock:
-		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx, false)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &lockCollection{locks: locks}, nil
-		}
-		name := rc.ref.Name
-		if rc.ref.SubKind != "" {
-			name = rc.ref.SubKind + "/" + name
-		}
-		lock, err := client.GetLock(ctx, name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &lockCollection{locks: []types.Lock{lock}}, nil
-	case types.KindDatabaseServer:
-		servers, err := client.GetDatabaseServers(ctx, rc.namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &databaseServerCollection{servers: servers}, nil
-		}
-
-		var out []types.DatabaseServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
-		}
-		return &databaseServerCollection{servers: out}, nil
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &kubeServerCollection{servers: servers}, nil
-		}
-
-		var out []types.KubeServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
-		}
-		return &kubeServerCollection{servers: out}, nil
-	case types.KindNetworkRestrictions:
-		nr, err := client.GetNetworkRestrictions(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &netRestrictionsCollection{nr}, nil
-	case types.KindApp:
-		if rc.ref.Name == "" {
-			apps, err := client.GetApps(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &appCollection{apps: apps}, nil
-		}
-		app, err := client.GetApp(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &appCollection{apps: []types.Application{app}}, nil
-	case types.KindDatabase:
-		if rc.ref.Name == "" {
-			databases, err := client.GetDatabases(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &databaseCollection{databases: databases}, nil
-		}
-		database, err := client.GetDatabase(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &databaseCollection{databases: []types.Database{database}}, nil
-	case types.KindKubernetesCluster:
-		if rc.ref.Name == "" {
-			clusters, err := client.GetKubernetesClusters(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &kubeClusterCollection{clusters: clusters}, nil
-		}
-		cluster, err := client.GetKubernetesCluster(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &kubeClusterCollection{clusters: []types.KubeCluster{cluster}}, nil
-	case types.KindWindowsDesktopService:
-		services, err := client.GetWindowsDesktopServices(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &windowsDesktopServiceCollection{services: services}, nil
-		}
-
-		var out []types.WindowsDesktopService
-		for _, service := range services {
-			if service.GetName() == rc.ref.Name {
-				out = append(out, service)
-			}
-		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("Windows desktop service %q not found", rc.ref.Name)
-		}
-		return &windowsDesktopServiceCollection{services: out}, nil
-	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &windowsDesktopCollection{desktops: desktops}, nil
-		}
-
-		var out []types.WindowsDesktop
-		for _, desktop := range desktops {
-			if desktop.GetName() == rc.ref.Name {
-				out = append(out, desktop)
-			}
-		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
-		}
-		return &windowsDesktopCollection{desktops: out}, nil
-	case types.KindToken:
-		if rc.ref.Name == "" {
-			tokens, err := client.GetTokens(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &tokenCollection{tokens: tokens}, nil
-		}
-		token, err := client.GetToken(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
-	case types.KindInstaller:
-		if rc.ref.Name == "" {
-			installers, err := client.GetInstallers(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &installerCollection{installers: installers}, nil
-		}
-		inst, err := client.GetInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &installerCollection{installers: []types.Installer{inst}}, nil
+		return collection, nil
 	}
+
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
 

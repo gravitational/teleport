@@ -88,7 +88,7 @@ func Test_kubeClusterCollection_writeText(t *testing.T) {
 				verbose:  tt.fields.verbose,
 			}
 			w := &bytes.Buffer{}
-			err := c.writeText(w)
+			err := c.WriteText(w)
 			require.NoError(t, err)
 			require.Contains(t, w.String(), tt.wantTable())
 		})

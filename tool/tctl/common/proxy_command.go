@@ -55,7 +55,7 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI auth.ClientI)
 
 	switch p.format {
 	case teleport.Text:
-		return sc.writeText(os.Stdout)
+		return sc.WriteText(os.Stdout)
 	case teleport.YAML:
 		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:

@@ -107,7 +107,7 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 	coll := &databaseServerCollection{servers: servers, verbose: c.verbose}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.WriteText(os.Stdout))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
