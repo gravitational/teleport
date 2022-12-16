@@ -141,8 +141,9 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 	}
 	recorder := httplib.NewResponseStatusRecorder(w)
 	s.fwd.ServeHTTP(recorder, fwdRequest)
+	status := uint32(recorder.Status())
 
-	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, recorder.Status(), nil); err != nil {
+	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, status, nil); err != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
 		s.Log.WithError(err).Warn("Failed to emit audit event.")
 	}

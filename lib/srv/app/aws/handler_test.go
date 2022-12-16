@@ -215,7 +215,8 @@ func TestAWSSignerHandler(t *testing.T) {
 				require.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
 			}
 
-			suite := createSuite(t, mockAWSHandler, tc.app, clockwork.NewRealClock())
+			fakeClock := clockwork.NewFakeClock()
+			suite := createSuite(t, mockAWSHandler, tc.app, fakeClock)
 
 			err := tc.request(suite.URL, tc.awsClientSession)
 			for _, assertFn := range tc.errAssertionFns {
@@ -339,17 +340,18 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		Emitter: emitter,
 	})
 	require.NoError(t, err)
-	signerHandler, err := NewAWSSignerHandler(SignerHandlerConfig{
-		SigningService: svc,
-		RoundTripper: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+	signerHandler, err := NewAWSSignerHandler(context.Background(),
+		SignerHandlerConfig{
+			SigningService: svc,
+			RoundTripper: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return net.Dial(awsAPIMock.Listener.Addr().Network(), awsAPIMock.Listener.Addr().String())
+				},
 			},
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return net.Dial(awsAPIMock.Listener.Addr().Network(), awsAPIMock.Listener.Addr().String())
-			},
-		},
-	})
+		})
 	require.NoError(t, err)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {

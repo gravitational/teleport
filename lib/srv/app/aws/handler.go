@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 
@@ -36,8 +37,10 @@ import (
 type signerHandler struct {
 	// fwd is a Forwarder used to forward signed requests to AWS API.
 	fwd *forward.Forwarder
-	// AwsSignerHandlerConfig is the awsSignerHandler configuration.
+	// SignerHandlerConfig is the configuration for the handler.
 	SignerHandlerConfig
+	// closeContext is the app server close context.
+	closeContext context.Context
 }
 
 // SignerHandlerConfig is the awsSignerHandler configuration.
@@ -69,13 +72,14 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 }
 
 // NewAWSSignerHandler creates a new request handler for signing and forwarding requests to AWS API.
-func NewAWSSignerHandler(config SignerHandlerConfig) (http.Handler, error) {
+func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.Handler, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	handler := &signerHandler{
 		SignerHandlerConfig: config,
+		closeContext:        ctx,
 	}
 	fwd, err := forward.New(
 		forward.RoundTripper(config.RoundTripper),
@@ -122,12 +126,12 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 	}
 
 	// rewrite headers before signing the request to avoid signature validation problems.
-	unsignedReq, err := rewriteRequest(req, re)
+	unsignedReq, err := rewriteRequest(s.closeContext, req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	signedReq, err := s.SignRequest(unsignedReq,
+	signedReq, err := s.SignRequest(s.closeContext, unsignedReq,
 		&awsutils.SigningCtx{
 			SigningName:   re.SigningName,
 			SigningRegion: re.SigningRegion,
@@ -141,14 +145,15 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 	}
 	recorder := httplib.NewResponseStatusRecorder(w)
 	s.fwd.ServeHTTP(recorder, signedReq)
+	status := uint32(recorder.Status())
 
 	var auditErr error
 	if isDynamoDBEndpoint(re) {
-		auditErr = sessCtx.Audit.OnDynamoDBRequest(unsignedReq.Context(), sessCtx, unsignedReq, recorder.Status(), re)
+		auditErr = sessCtx.Audit.OnDynamoDBRequest(s.closeContext, sessCtx, unsignedReq, status, re)
 	} else {
-		auditErr = sessCtx.Audit.OnRequest(unsignedReq.Context(), sessCtx, unsignedReq, recorder.Status(), re)
+		auditErr = sessCtx.Audit.OnRequest(s.closeContext, sessCtx, unsignedReq, status, re)
 	}
-	if err != nil {
+	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
 		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
 	}
@@ -156,17 +161,16 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 }
 
 // rewriteRequest rewrites a request to remove Teleport reserved headers, sets the url, and sets host.
-func rewriteRequest(r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
-	// shallow copy request and make a deep copy for header modification.
-	outReq := &http.Request{}
-	*outReq = *r
-	outReq.Header = r.Header.Clone()
+func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
 	u, err := urlForResolvedEndpoint(r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	outReq.URL = u
-	outReq.Host = u.Host
+	outReq, err := http.NewRequestWithContext(ctx, r.Method, u.String(), r.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	outReq.Header = r.Header.Clone()
 
 	for key := range outReq.Header {
 		// Remove Teleport app headers.

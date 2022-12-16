@@ -18,6 +18,7 @@ package aws
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"time"
 
@@ -82,11 +83,17 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 
 // SigningCtx contains AWS SigV4 signing context parameters.
 type SigningCtx struct {
-	SigningName   string
+	// SigningName is the AWS signing service name.
+	SigningName string
+	// SigningRegion is the AWS region to sign a request for.
 	SigningRegion string
-	Expiry        time.Time
-	SessionName   string
-	AWSRoleArn    string
+	// Expiry is the expiration of the AWS credentials used to sign requests.
+	Expiry time.Time
+	// SessionName is role session name of AWS credentials used to sign requests.
+	SessionName string
+	// AWSRoleArn is the AWS ARN of the role to assume for signing requests.
+	AWSRoleArn string
+	// AWSExternalID is an optional external ID used when getting sts credentials.
 	AWSExternalID string
 }
 
@@ -124,7 +131,7 @@ func (sc *SigningCtx) Check(clock clockwork.Clock) error {
 //	    Not that for endpoint resolving the https://github.com/aws/aws-sdk-go/aws/endpoints/endpoints.go
 //	    package is used and when Amazon releases a new API the dependency update is needed.
 //	 5. Sign HTTP request.
-func (s *SigningService) SignRequest(req *http.Request, signCtx *SigningCtx) (*http.Request, error) {
+func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*http.Request, error) {
 	if signCtx == nil {
 		return nil, trace.BadParameter("missing signing context")
 	}
@@ -135,11 +142,7 @@ func (s *SigningService) SignRequest(req *http.Request, signCtx *SigningCtx) (*h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reqCopy, err := http.NewRequest(req.Method, req.URL.String(), bytes.NewReader(payload))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reqCopy.Header = req.Header.Clone()
+	reqCopy := req.Clone(ctx)
 
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
 	credentials := s.GetSigningCredentials(s.Session, signCtx.Expiry, signCtx.SessionName, signCtx.AWSRoleArn, signCtx.AWSExternalID)
