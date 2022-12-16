@@ -16,17 +16,36 @@
 
 import React from 'react';
 
-import { ActionButtons } from 'teleport/Discover/Shared';
+import { Text } from 'design';
 
-import { PermissionsErrorMessage } from './PermissionsErrorMessage';
+import { InfoFilled } from 'design/Icon';
 
-export function KubernetesResource(props: KubernetesResourceProps) {
-  let content;
+import {
+  ActionButtons,
+  TextBox,
+  PermissionsErrorMessage,
+} from 'teleport/Discover/Shared';
+
+export function DesktopResource(props: DesktopResourceProps) {
+  let content = (
+    <TextBox>
+      <Text typography="h5" bold mb="4px">
+        <InfoFilled mr="8px" fontSize="14px" />
+        Note
+      </Text>
+      <Text>
+        Teleport Desktop Access currently only supports Windows Desktops managed
+        by Active Directory (AD).
+      </Text>
+      <Text>We are working on adding support for non-AD Windows Desktops.</Text>
+    </TextBox>
+  );
+
   if (props.disabled) {
     content = (
       <PermissionsErrorMessage
-        action="add new Kubernetes resources"
-        productName="Kubernetes Access"
+        action="add new Desktops"
+        productName="Desktop Access"
       />
     );
   }
@@ -43,7 +62,7 @@ export function KubernetesResource(props: KubernetesResourceProps) {
   );
 }
 
-interface KubernetesResourceProps {
+interface DesktopResourceProps {
   disabled: boolean;
   onProceed: () => void;
 }

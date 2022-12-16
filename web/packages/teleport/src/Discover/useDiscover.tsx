@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 
 import { useLocation } from 'react-router';
 
 import session from 'teleport/services/websession';
-import useMain, { UseMainConfig } from 'teleport/Main/useMain';
+import useMain from 'teleport/Main/useMain';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 
-import { addIndexToViews, findViewAtIndex, View } from './flow';
+import { addIndexToViews, findViewAtIndex, Resource, View } from './flow';
 
 import { resources } from './resources';
 
@@ -31,6 +31,7 @@ import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
+import type { ClusterAlert } from 'teleport/services/alerts';
 
 export function getKindFromString(value: string) {
   switch (value) {
@@ -48,20 +49,56 @@ export function getKindFromString(value: string) {
   }
 }
 
-export function useDiscover(config: UseMainConfig) {
-  const initState = useMain(config);
+interface DiscoverContextState<T = any> {
+  agentMeta: AgentMeta;
+  alerts: ClusterAlert[];
+  currentStep: number;
+  customBanners: React.ReactNode[];
+  dismissAlert: (name: string) => void;
+  initAttempt: any;
+  logout: () => void;
+  nextStep: (count?: number) => void;
+  prevStep: () => void;
+  onSelectResource: (kind: ResourceKind) => void;
+  resourceState: T;
+  selectedResource: Resource<T>;
+  selectedResourceKind: ResourceKind;
+  setResourceState: (value: T) => void;
+  updateAgentMeta: (meta: AgentMeta) => void;
+  views: View[];
+}
+
+interface DiscoverProviderProps {
+  customBanners?: React.ReactNode[];
+  initialAlerts?: ClusterAlert[];
+}
+
+const discoverContext = React.createContext<DiscoverContextState>(null);
+
+export function DiscoverProvider<T = any>(
+  props: React.PropsWithChildren<DiscoverProviderProps>
+) {
+  const initState = useMain({
+    customBanners: props.customBanners,
+    initialAlerts: props.initialAlerts,
+  });
   const location = useLocation<{ entity: string }>();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedResourceKind, setSelectedResourceKind] =
     useState<ResourceKind>(getKindFromString(location?.state?.entity));
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
+  const [resourceState, setResourceState] = useState<T>();
 
   const selectedResource = resources.find(r => r.kind === selectedResourceKind);
-  const views = useMemo<View[]>(
-    () => addIndexToViews(selectedResource.views),
-    [selectedResource.views]
-  );
+
+  const views = useMemo<View[]>(() => {
+    if (typeof selectedResource.views === 'function') {
+      return addIndexToViews(selectedResource.views(resourceState));
+    }
+
+    return addIndexToViews(selectedResource.views);
+  }, [selectedResource.views, resourceState]);
 
   function onSelectResource(kind: ResourceKind) {
     setSelectedResourceKind(kind);
@@ -97,7 +134,7 @@ export function useDiscover(config: UseMainConfig) {
     session.logout();
   }
 
-  return {
+  const value: DiscoverContextState<T> = {
     agentMeta,
     alerts: initState.alerts,
     currentStep,
@@ -108,11 +145,23 @@ export function useDiscover(config: UseMainConfig) {
     nextStep,
     prevStep,
     onSelectResource,
+    resourceState,
     selectedResource,
     selectedResourceKind,
+    setResourceState,
     updateAgentMeta,
     views,
   };
+
+  return (
+    <discoverContext.Provider value={value}>
+      {props.children}
+    </discoverContext.Provider>
+  );
+}
+
+export function useDiscover<T = any>(): DiscoverContextState<T> {
+  return useContext(discoverContext);
 }
 
 type BaseMeta = {

@@ -35,7 +35,7 @@ import { DiscoverUserMenuNav } from 'teleport/Discover/DiscoverUserMenuNav';
 
 import { findViewAtIndex } from './flow';
 
-import { useDiscover } from './useDiscover';
+import { DiscoverProvider, useDiscover } from './useDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
 
@@ -44,7 +44,7 @@ interface DiscoverProps {
   customBanners?: React.ReactNode[];
 }
 
-export function Discover(props: DiscoverProps) {
+function DiscoverContent() {
   const {
     alerts,
     initAttempt,
@@ -56,10 +56,7 @@ export function Discover(props: DiscoverProps) {
     logout,
     views,
     ...agentProps
-  } = useDiscover({
-    initialAlerts: props.initialAlerts,
-    customBanners: props.customBanners,
-  });
+  } = useDiscover();
 
   let content;
   // we reserve step 0 for "Select Resource Type", that is present in all resource configs
@@ -148,6 +145,17 @@ export function Discover(props: DiscoverProps) {
         )}
       </MainContainer>
     </BannerList>
+  );
+}
+
+export function Discover(props: DiscoverProps) {
+  return (
+    <DiscoverProvider
+      customBanners={props.customBanners}
+      initialAlerts={props.initialAlerts}
+    >
+      <DiscoverContent />
+    </DiscoverProvider>
   );
 }
 

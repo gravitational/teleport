@@ -26,16 +26,16 @@ import { Acl } from 'teleport/services/user';
 
 import { ResourceKind, Header, HeaderSubtitle } from 'teleport/Discover/Shared';
 
-import applicationIcon from './assets/application.png';
-import databaseIcon from './assets/database.png';
-import serverIcon from './assets/server.png';
-import k8sIcon from './assets/kubernetes.png';
+import { ApplicationResource } from '../Application/ApplicationResource';
+import { DatabaseResource } from '../Database/DatabaseResource';
+import { DesktopResource } from '../Desktop/DesktopResource';
+import { KubernetesResource } from '../Kubernetes/KubernetesResource';
+import { ServerResource } from '../Server/ServerResource';
 
-import { ApplicationResource } from './ApplicationResource';
-import { DatabaseResource } from './DatabaseResource';
-import { DesktopResource } from './DesktopResource';
-import { KubernetesResource } from './KubernetesResource';
-import { ServerResource } from './ServerResource';
+import k8sIcon from './assets/kubernetes.png';
+import serverIcon from './assets/server.png';
+import databaseIcon from './assets/database.png';
+import applicationIcon from './assets/application.png';
 
 import type { TabComponent } from 'design/SlideTabs/SlideTabs';
 

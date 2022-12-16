@@ -18,9 +18,11 @@ import React from 'react';
 
 import { Link, Text } from 'design';
 
-import { ActionButtons, TextBox } from 'teleport/Discover/Shared';
-
-import { PermissionsErrorMessage } from './PermissionsErrorMessage';
+import {
+  ActionButtons,
+  TextBox,
+  PermissionsErrorMessage,
+} from 'teleport/Discover/Shared';
 
 export function ServerResource(props: ServerResourceProps) {
   let content = <TeleportVersions />;

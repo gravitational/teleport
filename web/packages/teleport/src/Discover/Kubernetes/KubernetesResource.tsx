@@ -16,17 +16,18 @@
 
 import React from 'react';
 
-import { ActionButtons } from 'teleport/Discover/Shared';
+import {
+  ActionButtons,
+  PermissionsErrorMessage,
+} from 'teleport/Discover/Shared';
 
-import { PermissionsErrorMessage } from './PermissionsErrorMessage';
-
-export function ApplicationResource(props: ApplicationResourceProps) {
+export function KubernetesResource(props: KubernetesResourceProps) {
   let content;
   if (props.disabled) {
     content = (
       <PermissionsErrorMessage
-        action="add new Applications"
-        productName="Application Access"
+        action="add new Kubernetes resources"
+        productName="Kubernetes Access"
       />
     );
   }
@@ -43,7 +44,7 @@ export function ApplicationResource(props: ApplicationResourceProps) {
   );
 }
 
-interface ApplicationResourceProps {
+interface KubernetesResourceProps {
   disabled: boolean;
   onProceed: () => void;
 }
