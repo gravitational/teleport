@@ -461,7 +461,6 @@ func TestLoginIdentityOut(t *testing.T) {
 	}{
 		{
 			name:      "write indentity out",
-			extraArgs: nil,
 			validationFunc: func(t *testing.T, identityPath string) {
 				_, err := client.KeyFromIdentityFile(identityPath)
 				require.NoError(t, err)
