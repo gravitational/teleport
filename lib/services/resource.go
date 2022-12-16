@@ -55,6 +55,16 @@ func (m *MarshalConfig) GetVersion() string {
 // MarshalOption sets marshaling option
 type MarshalOption func(c *MarshalConfig) error
 
+var shortcuts = map[string]string{}
+
+// RegisterShortcut registers a resource type and any associated shortcut names to the resource.
+func RegisterShortcut(resourceName string, resourceShortcuts ...string) {
+	shortcuts[resourceName] = resourceName
+	for _, resourceShortcut := range resourceShortcuts {
+		shortcuts[resourceShortcut] = resourceName
+	}
+}
+
 // CollectOptions collects all options from functional arg and returns config
 func CollectOptions(opts []MarshalOption) (*MarshalConfig, error) {
 	var cfg MarshalConfig
@@ -116,69 +126,13 @@ func ParseShortcut(in string) (string, error) {
 	if in == "" {
 		return "", trace.BadParameter("missing resource name")
 	}
-	switch strings.ToLower(in) {
-	case types.KindRole, "roles":
-		return types.KindRole, nil
-	case types.KindNamespace, "namespaces", "ns":
-		return types.KindNamespace, nil
-	case types.KindAuthServer, "auth_servers", "auth":
-		return types.KindAuthServer, nil
-	case types.KindProxy, "proxies":
-		return types.KindProxy, nil
-	case types.KindNode, "nodes":
-		return types.KindNode, nil
-	case types.KindOIDCConnector:
-		return types.KindOIDCConnector, nil
-	case types.KindSAMLConnector:
-		return types.KindSAMLConnector, nil
-	case types.KindGithubConnector:
-		return types.KindGithubConnector, nil
-	case types.KindConnectors, "connector":
-		return types.KindConnectors, nil
-	case types.KindUser, "users":
-		return types.KindUser, nil
-	case types.KindCertAuthority, "cert_authorities", "cas":
-		return types.KindCertAuthority, nil
-	case types.KindReverseTunnel, "reverse_tunnels", "rts":
-		return types.KindReverseTunnel, nil
-	case types.KindTrustedCluster, "tc", "cluster", "clusters":
-		return types.KindTrustedCluster, nil
-	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
-		return types.KindClusterAuthPreference, nil
-	case types.KindClusterNetworkingConfig, "networking_config", "networking", "net_config", "netconfig":
-		return types.KindClusterNetworkingConfig, nil
-	case types.KindSessionRecordingConfig, "recording_config", "session_recording", "rec_config", "recconfig":
-		return types.KindSessionRecordingConfig, nil
-	case types.KindRemoteCluster, "remote_clusters", "rc", "rcs":
-		return types.KindRemoteCluster, nil
-	case types.KindSemaphore, "semaphores", "sem", "sems":
-		return types.KindSemaphore, nil
-	case types.KindKubernetesCluster, "kube_clusters":
-		return types.KindKubernetesCluster, nil
-	case types.KindKubeService, "kube_services":
-		return types.KindKubeService, nil
-	case types.KindKubeServer, "kube_servers":
-		return types.KindKubeServer, nil
-	case types.KindLock, "locks":
-		return types.KindLock, nil
-	case types.KindDatabaseServer:
-		return types.KindDatabaseServer, nil
-	case types.KindNetworkRestrictions:
-		return types.KindNetworkRestrictions, nil
-	case types.KindDatabase:
-		return types.KindDatabase, nil
-	case types.KindApp, "apps":
-		return types.KindApp, nil
-	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
-		return types.KindWindowsDesktopService, nil
-	case types.KindWindowsDesktop, "win_desktop":
-		return types.KindWindowsDesktop, nil
-	case types.KindToken, "tokens":
-		return types.KindToken, nil
-	case types.KindInstaller:
-		return types.KindInstaller, nil
+
+	resourceName := shortcuts[in]
+
+	if resourceName == "" {
+		return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 	}
-	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
+	return resourceName, nil
 }
 
 // ParseRef parses resource reference eg daemonsets/ds1
@@ -530,6 +484,38 @@ func init() {
 		}
 		return token, nil
 	})
+
+	// Setup shortcuts
+	RegisterShortcut(types.KindRole, "roles")
+	RegisterShortcut(types.KindNamespace, "namespaces", "ns")
+	RegisterShortcut(types.KindAuthServer, "auth_servers", "auth")
+	RegisterShortcut(types.KindProxy, "proxies")
+	RegisterShortcut(types.KindNode, "nodes")
+	RegisterShortcut(types.KindOIDCConnector)
+	RegisterShortcut(types.KindSAMLConnector)
+	RegisterShortcut(types.KindGithubConnector)
+	RegisterShortcut(types.KindConnectors, "connector")
+	RegisterShortcut(types.KindUser, "users")
+	RegisterShortcut(types.KindCertAuthority, "cert_authorities", "cas")
+	RegisterShortcut(types.KindReverseTunnel, "reverse_tunnels", "rts")
+	RegisterShortcut(types.KindTrustedCluster, "tc", "cluster", "clusters")
+	RegisterShortcut(types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap")
+	RegisterShortcut(types.KindClusterNetworkingConfig, "networking_config", "networking", "net_config", "netconfig")
+	RegisterShortcut(types.KindSessionRecordingConfig, "recording_config", "session_recording", "rec_config", "recconfig")
+	RegisterShortcut(types.KindRemoteCluster, "remote_clusters", "rc", "rcs")
+	RegisterShortcut(types.KindSemaphore, "semaphores", "sem", "sems")
+	RegisterShortcut(types.KindKubernetesCluster, "kube_clusters")
+	RegisterShortcut(types.KindKubeService, "kube_services")
+	RegisterShortcut(types.KindKubeServer, "kube_servers")
+	RegisterShortcut(types.KindLock, "locks")
+	RegisterShortcut(types.KindDatabaseServer)
+	RegisterShortcut(types.KindNetworkRestrictions)
+	RegisterShortcut(types.KindDatabase)
+	RegisterShortcut(types.KindApp, "apps")
+	RegisterShortcut(types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service")
+	RegisterShortcut(types.KindWindowsDesktop, "win_desktop")
+	RegisterShortcut(types.KindToken, "tokens")
+	RegisterShortcut(types.KindInstaller)
 }
 
 // MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
