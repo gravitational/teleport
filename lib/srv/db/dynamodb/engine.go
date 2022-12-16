@@ -139,8 +139,8 @@ func (e *Engine) SendError(err error) {
 
 // HandleConnection authorizes the incoming client connection, connects to the
 // target DynamoDB server and starts proxying requests between client/server.
-func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) (err error) {
-	err = e.checkAccess(ctx, e.sessionCtx)
+func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
+	err := e.checkAccess(ctx, e.sessionCtx)
 	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 	if err != nil {
 		return trace.Wrap(err)

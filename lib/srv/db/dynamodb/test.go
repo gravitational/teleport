@@ -80,18 +80,18 @@ type TestServer struct {
 	port   string
 	server *httptest.Server
 
-	// TODO(gavin): try to remove this
+	// mu is needed to guard starting/closing the server.
 	mu sync.Mutex
 	// mock response data
 	tableNames []string
 }
 
 // NewTestServer returns a new instance of a test DynamoDB server.
-func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (server *TestServer, err error) {
-	if err = config.CheckAndSetDefaults(); err != nil {
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
+	err := config.CheckAndSetDefaults()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// defer config.CloseOnError(&err)
 
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: defaults.ProtocolDynamoDB,
@@ -125,7 +125,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (se
 		w.Write([]byte(testListTablesResponse))
 	})
 
-	server = &TestServer{
+	server := &TestServer{
 		cfg:  config,
 		log:  log,
 		port: port,
