@@ -67,7 +67,7 @@ one for the proxies and one for the auths.
 - the `teleport-proxy` Deployment: Those pods are stateless by default and can
   be upscaled even in standalone mode. Deploying those nodes using a Deployment
   means we cannot mount peristent storage on them. As Teleport does not support
-  graveful shutdown with record shipping, users might loose active sessions
+  graceful shutdown with record shipping, users might loose active sessions
   recordings during a rollout if using the `proxy` mode. Teleport nodes
   are relying on `kube` ProvisionTokens to join the auth nodes on startup ([see
   RFD-0094](https://github.com/gravitational/teleport/blob/rfd/0096-helm-chart-revamp/rfd/0096-helm-chart-revamp.md)).
