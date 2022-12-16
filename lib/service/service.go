@@ -4523,8 +4523,6 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		proxyGetter := reversetunnel.NewConnectedProxyGetter()
-
 		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
@@ -4534,6 +4532,8 @@ func (process *TeleportProcess) initApps() {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
 		}()
+
+		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			Clock:                process.Config.Clock,
