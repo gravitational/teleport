@@ -343,6 +343,21 @@ func TestAuthenticationSection(t *testing.T) {
 				Passwordless:  types.NewBoolOption(true),
 				ConnectorName: "passwordless",
 			},
+		}, {
+			desc: "Device Trust config",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"mode": "required",
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				DeviceTrust: &DeviceTrust{
+					Mode: "required",
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
