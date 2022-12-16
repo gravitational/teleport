@@ -54,7 +54,7 @@ func TestBaseUser(t *testing.T) {
 		cloudResource:               mockCloudResource,
 	}
 
-	t.Run("CheckAndSetDafaults", func(t *testing.T) {
+	t.Run("CheckAndSetDefaults", func(t *testing.T) {
 		require.NoError(t, user.CheckAndSetDefaults())
 		require.Equal(t, "local/testuser", user.GetID())
 		require.Equal(t, "local/testuser", fmt.Sprintf("%v", user))

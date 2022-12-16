@@ -61,7 +61,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("access point missing")
 	}
 	if len(c.cipherSuites) == 0 {
-		return trace.BadParameter("cipe suites misings")
+		return trace.BadParameter("cipe suites missing")
 	}
 	if c.identity == nil {
 		return trace.BadParameter("identity missing")
