@@ -11,7 +11,7 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 {{- end -}}
 
 {{- define "teleport-cluster.version" -}}
-{{- if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end -}}
+{{- coalesce .Values.teleportVersionOverride .Chart.Version }}
 {{- end -}}
 
 {{- define "teleport-cluster.majorVersion" -}}

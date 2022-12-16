@@ -3,11 +3,11 @@
 ssh_service:
   enabled: false
 auth_service:
-  enabled: true
+  enabled: false
 proxy_service:
   enabled: true
 {{- end -}}
 
 {{- define "teleport-cluster.proxy.config.custom" -}}
-{{ fail "'custom' mode has been deprecated with chart v12 because of the proxy/auth split, see http://link" }}
+{{ fail "'custom' mode has been removed with chart v12 because of the proxy/auth split breaking change, see http://link" }}
 {{- end -}}
