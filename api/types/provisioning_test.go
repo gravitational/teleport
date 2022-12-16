@@ -347,3 +347,34 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestProvisionTokenV2_GetSafeName(t *testing.T) {
+	t.Run("token join method (short)", func(t *testing.T) {
+		tok, err := NewProvisionToken("1234", []SystemRole{RoleNode}, time.Now())
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "****", got)
+	})
+	t.Run("token join method (long)", func(t *testing.T) {
+		tok, err := NewProvisionToken("0123456789abcdef", []SystemRole{RoleNode}, time.Now())
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "************cdef", got)
+	})
+	t.Run("non-token join method", func(t *testing.T) {
+		tok, err := NewProvisionTokenFromSpec("12345678", time.Now(), ProvisionTokenSpecV2{
+			Roles:      []SystemRole{RoleNode},
+			JoinMethod: JoinMethodGitHub,
+			GitHub: &ProvisionTokenSpecV2GitHub{
+				Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+					{
+						Sub: "a-subject",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "12345678", got)
+	})
+}
