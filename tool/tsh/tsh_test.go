@@ -425,17 +425,15 @@ func TestLoginIdentityOut(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name:   kubeClusterName,
-		Labels: map[string]string{},
-	},
-		types.KubernetesClusterSpecV3{},
-	)
+	kubeService, err := types.NewServer(kubeClusterName, types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{
+			{
+				Name: kubeClusterName,
+			},
+		},
+	})
 	require.NoError(t, err)
-
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, kubeClusterName, kubeClusterName)
-	require.NoError(t, err)
-	_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
+	_, err = authServer.UpsertKubeServiceV2(context.Background(), kubeService)
 	require.NoError(t, err)
 
 	cases := []struct {
