@@ -16,6 +16,7 @@ limitations under the License.
 
 package db
 
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"crypto/tls"

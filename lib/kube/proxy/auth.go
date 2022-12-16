@@ -14,6 +14,7 @@
 
 package proxy
 
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"crypto/tls"
