@@ -63,8 +63,21 @@ EOF
 
   echo "gon configuration:"
   cat "$goncfg"
-  ls -laht $target
-  $DRY_RUN_PREFIX gon -log-level=debug "$goncfg"
+  
+  # Workaround for https://github.com/mitchellh/gon/issues/43
+  if ! output=$(gon -log-level=debug "$goncfg"); then
+    if ! (echo "$output" | grep -q "[$notarization_zip] File notarized!"); then
+      # Look for a success message. If none was received, then the tool really did fail.
+      # Log the failure.
+      echo "Notarization failed. Output:"
+      echo "$output"
+      exit 1
+    else
+      echo "Notarization actually succeeded but logged an error."
+    fi
+  fi
+  echo "Notarization output:"
+  echo "$output"
 
   echo "Received notarization for binaries, stapling..."
 
