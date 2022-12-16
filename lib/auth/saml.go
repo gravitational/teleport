@@ -43,6 +43,9 @@ import (
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Identity.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
