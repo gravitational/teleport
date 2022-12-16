@@ -495,7 +495,7 @@ func TestDynamoDBConfig(t *testing.T) {
 		wantErrMsg string
 	}{
 		{
-			desc:    "dynamodb with account and region and empty URI is correct",
+			desc:    "account and region and empty URI is correct",
 			region:  "us-west-1",
 			account: "12345",
 			wantSpec: DatabaseSpecV3{
@@ -507,7 +507,7 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "dynamodb with account and AWS URI and empty region is correct",
+			desc:    "account and AWS URI and empty region is correct",
 			uri:     "dynamodb.us-west-1.amazonaws.com",
 			account: "12345",
 			wantSpec: DatabaseSpecV3{
@@ -519,7 +519,31 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "dynamodb with account and AWS URI suffix and empty region is correct",
+			desc:    "account and AWS streams dynamodb URI and empty region is correct",
+			uri:     "streams.dynamodb.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: ".us-west-1.amazonaws.com:443",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS dax URI and empty region is correct",
+			uri:     "dax.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: ".us-west-1.amazonaws.com:443",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS URI suffix and empty region is correct",
 			uri:     ".us-west-1.amazonaws.com",
 			account: "12345",
 			wantSpec: DatabaseSpecV3{
@@ -531,7 +555,7 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "dynamodb with account and region and matching AWS URI suffix region is correct",
+			desc:    "account and region and matching AWS URI suffix region is correct",
 			uri:     "us-west-1.amazonaws.com",
 			region:  "us-west-1",
 			account: "12345",
@@ -544,7 +568,7 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "dynamodb with account and region and matching AWS URI region is correct",
+			desc:    "account and region and matching AWS URI region is correct",
 			uri:     "dynamodb.us-west-1.amazonaws.com",
 			region:  "us-west-1",
 			account: "12345",
@@ -557,7 +581,7 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "dynamodb with account and region and custom URI is correct",
+			desc:    "account and region and custom URI is correct",
 			uri:     "localhost:8080",
 			region:  "us-west-1",
 			account: "12345",
@@ -570,38 +594,38 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:       "dynamodb with region and different AWS URI suffix region is an error",
+			desc:       "region and different AWS URI suffix region is an error",
 			uri:        "us-west-2.amazonaws.com",
 			region:     "us-west-1",
 			account:    "12345",
 			wantErrMsg: "does not match the configured URI",
 		},
 		{
-			desc:       "dynamodb with region and different AWS URI region is an error",
+			desc:       "region and different AWS URI region is an error",
 			uri:        "dynamodb.us-west-2.amazonaws.com",
 			region:     "us-west-1",
 			account:    "12345",
 			wantErrMsg: "does not match the configured URI",
 		},
 		{
-			desc:       "dynamodb invalid AWS URI is an error",
+			desc:       "invalid AWS URI is an error",
 			uri:        "a.streams.dynamodb.us-west-1.amazonaws.com",
 			region:     "us-west-1",
 			account:    "12345",
 			wantErrMsg: "invalid DynamoDB endpoint",
 		},
 		{
-			desc:       "dynamodb custom URI and empty region is an error",
+			desc:       "custom URI and empty region is an error",
 			account:    "12345",
 			wantErrMsg: "region is empty",
 		},
 		{
-			desc:       "dynamodb empty URI and empty region is an error",
+			desc:       "empty URI and empty region is an error",
 			account:    "12345",
 			wantErrMsg: "is empty",
 		},
 		{
-			desc:       "dynamodb with missing account id",
+			desc:       "missing account id",
 			wantErrMsg: "account ID is empty",
 		},
 	}

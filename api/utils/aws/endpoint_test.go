@@ -509,90 +509,107 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 	}
 }
 
-func TestDynamoDBEndpoint(t *testing.T) {
+func TestDynamoDBEndpointSuffixForRegion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		desc            string
-		target          string // from X-Amz-Target in requests
-		region          string
-		wantService     string
-		wantSigningName string
-		wantEndpoint    string
-		wantErrMsg      string
+		desc string
+	}{}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+
+		})
+	}
+}
+
+func TestDynamoDBRegionForEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc       string
+		endpoint   string
+		wantRegion string
+		checkErr   require.ErrorAssertionFunc
 	}{
 		{
-			desc:            "dynamodb target in us west",
-			target:          "DynamoDB_20120810.Scan",
-			region:          "us-west-1",
-			wantService:     "DynamoDB",
-			wantSigningName: "dynamodb",
-			wantEndpoint:    "dynamodb.us-west-1.amazonaws.com:443",
+			desc:       "us-east-1",
+			endpoint:   ".us-east-1.amazonaws.com",
+			wantRegion: "us-east-1",
+			checkErr:   require.NoError,
 		},
 		{
-			desc:            "dynamodb target in china",
-			target:          "DynamoDB_20120810.Scan",
-			region:          "cn-north-1",
-			wantService:     "DynamoDB",
-			wantSigningName: "dynamodb",
-			wantEndpoint:    "dynamodb.cn-north-1.amazonaws.com.cn:443",
+			desc:       "cn-north-1",
+			endpoint:   ".cn-north-1.amazonaws.com.cn",
+			wantRegion: "cn-north-1",
+			checkErr:   require.NoError,
 		},
 		{
-			desc:            "dynamodb streams target in us west",
-			target:          "DynamoDBStreams_20120810.ListStreams",
-			region:          "us-west-1",
-			wantService:     "DynamoDB Streams",
-			wantSigningName: "dynamodb",
-			wantEndpoint:    "streams.dynamodb.us-west-1.amazonaws.com:443",
+			desc:       "us-gov-east-1",
+			endpoint:   ".us-gov-east-1.amazonaws.com",
+			wantRegion: "us-gov-east-1",
+			checkErr:   require.NoError,
 		},
 		{
-			desc:            "dynamodb streams target in china",
-			target:          "DynamoDBStreams_20120810.ListStreams",
-			region:          "cn-north-1",
-			wantService:     "DynamoDB Streams",
-			wantSigningName: "dynamodb",
-			wantEndpoint:    "streams.dynamodb.cn-north-1.amazonaws.com.cn:443",
+			desc:       "us-east-1 with service prefix",
+			endpoint:   "dynamodb.us-east-1.amazonaws.com",
+			wantRegion: "us-east-1",
+			checkErr:   require.NoError,
 		},
 		{
-			desc:            "dax target in us west",
-			target:          "AmazonDAXV3.ListTags",
-			region:          "us-west-1",
-			wantService:     "DAX",
-			wantSigningName: "dax",
-			wantEndpoint:    "dax.us-west-1.amazonaws.com:443",
+			desc:       "cn-north-1 with service prefix",
+			endpoint:   "dynamodb.cn-north-1.amazonaws.com.cn",
+			wantRegion: "cn-north-1",
+			checkErr:   require.NoError,
 		},
 		{
-			desc:            "dax target in china",
-			target:          "AmazonDAXV3.ListTags",
-			region:          "cn-north-1",
-			wantService:     "DAX",
-			wantSigningName: "dax",
-			wantEndpoint:    "dax.cn-north-1.amazonaws.com.cn:443",
+			desc:       "us-gov-east-1 with service prefix",
+			endpoint:   "dynamodb.us-gov-east-1.amazonaws.com",
+			wantRegion: "us-gov-east-1",
+			checkErr:   require.NoError,
 		},
 		{
-			desc:       "unrecognizable target",
-			target:     "DDB.Scan",
-			wantErrMsg: "is not recognized",
+			desc:     "empty uri is invalid",
+			endpoint: "",
+			checkErr: require.Error,
+		},
+		{
+			desc:     "missing region is invalid",
+			endpoint: "amazonaws.com",
+			checkErr: require.Error,
+		},
+		{
+			desc:     "missing china region is invalid",
+			endpoint: "amazonaws.com.cn",
+			checkErr: require.Error,
+		},
+		{
+			desc:     "unrecognized dynamodb or dax subdomain is invalid",
+			endpoint: "foo.us-east-1.amazonaws.com",
+			checkErr: require.Error,
+		},
+		{
+			desc:     "unrecognized dynamodb streams subdomain is invalid",
+			endpoint: "foo.dynamodb.us-east-1.amazonaws.com",
+			checkErr: require.Error,
+		},
+		{
+			desc:     "unrecognized dynamodb streams subdomain is invalid",
+			endpoint: "streams.foo.us-east-1.amazonaws.com",
+			checkErr: require.Error,
+		},
+		{
+			desc:     "uri subdomain is invalid",
+			endpoint: "streams.foo.us-east-1.amazonaws.com",
+			checkErr: require.Error,
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
-			service, err := ParseDynamoDBServiceFromTarget(tt.target)
-			if tt.wantErrMsg != "" {
-				require.Error(t, err)
-				require.ErrorContains(t, err, tt.wantErrMsg)
-				return
-			}
-			require.Equal(t, tt.wantService, service)
-			signingName, err := DynamoDBServiceToSigningName(service)
-			require.NoError(t, err)
-			require.Equal(t, tt.wantSigningName, signingName)
-			prefix, err := DynamoDBEndpointPrefixForService(service)
-			require.NoError(t, err)
-			endpoint := prefix + DynamoDBEndpointSuffixForRegion(tt.region)
-			require.Equal(t, tt.wantEndpoint, endpoint)
+			region, err := DynamoDBRegionForEndpoint(tt.endpoint)
+			tt.checkErr(t, err)
+			require.Equal(t, tt.wantRegion, region)
 		})
 	}
 }

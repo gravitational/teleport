@@ -31,6 +31,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/service/dax"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -173,7 +176,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signingName, err := apiaws.DynamoDBServiceToSigningName(service)
+	signingName, err := serviceToSigningName(service)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -315,7 +318,7 @@ func (e *Engine) getService(req *http.Request) (string, error) {
 	if target == "" {
 		return "", trace.BadParameter("missing %q header in http request", libaws.AmzTargetHeader)
 	}
-	service, err := apiaws.ParseDynamoDBServiceFromTarget(target)
+	service, err := parseDynamoDBServiceFromTarget(target)
 	return service, trace.Wrap(err)
 }
 
@@ -327,7 +330,7 @@ func (e *Engine) getTargetURI(service string) (string, error) {
 		return uri, nil
 	}
 	// when the database is created we ensure any AWS endpoint is configured to be a suffix missing only the service prefix.
-	prefix, err := apiaws.DynamoDBEndpointPrefixForService(service)
+	prefix, err := endpointPrefixForService(service)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -366,4 +369,49 @@ func getURIHostname(uri string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return parsed.Hostname(), nil
+}
+
+// parseDynamoDBServiceFromTarget parses the DynamoDB service ID given a target operation.
+// Target looks like one of DynamoDB_$version.$operation, DynamoDBStreams_$version.$operation, AmazonDAX$version.$operation,
+// for example: DynamoDBStreams_20120810.ListStreams
+// See X-Amz-Target: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html
+func parseDynamoDBServiceFromTarget(target string) (string, error) {
+	t := strings.ToLower(target)
+	switch {
+	case strings.HasPrefix(t, "dynamodbstreams"):
+		return dynamodbstreams.ServiceID, nil
+	case strings.HasPrefix(t, "dynamodb"):
+		return dynamodb.ServiceID, nil
+	case strings.HasPrefix(t, "amazondax"):
+		return dax.ServiceID, nil
+	default:
+		return "", trace.BadParameter("DynamoDB API target %q is not recognized", target)
+	}
+}
+
+// endpointPrefixForService returns the prefix string used for a given AWS DynamoDB service.
+// The endpoint prefix looks like one of "dynamodb", "dax", "streams.dynamodb".
+func endpointPrefixForService(service string) (string, error) {
+	switch service {
+	case dynamodb.ServiceID:
+		return dynamodb.ServiceName, nil
+	case dynamodbstreams.ServiceID:
+		return dynamodbstreams.ServiceName, nil
+	case dax.ServiceID:
+		return dax.ServiceName, nil
+	default:
+		return "", trace.BadParameter("unrecognized DynamoDB service %q", service)
+	}
+}
+
+// serviceToSigningName converts a DynamoDB service ID to the appropriate signing name.
+func serviceToSigningName(service string) (string, error) {
+	switch service {
+	case dynamodb.ServiceID, dynamodbstreams.ServiceID:
+		return "dynamodb", nil
+	case dax.ServiceID:
+		return "dax", nil
+	default:
+		return "", trace.BadParameter("service %q is not recognized", service)
+	}
 }

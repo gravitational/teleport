@@ -23,9 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/service/dax"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
 )
 
@@ -680,22 +677,38 @@ func CassandraEndpointRegion(endpoint string) (string, error) {
 // https://docs.aws.amazon.com/general/latest/gr/ddb.html
 func DynamoDBRegionForEndpoint(endpoint string) (string, error) {
 	if !IsAWSEndpoint(endpoint) {
-		return "", trace.BadParameter("invalid DynamoDB endpoint")
+		return "", trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
 	}
 	parts, err := ExtractAWSEndpointParts(endpoint)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	// A complete valid endpoint can either be [dynamodb|dax].<region>.<paritition>
+	// or it can be streams.dynamodb.<region>.<partition>.
+	// However, we allow an endpoint suffix as valid URI config, since the service prefix is determined from the requested
+	// operation by the database agent, so <region>.<paritition> is also ok.
 	switch len(parts) {
-	case 1, 2, 3:
-		// A complete valid endpoint can either be [dynamodb|dax].<region>.<paritition>
-		// or it can be streams.dynamodb.<region>.<partition>.
-		// However, we allow an endpoint suffix as valid URI config, since the service prefix is determined from the requested
-		// operation by the database agent, so <region>.<paritition> is also ok.
-		return parts[len(parts)-1], nil
+	case 1:
+		// in this case there's no service prefix, just a region.
+	case 2:
+		// in this case the endpoint can only be "[dynamodb|dax].<region>.<partition>" or ".<region>.<partition>"
+		svcPrefix := strings.ToLower(parts[0])
+		if svcPrefix != "dax" && svcPrefix != "dynamodb" && svcPrefix != "" {
+			return "", trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
+		}
+	case 3:
+		// in this case it can only be streams.dynamodb.<region>.<partition>.
+		if strings.ToLower(parts[0]) != "streams" || strings.ToLower(parts[1]) != "dynamodb" {
+			return "", trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
+		}
 	default:
 		return "", trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
 	}
+	region := parts[len(parts)-1]
+	if region == "" {
+		return "", trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
+	}
+	return region, nil
 }
 
 // DynamoDBEndpointSuffixForRegion constructs a DynamoDB endpoint suffix based on the AWS region.
@@ -708,51 +721,6 @@ func DynamoDBEndpointSuffixForRegion(region string) string {
 		return fmt.Sprintf(".%s%s:443", region, AWSCNEndpointSuffix)
 	default:
 		return fmt.Sprintf(".%s%s:443", region, AWSEndpointSuffix)
-	}
-}
-
-// DynamoDBEndpointPrefixForService returns the prefix string used for a given AWS DynamoDB service.
-// The endpoint prefix looks like one of "dynamodb", "dax", "streams.dynamodb".
-func DynamoDBEndpointPrefixForService(service string) (string, error) {
-	switch service {
-	case dynamodb.ServiceID:
-		return dynamodb.ServiceName, nil
-	case dynamodbstreams.ServiceID:
-		return dynamodbstreams.ServiceName, nil
-	case dax.ServiceID:
-		return dax.ServiceName, nil
-	default:
-		return "", trace.BadParameter("unrecognized DynamoDB service %q", service)
-	}
-}
-
-// ParseDynamoDBServiceFromTarget parses the DynamoDB service ID given a target operation.
-// Target looks like one of DynamoDB_$version.$operation, DynamoDBStreams_$version.$operation, AmazonDAX$version.$operation,
-// for example: DynamoDBStreams_20120810.ListStreams
-// See X-Amz-Target: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html
-func ParseDynamoDBServiceFromTarget(target string) (string, error) {
-	t := strings.ToLower(target)
-	switch {
-	case strings.HasPrefix(t, "dynamodbstreams"):
-		return dynamodbstreams.ServiceID, nil
-	case strings.HasPrefix(t, "dynamodb"):
-		return dynamodb.ServiceID, nil
-	case strings.HasPrefix(t, "amazondax"):
-		return dax.ServiceID, nil
-	default:
-		return "", trace.BadParameter("DynamoDB API target %q is not recognized", target)
-	}
-}
-
-// DynamoDBServiceToSigningName converts a DynamoDB service ID to the appropriate signing name.
-func DynamoDBServiceToSigningName(service string) (string, error) {
-	switch service {
-	case dynamodb.ServiceID, dynamodbstreams.ServiceID:
-		return "dynamodb", nil
-	case dax.ServiceID:
-		return "dax", nil
-	default:
-		return "", trace.BadParameter("service %q is not recognized", service)
 	}
 }
 
