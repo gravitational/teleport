@@ -458,8 +458,9 @@ func TestLoginIdentityOut(t *testing.T) {
 			validationFunc: func(t *testing.T, identityPath string) {
 				cfg, err := kubeconfig.Load(identityPath)
 				require.NoError(t, err)
-
-				cluster := cfg.Clusters[cfg.CurrentContext]
+				kubeCtx := cfg.Contexts[cfg.CurrentContext]
+				require.NotNil(t, kubeCtx)
+				cluster := cfg.Clusters[kubeCtx.Cluster]
 				require.NotNil(t, cluster)
 				require.NotEmpty(t, cluster.TLSServerName)
 			},
@@ -471,8 +472,9 @@ func TestLoginIdentityOut(t *testing.T) {
 			validationFunc: func(t *testing.T, identityPath string) {
 				cfg, err := kubeconfig.Load(identityPath)
 				require.NoError(t, err)
-
-				cluster := cfg.Clusters[cfg.CurrentContext]
+				kubeCtx := cfg.Contexts[cfg.CurrentContext]
+				require.NotNil(t, kubeCtx)
+				cluster := cfg.Clusters[kubeCtx.Cluster]
 				require.NotNil(t, cluster)
 				require.Empty(t, cluster.TLSServerName)
 			},
