@@ -27,7 +27,9 @@ import (
 )
 
 type ghaIDTokenValidator interface {
-	Validate(context.Context, string, string) (*githubactions.IDTokenClaims, error)
+	Validate(
+		ctx context.Context, GHESHost string, token string,
+	) (*githubactions.IDTokenClaims, error)
 }
 
 func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*githubactions.IDTokenClaims, error) {
