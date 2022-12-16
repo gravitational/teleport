@@ -71,7 +71,7 @@ func (id *IDTokenValidator) issuerURL(GHESHost string) string {
 
 func (id *IDTokenValidator) Validate(ctx context.Context, GHESHost string, token string) (*IDTokenClaims, error) {
 	p, err := oidc.NewProvider(
-		context.Background(),
+		ctx,
 		id.issuerURL(GHESHost),
 	)
 	if err != nil {
