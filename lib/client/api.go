@@ -3665,7 +3665,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-intiaiting login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}
