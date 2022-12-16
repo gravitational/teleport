@@ -89,9 +89,9 @@ func userCommandOSTweaks(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
 }
 
-// adjustOOMScore sets the OOM score for the current process to 0. This value
-// is inherited by all child processes.
-func adjustOOMScore() error {
+// setNeutralOOMScore sets the OOM score for the current process to 0 (the
+// middle between -1000 and 1000). This value is inherited by all child processes.
+func setNeutralOOMScore() error {
 	// Use os.OpenFile() instead of os.WriteFile() to avoid creating the file
 	// if for some extremely weird reason doesn't exist. Permission in this case
 	// won't be used as os.O_WRONLY won't create the file.
