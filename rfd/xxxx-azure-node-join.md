@@ -14,8 +14,10 @@ Security: @reedloden
 
 Teleport nodes running on Azure virtual machines will be able to join a
 Teleport cluster without the need to share any secret token with the node.
-Instead, the node will present a signed
+Instead, the node will present an
 [attested data document](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service?tabs=linux#attested-data)
+and an access token generated from the
+[instance metadata managed identity endpoint](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service?tabs=linux#managed-identity)
 to confirm the subscription the VM is running in. With a configured Azure join
 token on the auth server, the node will be allowed to join the cluster based
 on its Azure subscription.
@@ -31,43 +33,40 @@ deployment of dynamic tokens.
 
 ## Details
 
-In place of a join token, nodes will present a signed attested data document
-to the auth server. The document will be fetched on the nodes via instance
-metadata. The request can include a user-specified nonce which will also be
-signed. Like the custom headers in IAM join, the nonce allows Teleport to issue
-a challenge (crypto random string of bytes) that the node must include in the
-signed request. We can use gRPC bidirectional streams to implement the
-following flow at a new `RegisterWithAzureToken` gRPC endpoint:
+In place of a join token, nodes will present a JWT access token and an attested
+data document to the auth server, both of which will be fetched on the nodes
+via instance metadata. The attested data request can include a user-specified
+nonce which will also be signed. Like the custom headers in IAM join, the nonce
+allows Teleport to issue a challenge (crypto random string of bytes) that the
+node must include in the signed request. We can use gRPC bidirectional streams
+to implement the following flow at a new `RegisterWithAzureToken` gRPC endpoint:
 
 1. The Node initiates a `RegisterWithAzureToken` request.
 2. The auth server enforces that TLS is used for transport.
 3. The auth server sends a base64 encoded 24 byte crypto-random challenge.
   - We use 24 bytes instead of 32 because the nonce parameter is limited to 32
     characters, and 24 bytes require 32 base64 characters.
-4. The node requests the attested data document using the challenge as the
-  nonce. Azure returns the signed document.
+4. The node requests a) the attested data document using the challenge as the
+  nonce and b) an access token. Azure signs and returns both.
 5. The node sends a join request to the auth server, including the signed
-  document and other paramaters in a `RegisterUsingTokenRequest`.
-6. The auth server checks that signed document is valid:
+  document, token, and other parameters in a `RegisterUsingTokenRequest`.
+6. The auth server checks that attested data is valid:
   - The document's pkcs7 signature is valid.
   - The returned nonce matches the issued challenge.
-  - The requested token allows the node to join.
-    - The attested data document doesn't include the VM's resource group or
-      region. Teleport will need to use the Azure API to fetch those based on
-      the VM ID in the document. We can use the
-      [DiscoveredServer](https://github.com/gravitational/teleport/pull/18676/files#diff-98ac11a30d5f8c28ec2327bd002ba8dfc50c153824ca7281963807a423dc5eb7R370-R380)
-      resource created by the discovery service.
-7. The auth server sends credentials to join the cluster.
+7. The auth server checks that the access token is valid:
+  - The access token's signature is valid.
+  - The access token was not issues before the start of the
+  `RegisterWithAzureToken` request.
+  - The requested Teleport token allows the node to join.
+8. The auth server sends credentials to join the cluster.
 
 As with IAM join, the flow will occur within a single streaming gRPC request and
 only 1 attempt with a given challenge will be allowed, with a 1 minute timeout.
 
-### Teleport Cloud
-
-The auth and proxy servers in Telport cloud won't have access to customers'
-Azure subscriptions to confirm their resource groups and regions. Cloud users
-will need to run their own discovery service that has access to their
-subscriptions.
+an Azure VM will need either a system- or user-assigned
+[managed identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/qs-configure-portal-windows-vm)
+to be able to request an access token. The identity does not require any
+particular permissions.
 
 ### Teleport Configuration
 
@@ -89,10 +88,6 @@ spec:
         # Resource groups from which nodes can join. If empty or omitted, nodes
         # from any resource group are allowed.
         azure_resource_groups: ["rg1", "rg2"]
-        
-        # Regions from which nodes can join. If empty or omitted, nodes from any
-        # region are allowed.
-        azure_regions: ["r1", "r2"]
 ```
 
 teleport.yaml on the nodes should be configured so that they will use the Azure
@@ -131,5 +126,29 @@ Decoded contents of the attested data document:
     "expiresOn" :"12/07/22 03:01:35 -0000"
   },
   "vmId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+## Appendix II - Example access token payload
+```json
+{
+  "aud": "https://management.azure.com/",
+  "iss": "https://sts.windows.net/ff882432-09b0-437b-bd22-ca13c0037ded/",
+  "iat": 1671237372,
+  "nbf": 1671237372,
+  "exp": 1671324072,
+  "aio": "...",
+  "appid": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+  "appidacr": "2",
+  "idp": "https://sts.windows.net/ff882432-09b0-437b-bd22-ca13c0037ded/",
+  "idtyp": "app",
+  "oid": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+  "rh": "...",
+  "sub": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+  "tid": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+  "uti": "...",
+  "ver": "1.0",
+  "xms_mirid": "/subscriptions/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX/resourcegroups/example_group/providers/Microsoft.Compute/virtualMachines/example_vm",
+  "xms_tcdt": "1434650756"
 }
 ```
