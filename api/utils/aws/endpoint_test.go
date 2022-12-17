@@ -519,8 +519,8 @@ func TestDynamoDBEndpointSuffixForRegion(t *testing.T) {
 	}{
 		{
 			desc:       "region is in correct AWS partition",
-			region:     "cn-north-1",
-			wantSuffix: ".cn-north-1.amazonaws.com:443",
+			region:     "us-east-1",
+			wantSuffix: ".us-east-1.amazonaws.com:443",
 		},
 		{
 			desc:       "china north region is in correct AWS partition",
@@ -530,7 +530,7 @@ func TestDynamoDBEndpointSuffixForRegion(t *testing.T) {
 		{
 			desc:       "china northwest region is in correct AWS partition",
 			region:     "cn-northwest-1",
-			wantSuffix: ".cn-north-1.amazonaws.com.cn:443",
+			wantSuffix: ".cn-northwest-1.amazonaws.com.cn:443",
 		},
 	}
 	for _, tt := range tests {
