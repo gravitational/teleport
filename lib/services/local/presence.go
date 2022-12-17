@@ -1508,6 +1508,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindDatabaseServer:
 		keyPrefix = []string{dbServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToDatabaseServer
+	case types.KindDatabaseService:
+		keyPrefix = []string{databaseServicePrefix}
+		unmarshalItemFunc = backendItemToDatabaseService
 	case types.KindAppServer:
 		keyPrefix = []string{appServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToApplicationServer
@@ -1721,6 +1724,16 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 // `types.DatabaseServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalDatabaseServer(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
+// backendItemToDatabaseService unmarshals `backend.Item` into a
+// `types.DatabaseService`, returning it as a `types.ResourceWithLabels`.
+func backendItemToDatabaseService(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalDatabaseService(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
