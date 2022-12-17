@@ -561,6 +561,9 @@ type ProfileStatus struct {
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRolesARNs []string
 
+	// AzureIdentities is a list of allowed Azure identities user can assume.
+	AzureIdentities []string
+
 	// AllowedResourceIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
 	AllowedResourceIDs []types.ResourceID
@@ -908,6 +911,7 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 		Databases:          databases,
 		Apps:               apps,
 		AWSRolesARNs:       tlsID.AWSRoleARNs,
+		AzureIdentities:    tlsID.AzureIdentities,
 		IsVirtual:          opts.IsVirtual,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
@@ -2735,6 +2739,26 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 	return proxyClient.CreateAppSession(ctx, req)
 }
 
+// GetAppSession returns an existing application access session.
+func (tc *TeleportClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/GetAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("session", req.SessionID),
+		),
+	)
+	defer span.End()
+
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	return proxyClient.GetAppSession(ctx, req)
+}
+
 // DeleteAppSession removes the specified application access session.
 func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string) error {
 	ctx, span := tc.Tracer.Start(
@@ -3641,7 +3665,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-intiaiting login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}

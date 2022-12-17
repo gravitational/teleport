@@ -1923,11 +1923,7 @@ func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.Acc
 			return trace.Wrap(err)
 		}
 	}
-	// Ensure that an access request cannot outlive the identity that creates it.
-	if req.GetAccessExpiry().Before(a.authServer.GetClock().Now()) || req.GetAccessExpiry().After(a.context.Identity.GetIdentity().Expires) {
-		req.SetAccessExpiry(a.context.Identity.GetIdentity().Expires)
-	}
-	return a.authServer.CreateAccessRequest(ctx, req)
+	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity())
 }
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
@@ -2335,7 +2331,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 	for _, reqID := range finalRequestIDs {
 		// Fetch and validate the access request for this user.
-		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, req.Username, reqID)
+		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, currentIdentity, req.Username, reqID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2559,6 +2555,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
+		azureIdentity:     req.RouteToApp.AzureIdentity,
 		checker:           checker,
 		traits:            accessInfo.Traits,
 		activeRequests: services.RequestIDs{
@@ -3862,6 +3859,38 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
+}
+
+// GetAllDatabaseServices returns all DatabaseService resources.
+func (a *ServerWithRoles) GetAllDatabaseServices(ctx context.Context) ([]types.DatabaseService, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.NotImplemented("no DatabaseService service")
+}
+
+// UpsertDatabaseService creates or updates a new DatabaseService resource.
+func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
+	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.NotImplemented("no DatabaseService service")
+}
+
+// DeleteAllDatabaseServices removes all DatabaseService resources.
+func (a *ServerWithRoles) DeleteAllDatabaseServices(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.NotImplemented("no DatabaseService service")
+}
+
+// DeleteDatabaseService removes a specific DatabaseService resource.
+func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.NotImplemented("no DatabaseService service")
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking

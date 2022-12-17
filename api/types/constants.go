@@ -122,6 +122,9 @@ const (
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
+	// KindDatabaseService is a database service resource.
+	KindDatabaseService = "db_service"
+
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
@@ -382,6 +385,9 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
+	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

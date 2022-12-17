@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/go-redis/redis/v9"
@@ -109,6 +110,26 @@ func TestWriteCmd(t *testing.T) {
 			require.Equal(t, tt.expected, buf.Bytes())
 		})
 	}
+}
+
+func TestReadWriteStatus(t *testing.T) {
+	inputStatusBytes := []byte("+status\r\n")
+
+	// Read the status into a redis.Cmd.
+	cmd := &redis.Cmd{}
+	err := cmd.ReadReply(redis.NewReader(bytes.NewReader(inputStatusBytes)))
+	require.NoError(t, err)
+
+	// Verify result.
+	value, err := cmd.Result()
+	require.NoError(t, err)
+	require.Equal(t, "status", fmt.Sprintf("%v", value))
+
+	// Verify WriteCmd.
+	outputStatusBytes := &bytes.Buffer{}
+	err = WriteCmd(redis.NewWriter(outputStatusBytes), value)
+	require.NoError(t, err)
+	require.Equal(t, string(inputStatusBytes), outputStatusBytes.String())
 }
 
 func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
