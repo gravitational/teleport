@@ -481,7 +481,7 @@ func hardCopyFile(src, dest string) error {
 
 	destinationHandle, err := os.Create(dest)
 	if err != nil {
-		return trace.Wrap(err, "failed to open destinatino file %q for writing", dest)
+		return trace.Wrap(err, "failed to open destination file %q for writing", dest)
 	}
 	defer destinationHandle.Close()
 
