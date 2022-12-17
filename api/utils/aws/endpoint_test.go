@@ -513,12 +513,30 @@ func TestDynamoDBEndpointSuffixForRegion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		desc string
-	}{}
+		desc       string
+		region     string
+		wantSuffix string
+	}{
+		{
+			desc:       "region is in correct AWS partition",
+			region:     "cn-north-1",
+			wantSuffix: ".cn-north-1.amazonaws.com",
+		},
+		{
+			desc:       "china north region is in correct AWS partition",
+			region:     "cn-north-1",
+			wantSuffix: ".cn-north-1.amazonaws.com.cn",
+		},
+		{
+			desc:       "china northwest region is in correct AWS partition",
+			region:     "cn-northwest-1",
+			wantSuffix: ".cn-north-1.amazonaws.com.cn",
+		},
+	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-
+			require.Equal(t, tt.wantSuffix, DynamoDBEndpointSuffixForRegion(tt.region))
 		})
 	}
 }
