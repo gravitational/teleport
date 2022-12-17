@@ -83,7 +83,7 @@ EOF
 
   for BINARY in "$targets"; do
     echo "Stapling $BINARY..."
-    xcrun stapler staple "$BINARY"
+    xcrun stapler staple -v "$BINARY"
   done
 
   echo "Binary notarization complete"
