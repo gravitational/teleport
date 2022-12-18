@@ -31,11 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolMongoDB)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new MongoDB engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
