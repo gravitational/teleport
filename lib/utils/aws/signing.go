@@ -19,6 +19,7 @@ package aws
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -143,6 +144,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 		return nil, trace.Wrap(err)
 	}
 	reqCopy := req.Clone(ctx)
+	reqCopy.Body = io.NopCloser(req.Body)
 
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
 	credentials := s.GetSigningCredentials(s.Session, signCtx.Expiry, signCtx.SessionName, signCtx.AWSRoleArn, signCtx.AWSExternalID)

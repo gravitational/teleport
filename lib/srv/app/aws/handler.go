@@ -18,6 +18,7 @@ package aws
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -160,17 +162,19 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 	return nil
 }
 
-// rewriteRequest rewrites a request to remove Teleport reserved headers, sets the url, and sets host.
+// rewriteRequest clones a request to remove Teleport reserved headers and rewrite the url.
 func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
 	u, err := urlForResolvedEndpoint(r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	outReq, err := http.NewRequestWithContext(ctx, r.Method, u.String(), r.Body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	outReq.Header = r.Header.Clone()
+	// force https
+	u.Scheme = "https"
+
+	// clone the request for rewriting
+	outReq := r.Clone(ctx)
+	outReq.URL = u
+	outReq.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
 
 	for key := range outReq.Header {
 		// Remove Teleport app headers.
