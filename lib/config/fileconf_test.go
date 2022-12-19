@@ -356,7 +356,7 @@ func TestAuthenticationSection(t *testing.T) {
 	}
 }
 
-func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T) {
+func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQuotes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		desc               string
