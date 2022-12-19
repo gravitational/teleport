@@ -42,7 +42,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				DatabaseQuery: strings.Repeat("A", 7000),
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: strings.Repeat("A", 5377),
+				DatabaseQuery: strings.Repeat("A", 5227),
 			},
 		},
 		{
@@ -56,7 +56,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				},
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: strings.Repeat("A", 592),
+				DatabaseQuery: strings.Repeat("A", 575),
 				DatabaseQueryParameters: []string{
 					strings.Repeat("A", 89),
 					strings.Repeat("A", 89),
@@ -82,7 +82,7 @@ func TestTrimToMaxSize(t *testing.T) {
 					ClusterName: strings.Repeat("A", 2000),
 					Index:       1,
 				},
-				DatabaseQuery: strings.Repeat("A", 223),
+				DatabaseQuery: strings.Repeat("A", 198),
 				DatabaseQueryParameters: []string{
 					strings.Repeat("A", 89),
 					strings.Repeat("A", 89),
