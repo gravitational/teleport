@@ -2375,8 +2375,12 @@ func TestListDatabaseServices(t *testing.T) {
 		s, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name: name,
 		}, types.DatabaseServiceSpecV1{
-			ResourceMatchers: []types.Labels{
-				{"env": []string{name}},
+			ResourceMatchers: []*types.ResourceMatcher{
+				{
+					Labels: &types.Labels{
+						"env": []string{name},
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -2436,8 +2440,12 @@ func TestListDatabaseServices(t *testing.T) {
 	extraDatabaseService, err := types.NewDatabaseServiceV1(types.Metadata{
 		Name: "extra",
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []types.Labels{
-			{"env": []string{"extra"}},
+		ResourceMatchers: []*types.ResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"extra"},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)

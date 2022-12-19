@@ -51,18 +51,30 @@ func TestDatabaseServices(t *testing.T) {
 	// Upsert some DatabaseServices.
 	ds1, err := types.NewDatabaseServiceV1(
 		types.Metadata{Name: "ds1"},
-		types.DatabaseServiceSpecV1{ResourceMatchers: []types.Labels{
-			{"env": []string{"ds1"}},
-		}},
+		types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.ResourceMatcher{
+				{
+					Labels: &types.Labels{
+						"env": []string{"ds1"},
+					},
+				},
+			},
+		},
 	)
 	require.NoError(t, err)
 	require.NoError(t, service.UpsertDatabaseService(ctx, ds1))
 
 	ds2, err := types.NewDatabaseServiceV1(
 		types.Metadata{Name: "ds2"},
-		types.DatabaseServiceSpecV1{ResourceMatchers: []types.Labels{
-			{"env": []string{"ds2"}},
-		}},
+		types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.ResourceMatcher{
+				{
+					Labels: &types.Labels{
+						"env": []string{"ds2"},
+					},
+				},
+			},
+		},
 	)
 	require.NoError(t, err)
 	require.NoError(t, service.UpsertDatabaseService(ctx, ds2))
@@ -77,7 +89,9 @@ func TestDatabaseServices(t *testing.T) {
 
 	// Replace the DS1
 	initialResourceMatchers := ds1.GetResourceMatchers()
-	initialResourceMatchers[0] = types.Labels{"env": []string{"ds1", "ds2"}}
+	initialResourceMatchers[0] = &types.ResourceMatcher{
+		Labels: &types.Labels{"env": []string{"ds1", "ds2"}},
+	}
 	ds1.Spec.ResourceMatchers = initialResourceMatchers
 	require.NoError(t, service.UpsertDatabaseService(ctx, ds1))
 

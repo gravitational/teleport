@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
@@ -306,8 +305,10 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	dbService001, err := types.NewDatabaseServiceV1(types.Metadata{
 		Name: dbServiceName,
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []types.Labels{
-			{"env": []string{"prod"}},
+		ResourceMatchers: []*types.ResourceMatcher{
+			{
+				Labels: &types.Labels{"env": []string{"prod"}},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -329,7 +330,8 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 
 	require.Len(t, respDBService.ResourceMatchers, 1)
 	respResourceMatcher := respDBService.ResourceMatchers[0]
-	require.Equal(t, respResourceMatcher["env"], utils.Strings{"prod"})
+
+	require.Equal(t, respResourceMatcher.Labels, &types.Labels{"env": []string{"prod"}})
 }
 
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {

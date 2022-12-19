@@ -30,8 +30,12 @@ func TestDatabaseServiceUnmarshal(t *testing.T) {
 	expected, err := types.NewDatabaseServiceV1(types.Metadata{
 		Name: "test-database-service",
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []types.Labels{
-			{"env": []string{"prod", "stg"}},
+		ResourceMatchers: []*types.ResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"prod", "stg"},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -48,8 +52,12 @@ func TestDatabaseServiceMarshal(t *testing.T) {
 	expected, err := types.NewDatabaseServiceV1(types.Metadata{
 		Name: "test-database-service",
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []types.Labels{
-			{"env": []string{"prod"}},
+		ResourceMatchers: []*types.ResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"prod"},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -67,5 +75,6 @@ metadata:
   name: test-database-service
 spec:
   resources:
-    - env: [prod, stg]
+    - labels:
+        env: [prod, stg]
 `

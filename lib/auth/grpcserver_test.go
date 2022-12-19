@@ -1897,8 +1897,12 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 		Name:   "db1",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []types.Labels{
-			{"env": []string{"prod"}},
+		ResourceMatchers: []*types.ResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"prod"},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1907,8 +1911,12 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 		Name:   "db2",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []types.Labels{
-			{"env": []string{"stg"}},
+		ResourceMatchers: []*types.ResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"stg"},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1932,9 +1940,12 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	))
 
 	// Update a DatabaseService.
-	db1.Spec.ResourceMatchers[0] = types.Labels{
-		"env": []string{"notprod"},
+	db1.Spec.ResourceMatchers[0] = &types.ResourceMatcher{
+		Labels: &types.Labels{
+			"env": []string{"notprod"},
+		},
 	}
+
 	err = clt.UpsertDatabaseService(ctx, db1)
 	require.NoError(t, err)
 	out, err = clt.GetAllDatabaseServices(ctx)
