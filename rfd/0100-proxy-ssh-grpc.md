@@ -36,8 +36,8 @@ to the gRPC server and all other requests to the SSH server.
 
 Note: a gRPC server is already exposed via the Proxy web address that users the ALPN protocol
 `teleport-proxy-grpc`. In order to not conflict the new ALPN protocol is required. Reusing the
-existing gRPC server is not an option since it is unauthenticated and has aggressive keep alive
-parameters.
+existing gRPC server is not an option since it is unauthenticated, has aggressive keep alive
+parameters, and is only enabled when TLS Routing is enabled.
 
 ### Proto Definition
 
@@ -108,12 +108,14 @@ message DataFrame {
 
 // Target indicates which server to connect to
 message Target {
-  // The server hostname/ip/uuid
+  // The hostname/ip/uuid of the remote host
   string host = 1;
+  // The port to connect to on the remote host
+  int port = 2;
   // The cluster the server is a member of
-  string cluster = 2;
+  string cluster = 3;
   // The OS login 
-  string login = 3;
+  string login = 4;
 }
 
 // Request for GetClusterDetails.
