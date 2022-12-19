@@ -1135,31 +1135,6 @@ func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.De
 	return &emptypb.Empty{}, nil
 }
 
-// GetAllDatabaseServices returns all registered DatabaseServices.
-func (g *GRPCServer) GetAllDatabaseServices(ctx context.Context, _ *proto.GetAllDatabaseServicesRequest) (*proto.DatabaseServiceV1List, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbs, err := auth.GetAllDatabaseServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ret := &proto.DatabaseServiceV1List{
-		Services: make([]*types.DatabaseServiceV1, len(dbs)),
-	}
-	for i, db := range dbs {
-		dbServiceV1, ok := db.(*types.DatabaseServiceV1)
-		if !ok {
-			return nil, trace.BadParameter("unexpected DatabaseService type: %T", db)
-		}
-		ret.Services[i] = dbServiceV1
-	}
-	return ret, nil
-}
-
 // UpsertDatabaseService registers a new database service.
 func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

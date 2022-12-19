@@ -2470,21 +2470,6 @@ func (c *Client) DeleteAllDatabases(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// GetAllDatabaseServices returns all DatabaseService resources.
-func (c *Client) GetAllDatabaseServices(ctx context.Context) ([]types.DatabaseService, error) {
-	items, err := c.grpc.GetAllDatabaseServices(ctx, &proto.GetAllDatabaseServicesRequest{}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	dbServices := make([]types.DatabaseService, len(items.Services))
-	for i := range items.Services {
-		dbServices[i] = items.Services[i]
-	}
-
-	return dbServices, nil
-}
-
 // UpsertDatabaseService creates or updates existing DatabaseService resource.
 func (c *Client) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
 	serviceV1, ok := service.(*types.DatabaseServiceV1)

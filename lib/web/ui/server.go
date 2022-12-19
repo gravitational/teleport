@@ -236,7 +236,7 @@ type DatabaseService struct {
 	// Name is the name of the database.
 	Name string `json:"name"`
 	// ResourceMatchers is a list of resource matchers of the DatabaseService.
-	ResourceMatchers []*types.ResourceMatcher `json:"resource_matchers"`
+	ResourceMatchers []*types.DatabaseResourceMatcher `json:"resource_matchers"`
 }
 
 // MakeDatabaseService creates DatabaseService resource.

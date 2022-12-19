@@ -3863,14 +3863,6 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
 }
 
-// GetAllDatabaseServices returns all DatabaseService resources.
-func (a *ServerWithRoles) GetAllDatabaseServices(ctx context.Context) ([]types.DatabaseService, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetAllDatabaseServices(ctx)
-}
-
 // UpsertDatabaseService creates or updates a new DatabaseService resource.
 func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
 	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {

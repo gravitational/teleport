@@ -20,8 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -43,16 +41,11 @@ func TestDatabaseServices(t *testing.T) {
 
 	service := NewDatabaseServicesService(bk)
 
-	// Initially we expect no DatabaseServices.
-	out, err := service.GetAllDatabaseServices(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
 	// Upsert some DatabaseServices.
 	ds1, err := types.NewDatabaseServiceV1(
 		types.Metadata{Name: "ds1"},
 		types.DatabaseServiceSpecV1{
-			ResourceMatchers: []*types.ResourceMatcher{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
 				{
 					Labels: &types.Labels{
 						"env": []string{"ds1"},
@@ -67,7 +60,7 @@ func TestDatabaseServices(t *testing.T) {
 	ds2, err := types.NewDatabaseServiceV1(
 		types.Metadata{Name: "ds2"},
 		types.DatabaseServiceSpecV1{
-			ResourceMatchers: []*types.ResourceMatcher{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
 				{
 					Labels: &types.Labels{
 						"env": []string{"ds2"},
@@ -79,17 +72,9 @@ func TestDatabaseServices(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, service.UpsertDatabaseService(ctx, ds2))
 
-	// Test fetch all.
-	out, err = service.GetAllDatabaseServices(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 2)
-	require.Empty(t, cmp.Diff([]types.DatabaseService{ds1, ds2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-	))
-
 	// Replace the DS1
 	initialResourceMatchers := ds1.GetResourceMatchers()
-	initialResourceMatchers[0] = &types.ResourceMatcher{
+	initialResourceMatchers[0] = &types.DatabaseResourceMatcher{
 		Labels: &types.Labels{"env": []string{"ds1", "ds2"}},
 	}
 	ds1.Spec.ResourceMatchers = initialResourceMatchers
@@ -99,11 +84,7 @@ func TestDatabaseServices(t *testing.T) {
 	err = service.DeleteDatabaseService(ctx, ds2.GetName())
 	require.NoError(t, err)
 
-	// Test fetch all again
-	out, err = service.GetAllDatabaseServices(ctx)
+	// Remove all of the DatabaseServices
+	err = service.DeleteAllDatabaseServices(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff([]types.DatabaseService{ds1}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-	))
 }

@@ -25,16 +25,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// DatabaseServiceGetter defines interface for fetching DatabaseService resources.
-type DatabaseServiceGetter interface {
-	// GetAllDatabaseServices returns all DatabaseService resources.
-	GetAllDatabaseServices(context.Context) ([]types.DatabaseService, error)
-}
-
 // DatabaseServices defines an interface for managing DatabaseService resources.
 type DatabaseServices interface {
-	// DatabaseServiceGetter provides methods for fetching DatabaseService resources.
-	DatabaseServiceGetter
 	// UpsertDatabaseService updates an existing DatabaseService resource.
 	UpsertDatabaseService(context.Context, types.DatabaseService) error
 	// DeleteDatabasService removes the specified DatabaseService resource.

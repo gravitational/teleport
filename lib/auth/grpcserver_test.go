@@ -1897,7 +1897,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 		Name:   "db1",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []*types.ResourceMatcher{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
 			{
 				Labels: &types.Labels{
 					"env": []string{"prod"},
@@ -1911,7 +1911,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 		Name:   "db2",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []*types.ResourceMatcher{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
 			{
 				Labels: &types.Labels{
 					"env": []string{"stg"},
@@ -1922,7 +1922,14 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initially we expect no DatabaseServices.
-	out, err := clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err := clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, out)
 
@@ -1933,14 +1940,21 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all DatabaseServices.
-	out, err = clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Update a DatabaseService.
-	db1.Spec.ResourceMatchers[0] = &types.ResourceMatcher{
+	db1.Spec.ResourceMatchers[0] = &types.DatabaseResourceMatcher{
 		Labels: &types.Labels{
 			"env": []string{"notprod"},
 		},
@@ -1948,7 +1962,14 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 
 	err = clt.UpsertDatabaseService(ctx, db1)
 	require.NoError(t, err)
-	out, err = clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
@@ -1957,7 +1978,14 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	// Delete a DatabaseService.
 	err = clt.DeleteDatabaseService(ctx, db1.GetName())
 	require.NoError(t, err)
-	out, err = clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseService{db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
@@ -1970,7 +1998,14 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	// Delete all DatabaseServices.
 	err = clt.DeleteAllDatabaseServices(ctx)
 	require.NoError(t, err)
-	out, err = clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, out)
 }

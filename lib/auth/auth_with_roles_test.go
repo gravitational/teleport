@@ -2375,7 +2375,7 @@ func TestListDatabaseServices(t *testing.T) {
 		s, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name: name,
 		}, types.DatabaseServiceSpecV1{
-			ResourceMatchers: []*types.ResourceMatcher{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
 				{
 					Labels: &types.Labels{
 						"env": []string{name},
@@ -2389,11 +2389,18 @@ func TestListDatabaseServices(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testServices, err := srv.Auth().GetAllDatabaseServices(ctx)
+	listServicesResp, err := srv.Auth().ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	databaseServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 
-	testResources := make([]types.ResourceWithLabels, len(testServices))
-	for i, server := range testServices {
+	testResources := make([]types.ResourceWithLabels, len(databaseServices))
+	for i, server := range databaseServices {
 		testResources[i] = server
 	}
 
@@ -2406,13 +2413,12 @@ func TestListDatabaseServices(t *testing.T) {
 	require.NoError(t, err)
 
 	// User is not allowed to list DatabseServices
-	_, err = clt.GetAllDatabaseServices(ctx)
-	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Read operations")
-
-	_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        10,
-	})
+	_, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Read operations")
 
 	// Change the user's role to allow them to list DatabaseServices
@@ -2420,27 +2426,24 @@ func TestListDatabaseServices(t *testing.T) {
 	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RO())))
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
-	usersViewDBServices, err := clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Len(t, usersViewDBServices, numInitialResources)
 
-	require.Empty(t, cmp.Diff(testServices, usersViewDBServices))
-
-	listResp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        10,
-	})
-	require.NoError(t, err)
-	require.Len(t, listResp.Resources, numInitialResources)
-	usersViewDBServicesFromList, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(testServices, usersViewDBServicesFromList))
+	require.Empty(t, cmp.Diff(databaseServices, usersViewDBServices))
 
 	// User is not allowed to Upsert DatabaseServices
 	extraDatabaseService, err := types.NewDatabaseServiceV1(types.Metadata{
 		Name: "extra",
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []*types.ResourceMatcher{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
 			{
 				Labels: &types.Labels{
 					"env": []string{"extra"},
@@ -2458,7 +2461,15 @@ func TestListDatabaseServices(t *testing.T) {
 
 	err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
 	require.NoError(t, err)
-	usersViewDBServices, err = clt.GetAllDatabaseServices(ctx)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Len(t, usersViewDBServices, numInitialResources+1)
 
@@ -2466,7 +2477,14 @@ func TestListDatabaseServices(t *testing.T) {
 	err = clt.DeleteDatabaseService(ctx, extraDatabaseService.GetName())
 	require.NoError(t, err)
 
-	usersViewDBServices, err = clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Len(t, usersViewDBServices, numInitialResources)
 
@@ -2474,7 +2492,14 @@ func TestListDatabaseServices(t *testing.T) {
 	err = clt.DeleteAllDatabaseServices(ctx)
 	require.NoError(t, err)
 
-	usersViewDBServices, err = clt.GetAllDatabaseServices(ctx)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, usersViewDBServices)
 }

@@ -36,25 +36,6 @@ func NewDatabaseServicesService(backend backend.Backend) *DatabaseServicesServic
 	return &DatabaseServicesService{Backend: backend}
 }
 
-// GetAllDatabaseServices returns all DatabaseService resources.
-func (s *DatabaseServicesService) GetAllDatabaseServices(ctx context.Context) ([]types.DatabaseService, error) {
-	startKey := backend.Key(databaseServicePrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	dbServices := make([]types.DatabaseService, len(result.Items))
-	for i, item := range result.Items {
-		dbService, err := services.UnmarshalDatabaseService(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		dbServices[i] = dbService
-	}
-	return dbServices, nil
-}
-
 // UpsertDatabaseService creates or updates (by name) a DatabaseService resource.
 func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
 	if err := service.CheckAndSetDefaults(); err != nil {

@@ -839,9 +839,6 @@ message DeleteAllDatabaseServersRequest {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
-// GetAllDatabaseServicesRequest is a request to fetch all DatabaseServices.
-message GetAllDatabaseServicesRequest {}
-
 // DatabaseServiceV1List represents a list of DatabaseService resources.
 message DatabaseServiceV1List {
   // Services is a list of DatabaseService resources.
@@ -2215,8 +2212,6 @@ service AuthService {
   // DeleteAllDatabaseServers removes all registered database proxy servers.
   rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
 
-  // GetAllDatabaseServices returns all DatabaseService resources.
-  rpc GetAllDatabaseServices(GetAllDatabaseServicesRequest) returns (DatabaseServiceV1List);
   // UpsertDatabaseService registers a new DatabaseService.
   rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (google.protobuf.Empty);
   // DeleteDatabaseService removes the specified DatabaseService.

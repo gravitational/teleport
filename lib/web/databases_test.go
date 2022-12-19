@@ -293,7 +293,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	var listDBServicesResp listDatabaseServicesResp
 
 	// No DatabaseServices exist
-	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "database_services"), nil)
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservices"), nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServicesResp))
@@ -305,7 +305,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	dbService001, err := types.NewDatabaseServiceV1(types.Metadata{
 		Name: dbServiceName,
 	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []*types.ResourceMatcher{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
 			{
 				Labels: &types.Labels{"env": []string{"prod"}},
 			},
@@ -317,7 +317,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	// The API returns one DatabaseService.
-	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "database_services"), nil)
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservices"), nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServicesResp))
