@@ -298,6 +298,9 @@ func (c *Client) start() {
 			msg, err := c.cfg.Conn.ReadMessage()
 			if errors.Is(err, io.EOF) {
 				return
+			} else if tdp.IsNonFatalErr(err) {
+				c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
+				continue
 			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
@@ -405,7 +408,7 @@ func (c *Client) start() {
 						return
 					}
 				} else {
-					c.cfg.Log.Warning("Recieved an empty clipboard message")
+					c.cfg.Log.Warning("Received an empty clipboard message")
 				}
 			case tdp.SharedDirectoryAnnounce:
 				if c.cfg.AllowDirectorySharing {

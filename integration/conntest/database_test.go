@@ -148,7 +148,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 		},
 
 		{
-			name:         "databse not found",
+			name:         "database not found",
 			teleportUser: "dbnotfound",
 
 			reqResourceName: "dbnotfound",

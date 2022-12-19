@@ -418,6 +418,7 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 			// isn't ideal.
 			req := connect.NewRequest(event.Event)
 			if _, err := client.SubmitEvent(ctx, req); err != nil {
+				failed = append(failed, event)
 				errors = append(errors, err)
 			}
 		}
