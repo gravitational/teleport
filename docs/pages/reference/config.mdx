@@ -7,8 +7,7 @@ Teleport uses the YAML file format for configuration. A full configuration
 reference file is shown below. This provides comments and all available options
 for `teleport.yaml`. 
 
-By default, the `teleport` process reads its configuration from
-`/etc/teleport.yaml`.
+By default, Teleport reads its configuration from `/etc/teleport.yaml`.
 
 ## Before using this reference
 
@@ -23,9 +22,13 @@ Using a copy of the reference configuration will have unintended effects. To
 create a configuration file that you can use as a starting point, run the
 following command:
 
-  ```code
-  $ teleport configure -o file
-  ```
+```code
+$ teleport configure -o file
+```
+
+There are also `configure` commands available for the SSH Service and Database
+Service. See our documentation on `teleport node configure` and `teleport db
+configure` in the [Teleport CLI Reference](cli.mdx#teleport).
 
 <Notice type="warning">
 
@@ -47,7 +50,7 @@ names are listed below):
 
 ```yaml
 service_name:
-  enabled: false
+  enabled: "no"
 ```
 
 Teleport supports the following services:
