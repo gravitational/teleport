@@ -1499,9 +1499,15 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 			)
 
 			if err := s.dispatch(ctx, ch, req, scx); err != nil {
-				s.replyError(ch, req, err)
-				span.End()
-				return
+				// a trace.NotImplemented error here indicates that a reply to the request was already handled inside
+				// the dispatch method, so we set the wantReply flag to false to avoid sending a second reply below.
+				if trace.IsNotImplemented(err) {
+					req.WantReply = false
+				} else {
+					s.replyError(ch, req, err)
+					span.End()
+					return
+				}
 			}
 			if req.WantReply {
 				if err := req.Reply(true, nil); err != nil {
@@ -1604,7 +1610,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
 			// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
 			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
-			return nil
+			return s.handlePuTTYWinadj(ch, req)
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -1661,7 +1667,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
 		// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
 		// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
-		return nil
+		return s.handlePuTTYWinadj(ch, req)
 	default:
 		return trace.BadParameter(
 			"%v doesn't support request type '%v'", s.Component(), req.Type)
@@ -2028,4 +2034,15 @@ func rejectChannel(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
 	if err := ch.Reject(reason, msg); err != nil {
 		log.Warnf("Failed to reject new ssh.Channel: %v", err)
 	}
+}
+
+// handlePuTTYWinadj replies with failure to a PuTTY winadj request as required.
+// it overloads a trace.NotImplemented error to indicate that the reply has already
+// been processed, so we don't handle it twice.
+func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
+	if err := req.Reply(false, []byte{}); err != nil {
+		s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
+		return err
+	}
+	return trace.NotImplemented("%v requests must always fail", req.Type)
 }
