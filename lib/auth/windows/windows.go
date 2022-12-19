@@ -79,13 +79,16 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	if req.ActiveDirectorySID != nil {
-		adUserMapping, _ := asn1.Marshal(SubjectAltName[adSid]{
+		adUserMapping, err := asn1.Marshal(SubjectAltName[adSid]{
 			otherName[adSid]{
 				OID: ADUserMappingInternalOID,
 				Value: adSid{
 					Value: []byte(*req.ActiveDirectorySID),
 				},
 			}})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
 			Id:    ADUserMappingExtensionOID,
 			Value: adUserMapping,
@@ -298,7 +301,13 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 
 // Types for ASN.1 SAN serialization.
 
-// SubjectAltName is a struct for marshaling the SAN field in a certificate
+// SubjectAltName is a struct that can be marshaled as ASN.1
+// into the SAN field in an x.509 certificate.
+//
+// See RFC 3280: https://www.ietf.org/rfc/rfc3280.txt
+//
+// T is the ASN.1 encodeable struct corresponding to an otherName
+// item of the GeneralNames sequence.
 type SubjectAltName[T any] struct {
 	OtherName otherName[T] `asn1:"tag:0"`
 }

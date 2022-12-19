@@ -54,7 +54,7 @@ func (sid adSID) String() string {
 func decodeADSID(b []byte) (adSID, error) {
 	len := len(b)
 	if len < 8 {
-		return adSID{}, trace.Errorf("AD SID response was too short to decode")
+		return adSID{}, trace.BadParameter("AD SID response was too short to decode")
 	}
 	var sid adSID
 
@@ -72,7 +72,7 @@ func decodeADSID(b []byte) (adSID, error) {
 		for k := 0; k < size; k++ {
 			index := offset + k
 			if index >= len {
-				return adSID{}, trace.Errorf("AD SID response was too short to decode")
+				return adSID{}, trace.BadParameter("AD SID response was too short to decode")
 			}
 			subAuthority = subAuthority | (int(b[index])&0xFF)<<(8*k)
 		}
@@ -83,6 +83,8 @@ func decodeADSID(b []byte) (adSID, error) {
 	return sid, nil
 }
 
+// ADSIDStringFromLDAPEntry extracts the objectSid attribute from an
+// ldap.Entry and returns its string representation.
 func ADSIDStringFromLDAPEntry(entry *ldap.Entry) (string, error) {
 	bytes := entry.GetRawAttributeValue(AttrObjectSid)
 	if len(bytes) == 0 {

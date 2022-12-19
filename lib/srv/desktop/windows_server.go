@@ -1053,8 +1053,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	} else if len(entries) > 1 {
 		s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
 	}
-	entry := entries[0]
-	activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entry)
+	activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entries[0])
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
