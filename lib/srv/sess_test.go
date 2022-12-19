@@ -24,6 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -31,15 +35,11 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
@@ -430,6 +430,25 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 
 	require.NotNil(t, scx.session)
 	return scx.session, sshChanOpen
+}
+
+type mockRecorder struct {
+	events.StreamWriter
+	emitter *eventstest.ChannelEmitter
+	done    bool
+}
+
+func (m *mockRecorder) Done() <-chan struct{} {
+	ch := make(chan struct{})
+	if m.done {
+		close(ch)
+	}
+
+	return ch
+}
+
+func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return m.emitter.EmitAuditEvent(ctx, event)
 }
 
 type trackerService struct {
