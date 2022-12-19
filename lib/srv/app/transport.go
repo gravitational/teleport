@@ -115,7 +115,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 		c:            c,
 		uri:          uri,
 		tr:           tr,
-		ws:           newWebsocketTransport(uri, tr.TLSClientConfig),
+		ws:           newWebsocketTransport(uri, tr.TLSClientConfig.Clone()),
 	}, nil
 }
 
