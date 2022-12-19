@@ -43,6 +43,7 @@ type adSID struct {
 	RelativeID        *int
 }
 
+// String value is: S-Revision-Authority-SubAuthority[n]...
 func (sid adSID) String() string {
 	s := fmt.Sprintf("S-%d-%d", sid.RevisionLevel, sid.Authority)
 	for _, v := range sid.SubAuthorities {
@@ -51,6 +52,13 @@ func (sid adSID) String() string {
 	return s
 }
 
+// The binary data is in the form:
+// byte[0] - revision level
+// byte[1] - count of sub-authorities
+// byte[2-7] - 48-bit authority (big-endian)
+// and then count x 32-bit sub authorities (little-endian)
+//
+// Based on code from here: http://www.adamretter.org.uk/blog/entries/active-directory-ldap-users-primary-group.xml
 func decodeADSID(b []byte) (adSID, error) {
 	len := len(b)
 	if len < 8 {
@@ -59,12 +67,14 @@ func decodeADSID(b []byte) (adSID, error) {
 	var sid adSID
 
 	sid.RevisionLevel = int(b[0])
-	sid.SubAuthorityCount = int(b[1]) & 0xFF
+	sid.SubAuthorityCount = int(b[1])
 
+	// Get the 48-bit, big-endian authority
 	for i := 2; i <= 7; i++ {
 		sid.Authority = sid.Authority | int(b[i])<<(8*(5-(i-2)))
 	}
 
+	// Get the SubAuthorityCount number of 32-bit, little-endian sub authorities
 	var offset = 8
 	var size = 4
 	for i := 0; i < sid.SubAuthorityCount; i++ {
@@ -74,7 +84,7 @@ func decodeADSID(b []byte) (adSID, error) {
 			if index >= len {
 				return adSID{}, trace.BadParameter("AD SID response was too short to decode")
 			}
-			subAuthority = subAuthority | (int(b[index])&0xFF)<<(8*k)
+			subAuthority = subAuthority | (int(b[index]))<<(8*k)
 		}
 		sid.SubAuthorities = append(sid.SubAuthorities, subAuthority)
 		offset += size
