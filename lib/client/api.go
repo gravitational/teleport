@@ -3590,7 +3590,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 }
 
 // AttemptDeviceLogin attempts device authentication for the current device.
-// It expects to receive the latest activated [key], as acquired via
+// It expects to receive the latest activated key, as acquired via
 // [TeleportClient.Login], and augments the certificates within the key with
 // device extensions.
 //
