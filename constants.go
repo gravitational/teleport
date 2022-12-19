@@ -472,6 +472,13 @@ const (
 	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
 	// private key policy.
 	CertExtensionPrivateKeyPolicy = "private-key-policy"
+	// CertExtensionDeviceID is the trusted device identifier.
+	CertExtensionDeviceID = "teleport-device-id"
+	// CertExtensionDeviceAssetTag is the device inventory identifier.
+	CertExtensionDeviceAssetTag = "teleport-device-asset-tag"
+	// CertExtensionDeviceCredentialID is the identifier for the credential used
+	// by the device to authenticate itself.
+	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -571,6 +578,10 @@ const (
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
+
+	// TraitInternalAzureIdentities is the variable used to store allowed
+	// Azure identities for local accounts.
+	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
 
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.

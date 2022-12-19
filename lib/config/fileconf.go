@@ -803,7 +803,7 @@ type Auth struct {
 	// environments where paranoid security is not needed
 	//
 	// Each token string has the following format: "role1,role2,..:token",
-	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
+	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
 	// Authentication holds authentication configuration information like authentication
@@ -887,6 +887,30 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+}
+
+// hasCustomNetworkingConfig returns true if any of the networking
+// configuration fields have values different from an empty Auth.
+func (a *Auth) hasCustomNetworkingConfig() bool {
+	empty := Auth{}
+	return a.ClientIdleTimeout != empty.ClientIdleTimeout ||
+		a.ClientIdleTimeoutMessage != empty.ClientIdleTimeoutMessage ||
+		a.WebIdleTimeout != empty.WebIdleTimeout ||
+		a.KeepAliveInterval != empty.KeepAliveInterval ||
+		a.KeepAliveCountMax != empty.KeepAliveCountMax ||
+		a.SessionControlTimeout != empty.SessionControlTimeout ||
+		a.ProxyListenerMode != empty.ProxyListenerMode ||
+		a.RoutingStrategy != empty.RoutingStrategy ||
+		a.TunnelStrategy != empty.TunnelStrategy ||
+		a.ProxyPingInterval != empty.ProxyPingInterval
+}
+
+// hasCustomSessionRecording returns true if any of the session recording
+// configuration fields have values different from an empty Auth.
+func (a *Auth) hasCustomSessionRecording() bool {
+	empty := Auth{}
+	return a.SessionRecording != empty.SessionRecording ||
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1536,7 +1560,7 @@ type DatabaseAWS struct {
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
-	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_severless"`
+	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1636,6 +1660,9 @@ type App struct {
 
 	// AWS contains additional options for AWS applications.
 	AWS *AppAWS `yaml:"aws,omitempty"`
+
+	// Cloud identifies the cloud instance the app represents.
+	Cloud string `yaml:"cloud,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

@@ -1135,6 +1135,73 @@ func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.De
 	return &emptypb.Empty{}, nil
 }
 
+// GetAllDatabaseServices returns all registered DatabaseServices.
+func (g *GRPCServer) GetAllDatabaseServices(ctx context.Context, _ *proto.GetAllDatabaseServicesRequest) (*proto.DatabaseServiceV1List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbs, err := auth.GetAllDatabaseServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ret := &proto.DatabaseServiceV1List{
+		Services: make([]*types.DatabaseServiceV1, len(dbs)),
+	}
+	for i, db := range dbs {
+		dbServiceV1, ok := db.(*types.DatabaseServiceV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected DatabaseService type: %T", db)
+		}
+		ret.Services[i] = dbServiceV1
+	}
+	return ret, nil
+}
+
+// UpsertDatabaseService registers a new database service.
+func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.UpsertDatabaseService(ctx, req.Service)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteDatabaseService removes the specified DatabaseService.
+func (g *GRPCServer) DeleteDatabaseService(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeleteDatabaseService(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllDatabaseServices removes all registered DatabaseServices.
+func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *proto.DeleteAllDatabaseServicesRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeleteAllDatabaseServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
@@ -1372,10 +1439,11 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 	}
 
 	session, err := auth.CreateAppSession(ctx, types.CreateAppSessionRequest{
-		Username:    req.GetUsername(),
-		PublicAddr:  req.GetPublicAddr(),
-		ClusterName: req.GetClusterName(),
-		AWSRoleARN:  req.GetAWSRoleARN(),
+		Username:      req.GetUsername(),
+		PublicAddr:    req.GetPublicAddr(),
+		ClusterName:   req.GetClusterName(),
+		AWSRoleARN:    req.GetAWSRoleARN(),
+		AzureIdentity: req.GetAzureIdentity(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

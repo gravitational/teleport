@@ -214,6 +214,65 @@ app_service:
   enabled: no
 `
 
+// DefaultAuthResourcesConfigString is a configuration file without
+// `cluster_auth_preference`, `cluster_networking_config` and `session_recording` fields.
+const DefaultAuthResourcesConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+`
+
+// CustomAuthPreferenceConfigString is a configuration file with a single
+// `cluster_auth_preference` field.
+const CustomAuthPreferenceConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  disconnect_expired_cert: true
+`
+
+// AuthPreferenceConfigWithMOTDString is a configuration file with the
+// `message_of_the_day` `cluster_auth_preference` field.
+const AuthPreferenceConfigWithMOTDString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  message_of_the_day: "welcome!"
+`
+
+// CustomNetworkingConfigString is a configuration file with a single
+// `cluster_networking_config` field.
+const CustomNetworkingConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  web_idle_timeout: 10s
+`
+
+// CustomSessionRecordingConfigString is a configuration file with a single
+// `session_recording` field.
+const CustomSessionRecordingConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  proxy_checks_host_keys: true
+`
+
 // configWithFIPSKex is a configuration file with a FIPS compliant KEX
 // algorithm.
 const configWithFIPSKex = `

@@ -3,8 +3,6 @@ title: Application Access Role-Based Access Control
 description: Role-Based Access Control (RBAC) for Teleport Application Access.
 ---
 
-# Application Access Role-Based Access Control
-
 This article describes Access Control concepts particularly relevant to Teleport Application Access.
 
 ## Assigning labels to applications
@@ -68,6 +66,68 @@ allow:
     env: "{{external.env}}"
     group: "{{external.group}}"
 ```
+
+## Enabling a user to access Azure managed identities
+
+You can authorize your Teleport user to assume an Azure identity and execute
+Azure CLI commands via Teleport. To do so, define a role with the
+`spec.allow.azure_identities` field, as shown below:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: azure-cli-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    azure_identities:
+      - /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+
+```
+
+Modify the `spec.allow.azure_identities` field so that each item is the full URI
+of an Azure managed identity that you would like to enable users with this role
+to assume. The example above allows the user to assume the `teleport-azure`
+identity. 
+
+Another approach is to define a user's permitted Azure identities by configuring
+each user separately. To do so, create a role with one element within
+`azure_identities` set to the template variable `{{internal.azure_identities}}`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: azure-cli-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    azure_identities:
+      - '{{internal.azure_identities}}'
+```
+
+In this case, when a user authenticates to the Azure CLI via Teleport, the
+Teleport Auth Service populates the `{{internal.azure_identities}}` template
+variable with any Azure identities you have assigned to the user.
+
+To assign Azure identities to a user, run a `tctl users update` command similar
+to the following:
+
+```code
+$ tctl users update myuser --set-azure-identities \
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1,\
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2
+```
+
+This command uses the `--set-azure-identities` flag to add Azure identities to a
+user. The value of this flag is a comma-separated list of Azure identity URIs.
+
+See our [Azure
+CLI](./guides/azure.mdx#step-34-enable-your-user-to-access-azure-clis) guide
+for more information on enabling access to Azure managed identities.
 
 ## Next steps
 

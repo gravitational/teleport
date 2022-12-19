@@ -62,6 +62,9 @@ type AccessChecker interface {
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
 
+	// CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
+	CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error)
+
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
