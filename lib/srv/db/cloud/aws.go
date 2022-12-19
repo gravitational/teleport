@@ -195,7 +195,7 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 	}
 
 	if len(placeholders) > 0 {
-		r.log.Warnf("Placeholders %q are found when configuring the IAM policy for database %v. Please make sure the database agent has the IAM permissions to fetch cloud metadata, or make sure these values are set in the static config.",
+		r.log.Warnf("Please make sure the database agent has the IAM permissions to fetch cloud metadata, or make sure these values are set in the static config. Placeholders %q are found when configuring the IAM policy for database %v.",
 			placeholders, r.cfg.database.GetName())
 	}
 	return nil
