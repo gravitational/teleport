@@ -4429,8 +4429,13 @@ message DatabaseServiceV1 {
 // DatabaseServiceSpecV1 is the DatabaseService Spec.
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
-  repeated wrappers.LabelValues ResourceMatchers = 1 [
-    (gogoproto.jsontag) = "resources",
+  repeated ResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+}
+
+// ResourceMatcher is a set of properties that is used to match on resources.
+message ResourceMatcher {
+  wrappers.LabelValues labels = 1 [
+    (gogoproto.jsontag) = "labels",
     (gogoproto.customtype) = "Labels"
   ];
 }
