@@ -1143,6 +1143,11 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
 
+	// run one upload completer per-process
+	// even in sync recording modes, since the recording mode can be changed
+	// at any time with dynamic configuration
+	process.RegisterFunc("common.upload", process.initUploaderService)
+
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
 	}
@@ -1273,8 +1278,11 @@ func adminCreds() (*int, *int, error) {
 	return &uid, &gid, nil
 }
 
-// initUploadHandler initializes upload handler based on the config settings,
-func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
+// initAuthUploadHandler initializes the auth server's upload handler based upon the configuration.
+// When configured to store session recordings in external storage, this will be an API client for
+// cloud-provider storage. Otherwise a local file-based handler is used which stores the recordings
+// on disk.
+func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
 	if !auditConfig.ShouldUploadSessions() {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
@@ -1469,7 +1477,7 @@ func (process *TeleportProcess) initAuthService() error {
 			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
 		}
 
-		uploadHandler, err = initUploadHandler(
+		uploadHandler, err = initAuthUploadHandler(
 			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -1626,8 +1634,10 @@ func (process *TeleportProcess) initAuthService() error {
 
 	process.setLocalAuth(authServer)
 
-	// Upload completer is responsible for checking for initiated but abandoned
-	// session uploads and completing them. it will be closed once the process exits.
+	// The auth server runs its own upload completer, which is necessary in sync recording modes where
+	// a node can abandon an upload before it is competed.
+	// (In async recording modes, auth only ever sees completed uploads, as the node's upload completer
+	// packages up the parts into a single upload before sending to auth)
 	if uploadHandler != nil {
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
@@ -2368,23 +2378,6 @@ func (process *TeleportProcess) initSSH() error {
 		}
 		defer func() { warnOnErr(s.Close(), log) }()
 
-		// init uploader service for recording SSH node, if proxy is not
-		// enabled on this node, because proxy stars uploader service as well
-		if !cfg.Proxy.Enabled {
-			uploaderCfg := filesessions.UploaderConfig{
-				Streamer: authClient,
-				AuditLog: conn.Client,
-			}
-			completerCfg := events.UploadCompleterConfig{
-				SessionTracker: conn.Client,
-				GracePeriod:    defaults.UploadGracePeriod,
-				ClusterName:    conn.ServerIdentity.ClusterName,
-			}
-			if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
 		var agentPool *reversetunnel.AgentPool
 		if !conn.UseTunnel() {
 			listener, err := process.importOrCreateListener(listenerNodeSSH, cfg.SSH.Addr.Addr)
@@ -2483,12 +2476,43 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 	})
 }
 
-// initUploadService starts a file-based uploader that scans the local streaming logs directory
+// initUploaderService starts a file-based uploader that scans the local streaming logs directory
 // (data/log/upload/streaming/default/)
-func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.UploaderConfig, completerCfg events.UploadCompleterConfig) error {
+func (process *TeleportProcess) initUploaderService() error {
 	log := process.log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
+		trace.Component: teleport.Component(teleport.ComponentUpload, process.id),
 	})
+
+	if _, err := process.WaitForEvent(process.ExitContext(), TeleportReadyEvent); err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("starting upload completer service")
+
+	connectors := process.getConnectors()
+	var conn *Connector
+	for _, c := range connectors {
+		if c.Client != nil {
+			conn = c
+			log.Debugf("upload completer will use role %v", c.ServerIdentity.ID.Role)
+			break
+		}
+	}
+
+	// The auth service's upload completer is initialized separately.
+	// The only circumstance in which we would expect not to have found
+	// a connector is if the auth service is the only service running in
+	// this process. In that case, there's nothing to do here and we can
+	// safely return.
+	if conn == nil {
+		for _, localService := range types.LocalServiceMappings() {
+			if localService != types.RoleAuth && process.instanceRoleExpected(localService) {
+				return trace.BadParameter("no connectors found")
+			}
+		}
+		return nil
+	}
+
 	// create folder for uploads
 	uid, gid, err := adminCreds()
 	if err != nil {
@@ -2516,9 +2540,13 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 		}
 	}
 
-	uploaderCfg.ScanDir = filepath.Join(path...)
-	uploaderCfg.EventsC = process.Config.UploadEventsC
-	fileUploader, err := filesessions.NewUploader(uploaderCfg)
+	uploadsDir := filepath.Join(path...)
+
+	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
+		Streamer: conn.Client,
+		ScanDir:  uploadsDir,
+		EventsC:  process.Config.UploadEventsC,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2541,16 +2569,21 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 	// upload completer scans for uploads that have been initiated, but not completed
 	// by the client (aborted or crashed) and completes them. It will be closed once
 	// the uploader context is closed.
-	handler, err := filesessions.NewHandler(filesessions.Config{
-		Directory: filepath.Join(path...),
-	})
+	handler, err := filesessions.NewHandler(filesessions.Config{Directory: uploadsDir})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	completerCfg.Uploader = handler
-	completerCfg.AuditLog = uploaderCfg.AuditLog
-	uploadCompleter, err := events.NewUploadCompleter(completerCfg)
+	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Uploader:       handler,
+		AuditLog:       conn.Client,
+		SessionTracker: conn.Client,
+		ClusterName:    conn.ServerIdentity.ClusterName,
+		// DELETE IN 11.0.0
+		// Provide a grace period so that Auth does not prematurely upload
+		// sessions which don't have a session tracker (v9.2 and earlier)
+		GracePeriod: defaults.UploadGracePeriod,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4040,17 +4073,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Infof("Exited.")
 	})
 
-	uploaderCfg := filesessions.UploaderConfig{
-		Streamer: accessPoint,
-		AuditLog: conn.Client,
-	}
-	completerCfg := events.UploadCompleterConfig{
-		SessionTracker: conn.Client,
-		ClusterName:    clusterName,
-	}
-	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -4430,20 +4452,6 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		clusterName := conn.ServerIdentity.ClusterName
-
-		// Start uploader that will scan a path on disk and upload completed
-		// sessions to the Auth Server.
-		uploaderCfg := filesessions.UploaderConfig{
-			Streamer: accessPoint,
-			AuditLog: conn.Client,
-		}
-		completerCfg := events.UploadCompleterConfig{
-			SessionTracker: conn.Client,
-			ClusterName:    clusterName,
-		}
-		if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-			return trace.Wrap(err)
-		}
 
 		// Start header dumping debugging application if requested.
 		if process.Config.Apps.DebugApp {
