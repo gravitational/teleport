@@ -180,7 +180,7 @@ labels: {}
 # (3) When set to "scratch", you must write the teleport configuration in auth.teleportConfig and proxy.teleportConfig.
 chartMode: standalone
 
-# validateConfigOnDeploy enables a Kubernetes job brefore install and upgrade that will verify
+# validateConfigOnDeploy enables a Kubernetes job before install and upgrade that will verify
 # if the teleport.yaml configuration is valid and will block the deployment if it is not
 validateConfigOnDeploy: true
 
