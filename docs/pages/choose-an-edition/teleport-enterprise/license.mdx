@@ -6,6 +6,8 @@ description: How to manage your Teleport Enterprise license file.
 Self-hosted Teleport Enterprise subscriptions require a valid license. In this
 guide, we will show you how to manage your Teleport Enterprise license file.
 
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
 ## Managing your license file
 
 In a self-hosted Teleport Enterprise cluster, the Teleport Auth Service reads a
@@ -89,7 +91,7 @@ $ openssl x509 -text -in license.pem | grep "Not After"
 ### Renew or update your license
 
 If you have changed your license agreement with Teleport, e.g., you have added
-or removed support for a feature, you must obtain your license file again and
+or removed support for a feature, you must obtain an updated license file and
 replace your existing license file on all Teleport Auth Service instances. You
 must also obtain a new license file after renewing your Teleport Enterprise
 license.
@@ -139,12 +141,10 @@ Attempts to authenticate to Teleport via Single Sign-On connectors will fail.
 ## Unlicensed Teleport features
 
 If users attempt to use a Teleport feature that your license does not allow,
-they will see an error message. For example, if you attempt to use Database
-Access without it being included in the license, you will get a message similar
-to:
+they will see an error message. For example, if you attempt to use a SAML
+authentication connector without a Teleport Enterprise license, you will see the
+following error:
 
 ```text
-this Teleport cluster is not licensed for database access, please contact the cluster administrator
+SAML: this feature requires Teleport Enterprise
 ```
-
-
