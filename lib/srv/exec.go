@@ -364,6 +364,11 @@ func (e *remoteExec) PID() int {
 	return 0
 }
 
+// emitExecAuditEvent emits either an SCP or exec event based on the
+// command run.
+//
+// Note: to ensure that the event is recorded ctx.session must be used
+// instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
 	serverMeta := apievents.ServerMetadata{
