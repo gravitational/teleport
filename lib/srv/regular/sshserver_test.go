@@ -1857,49 +1857,6 @@ func TestServerAliveInterval(t *testing.T) {
 	require.True(t, ok)
 }
 
-// TestGlobalRequestRecordingProxy simulates sending a global out-of-band
-// recording-proxy@teleport.com request.
-func TestGlobalRequestRecordingProxy(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	f := newFixture(t)
-
-	// set cluster config to record at the node
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
-	})
-	require.NoError(t, err)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
-
-	// send the request again, we have cluster config and when we parse the
-	// response, it should be false because recording is occurring at the node.
-	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
-	require.NoError(t, err)
-	require.True(t, ok)
-	response, err := strconv.ParseBool(string(responseBytes))
-	require.NoError(t, err)
-	require.False(t, response)
-
-	// set cluster config to record at the proxy
-	recConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtProxy,
-	})
-	require.NoError(t, err)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
-
-	// send request again, now that we have cluster config and it's set to record
-	// at the proxy, we should return true and when we parse the payload it should
-	// also be true
-	ok, responseBytes, err = f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
-	require.NoError(t, err)
-	require.True(t, ok)
-	response, err = strconv.ParseBool(string(responseBytes))
-	require.NoError(t, err)
-	require.True(t, response)
-}
-
 // TestGlobalRequestClusterDetails simulates sending a global out-of-band
 // cluster-details@goteleport.com request.
 func TestGlobalRequestClusterDetails(t *testing.T) {
@@ -2203,12 +2160,14 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that the proxy is in recording mode
-	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
+	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
-	response, err := strconv.ParseBool(string(responseBytes))
+
+	var details sshutils.ClusterDetails
+	require.NoError(t, ssh.Unmarshal(responseBytes, &details))
 	require.NoError(t, err)
-	require.True(t, response)
+	require.True(t, details.RecordingProxy)
 
 	// setup our fake X11 echo server.
 	x11Ctx, x11Cancel := context.WithCancel(ctx)
