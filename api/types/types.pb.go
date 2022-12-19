@@ -3099,6 +3099,10 @@ type ProvisionTokenSpecV2GitHub struct {
 	// GitHub Enterprise Server instance. When unconfigured, tokens will be
 	// validated against github.com, but when configured to the host of a GHES
 	// instance, then the tokens will be validated against host.
+	//
+	// This value should be the hostname of the GHES instance, and should not
+	// include the scheme or a path. The instance must be accessible over HTTPS
+	// at this hostname and the certificate must be trusted by the Auth Server.
 	EnterpriseServerHost string   `protobuf:"bytes,2,opt,name=EnterpriseServerHost,proto3" json:"enterprise_server_host,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

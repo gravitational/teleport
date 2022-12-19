@@ -1063,6 +1063,10 @@ message ProvisionTokenSpecV2GitHub {
   // GitHub Enterprise Server instance. When unconfigured, tokens will be
   // validated against github.com, but when configured to the host of a GHES
   // instance, then the tokens will be validated against host.
+  //
+  // This value should be the hostname of the GHES instance, and should not
+  // include the scheme or a path. The instance must be accessible over HTTPS
+  // at this hostname and the certificate must be trusted by the Auth Server.
   string EnterpriseServerHost = 2 [(gogoproto.jsontag) = "enterprise_server_host,omitempty"];
 }
 
