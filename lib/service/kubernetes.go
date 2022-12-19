@@ -40,7 +40,7 @@ func (process *TeleportProcess) initKubernetes() {
 		trace.Component: teleport.Component(teleport.ComponentKube, process.id),
 	})
 
-	process.registerWithAuthServer(types.RoleKube, KubeIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		conn, err := process.waitForConnector(KubeIdentityEvent, log)
 		if conn == nil {

@@ -30,7 +30,7 @@ func (process *TeleportProcess) shouldInitDiscovery() bool {
 }
 
 func (process *TeleportProcess) initDiscovery() {
-	process.registerWithAuthServer(types.RoleDiscovery, DiscoveryIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleDiscovery, DiscoveryIdentityEvent)
 	process.RegisterCriticalFunc("discovery.init", process.initDiscoveryService)
 }
 
