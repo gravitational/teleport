@@ -16,8 +16,7 @@ limitations under the License.
 
 package main
 
-//nolint:goimports
-
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"flag"
 	"os"
@@ -28,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -43,6 +41,7 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
 	"github.com/gravitational/teleport/operator/sidecar"
+	//+kubebuilder:scaffold:imports
 )
 
 var (
@@ -91,7 +90,7 @@ func main() {
 
 	syncPeriod, err := time.ParseDuration(syncPeriodString)
 	if err != nil {
-		setupLog.Error(err, "invalid sync-period, please ensure the value is currectly parsed with https://pkg.go.dev/time#ParseDuration")
+		setupLog.Error(err, "invalid sync-period, please ensure the value is correctly parsed with https://pkg.go.dev/time#ParseDuration")
 		os.Exit(1)
 	}
 

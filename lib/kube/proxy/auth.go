@@ -14,8 +14,7 @@
 
 package proxy
 
-//nolint:goimports
-
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"fmt"
@@ -28,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
