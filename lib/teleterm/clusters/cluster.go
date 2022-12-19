@@ -63,6 +63,8 @@ func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
 }
 
+// GetClusterDetails makes a request to the auth client to retrieve details about the cluster
+// including enterprise features and logged in user's capabilities.
 func (c *Cluster) GetClusterDetails(ctx context.Context) (*GetClusterDetailsResponse, error) {
 	var (
 		authClient   auth.ClientI
