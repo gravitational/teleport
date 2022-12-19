@@ -24,7 +24,7 @@
 //     that matches both the workflow file and source code revision targeted
 //     by the event. Use this method if you have no control over the target
 //     workflow. This method is inherently racy, but the workflow file and ref
-//     checks should protect it cases like merge builds, where every build is
+//     checks should protect in cases like merge builds, where every build is
 //     from a different source revision.
 //
 //  2. Adding an extra `workflow-tag` key to the event inputs. The tool will
@@ -110,7 +110,7 @@ func main() {
 
 	conclusion, err := github.WaitForRun(ctx, gh.Actions, args.owner, args.repo, args.workflow, args.workflowRef, run.GetID())
 	if err != nil {
-		log.Fatalf("Failed to waiting for run to exit %s", err)
+		log.Fatalf("Failed to wait for run to exit %s", err)
 	}
 
 	if conclusion != "success" {
