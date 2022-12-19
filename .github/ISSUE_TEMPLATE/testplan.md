@@ -1052,6 +1052,17 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify that all 5000 sessions are able to be established.
 - [ ] Verify that tsh and the web UI are still functional.
 
+### Robustness
+
+* Connectivity Issues:
+
+- [ ] Verify that a lack of connectivity to Auth does not prevent access to
+  resources which do not require a moderated session and in async recording
+  mode from an already issued certificate.
+- [ ] Verify that a lack of connectivity to Auth prevents access to resources
+  which require a moderated session and in async recording mode from an already
+  issued certificate.
+
 ## Teleport with Cloud Providers
 
 ### AWS
