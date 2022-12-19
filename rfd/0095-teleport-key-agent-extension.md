@@ -33,7 +33,55 @@ To improve UX, we can add an option via an env variable - `TELEPORT_FORWARD_AGEN
 
 #### `tsh` Profile
 
-When using `tsh ssh -o "ForwardAgent local"`, the user's local `~/.tsh` profile will be forwarded through a new SSH Agent extension. This will include the current profile and the `yaml` files for each available profile on the local host. Only profiles with a corresponding forwarded ssh agent key will be returned by the forwarded agent. This will lead to seamless UX between local and remote sessions.
+When using `tsh ssh -o "ForwardAgent local"`, the user's active `tsh` profile will be forwarded through a new SSH agent extension. This will include the current profile name, profile `yaml` file, client certificates, and trusted CA certificates. In the remote session, `tsh` will see an empty `~/.tsh` directory and instead check for the forwarded ssh agent for profile and certificate data. Each call to `tsh` will use the forwarded profile and certificates to carry out requests.
+
+Within a remote agent forwarding session, user's can continue to forward their `tsh` profile by using `tsh ssh -A`. We use normal agent forwarding instead of "local" agent forwarding because on the remote host we want to forward the existing `$SSH_AUTH_SOCK`, which is connected to the user's local agent and has access to their local certificates.
+
+```bash
+$ tsh login --user=dev --proxy=proxy.example.com:3080
+Enter password for Teleport user dev:
+> Profile URL:        https://proxy.example.com:3080
+  Logged in as:       dev
+  Cluster:            root-cluster
+  Roles:              dev
+  Logins:             dev, -teleport-internal-join
+  ...
+  
+$ tsh ssh -o "ForwardAgent local" server01
+### successfully connect
+
+<server01> $ ls ~/.tsh
+# empty
+
+<server01> $ tsh status
+> Profile URL:        https://proxy.example.com:3080
+  Logged in as:       dev
+  Cluster:            root-cluster
+  Roles:              dev
+  Logins:             dev, -teleport-internal-join
+  ...
+
+$ tsh ls
+Node Name Address        Labels                                                                             
+--------- -------------- --------------------------------
+server01  127.0.0.1:3022 arch=x86_64,cluster=root-cluster
+server02  127.0.0.1:3022 arch=x86_64,cluster=root-cluster
+
+tsh ssh -o "ForwardAgent local" server02
+### successfully connect
+```
+
+The remote session will only have access to the client certificates used for the current session, rather than the entirety of `~/tsh`. Additionally, these certificates will only be returned by the forwarded agent if the corresponding agent keys are also still available. This means that if the local uses `tsh logout` or changes profiles (`tsh login other-cluster`), the remote session will no longer have access to the `tsh` profile.
+
+```bash
+$ tsh ssh -o "ForwardAgent local" server01
+### successfully connect
+
+### switch tabs and `tsh logout` locally
+
+<server01> $ tsh status
+ERROR: Not logged in.
+```
 
 ### Teleport Key Agent Changes
 
@@ -53,49 +101,61 @@ Extension requests consist of:
 
 An Extension response can be any custom message, but failures should result in `SSH_AGENT_EXTENSION_FAILURE`. Unsupported extensions should result in an `SSH_AGENT_FAILURE` response to differentiate from actual extension failures.
 
-**List Profiles Extension:**
+**Key Extension:**
 
-This extension requests `tsh` profile information, including the current profile and profile yaml files.
-
-        byte            SSH_AGENTC_EXTENSION
-        string          list-profiles@goteleport.com  
-
-The returned profile information can be used by `tsh` to initiate new Teleport clients.
-
-        byte            SSH_AGENT_SUCCESS
-        string          current profile name
-        byte[]          profiles blob (json)
-
-Where profiles blob is a json encoded `[]api/profile.Profile`.
-
-Note: The underlying `api/profile.Profile` struct is subject to change, so there is a possibility of backwards compatibility concerns. However, this backwards compatibility should be handled already since the same issue exists for `~/.tsh` profile yaml files.
-
-**List Keys Extension:**
-
-This extension requests a list of keys matching the given key index. Partial key indexes can be provided to return partial matches.
+This extension requests a forwarded key, holding the `tsh` profile and certificates for the current forwarded session.
 
         byte            SSH_AGENTC_EXTENSION
-        string          list-keys@goteleport.com
-        keyIndex[]      key index
+        string          key@goteleport.com
 
-Where a keyIndex consists of:
-
-        string          proxy host       
-        string          cluster name
-        string          username
-
-The returned keys can be used in concert with the signers available through the SSH agent to perform TLS and SSH handshakes.
+The returned profile and certificates can be used in concert with the `sign@goteleport.com` extension to perform standard cryptographic operations, such as TLS handshakes.
 
         byte            SSH_AGENT_SUCCESS
-        key[]           keys
-        byte[]          known hosts
+        byte[]          profile blob (json)
+        byte[]          certificates blob (json)
 
-Where a key consists of:
+Where profile blob is a json encoded `Profile` and certificates blob is a json encoded `ClientCertificates`:
 
-        keyIndex        key index
-        byte[]          SSH certificate
-        byte[]          TLS certificate
-        byte[][]        Trusted CA TLS certificates
+```go
+type Profile struct {
+        WebProxyAddr          string `json:"web_proxy_addr,omitempty"`
+        SSHProxyAddr          string `json:"ssh_proxy_addr,omitempty"`
+        KubeProxyAddr         string `json:"kube_proxy_addr,omitempty"`
+        PostgresProxyAddr     string `json:"postgres_proxy_addr,omitempty"`
+        MySQLProxyAddr        string `json:"mysql_proxy_addr,omitempty"`
+        MongoProxyAddr        string `json:"mongo_proxy_addr,omitempty"`
+        Username              string `json:"user,omitempty"`
+        SiteName              string `json:"cluster,omitempty"`
+        ForwardedPorts        []string `json:"forward_ports,omitempty"`
+        DynamicForwardedPorts []string `json:"dynamic_forward_ports,omitempty"`
+        Dir                   string `json:"dir,omitempty"`
+        TLSRoutingEnabled     bool `json:"tls_routing_enabled,omitempty"`
+        AuthConnector         string `json:"auth_connector,omitempty"`
+        LoadAllCAs            bool `json:"load_all_cas,omitempty"`
+        MFAMode               string `json:"mfa_mode,omitempty"`
+}
+
+type ClientCertificates struct {
+        KeyIndex `json:"key_index"`
+        SSHCert      []byte `json:"ssh_cert"`
+        TLSCert      []byte `json:"tls_cert"`
+        TrustedCerts []TrustedCerts `json:"trusted_certs"`
+}
+
+type KeyIndex struct {
+        ProxyHost   string `json:"proxy_host"`
+        Username    string `json:"username"`
+        ClusterName string `json:"cluster_name"`
+}
+
+type TrustedCerts struct {
+        ClusterName      string `json:"domain_name"`
+        HostCertificates [][]byte `json:"checking_keys"`
+        TLSCertificates  [][]byte `json:"tls_certs"`
+}
+```
+
+Note: The underlying `teleport/api/profile.Profile` struct is subject to change, so there is a possibility of backwards compatibility concerns. However, this backwards compatibility should be handled already since the same concern is already applied for `~/.tsh` profile yaml files.
 
 **Sign Extension:**
 
@@ -125,7 +185,7 @@ Salt length can be empty for algorithms that don't use a salt, or a positive int
 This extension can be used to issue an MFA challenge prompt to the user's local machine, which enables support for MFA functionality including `tsh` MFA login and per-session MFA verification.
 
         byte            SSH_AGENTC_EXTENSION
-        string          add-mfa-key@goteleport.com
+        string          prompt-mfa-challenge@goteleport.com
         string          proxy address
         []byte          challenge blob (json)
 
@@ -144,13 +204,27 @@ Note: The protobuf structs used above are subject to change, which may lead to b
 
 #### SSH Agent Forwarding Risks
 
-SSH Agent forwarding introduces an inherent risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with OS permissions equal to or above the remote user. Still, these forwarded keys can only be used as long as the user maintains the agent forwarding sessions, since agent forwarding does not allow keys to be exported (only certificates). This security principle constrains some potential options, such as providing the user's raw private key via the `list-keys@goteleport.com` extension.
+SSH Agent forwarding introduces an inherent risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with OS permissions equal to or above the remote user. Still, these forwarded keys can only be used as long as the user maintains the agent forwarding sessions, since agent forwarding does not allow keys to be exported (only certificates). This security principle constrains some potential options, such as providing the user's raw private key via the `key@goteleport.com` extension.
 
-However, even with the new extensions constrained in this way, a user can abuse the forwarded agent to reissue certificates with new private keys held on the remote host. This raises a security concern that is not present in standard ssh agent forwarding, since the user's login session can essentially be exported to the remote host via a reissue command, rather than being contingent on the forwarding agent session providing access to a private key on the local host.
+However, even with the new extensions constrained in this way, a user can abuse the forwarded agent to reissue certificates with new private keys held on the remote host. This can easily be done with the `GenerateUserCerts` rpc.
+
+This raises a security concern that is not present in standard ssh agent forwarding, since the user's login session can essentially be exported to the remote host via a reissue command, rather than being contingent on the forwarding agent session providing access to a private key on the local host.
 
 For this reason, we may want to consider limiting certificate reissue commands to using the same public key as the active identity, or at least limit the TTL of non-matching certificates to just 1 minute. These restrictions may impact other features, including remote kubernetes support, so it is not currently planned.
 
 ### Additional Considerations
+
+#### Syncing local/remote `tsh` profiles
+
+Instead of only forwarding a single `tsh` profile in a remote forwarding session, we could forward a user's entire `~/.tsh` and keep their local and remote `tsh` profile synced. This means that the remote session would follow the local `tsh` profile through profile switches, log outs, new log ins, etc. It could even be possible to perform these actions from the remote session. This experience would also be more in line with OpenSSH agent forwarding, which forwards all keys in the user's `~/.ssh` directory.
+
+While this would provide the most seamless UX experience between local and remote sessions, this approach would increase the security risk of local agent forwarding. For example, if a user two active `tsh` profiles, one for administration and one for basic operations, the user could `tsh ssh -o "ForwardAgent local"` into a widely accessible server. The user's administrative `tsh` profile could potentially be used through their forward agent connection, due to the inherent risks of ssh agent forwarding.
+
+If we were to enable this functionality, we would need to do one or both of the following:
+
+1) Make this feature opt-in, with a new forwarding option. e.g. `ForwardAgent local-all`
+
+2) Implement agent restrictions similar to [OpenSSH's agent restrictions](https://www.openssh.com/agent-restrict.html#:~:text=Agent%20restriction%20in%20OpenSSH). This would be a more sophisticated approach that would provide a way to limit how forwarded keys can be used. This option would warrant a separate RFD.
 
 #### Kubernetes
 
@@ -170,6 +244,6 @@ For example, it is possible for `tsh proxy ssh` to handle the MFA verification b
 
 The ssh agent protocol also provides the ability to create custom [key constraint extension](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.2.6.3), which seemed like a promising option for adding Per-session MFA keys into the user's SSH agent. The idea would be that when the key is used for an ssh connection, it would prompt the user for MFA tap on demand.
 
-Unfortunately, in my testing this ended up not working as expected. The SSH agent will always be called first through it's `List` command, which looks at every key's public key together. Each key is then check for public key authentication, and passing keys will continue on to an SSH handshake. Since Per-session MFA is currently enforced by public key (SSH certificate) rather than key signature, the initial public key from the `List` command would need to have an MFA verified certificate already. This means that *every* ssh connection would prompt for MFA, including non-Teleport connections.
+Unfortunately, in my testing this ended up not working as expected. The SSH agent will always be called first through its `List` command, which looks at every key's public key together. Each key is then check for public key authentication, and passing keys will continue on to an SSH handshake. Since Per-session MFA is currently enforced by public key (SSH certificate) rather than key signature, the initial public key from the `List` command would need to have an MFA verified certificate already. This means that *every* ssh connection would prompt for MFA, including non-Teleport connections.
 
 The utilization of key constraint extensions might still be promising in the future. For example, SSH's own fido keys use a similar key constraint extension approach. However, with our current Per-session MFA system, this approach and all of the workaround necessary to make it work would do more harm than good.
