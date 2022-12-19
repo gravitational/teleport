@@ -64,7 +64,7 @@ func (c *Cluster) Connected() bool {
 }
 
 // GetClusterDetails makes a request to the auth client to retrieve details about the cluster
-// including enterprise features and logged in user's capabilities.
+// including enterprise features and the current logged in user's capabilities.
 func (c *Cluster) GetClusterDetails(ctx context.Context) (*GetClusterDetailsResponse, error) {
 	var (
 		authClient   auth.ClientI
