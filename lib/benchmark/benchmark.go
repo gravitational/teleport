@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
@@ -284,11 +283,11 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		c.SSHProxyAddr = proxy
 	}
 
-	keyStore, err := client.NewFSClientStore(profile.FullProfilePath(""))
+	profileStore, err := client.NewFSProfileStore("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := c.LoadProfile(keyStore, proxy); err != nil {
+	if err := c.LoadProfile(profileStore, proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tc, err := client.NewClient(&c)

@@ -60,3 +60,19 @@ func Deduplicate(in []string) []string {
 	}
 	return out
 }
+
+// DeduplicateBytes deduplicates list of bytes
+func DeduplicateBytes(in [][]byte) [][]byte {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([][]byte, 0, len(in))
+	seen := make(map[string]bool, len(in))
+	for _, val := range in {
+		if _, ok := seen[string(val)]; !ok {
+			out = append(out, val)
+			seen[string(val)] = true
+		}
+	}
+	return out
+}

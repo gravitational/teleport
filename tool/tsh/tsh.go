@@ -3108,7 +3108,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.JumpHosts = hosts
 	}
 
-	c.ClientStore, err = initKeyStore(cf, proxy)
+	c.ClientStore, err = initClientStore(cf, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3300,7 +3300,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	return tc, nil
 }
 
-func initKeyStore(cf *CLIConf, proxy string) (client.ClientStore, error) {
+func initClientStore(cf *CLIConf, proxy string) (*client.ClientStore, error) {
 	if cf.IdentityFileIn != "" {
 		keyStore, err := client.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
 		if err != nil {
@@ -3315,7 +3315,7 @@ func initKeyStore(cf *CLIConf, proxy string) (client.ClientStore, error) {
 		return client.NewMemClientStore(), nil
 	}
 
-	fsKeyStore, err := client.NewFSClientStore(cf.HomePath)
+	fsClientStore, err := client.NewFSClientStore(cf.HomePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3325,18 +3325,18 @@ func initKeyStore(cf *CLIConf, proxy string) (client.ClientStore, error) {
 	// tsh calls.
 	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {
 		memKeyStore := client.NewMemClientStore()
-		return client.NewClientStore(memKeyStore, memKeyStore, fsKeyStore), nil
+		return client.NewClientStore(memKeyStore, fsClientStore, fsClientStore), nil
 	}
 
-	return fsKeyStore, nil
+	return fsClientStore, nil
 }
 
 func (cf *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
-	keyStore, err := initKeyStore(cf, cf.Proxy)
+	clientStore, err := initClientStore(cf, cf.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	profile, err := client.ReadProfileStatus(keyStore, cf.Proxy)
+	profile, err := clientStore.ReadProfileStatus(cf.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3344,11 +3344,11 @@ func (cf *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 }
 
 func (cf *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
-	clientStore, err := initKeyStore(cf, cf.Proxy)
+	clientStore, err := initClientStore(cf, cf.Proxy)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	currentProfile, profiles, err := client.FullProfileStatus(clientStore)
+	currentProfile, profiles, err := clientStore.FullProfileStatus()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3943,7 +3943,7 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
 func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []string, dropRequests []string) error {
-	profile, err := client.ReadProfileStatus(tc.ClientStore, cf.Proxy)
+	profile, err := tc.ClientStore.ReadProfileStatus(cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}

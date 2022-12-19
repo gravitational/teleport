@@ -98,6 +98,15 @@ type Profile struct {
 	MFAMode string `yaml:"mfa_mode,omitempty"`
 }
 
+// Clone returns a shallow copy of p, or nil if p is nil.
+func (p *Profile) Clone() *Profile {
+	if p == nil {
+		return nil
+	}
+	copy := *p
+	return &copy
+}
+
 // Name returns the name of the profile.
 func (p *Profile) Name() string {
 	addr, _, err := net.SplitHostPort(p.WebProxyAddr)

@@ -239,7 +239,7 @@ type Config struct {
 	// Agent is used when SkipLocalAuth is true
 	Agent agent.ExtendedAgent
 
-	ClientStore ClientStore
+	ClientStore *ClientStore
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
 	ForwardAgent AgentForwardingMode
@@ -559,7 +559,7 @@ func IsErrorResolvableWithRelogin(err error) bool {
 // LoadProfile populates Config with the values stored in the given
 // profiles directory. If profileDir is an empty string, the default profile
 // directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ClientProfileStore, proxyAddr string) error {
+func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
@@ -970,15 +970,21 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			if len(c.AuthMethods) == 0 {
 				return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 			}
-			localAgentCfg.ClientStore = noClientStore{}
+			localAgentCfg.ClientStore = newNoClientStore()
 		} else {
+			fsClientStore, err := NewFSClientStore(c.KeysDir)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				localAgentCfg.ClientStore = NewMemClientStore()
+				// Store client keys in memory, but save trusted certs and profile to disk.
+				localAgentCfg.ClientStore = NewClientStore(
+					NewMemClientStore(),
+					fsClientStore.TrustedCertsStore,
+					fsClientStore.ProfileStore,
+				)
 			} else {
-				fsClientStore, err := NewFSClientStore(c.KeysDir)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
 				localAgentCfg.ClientStore = fsClientStore
 			}
 		}
@@ -998,7 +1004,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 }
 
 func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
-	status, err := ReadProfileStatus(tc.ClientStore, tc.WebProxyAddr)
+	status, err := tc.ClientStore.ReadProfileStatus(tc.WebProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3589,7 +3595,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
 
 	// Update the CA pool and known hosts for all CAs the cluster knows about.
-	err = tc.localAgent.AddTrustedCerts(trustedCerts)
+	err = tc.localAgent.SaveTrustedCerts(trustedCerts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3768,7 +3774,7 @@ func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthori
 		return trace.BadParameter("TeleportClient.AddTrustedCA called on a client without localAgent")
 	}
 
-	err := tc.localAgent.AddTrustedCerts(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
+	err := tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 	if err != nil {
 		return trace.Wrap(err)
 	}

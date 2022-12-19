@@ -185,13 +185,13 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	clusterNameForKey := profileName
 	clusterURI := uri.NewClusterURI(profileName)
 
-	keyStore, err := client.NewFSClientStore(s.Dir)
+	profileStsore, err := client.NewFSProfileStore(s.Dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	cfg := client.MakeDefaultConfig()
-	if err := cfg.LoadProfile(keyStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileStsore, profileName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cfg.KeysDir = s.Dir

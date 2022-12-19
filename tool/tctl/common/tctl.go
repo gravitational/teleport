@@ -361,13 +361,13 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 	return authConfig, nil
 }
 
-// sshTrustedHostKeyWrapper wraps a client Key allowing to call GetKnownHostKeys function for particular hostname.
+// sshTrustedHostKeyWrapper wraps a client Key allowing to call GetTrustedHostKeys function for particular hostname.
 type sshTrustedHostKeyWrapper struct {
 	*client.Key
 }
 
-// GetKnownHostKeys returns know trusted key for a particular hostname.
-func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
+// GetTrustedHostKeys returns trusted host keys for a particular hostname.
+func (m *sshTrustedHostKeyWrapper) GetTrustedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 	ca, err := m.Key.TrustedCAHostKeysForCluster(hostnames)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -385,7 +385,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 		return nil, trace.NotFound("identity has been supplied, skip loading the config")
 	}
 
-	keyStore, err := client.NewFSClientStore(cfg.TeleportHome)
+	clientStore, err := client.NewFSClientStore(cfg.TeleportHome)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -394,7 +394,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
-	profile, err := client.ReadProfileStatus(keyStore, proxyAddr)
+	profile, err := clientStore.ReadProfileStatus(proxyAddr)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -409,13 +409,13 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 
 	c := client.MakeDefaultConfig()
 	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
-	if err := c.LoadProfile(keyStore, proxyAddr); err != nil {
+	if err := c.LoadProfile(clientStore, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	webProxyHost, _ := c.WebProxyHostPort()
 	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
-	key, err := keyStore.GetKey(idx, client.WithSSHCerts{})
+	key, err := clientStore.GetKey(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -435,7 +435,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
-	authConfig.SSH, err = key.ProxyClientSSHConfig(keyStore, rootCluster)
+	authConfig.SSH, err = key.ProxyClientSSHConfig(clientStore, rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

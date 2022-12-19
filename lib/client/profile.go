@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 
@@ -32,11 +33,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ClientProfileStore is a storage interface for client profile data.
-type ClientProfileStore interface {
+// ProfileStore is a storage interface for client profile data.
+type ProfileStore interface {
 	// CurrentProfile returns the current active profile.
 	CurrentProfile() (string, error)
 
@@ -46,103 +46,114 @@ type ClientProfileStore interface {
 	// GetProfile returns the requested profile.
 	GetProfile(profileName string) (*profile.Profile, error)
 
-	// SaveProfile saves the given profile
+	// SaveProfile saves the given profile. If makeCurrent
+	// is true, it makes this profile current.
 	SaveProfile(profile *profile.Profile, setCurrent bool) error
 }
 
-// ReadProfileStatus returns the profile status for the given profile name.
-// If no profile name is provided, return the current profile.
-func ReadProfileStatus(ks ClientStore, profileName string) (*ProfileStatus, error) {
-	var err error
-	if profileName == "" {
-		profileName, err = ks.CurrentProfile()
-		if err != nil {
-			return nil, trace.BadParameter("no profile provided and no current profile")
-		}
-	} else {
-		// remove ports from proxy host, because profile name is stored by host name
-		profileName, err = utils.Host(profileName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	profile, err := ks.GetProfile(profileName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	idx := KeyIndex{
-		ProxyHost:   profileName,
-		ClusterName: profile.SiteName,
-		Username:    profile.Username,
-	}
-	key, err := ks.GetKey(idx, WithAllCerts...)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			// If we can't find a key to match the profile, return a partial status. This
-			// is used for some superficial functions `tsh logout` and `tsh status`.
-			return &ProfileStatus{
-				Name: profileName,
-				Dir:  profile.Dir,
-				ProxyURL: url.URL{
-					Scheme: "https",
-					Host:   profile.WebProxyAddr,
-				},
-				Username:    profile.Username,
-				Cluster:     profile.SiteName,
-				KubeEnabled: profile.KubeProxyAddr != "",
-				// Set ValidUntil to now to show that the keys are not available.
-				ValidUntil: time.Now(),
-			}, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	_, onDisk := ks.(*FSClientStore)
-
-	return profileStatusFromKey(key, profileOptions{
-		ProfileName:   profileName,
-		ProfileDir:    profile.Dir,
-		WebProxyAddr:  profile.WebProxyAddr,
-		Username:      profile.Username,
-		SiteName:      profile.SiteName,
-		KubeProxyAddr: profile.KubeProxyAddr,
-		IsVirtual:     !onDisk,
-	})
+// MemProfileStore is an in-memory implementation of ProfileStore.
+type MemProfileStore struct {
+	// currentProfile is the currently selected profile.
+	currentProfile string
+	// profiles is a map of proxyHosts to profiles.
+	profiles map[string]*profile.Profile
 }
 
-// FullProfileStatus returns the name of the current profile with a
-// a list of all active profile statuses.
-func FullProfileStatus(ks ClientStore) (*ProfileStatus, []*ProfileStatus, error) {
-	currentProfileName, err := ks.CurrentProfile()
+// NewMemProfileStore creates a new instance of MemProfileStore.
+func NewMemProfileStore() *MemProfileStore {
+	return &MemProfileStore{
+		profiles: make(map[string]*profile.Profile),
+	}
+}
+
+// CurrentProfile returns the current active profile.
+func (ms *MemProfileStore) CurrentProfile() (string, error) {
+	return ms.currentProfile, nil
+}
+
+// ListProfiles returns a list of all active profiles.
+func (ms *MemProfileStore) ListProfiles() ([]string, error) {
+	var profileNames []string
+	for profileName := range ms.profiles {
+		profileNames = append(profileNames, profileName)
+	}
+	return profileNames, nil
+}
+
+// GetProfile returns the requested profile.
+func (ms *MemProfileStore) GetProfile(profileName string) (*profile.Profile, error) {
+	if profile, ok := ms.profiles[profileName]; ok {
+		return profile.Clone(), nil
+	}
+	return nil, trace.NotFound("profile for proxy host %q not found", profileName)
+}
+
+// SaveProfile saves the given profile. If makeCurrent
+// is true, it makes this profile current.
+func (ms *MemProfileStore) SaveProfile(profile *profile.Profile, makecurrent bool) error {
+	ms.profiles[profile.Name()] = profile.Clone()
+	if makecurrent {
+		ms.currentProfile = profile.Name()
+	}
+	return nil
+}
+
+// FSProfileStore is an on-disk implementation of the ProfileStore interface.
+//
+// The FS store uses the file layout outlined in `api/utils/keypaths.go`.
+type FSProfileStore struct {
+	// log holds the structured logger.
+	log logrus.FieldLogger
+
+	// KeyDir is the directory where all keys are stored.
+	KeyDir string
+}
+
+// NewFSProfileStore creates a new instance of FSProfileStore.
+func NewFSProfileStore(dirPath string) (*FSProfileStore, error) {
+	var err error
+	dirPath, err = initKeysDir(dirPath)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
+	return &FSProfileStore{
+		log:    logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		KeyDir: dirPath,
+	}, nil
+}
 
-	currentProfile, err := ReadProfileStatus(ks, currentProfileName)
+// CurrentProfile returns the current active profile.
+func (fs *FSProfileStore) CurrentProfile() (string, error) {
+	profileName, err := profile.GetCurrentProfileName(fs.KeyDir)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
+	return profileName, nil
+}
 
-	profileNames, err := ks.ListProfiles()
+// ListProfiles returns a list of all active profiles.
+func (fs *FSProfileStore) ListProfiles() ([]string, error) {
+	profileNames, err := profile.ListProfileNames(fs.KeyDir)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
+	return profileNames, nil
+}
 
-	var profiles []*ProfileStatus
-	for _, profileName := range profileNames {
-		if profileName == currentProfileName {
-			// already loaded this one
-			continue
-		}
-		status, err := ReadProfileStatus(ks, profileName)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		profiles = append(profiles, status)
+// GetProfile returns the requested profile.
+func (fs *FSProfileStore) GetProfile(profileName string) (*profile.Profile, error) {
+	profile, err := profile.FromDir(fs.KeyDir, profileName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return profile, nil
+}
 
-	return currentProfile, profiles, nil
+// SaveProfile saves the given profile. If makeCurrent
+// is true, it makes this profile current.
+func (fs *FSProfileStore) SaveProfile(profile *profile.Profile, makeCurrent bool) error {
+	err := profile.SaveToDir(fs.KeyDir, makeCurrent)
+	return trace.Wrap(err)
 }
 
 // ProfileStatus combines metadata from the logged in profile and associated
@@ -484,7 +495,7 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		ClusterName: clusterName,
 	}
 
-	store, err := NewFSClientStore(p.Dir)
+	store, err := NewFSKeyStore(p.Dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

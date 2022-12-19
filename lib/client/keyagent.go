@@ -48,7 +48,7 @@ type LocalKeyAgent struct {
 	agent.ExtendedAgent
 
 	// clientStore is the local storage backend for the client.
-	clientStore ClientStore
+	clientStore *ClientStore
 
 	// sshAgent is the system ssh agent
 	sshAgent agent.ExtendedAgent
@@ -80,8 +80,8 @@ type LocalKeyAgent struct {
 
 // sshKnownHostGetter allows to fetch key for particular host - trusted cluster.
 type sshKnownHostGetter interface {
-	// GetKnownHostKeys returns all public keys for the given hostnames.
-	GetKnownHostKeys(hostnames ...string) ([]ssh.PublicKey, error)
+	// GetTrustedHostKeys returns all public keys for the given hostnames.
+	GetTrustedHostKeys(hostnames ...string) ([]ssh.PublicKey, error)
 }
 
 // NewKeyStoreCertChecker returns a new certificate checker
@@ -93,7 +93,7 @@ func NewKeyStoreCertChecker(keyStore sshKnownHostGetter, hostname string) ssh.Ho
 		certChecker := sshutils.CertChecker{
 			CertChecker: ssh.CertChecker{
 				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
-					keys, err := keyStore.GetKnownHostKeys(hostname)
+					keys, err := keyStore.GetTrustedHostKeys(hostname)
 					if err != nil {
 						log.Errorf("Unable to fetch certificate authorities: %v.", err)
 						return false
@@ -136,7 +136,7 @@ func shouldAddKeysToAgent(addKeysToAgent string) bool {
 
 // LocalAgentConfig contains parameters for creating the local keys agent.
 type LocalAgentConfig struct {
-	ClientStore ClientStore
+	ClientStore *ClientStore
 	Agent       agent.ExtendedAgent
 	ProxyHost   string
 	Username    string
@@ -349,9 +349,12 @@ func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
 	return a.GetKey("")
 }
 
-// AddTrustedCerts saves trusted TLS certificates of certificate authorities.
-func (a *LocalKeyAgent) AddTrustedCerts(certAuthorities []auth.TrustedCerts) error {
-	return a.clientStore.AddTrustedCerts(a.proxyHost, certAuthorities)
+// SaveTrustedCerts saves trusted TLS certificates and host keys of certificate authorities.
+// SaveTrustedCerts adds the given trusted CA TLS certificates and SSH host keys to the store.
+// Existing TLS certificates for the given trusted certs will be overwritten, while host keys
+// will be appended to existing entries.
+func (a *LocalKeyAgent) SaveTrustedCerts(certAuthorities []auth.TrustedCerts) error {
+	return a.clientStore.SaveTrustedCerts(a.proxyHost, certAuthorities)
 }
 
 // GetTrustedCertsPEM returns trusted TLS certificates of certificate authorities PEM
@@ -415,7 +418,7 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 		// Check the local cache (where all Teleport CAs are placed upon login) to
 		// see if any of them match.
 
-		keys, err := a.clientStore.GetKnownHostKeys(clusters...)
+		keys, err := a.clientStore.GetTrustedHostKeys(clusters...)
 		if err != nil {
 			a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
 			return false
@@ -450,7 +453,7 @@ func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.Publi
 	a.log.Warnf("Host %s presented a public key not signed by Teleport. Proceeding due to insecure mode being ON.", addr)
 
 	// Check if this exact host is in the local cache.
-	keys, _ := a.clientStore.GetKnownHostKeys(addr)
+	keys, _ := a.clientStore.GetTrustedHostKeys(addr)
 	if len(keys) > 0 && sshutils.KeysEqual(key, keys[0]) {
 		a.log.Debugf("Verified host %s.", addr)
 		return nil
@@ -468,7 +471,7 @@ func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.Publi
 	}
 
 	// If the user trusts the key, store the key in the client trusted certs store.
-	err = addTrustedHostKeys(a.clientStore, a.proxyHost, addr, key)
+	err = a.clientStore.AddTrustedHostKeys(a.proxyHost, addr, key)
 	if err != nil {
 		a.log.Warnf("Failed to save the host key: %v.", err)
 		return trace.Wrap(err)
@@ -561,7 +564,7 @@ func (a *LocalKeyAgent) addKey(key *Key) error {
 	}
 
 	// Save the new key to the keystore (usually into ~/.tsh).
-	if err := a.clientStore.AddTrustedCerts(key.ProxyHost, key.TrustedCerts); err != nil {
+	if err := a.clientStore.SaveTrustedCerts(key.ProxyHost, key.TrustedCerts); err != nil {
 		return trace.Wrap(err)
 	}
 

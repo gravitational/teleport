@@ -113,17 +113,8 @@ func (k *Key) Clone() *Key {
 	if k == nil {
 		return nil
 	}
-	return &Key{
-		KeyIndex:            k.KeyIndex,
-		PrivateKey:          k.PrivateKey,
-		Cert:                k.Cert,
-		TLSCert:             k.TLSCert,
-		KubeTLSCerts:        k.KubeTLSCerts,
-		DBTLSCerts:          k.DBTLSCerts,
-		AppTLSCerts:         k.AppTLSCerts,
-		WindowsDesktopCerts: k.WindowsDesktopCerts,
-		TrustedCerts:        k.TrustedCerts,
-	}
+	copy := *k
+	return &copy
 }
 
 // GenerateRSAKey generates a new unsigned key.
@@ -245,7 +236,7 @@ func trustedCertsFromCACerts(tlsCACerts, knownHosts [][]byte) ([]auth.TrustedCer
 		}
 
 		for _, hostKey := range hostKeys {
-			trustedCA.HostCertificates = append(trustedCA.HostCertificates, ssh.MarshalAuthorizedKey(hostKey))
+			trustedCA.AuthorizedKeys = append(trustedCA.AuthorizedKeys, ssh.MarshalAuthorizedKey(hostKey))
 		}
 	}
 
@@ -310,7 +301,7 @@ func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string)
 // TrustedCAHostKeys returns all SSH CA certificates from this key
 func (k *Key) TrustedCAHostKeys() (result [][]byte) {
 	for _, ca := range k.TrustedCerts {
-		result = append(result, ca.HostCertificates...)
+		result = append(result, ca.AuthorizedKeys...)
 	}
 	return result
 }
@@ -320,7 +311,7 @@ func (k *Key) TrustedCAHostKeysForCluster(clusters []string) (result [][]byte, e
 	for _, ca := range k.TrustedCerts {
 		for _, c := range clusters {
 			if ca.ClusterName == c {
-				result = append(result, ca.HostCertificates...)
+				result = append(result, ca.AuthorizedKeys...)
 			}
 		}
 	}

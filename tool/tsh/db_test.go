@@ -124,9 +124,9 @@ func TestDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 
 			// Fetch the active profile.
-			keyStore, err := client.NewFSClientStore(tmpHomePath)
+			clientStore, err := client.NewFSClientStore(tmpHomePath)
 			require.NoError(t, err)
-			profile, err := client.ReadProfileStatus(keyStore, proxyAddr.Host())
+			profile, err := clientStore.ReadProfileStatus(proxyAddr.Host())
 			require.NoError(t, err)
 			require.Equal(t, alice.GetName(), profile.Username)
 
