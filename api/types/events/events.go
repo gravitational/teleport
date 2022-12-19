@@ -48,8 +48,8 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	out.DatabaseQuery = ""
 	out.DatabaseQueryParameters = nil
 
-	// Use 10% max size ballast + message size without custom fields.
-	sizeBallast := maxSize/10 + out.Size()
+	// Use 12% max size ballast + message size without custom fields.
+	sizeBallast := maxSize/8 + out.Size()
 	maxSize -= sizeBallast
 
 	// Check how many custom fields are set.
