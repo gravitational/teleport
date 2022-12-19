@@ -9,6 +9,7 @@
         "podSecurityPolicy",
         "labels",
         "chartMode",
+        "validateConfigOnDeploy",
         "highAvailability",
         "podMonitor",
         "tls",
@@ -307,6 +308,11 @@
                 "scratch"
             ],
             "default": "standalone"
+        },
+        "validateConfigOnDeploy": {
+            "$id": "#/properties/validateConfigOnDeploy",
+            "type": "boolean",
+            "default": true
         },
         "standalone": {
             "$id": "#/properties/standalone",

@@ -180,6 +180,10 @@ labels: {}
 # (3) When set to "scratch", you must write the teleport configuration in auth.teleportConfig and proxy.teleportConfig.
 chartMode: standalone
 
+# validateConfigOnDeploy enables a Kubernetes job before install and upgrade that will verify
+# if the teleport.yaml configuration is valid and will block the deployment if it is not
+validateConfigOnDeploy: true
+
 # Whether the chart should create a Teleport ProvisionToken for the proxies to join the Teleport cluster.
 # Disabling this flag will cause the proxies not to be able to join the auth pods. In this case, the
 # Helm chart user is responsible for configuring working join_params on the proxy.
