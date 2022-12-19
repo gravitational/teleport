@@ -56,7 +56,7 @@ func TestParseMSSQLEndpoint(t *testing.T) {
 		{"valid", "random.database.windows.net:1604", true, "random"},
 		// invalid
 		{"empty", "", false, ""},
-		{"malformed adddress", "abc", false, ""},
+		{"malformed address", "abc", false, ""},
 		{"only suffix", ".database.windows.net:1604", false, ""},
 		{"without suffix", "example.com:1604", false, ""},
 		{"without port", "random.database.windows.net", false, ""},
