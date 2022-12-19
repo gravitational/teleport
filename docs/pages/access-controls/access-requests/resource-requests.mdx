@@ -130,8 +130,8 @@ To request access to these resources, run
     --reason <request reason>
 ```
 
-You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and `windows_desktop`.
-Advanced filters and queries are supported, see our
+You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and
+`windows_desktop`. Advanced filters and queries are supported. See our
 [filtering reference](../../reference/cli.mdx#resource-filtering).
 
 Try narrowing your search to a specific resource you want to access.
@@ -146,6 +146,7 @@ To request access to these resources, run
 > tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 \
     --reason <request reason>
 ```
+
 
 ## Step 5/8. Request access to a resource
 
@@ -304,10 +305,26 @@ iot:~ alice$
 
 ### Restrict the resources a user can request access to
 
-Create a role which can only access SSH nodes labeled `env:staging`.
+In this guide, we showed you how to enable a user to search for resources to
+request access to. To do so, we assigned the user a Teleport role with the
+`search_as_roles` field set to the preset `access` role. 
+
+You can impose further restrictions on the resources a user is allowed to
+search by assigning `search_as_roles` to a more limited role. Below, we will
+show you which permissions you must set to restrict a user's ability to search
+for different resources.
+
+To restrict access to a particular resource using a role similar to the ones
+below, edit one of the user's roles so the `search_as_roles` field includes the
+role you have created.
+
+#### `node`
+
+You can restrict access to searching `node` resources by assigning values to the
+`node_labels` field in the `spec.allow` or `spec.deny` fields. The following
+role allows access to SSH Service instances with the `env:staging` label.
 
 ```yaml
-# staging-access.yaml
 kind: role
 version: v5
 metadata:
@@ -323,52 +340,169 @@ spec:
     max_session_ttl: 1h
 ```
 
-```code
-$ tctl create staging-access.yaml
-```
+#### `kube_cluster`
 
-Update the `requester` and `reviewer` roles to reference `staging-access`
-instead of the default `access` role.
+You can restrict access to searching `kube_cluster` resources by assigning
+values to the `kubernetes_labels` field in the `spec.allow` or `spec.deny`
+fields. 
+
+The following role allows access to Kubernetes clusters with the `env:staging`
+label:
 
 ```yaml
-# requester.yaml
+kind: role
+metadata:
+  name: kube-access
+version: v6
+spec:
+  allow:
+    kubernetes_labels:
+      'env': 'staging'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
+  deny: {}
+```
+
+#### `pod`
+
+You can restrict access to creating `pod` resources by assigning values to the
+`kubernetes_resources` field in the `spec.allow` or `spec.deny` fields. 
+
+The following role allows access to Kubernetes pods with the name `nginx` in any
+namespace, and all pods in the `dev` namespace:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v6
+spec:
+  allow:
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "nginx*"
+      - kind: pod
+        namespace: "dev"
+        name: "*"
+    kubernetes_groups:
+      - viewers
+  deny: {}
+```
+
+##### Searching for pod resources
+
+Teleport users can request access to a Kubernetes pod by running the following
+command:
+
+```code
+$ tsh request create <Var name="pod-id" />
+```
+
+Replace `pod-id` with the name of a pod in the following format:
+
+```
+/TELEPORT_CLUSTER/pod/KUBE_CLUSTER/NAMESPACE/POD_NAME
+```
+
+For example, to request access to a pod called `nginx-1` in the `development`
+namespace, run the following command:
+
+```code
+$ tsh request create --resources /teleport.example.com/pod/mycluster/development/nginx-1
+```
+
+<Notice type="warning">
+
+Teleport does not currently support `tsh request search --kind=pods`.
+
+</Notice>
+
+##### Preventing unintended access
+
+If you are setting up a Teleport role to enable just-in-time access to a
+specific Kubernetes pod, you should set the role's `kubernetes_groups` and
+`kubernetes_users` to a role that has no access to Kubernetes resource beside
+the target pod. 
+
+This is because, if a user requests access to a Kubernetes pod, and the request
+is approved, the Teleport Kubernetes Service will use the `kubernetes_groups`
+and `kubernetes_users` fields in the role to add impersonation headers to the user's
+requests to a Kubernetes API server. 
+
+If the values of `kubernetes_users` and `kubernetes_groups` map to Kubernetes
+users and groups with access to additional resources, the user will be able to
+send requests that interact with those resources, e.g., `Secret`s and
+`ConfigMap`s, depending on the privileges of the Kubernetes users and groups.
+
+#### `db`
+
+You can restrict access to searching `db` resources by assigning values to the
+`db_labels` field in the `spec.allow` or `spec.deny` fields. 
+
+The following role allows access to databases with the `environment:dev` or
+`environment:stage` labels:
+
+```yaml
 kind: role
 version: v5
 metadata:
-  name: requester
+  name: developer
 spec:
   allow:
-    request:
-      search_as_roles:
-        - staging-access
-      # Requires 2 approvals for the request.
-      thresholds:
-        - approve: 2
-          deny: 1
+    db_labels:
+      environment: ["dev", "stage"]
+
+    # Database account names this role can connect as.
+    db_users: ["viewer", "editor"]
+    db_names: ["*"]
 ```
 
+#### `app`
+
+You can restrict access to searching `app` resources by assigning values to the
+`app_labels` field in the `spec.allow` or `spec.deny` fields. 
+
+The following role allows access to all applications except for those in
+`env:prod`:
+
 ```yaml
-# reviewer.yaml
 kind: role
 version: v5
 metadata:
-  name: reviewer
+  name: dev
 spec:
   allow:
-    review_requests:
-      roles:
-        - staging-access
-      preview_as_roles:
-        - staging-access
+    app_labels:
+      "*": "*"
+  deny:
+    app_labels:
+      env: "prod"
 ```
 
-```code
-$ tctl create -f requester.yaml
-$ tctl create -f reviewer.yaml
-```
+#### `windows_desktop`
 
-The `requester` will now only be able to search for or request access to
-resources accessible by the `staging-access` role.
+You can restrict access to searching `windows_desktop` resources by assigning
+values to the `windows_desktop_labels` field in the `spec.allow` or `spec.deny`
+fields. 
+
+The following role allows access to all Windows desktops with the
+`environment:dev` or `environment:stage` labels. 
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: developer
+spec:
+  allow:
+    windows_desktop_labels:
+      environment: ["dev", "stage"]
+
+    windows_desktop_logins: ["{{internal.windows_logins}}"]
+```
 
 ### Allow reviewers to see the hostnames of SSH Nodes
 

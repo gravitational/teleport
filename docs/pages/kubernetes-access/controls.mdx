@@ -1,229 +1,110 @@
 ---
 title: Teleport Kubernetes Access Controls
-description: Connect SAML and OIDC users to Kubernetes RBAC with Teleport
+description: How the Teleport Kubernetes Service applies RBAC to manage access to Kubernetes
 ---
 
-# Single Sign-On and Kubernetes RBAC
+This guide explains the way the Teleport Kubernetes Service applies role-based
+access controls when a Teleport user interacts with a Kubernetes cluster. The
+Kubernetes Service intercepts requests to a Kubernetes API server and modifies
+each request depending on the user's Teleport roles. 
 
-Teleport issues short-lived X.509 certs and updates Kubernetes clients to talk
-to Teleport proxy using mutual TLS. It then intercepts every request and adds
-[impersonation headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation)
-to map users to Kubernetes users and groups.
+In this guide, we will show you how to configure the fields available in a
+Teleport role to manage access to Kubernetes clusters you have connected to
+Teleport.
 
-![Impersonation](../../img/k8s/auth.svg)
+For an example of how to use Teleport roles to manage access to Kubernetes with
+a local `minikube` cluster, see our [RBAC how-to
+guide](./manage-access/rbac.mdx).
 
-Teleport's connectors configure single sign-on for OIDC, OAuth, or SAML
-providers. Here are examples of connectors that map SSO users to Kubernetes
-groups in the Teleport Open Source Edition and Teleport's roles in the
-Enterprise Edition:
+## Role fields for managing Kubernetes access
 
-<Tabs>
-  <TabItem label="Open Source">
-    GitHub's `teams_to_roles` section maps users to roles based on users' teams.
+### `kubernetes_labels`
 
-    ```yaml
-    kind: github
-    version: v3
-    metadata:
-      # Connector name that will be used with `tsh --auth=github login`
-      name: github
-    spec:
-      # Client ID of GitHub OAuth app
-      client_id: client-id
-      # Client secret of GitHub OAuth app
-      client_secret: client-secret
-      # This name will be shown on UI login screen
-      display: GitHub
-      # Change tele.example.com to your domain name
-      redirect_url: https://tele.example.com:443/v1/webapi/github/callback
-      # Map github teams to teleport roles
-      teams_to_roles:
-        - organization: octocats # GitHub organization name
-          team: admin            # GitHub team name within that organization
-          # keep this field as is for now
-          roles: ["admin"]
-    ```
-  </TabItem>
-
-  <TabItem label="Enterprise">
-    OIDC and SAML connectors `claims_to_roles` and `attributes_to_roles` sections map
-    attribute statements and claims received from identity providers to Teleport's roles.
-
-    ```yaml
-    kind: saml
-    version: v2
-    metadata:
-      name: okta
-    spec:
-      acs: https://tele.example.com/v1/webapi/saml/acs
-      attributes_to_roles:
-      # Any user who has SAML `groups` attribute with value `okta-admin`
-      # will be given the Teleport `kube-access` role.
-      - {name: "groups", value: "okta-admin", roles: ["kube-access"]}
-      entity_descriptor: |
-        <?xml !!! Make sure to shift all lines in XML descriptor
-        with 4 spaces, otherwise things will not work
-    ```
-
-    In this example, the `kube-access` role uses the `kubernetes_groups` property to assign Teleport users to [Kubernetes groups](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects)
-
-    ```yaml
-    kind: role
-    version: v3
-    metadata:
-      name: kube-access
-    spec:
-      allow:
-        # If kubernetes integration is enabled, this setting configures which
-        # kubernetes groups the users of this role will be assigned to.
-        # Note that you can refer to a SAML/OIDC trait named 'property' via the "{{external.property}}" template variable,
-        # this allows you to specify Kubernetes group membership via your identity provider:
-        kubernetes_groups: ["system:masters"]
-    ```
-  </TabItem>
-</Tabs>
-
-## Mapping OIDC claims and SAML attributes to Kubernetes groups
-
-Identity provider admins can assign metadata to a user, such as
-group membership or access permissions. Administrators configure what metadata
-is shared with Teleport. Teleport receives user metadata keys and values as OIDC claims or SAML
-attributes during [single sign-on redirect flow](https://goteleport.com/blog/how-oidc-authentication-works/):
-
-```yaml
-# Alice has an email alice@example.com. Email is a standard OIDC claim.
-email: "alice@example.com"
-# Alice is a member of groups admins and devs
-groups: ["admins", "devs"]
-# She can access prod and staging environments
-access: {"env": ["prod", "staging"]}
-```
-
-Teleport's roles map OIDC claims or SAML attributes using template variables.
-Template variable `{{external.groups}}` will
-be substituted to the users' group list in the role definition.
+You can add labels to a Kubernetes cluster when you register it with Teleport.
+You can restrict a user's access to Kubernetes clusters with different labels
+using a role's  `kubernetes_labels` field.
 
 ```yaml
 kind: role
-version: v5
 metadata:
-  name: group-member
+  name: kube-access
+version: v6
 spec:
   allow:
-    # For Alice, will be substituted with the list ["admins", "devs"]
-    kubernetes_groups: ["{{external.groups}}"]
-    # For Alice, will be substituted with ["alice@example.com"]
-    kubernetes_users: ["{{external.email}}"]
+    kubernetes_labels:
+      'region': '*'
+      'environment': 'development'
+# ...
+  deny: {}
 ```
 
-(!docs/pages/includes/permission-warning.mdx!)
+The value of the `kubernetes_labels` field is a mapping from label *keys* to
+label *values*. 
 
-Create or update this role using `tctl`:
+If both the key and the value of a label is the wildcard, `*`, the Teleport
+Kubernetes Service allows the user to access Kubernetes clusters with all
+labels:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-# Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --proxy=teleport.example.com --user=myuser
-$ tctl create -f member.yaml
+```yaml
+    kubernetes_labels:
+      '*': '*'
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+Otherwise, the Kubernetes Service checks whether one of the keys in
+`kubernetes_labels` matches one of the keys corresponding to a registered
+Kubernetes cluster. If it does not, there is no matching Kubernetes cluster.
 
-```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
-$ tctl create -f member.yaml
+The Kubernetes Service then checks the values of labels with the keys in
+`kubernetes_labels`. In `kubernetes_labels`, each value *must* match the value
+of a Kubernetes cluster's label before the Kubernetes Service lets a user access
+the cluster.
+
+In other words, all labels in `kubernetes_labels` must match a cluster before a
+user can access the cluster.
+
+For example, the `kube-access` role above allows a user to access Kubernetes
+clusters with the `region` key and any value. It restricts the user to
+Kubernetes clusters with the `environment` key and the `development` value.
+
+#### Label values
+
+For the key of a label in `kubernetes_labels` to match the key of a Kubernetes
+cluster, the match must be exact.
+
+For values, however, you can use regular expressions or wildcard characters to
+match subsets or variations of a string. If a value begins with `^` and ends in
+`$`, the Kubernetes Service will treat it as a regular expression using Go's
+`re2` syntax (see the `re2`
+[README](https://github.com/google/re2/wiki/Syntax)).
+
+Otherwise, the Kubernetes Service evaluates wildcards within the value, matching
+them to any sequence of characters in a label. 
+
+Here is an example:
+
+```yaml
+spec:
+  allow:
+    kubernetes_labels:
+      'region': 'us-east-*'
+      'environment': '^(development|production)$'
 ```
 
-</ScopedBlock>
+This `allow` rule matches clusters with the labels `region:us-east-1` and
+`region:us-east-2b`, as well as clusters with the labels
+`environment:development` and `environment:production`.
 
-Assign this role to a user in OIDC or SAML connector:
+#### Applying labels
 
-<Tabs>
-  <TabItem label="GitHub (OSS)">
-    ```yaml
-    kind: github
-    version: v3
-    metadata:
-      # Connector name that will be used with `tsh --auth=github login`
-      name: github
-    spec:
-      # Client ID of GitHub OAuth app
-      client_id: client-id
-      # Client secret of GitHub OAuth app
-      client_secret: client-secret
-      # This name will be shown on UI login screen
-      display: GitHub
-      # Change tele.example.com to your domain name
-      redirect_url: https://tele.example.com:443/v1/webapi/github/callback
-      # Map github teams to kubernetes groups
-      teams_to_roles:
-        - organization: octocats # GitHub organization name
-          team: admin            # GitHub team name within that organization
-          # List of Kubernetes groups this GitHub team is allowed to connect to
-          # Keep this field as is for now
-          roles: ["admins"]
-    ```
-  </TabItem>
-
-  <TabItem label="OIDC (Enterprise)">
-    ```yaml
-    kind: oidc
-    version: v2
-    metadata:
-      name: auth0
-    spec:
-      redirect_url: https://tele.example.com/v1/webapi/oidc/callback
-      client_id: client-id-here
-      client_secret: client-secret-here
-      issuer_url: https://idp.example.com/
-      # request groups scope from OIDC provider
-      # read more about scopes here https://auth0.com/docs/scopes/openid-connect-scopes
-      scope: [groups]
-      claims_to_roles:
-        - {claim: "groups", value: "*", roles: ["group-member"]}
-    ```
-  </TabItem>
-
-  <TabItem label="SAML (Enterprise)">
-    ```yaml
-    kind: saml
-    version: v2
-    metadata:
-      name: okta
-    spec:
-      acs: https://tele.example.com/v1/webapi/saml/acs
-      attributes_to_roles:
-      - {name: "groups", value: "*", roles: ["group-member"]}
-      entity_descriptor: |
-        <?xml !!! Make sure to indent all lines in XML descriptor
-        with 4 spaces, otherwise things will not work
-    ```
-  </TabItem>
-</Tabs>
-
-## Local Users
-
-Local users are mapped to Kubernetes groups using roles:
-
-```code
-# Specify `kubernetes_groups` property in a role "admins" and
-# create a user assigned to the role.
-$ tctl users add joe --roles="admins"
-```
-
-## Kubernetes labels
-
-Label each cluster with key-value pairs describing the cluster:
+You can apply labels to an instance of the Teleport Kubernetes Service. The way
+to do this depends on how you have launched the service:
 
 <Tabs>
   <TabItem label="Helm">
+  Set labels when installing or upgrading the `teleport-kube-agent` Helm chart,
+  e.g.:
+
     ```code
-    # Install or upgrade Teleport and set labels:
     $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
       --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
       --set labels.env=prod --set labels.region=us-west-1
@@ -231,6 +112,9 @@ Label each cluster with key-value pairs describing the cluster:
   </TabItem>
 
   <TabItem label="Config">
+  Setl labels when enabling the Teleport Kubernetes Service in a `teleport`
+  instance's configuration file:
+
     ```yaml
     kubernetes_service:
       enabled: true
@@ -242,29 +126,81 @@ Label each cluster with key-value pairs describing the cluster:
   </TabItem>
 </Tabs>
 
-Limit access to cluster based on the label:
+### `kubernetes_groups` and `kubernetes_users`
+
+The Teleport Kubernetes Service receives requests from end users, e.g., via
+`kubectl`, and forwards them to a Kubernetes API server. The Kubernetes Service
+uses  [impersonation
+headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation)
+to send requests to the API server with one Kubernetes user and zero or more
+Kubernetes groups.
+
+![Impersonation](../../img/k8s/auth.svg)
+
+The `kubernetes_users` and `kubernetes_groups` fields indicate which users and
+groups to allow a user to assume when they send requests to a Kubernetes API
+server:
 
 ```yaml
 kind: role
-version: v5
 metadata:
-  name: group-member
+  name: kube-access
+version: v6
 spec:
   allow:
-    # Allow access to Kubernetes clusters in the production environment
-    kubernetes_labels:
-      'env': 'prod'
-    # Allows access to group "admins" in Kubernetes clusters
-    kubernetes_groups: ["admins"]
+    kubernetes_groups:
+    - developers
+    - viewers
+    kubernetes_users:
+    - myuser
+    # ...
+  deny: {}
 ```
 
-## Impersonation
+The value of `kubernetes_groups` and `kubernetes_users` is a list of names of
+groups and users to enable impersonation for.
 
-Teleport uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation)
-to map OIDC and SAML users to Kubernetes users and groups.
+#### How Teleport users impersonate Kubernetes users and groups
 
-Here is an example of Kubernetes `ClusterRole` and `ClusterRoleBinding`
-allowing Teleport's `ServiceAccount` to impersonate users and groups:
+There are two ways for an end user to specify which user and groups to
+impersonate:
+
+##### Manually
+
+When a user runs `tsh kube login` to authenticate to a Kubernetes cluster, they
+can use the `--as` and `--as-groups` flags to manually specify the user and
+groups to authenticate as. The Teleport Kubernetes Service determines whether
+the user and groups belong to a user's `kubernetes_users` and
+`kubernetes_groups` configuration and, if not, denies the user access.
+
+##### Automatically
+
+If the user has not explicitly determined a Kubernetes user and Kubernetes
+groups when authenticating to a cluster, the Teleport Kubernetes Service
+determines this from the `kubernetes_users` and `kubernetes_groups` fields in a
+user's roles.
+
+If a user has exactly one value in `kubernetes_users`, the Teleport Kubernetes
+Service impersonates that user. Otherwise, the Kubernetes Service denies the
+user access. In this case, the Teleport user must manually specify a Kubernetes
+user to impersonate.
+
+If the user has not specified a Kubernetes group to impersonate, the Kubernetes
+Service uses all values within `kubernetes_groups`.
+
+With the `kube-access` role above, after you authenticate to Teleport, the
+Kubernetes Service uses impersonation headers to forward requests to the API
+server with the `developers` group and the `myuser` Kubernetes user.
+
+#### Enabling impersonation
+
+To enable the Kubernetes Service to forward user requests with impersonation
+headers, you must ensure that its service account has permissions to impersonate
+Kubernetes RBAC principals within your cluster. 
+
+Below is a Kubernetes `ClusterRole` that grants the minimum set of permissions
+to enable impersonation, and a `ClusterRoleBinding` that grants these
+permissions to a service account.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -303,20 +239,295 @@ roleRef:
   name: teleport-impersonation
 subjects:
 - kind: ServiceAccount
-  # this should be changed to the name of the Kubernetes ServiceAccount being used
   name: teleport-serviceaccount
   namespace: default
 ```
 
-Take a look at the example usage in a [Teleport Helm chart](https://github.com/gravitational/teleport/blob/v\(=teleport.version=\)/examples/chart/teleport-cluster/templates/clusterrole.yaml)
+<Notice type="tip">
 
-## Next steps
+The [manual methods](./register-clusters.mdx) and [automatic
+methods](./discovery.mdx) for registering Kubernetes clusters with Teleport
+include steps for setting up the Kubernetes RBAC resources that Teleport needs
+to allow access to clusters.
 
-Integrate with your identity provider:
+There is usually no need to define these resources manually.
 
-- [OIDC guide](../access-controls/sso/oidc.mdx)
-- [ADFS guide](../access-controls/sso/adfs.mdx)
-- [Azure AD guide](../access-controls/sso/azuread.mdx)
-- [Google Workspace guide](../access-controls/sso/google-workspace.mdx)
-- [Onelogin guide](../access-controls/sso/one-login.mdx)
-- [Okta guide](../access-controls/sso/okta.mdx)
+</Notice>
+
+#### Specifying groups and users based on SAML and OIDC traits
+
+Teleport's roles map OIDC claims or SAML attributes using template variables.
+The template variable `{{external.groups}}` will be substituted to with a user's
+group list in a role definition:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: group-member
+spec:
+  allow:
+    # For Alice, will be substituted with the list ["admins", "devs"]
+    kubernetes_groups: ["{{external.groups}}"]
+    # For Alice, will be substituted with ["alice@example.com"]
+    kubernetes_users: ["{{external.email}}"]
+```
+
+### `kubernetes_resources`
+
+The `kubernetes_resources` field enables a Teleport role to configure access to
+specific resources in a Kubernetes cluster:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v6
+spec:
+  allow:
+    kubernetes_resources:
+      - kind: pod
+        namespace: "production"
+        name: "webapp"
+    # ...
+```
+
+The value of this field is a list of mappings, where each mapping has three
+fields:
+
+- `kind`: The kind of resource to enable access to. Currently, Teleport only
+  supports the value `pod`.
+- `namespace`: The Kubernetes namespace in which to allow access to a resource.
+  In the `kube-access` role, we are allowing access to a pod in the
+  `production` namespace.
+- `name`: The name of the pod to allow access to. In `kube-access`, this is
+  the `webapp` pod. You can add a wildcard character (`*`) to replace any
+  sequences of characters. For example, `name: "pod-*-*"` matches pods named
+  `pod-1-a` and `pod-2-c`.
+
+## How the Kubernetes Service evaluates Teleport roles
+
+When a Teleport user makes a request to a Kubernetes cluster's API server, the
+Teleport Kubernetes Service intercepts the request and inspects the user's
+authorization. The Kubernetes Service denies the request if the user is not
+authorized to view a particular resource. If the user *is* authorized to perform
+their request, the Kubernetes Service modifies the request and forwards it to
+the appropriate API server.
+
+### Authorizing user requests
+
+When the Teleport Kubernetes Service receives a request, it evaluates two fields
+within the user's roles. If these fields do not allow the user to perform the
+request, the Kubernetes Service returns an error to the user:
+
+#### `kubernetes_labels`
+
+The Teleport Kubernetes Service will only allow a user access to a pod if the
+cluster where the pod is running has a label that matches a user's
+`kubernetes_labels` configuration.
+
+#### `kubernetes_resources`
+
+Some resource URIs within the Kubernetes API server include the names of
+specific resources.
+
+For example, if a user runs `kubectl exec` to execute a command against the
+`webapp` pod in the `development` namespace, `kubectl` sends a request to the
+target cluster's API server at the following path:
+
+```
+"/api/v1/namespaces/development/pods/webapp/exec"
+```
+
+If a Kubernetes pod is available within the URL path of the request to a
+Kubernetes API server, the Teleport Kubernetes Service will check whether the
+user is authorized to access that pod.
+
+In the example above, the Kubernetes Service checks if the user is authorized to
+access the `webapp` pod in the `development` namespace and, if not, denies the
+request.
+
+### Forwarding user requests
+
+Once the Teleport Kubernetes Service has authorized the user to perform a
+request against a Kubernetes cluster and (if applicable) a particular resource,
+it assembles a request to the upstream API server. It adds impersonation headers
+to the request based on the `kubernetes_groups` and `kubernetes_users` fields in
+the user's role (see the [discussion of these
+fields](#kubernetes_groups_and_kubernetes_users) earlier).
+
+Because the Teleport Kubernetes Service accesses the upstream API server via the
+RBAC principals listed in the Teleport user's `kubernetes_groups` and
+`kubernetes_users` fields, the principals you specify in these fields must have
+access to the resources listed in the user's `kubernetes_resources` field.
+Otherwise, the Kubernetes Service will forward a request to the upstream API
+server with improper authorization, and the API server will deny the request.
+
+### Multiple roles
+
+#### How the Kubernetes Service evaluates multiple roles
+
+Before evaluating a user's request to a Kubernetes API server, the Teleport
+Kubernetes Service checks each of the user's roles. If one role's
+`spec.allow.kubernetes_labels` or `spec.allow.kubernetes_resources` conditions
+do not match the user's request, the Kubernetes Service checks the next role,
+and so on. 
+
+If the Kubernetes Service finds a role with a `spec.allow` condition that
+matches all of the cluster's labels and the request's resources, it looks up the
+role's `allow.kubernetes_groups` and `allow.kubernetes_users` fields. It adds
+these values to a list of RBAC principals it will use to write impersonation
+headers later on.
+
+Next, the Kubernetes Service checks each of the user's roles for `spec.deny`
+conditions. If one role's `spec.deny.kubernetes_labels` or
+`spec.deny.kubernetes_resources` fields match the user's request, the Kubernetes
+Service looks up the role's `spec.deny.kubernetes_groups` and
+`spec.deny.kubernetes_users` fields. It removes each of these values from the
+list of users and groups it created earlier, denying the user access to these
+RBAC principals.
+
+#### Example
+
+Let's say you have assigned the following three roles to a user:
+
+```yaml
+kind: role
+metadata:
+  name: allow-dev-us-east-2
+version: v6
+spec:
+  allow:
+    kubernetes_labels:
+      - "region": "us-east-2"
+    kubernetes_resources:
+      - kind: pod
+        namespace: "development"
+        name: "redis-*"
+      - kind: pod
+        namespace: "development"
+        name: "nginx-*"
+    kubernetes_groups:
+      - dev-viewers # Allows the user to view pods in the development namespace
+---
+kind: role
+metadata:
+  name: allow-exec
+  version: v6
+spec:
+  allow:
+    kubernetes_labels:
+      - "*": "*"
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
+    kubernetes_groups:
+      - executors # Allows the user to execute commands against any pod
+---
+kind: role
+metadata:
+  name: deny-redis-exec
+  version: v6
+spec:
+  deny:
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "redis-*"
+    kubernetes_groups:
+      - executors
+```
+
+The `dev-viewers` Kubernetes group allows the user to view pods in the
+`development` namespace. The `executors` Kubernetes group allows the user to
+execute commands against any pod in any namespace.
+
+If a user with these roles runs `kubectl get pods/redis-1` in the `development`
+namespace, and the cluster has the label `region:us-east-2`, the Kubernetes
+Service will accept the request. Since the `deny-redis-exec` role denies the
+`executors` group for `redis-*` pods, the Kubernetes Service will forward the
+request while impersonating the `dev-viewers` group but *not* the `executors`
+group,
+
+However, if the same user runs `kubectl exec -it nginx /bin/bash` in the
+`development` namespace, against the same cluster, the Kubernetes Service will
+forward the request with an impersonation header for both the `dev-viewers` and
+the `executors` groups, since the `deny-redis-exec` role's `deny` condition does
+not match the request.
+
+### Security consideration: pod namespace restrictions
+
+When a Teleport user sends a request to list pods, e.g., with `kubectl get
+pods`, the Teleport Kubernetes Service does the following:
+
+- Retrieves available pods from the upstream Kubernetes API server, adding
+  impersonation headers to the request based on the user's Teleport roles. These
+  include the Kubernetes user and groups the user sends the request as.
+- Filters the list of available pods based on the pods that the user is
+  authorized to access via `kubernetes_resources`.
+- Returns the list of pods to the user.
+
+To avoid leaking pods unintentionally, you should ensure that namespace
+restrictions in your Kubernetes RBAC line up with those you have set up in
+Teleport.
+
+For example, let's say a user has a Teleport role that grants access to any pod
+in any namespace, and maps that user to the `default-pod-viewer` Kubernetes
+group. This group can only view pods in the `default` namespace:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-1
+version: v6
+spec:
+  allow:
+    kubernetes_groups:
+      - default-pod-viewer
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
+    # ...
+```
+
+The user has a second Teleport role that maps the user to the `system:masters`
+Kubernetes group (which can access any pod in any namespace), and grants access
+only to the `webapp` pod in the `default` namespace:
+
+```yaml
+metadata:
+  name: kube-access-2
+version: v6
+spec:
+  allow:
+    kubernetes_groups:
+      - system:masters
+    kubernetes_resources:
+      - kind: pod
+        namespace: "default"
+        name: "webapp"
+    # ...
+```
+
+Since the `kube-access-2` role maps the user to `system:masters`, when the
+Kubernetes Service forwards a request from this user, it will fetch all pods
+from the Kubernetes cluster by adding the `system:masters` group to the
+request's impersonation headers. 
+
+However, since the user also has a role (`kube-access-1`) that allows access to
+all pods in all namespaces, the Kubernetes Service will not filter the pods it
+retrieved via its first request to the API server.
+
+In other words, the Kubernetes Service has no way to know that Teleport had
+mapped the user to the `system:masters` group in order to grant access to only
+the `webapp` pod in the `default` namespace.
+
+<Notice type="warning">
+
+If you have namespace restrictions in your Teleport RBAC, you should
+make sure that the same namespace restrictions exist in the Kubernetes RBAC
+resources you map to your Teleport users.
+
+</Notice>

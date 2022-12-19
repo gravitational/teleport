@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: example
 spec:
@@ -140,6 +140,19 @@ spec:
       # regular expressions start with ^ and ending with $
       # Teleport uses golang regexp syntax.
       'cluster_name': '^us.*\.example\.com$'
+
+    # kubernetes_resources indicates the Kubernetes resources that a user with
+    # this role is allowed to access. 
+    kubernetes_resources:
+        # The resource kind. Teleport currently only supports "pod".
+      - kind: pod
+        # The name of the Kubernetes namespace in which to allow access the
+        # resources you specify with "name" and "kind". 
+        # The wildcard character "*" matches any sequence of characters.
+        namespace: "*"
+        # The name of the resource to allow access to.
+        # The wildcard character "*" matches any sequence of characters.
+        name: "*"
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']
