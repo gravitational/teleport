@@ -94,8 +94,6 @@ type AccessRequest interface {
 	GetRequestedResourceIDs() []ResourceID
 	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
 	SetRequestedResourceIDs([]ResourceID)
-	// GetNodeResourceIDsByCluster returns a map of node resource IDs by cluster name
-	GetNodeResourceIDsByCluster() map[string][]ResourceID
 	// GetLoginHint gets the requested login hint.
 	GetLoginHint() string
 	// SetLoginHint sets the requested login hint.
@@ -386,19 +384,6 @@ func (r *AccessRequestV3) SetResourceID(id int64) {
 // GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
 	return append([]ResourceID{}, r.Spec.RequestedResourceIDs...)
-}
-
-func (r *AccessRequestV3) GetNodeResourceIDsByCluster() map[string][]ResourceID {
-	resourceIDsByCluster := make(map[string][]ResourceID)
-	for _, resourceID := range r.Spec.RequestedResourceIDs {
-		if resourceID.Kind != KindNode {
-			// The only detail we want, for now, is the server hostname, so we
-			// can skip all other resource kinds as a minor optimization.
-			continue
-		}
-		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
-	}
-	return resourceIDsByCluster
 }
 
 // SetRequestedResourceIDs sets the resource IDs to which access is being requested.
