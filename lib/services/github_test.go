@@ -19,10 +19,10 @@ package services
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestUnmarshal(t *testing.T) {

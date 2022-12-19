@@ -24,13 +24,12 @@ import (
 	"testing"
 	"time"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 func TestFnCache_New(t *testing.T) {

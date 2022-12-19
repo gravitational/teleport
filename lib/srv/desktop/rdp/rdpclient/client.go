@@ -76,10 +76,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 func init() {
@@ -404,7 +404,7 @@ func (c *Client) start() {
 						return
 					}
 				} else {
-					c.cfg.Log.Warning("Recieved an empty clipboard message")
+					c.cfg.Log.Warning("Received an empty clipboard message")
 				}
 			case tdp.SharedDirectoryAnnounce:
 				if c.cfg.AllowDirectorySharing {

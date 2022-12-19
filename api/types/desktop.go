@@ -19,8 +19,9 @@ package types
 import (
 	"sort"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // WindowsDesktopService represents a Windows desktop service instance.

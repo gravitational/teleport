@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 // TestInventoryControlStreamPipe is a sanity-check to make sure that the in-memory

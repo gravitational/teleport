@@ -18,8 +18,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func validateOrigin(origin, rpID string) error {

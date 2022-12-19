@@ -29,10 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -41,6 +39,8 @@ import (
 	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports

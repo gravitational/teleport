@@ -34,6 +34,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -46,14 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 func TestMain(m *testing.M) {

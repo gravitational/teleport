@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,6 +35,8 @@ import (
 	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // remoteCommandRequest is a request to execute a remote command
@@ -373,7 +374,7 @@ WaitForStreams:
 		case <-expired:
 			return nil, trace.BadParameter("timed out waiting for client to create streams")
 		case <-connContext.Done():
-			return nil, trace.BadParameter("onnectoin has dropped, exiting")
+			return nil, trace.BadParameter("connection has dropped, exiting")
 		}
 	}
 

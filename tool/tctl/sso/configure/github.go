@@ -19,14 +19,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
 )
 
 type ghExtraFlags struct {
