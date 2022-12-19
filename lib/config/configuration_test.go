@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -3104,6 +3106,62 @@ teleport:
 			require.NoError(t, err)
 			require.Equal(t, tc.expectToken, token)
 			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
+		})
+	}
+}
+
+func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
+	tests := []struct {
+		name        string
+		buildType   string
+		deviceTrust *DeviceTrust
+		wantErr     bool
+	}{
+		{
+			name:      "ok: OSS Mode=off",
+			buildType: modules.BuildOSS,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeOff,
+			},
+		},
+		{
+			name:      "nok: OSS Mode=required",
+			buildType: modules.BuildOSS,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+			wantErr: true,
+		},
+		{
+			name:      "ok: Enterprise Mode=required",
+			buildType: modules.BuildEnterprise,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: test.buildType,
+			})
+
+			defaultCfg := service.MakeDefaultConfig()
+			err := ApplyFileConfig(&FileConfig{
+				Auth: Auth{
+					Service: Service{
+						EnabledFlag: "yes",
+					},
+					Authentication: &AuthenticationConfig{
+						DeviceTrust: test.deviceTrust,
+					},
+				},
+			}, defaultCfg)
+			if test.wantErr {
+				assert.Error(t, err, "ApplyFileConfig mismatch")
+			} else {
+				assert.NoError(t, err, "ApplyFileConfig mismatch")
+			}
 		})
 	}
 }
