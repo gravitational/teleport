@@ -155,7 +155,6 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 			`New-Item -Path $WebappsSrc -ItemType Directory | Out-Null`,
 			`cd $WebappsSrc`,
 			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)`,
 		},
 	}
 }
