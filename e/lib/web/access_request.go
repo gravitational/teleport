@@ -10,7 +10,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
@@ -187,20 +186,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 		return nil, nil
 	}
 
-	resourceIDsByCluster := make(map[string][]types.ResourceID)
-	for _, resourceID := range req.GetRequestedResourceIDs() {
-		if resourceID.Kind != types.KindNode {
-			// The only detail we want, for now, is the server hostname, so we
-			// can skip all other resource kinds as a minor optimization.
-			continue
-		}
-		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
-	}
-
-	withExtraRoles := func(req *proto.ListResourcesRequest) {
-		req.UseSearchAsRoles = true
-		req.UsePreviewAsRoles = true
-	}
+	resourceIDsByCluster := services.GetNodeResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ui.ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
@@ -209,28 +195,13 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 			return nil, trace.Wrap(err)
 		}
 
-		resources, err := services.GetResourcesByResourceIDs(ctx, clt, resourceIDs, withExtraRoles)
+		details, err := services.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		for _, resource := range resources {
-			hostname := ""
-			if r, ok := resource.(interface{ GetHostname() string }); ok {
-				hostname = r.GetHostname()
-			} else {
-				// The only detail we want, for now, is the server hostname.
-				continue
-			}
-
-			id := types.ResourceID{
-				ClusterName: clusterName,
-				Kind:        resource.GetKind(),
-				Name:        resource.GetName(),
-			}
-			key := types.ResourceIDToString(id)
-			resourceDetails[key] = ui.ResourceDetails{
-				Hostname: hostname,
+		for id, d := range details {
+			resourceDetails[id] = ui.ResourceDetails{
+				Hostname: d.Hostname,
 			}
 		}
 	}
@@ -299,7 +270,6 @@ func reviewAccessRequest(ctx context.Context, clt accessRequestAPIGetter, review
 
 	if !reviewState.IsApproved() && !reviewState.IsDenied() {
 		return nil, trace.BadParameter("access review state %q, is not a valid state", review.State)
-
 	}
 
 	reviewSubmission := types.AccessReviewSubmission{
