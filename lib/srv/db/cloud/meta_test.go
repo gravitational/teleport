@@ -37,7 +37,7 @@ import (
 // TestAWSMetadata tests fetching AWS metadata for RDS and Redshift databases.
 func TestAWSMetadata(t *testing.T) {
 	// Configure RDS API mock.
-	rds := &RDSMock{
+	rds := &cloudtest.RDSMock{
 		DBInstances: []*rds.DBInstance{
 			// Standalone RDS instance.
 			{
@@ -76,7 +76,7 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	// Configure Redshift API mock.
-	redshift := &RedshiftMock{
+	redshift := &cloudtest.RedshiftMock{
 		Clusters: []*redshift.Cluster{
 			{
 				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-west-1:1234567890:namespace:namespace-id"),
@@ -90,7 +90,7 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	// Configure ElastiCache API mock.
-	elasticache := &ElastiCacheMock{
+	elasticache := &cloudtest.ElastiCacheMock{
 		ReplicationGroups: []*elasticache.ReplicationGroup{
 			{
 				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789:replicationgroup:my-redis"),
@@ -103,7 +103,7 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	// Configure MemoryDB API mock.
-	memorydb := &MemoryDBMock{
+	memorydb := &cloudtest.MemoryDBMock{
 		Clusters: []*memorydb.Cluster{
 			{
 				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789:cluster:my-cluster"),
@@ -351,8 +351,8 @@ func TestAWSMetadata(t *testing.T) {
 // cause an error.
 func TestAWSMetadataNoPermissions(t *testing.T) {
 	// Create unauthorized mocks.
-	rds := &RDSMockUnauth{}
-	redshift := &RedshiftMockUnauth{}
+	rds := &cloudtest.RDSMockUnauth{}
+	redshift := &cloudtest.RedshiftMockUnauth{}
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{

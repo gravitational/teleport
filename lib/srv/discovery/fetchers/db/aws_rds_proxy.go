@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"context"
@@ -24,18 +24,21 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // rdsDBProxyFetcher retrieves RDS Proxies and their custom endpoints.
 type rdsDBProxyFetcher struct {
-	cfg rdsFetcherConfig
+	awsFetcher
+
+	cfg RDSFetcherConfig
 	log logrus.FieldLogger
 }
 
-// newRDSDBProxyFetcher returns a new RDS Proxy fetcher instance.
-func newRDSDBProxyFetcher(config rdsFetcherConfig) (Fetcher, error) {
+// NewRDSDBProxyFetcher returns a new RDS Proxy fetcher instance.
+func NewRDSDBProxyFetcher(config RDSFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -51,13 +54,13 @@ func newRDSDBProxyFetcher(config rdsFetcherConfig) (Fetcher, error) {
 
 // Get returns RDS Proxies and proxy endpoints matching the watcher's
 // selectors.
-func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	databases, err := f.getRDSProxyDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 
 // getRDSProxyDatabases returns a list of database resources representing RDS
@@ -65,14 +68,14 @@ func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.Databases, error) {
 func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Databases, error) {
 	// Get a list of all RDS Proxies. Each RDS Proxy has one "default"
 	// endpoint.
-	rdsProxies, err := getRDSProxies(ctx, f.cfg.RDS, common.MaxPages)
+	rdsProxies, err := getRDSProxies(ctx, f.cfg.RDS, maxAWSPages)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get all RDS Proxy custom endpoints sorted by the name of the RDS Proxy
 	// that owns the custom endpoints.
-	customEndpointsByProxyName, err := getRDSProxyCustomEndpoints(ctx, f.cfg.RDS, common.MaxPages)
+	customEndpointsByProxyName, err := getRDSProxyCustomEndpoints(ctx, f.cfg.RDS, maxAWSPages)
 	if err != nil {
 		f.log.Debugf("Failed to get RDS Proxy endpoints: %v.", err)
 	}
@@ -167,7 +170,7 @@ func getRDSProxies(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int)
 			return pageNum <= maxPages
 		},
 	)
-	return rdsProxies, common.ConvertError(err)
+	return rdsProxies, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // getRDSProxyCustomEndpoints fetches all RDS Proxy custom endpoints using the
@@ -186,7 +189,7 @@ func getRDSProxyCustomEndpoints(ctx context.Context, rdsClient rdsiface.RDSAPI, 
 			return pageNum <= maxPages
 		},
 	)
-	return customEndpointsByProxyName, common.ConvertError(err)
+	return customEndpointsByProxyName, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // getRDSProxyTargetPort gets the port number that the targets of the RDS Proxy
@@ -196,7 +199,7 @@ func getRDSProxyTargetPort(ctx context.Context, rdsClient rdsiface.RDSAPI, dbPro
 		DBProxyName: dbProxyName,
 	})
 	if err != nil {
-		return 0, common.ConvertError(err)
+		return 0, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
 	// The proxy may have multiple targets but they should have the same port.
@@ -214,7 +217,7 @@ func listRDSResourceTags(ctx context.Context, rdsClient rdsiface.RDSAPI, resourc
 		ResourceName: resourceName,
 	})
 	if err != nil {
-		return nil, common.ConvertError(err)
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 	return output.TagList, nil
 }

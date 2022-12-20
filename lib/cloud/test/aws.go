@@ -14,11 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cloud
+package test
 
 import (
-	"context"
-	"crypto/tls"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -36,10 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // STSMock mocks AWS STS API.
@@ -238,16 +232,16 @@ func (m *RDSMock) ListTagsForResourceWithContext(ctx aws.Context, input *rds.Lis
 type IAMMock struct {
 	iamiface.IAMAPI
 	mu sync.RWMutex
-	// attachedRolePolicies maps roleName -> policyName -> policyDocument
-	attachedRolePolicies map[string]map[string]string
-	// attachedUserPolicies maps userName -> policyName -> policyDocument
-	attachedUserPolicies map[string]map[string]string
+	// AttachedRolePolicies maps roleName -> policyName -> policyDocument
+	AttachedRolePolicies map[string]map[string]string
+	// AttachedUserPolicies maps userName -> policyName -> policyDocument
+	AttachedUserPolicies map[string]map[string]string
 }
 
 func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	policy, ok := m.attachedRolePolicies[*input.RoleName]
+	policy, ok := m.AttachedRolePolicies[*input.RoleName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
 	}
@@ -265,21 +259,21 @@ func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePo
 func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.attachedRolePolicies == nil {
-		m.attachedRolePolicies = make(map[string]map[string]string)
+	if m.AttachedRolePolicies == nil {
+		m.AttachedRolePolicies = make(map[string]map[string]string)
 	}
-	if m.attachedRolePolicies[*input.RoleName] == nil {
-		m.attachedRolePolicies[*input.RoleName] = make(map[string]string)
+	if m.AttachedRolePolicies[*input.RoleName] == nil {
+		m.AttachedRolePolicies[*input.RoleName] = make(map[string]string)
 	}
-	m.attachedRolePolicies[*input.RoleName][*input.PolicyName] = *input.PolicyDocument
+	m.AttachedRolePolicies[*input.RoleName][*input.PolicyName] = *input.PolicyDocument
 	return &iam.PutRolePolicyOutput{}, nil
 }
 
 func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.attachedRolePolicies[*input.RoleName]; ok {
-		delete(m.attachedRolePolicies[*input.RoleName], *input.PolicyName)
+	if _, ok := m.AttachedRolePolicies[*input.RoleName]; ok {
+		delete(m.AttachedRolePolicies[*input.RoleName], *input.PolicyName)
 	}
 	return &iam.DeleteRolePolicyOutput{}, nil
 }
@@ -287,7 +281,7 @@ func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.Delete
 func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	policy, ok := m.attachedUserPolicies[*input.UserName]
+	policy, ok := m.AttachedUserPolicies[*input.UserName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
 	}
@@ -305,21 +299,21 @@ func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPo
 func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.attachedUserPolicies == nil {
-		m.attachedUserPolicies = make(map[string]map[string]string)
+	if m.AttachedUserPolicies == nil {
+		m.AttachedUserPolicies = make(map[string]map[string]string)
 	}
-	if m.attachedUserPolicies[*input.UserName] == nil {
-		m.attachedUserPolicies[*input.UserName] = make(map[string]string)
+	if m.AttachedUserPolicies[*input.UserName] == nil {
+		m.AttachedUserPolicies[*input.UserName] = make(map[string]string)
 	}
-	m.attachedUserPolicies[*input.UserName][*input.PolicyName] = *input.PolicyDocument
+	m.AttachedUserPolicies[*input.UserName][*input.PolicyName] = *input.PolicyDocument
 	return &iam.PutUserPolicyOutput{}, nil
 }
 
 func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.DeleteUserPolicyInput, options ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.attachedUserPolicies[*input.UserName]; ok {
-		delete(m.attachedUserPolicies[*input.UserName], *input.PolicyName)
+	if _, ok := m.AttachedUserPolicies[*input.UserName]; ok {
+		delete(m.AttachedUserPolicies[*input.UserName], *input.PolicyName)
 	}
 	return &iam.DeleteUserPolicyOutput{}, nil
 }
@@ -471,26 +465,6 @@ func (m *IAMErrorMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutU
 		return nil, m.Error
 	}
 	return nil, trace.AccessDenied("unauthorized")
-}
-
-// GCPSQLAdminClientMock implements the common.GCPSQLAdminClient interface for tests.
-type GCPSQLAdminClientMock struct {
-	// DatabaseInstance is returned from GetDatabaseInstance.
-	DatabaseInstance *sqladmin.DatabaseInstance
-	// EphemeralCert is returned from GenerateEphemeralCert.
-	EphemeralCert *tls.Certificate
-}
-
-func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error {
-	return nil
-}
-
-func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error) {
-	return g.DatabaseInstance, nil
-}
-
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, identity tlsca.Identity) (*tls.Certificate, error) {
-	return g.EphemeralCert, nil
 }
 
 // ElastiCache mocks AWS ElastiCache API.

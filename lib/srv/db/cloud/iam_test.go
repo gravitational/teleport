@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -62,20 +63,20 @@ func TestAWSIAM(t *testing.T) {
 	}
 
 	// Configure mocks.
-	stsClient := &STSMock{
+	stsClient := &cloudtest.STSMock{
 		ARN: "arn:aws:iam::1234567890:role/test-role",
 	}
 
-	rdsClient := &RDSMock{
+	rdsClient := &cloudtest.RDSMock{
 		DBInstances: []*rds.DBInstance{rdsInstance},
 		DBClusters:  []*rds.DBCluster{auroraCluster},
 	}
 
-	redshiftClient := &RedshiftMock{
+	redshiftClient := &cloudtest.RedshiftMock{
 		Clusters: []*redshift.Cluster{redshiftCluster},
 	}
 
-	iamClient := &IAMMock{}
+	iamClient := &cloudtest.IAMMock{}
 
 	// Setup database resources.
 	rdsDatabase, err := types.NewDatabaseV3(types.Metadata{
@@ -148,14 +149,14 @@ func TestAWSIAM(t *testing.T) {
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
+		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
 		// Deconfigure RDS database, policy should get detached.
 		err = configurator.Teardown(ctx, rdsDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][policyName]
+		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 	})
 
@@ -165,14 +166,14 @@ func TestAWSIAM(t *testing.T) {
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
+		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
 		// Deconfigure Aurora database, policy should get detached.
 		err = configurator.Teardown(ctx, auroraDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][policyName]
+		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 	})
 
@@ -181,14 +182,14 @@ func TestAWSIAM(t *testing.T) {
 		err = configurator.Setup(ctx, rdsProxy)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
+		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.Contains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
 
 		// Deconfigure RDS Proxy database, policy should get detached.
 		err = configurator.Teardown(ctx, rdsProxy)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][policyName]
+		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
 	})
 
@@ -197,14 +198,14 @@ func TestAWSIAM(t *testing.T) {
 		err = configurator.Setup(ctx, redshiftDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
+		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 
 		// Deconfigure Redshift database, policy should get detached.
 		err = configurator.Teardown(ctx, redshiftDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][policyName]
+		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 	})
 }
@@ -216,7 +217,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create unauthorized mocks for AWS services.
-	stsClient := &STSMock{
+	stsClient := &cloudtest.STSMock{
 		ARN: "arn:aws:iam::1234567890:role/test-role",
 	}
 	// Make configurator.
@@ -236,8 +237,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "RDS database",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 			clients: &clients.TestCloudClients{
-				RDS: &RDSMockUnauth{},
-				IAM: &IAMErrorMock{
+				RDS: &cloudtest.RDSMockUnauth{},
+				IAM: &cloudtest.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -247,8 +248,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "Aurora cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 			clients: &clients.TestCloudClients{
-				RDS: &RDSMockUnauth{},
-				IAM: &IAMErrorMock{
+				RDS: &cloudtest.RDSMockUnauth{},
+				IAM: &cloudtest.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -258,8 +259,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "RDS database missing metadata",
 			meta: types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
 			clients: &clients.TestCloudClients{
-				RDS: &RDSMockUnauth{},
-				IAM: &IAMErrorMock{
+				RDS: &cloudtest.RDSMockUnauth{},
+				IAM: &cloudtest.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -269,8 +270,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "Redshift cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				Redshift: &RedshiftMockUnauth{},
-				IAM: &IAMErrorMock{
+				Redshift: &cloudtest.RedshiftMockUnauth{},
+				IAM: &cloudtest.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -280,8 +281,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "IAM UnmodifiableEntityException",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				Redshift: &RedshiftMockUnauth{},
-				IAM: &IAMErrorMock{
+				Redshift: &cloudtest.RedshiftMockUnauth{},
+				IAM: &cloudtest.IAMErrorMock{
 					Error: awserr.New(iam.ErrCodeUnmodifiableEntityException, "unauthorized", fmt.Errorf("unauthorized")),
 				},
 				STS: stsClient,

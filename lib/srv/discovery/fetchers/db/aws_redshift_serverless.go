@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"context"
@@ -29,12 +29,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// redshiftServerlessFetcherConfig is the Redshift Serverless databases fetcher
+// RedshiftServerlessFetcherConfig is the Redshift Serverless databases fetcher
 // configuration.
-type redshiftServerlessFetcherConfig struct {
+type RedshiftServerlessFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// Region is the AWS region to query databases in.
@@ -44,7 +44,7 @@ type redshiftServerlessFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *redshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
+func (c *RedshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -59,13 +59,15 @@ func (c *redshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
 
 // redshiftServerlessFetcher retrieves Redshift Serverless databases.
 type redshiftServerlessFetcher struct {
-	cfg redshiftServerlessFetcherConfig
+	awsFetcher
+
+	cfg RedshiftServerlessFetcherConfig
 	log logrus.FieldLogger
 }
 
-// newRedshiftServerlessFetcher returns a new Redshift Serverless databases
+// NewRedshiftServerlessFetcher returns a new Redshift Serverless databases
 // fetcher instance.
-func newRedshiftServerlessFetcher(config redshiftServerlessFetcherConfig) (Fetcher, error) {
+func NewRedshiftServerlessFetcher(config RedshiftServerlessFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,7 +82,7 @@ func newRedshiftServerlessFetcher(config redshiftServerlessFetcherConfig) (Fetch
 }
 
 // Get returns Redshift Serverless databases matching the watcher's selectors.
-func (f *redshiftServerlessFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *redshiftServerlessFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	databases, workgroups, err := f.getDatabasesFromWorkgroups(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,7 +100,7 @@ func (f *redshiftServerlessFetcher) Get(ctx context.Context) (types.Databases, e
 
 		databases = append(databases, vpcEndpointDatabases...)
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 
 // String returns the fetcher's string description.
@@ -180,7 +182,7 @@ func (f *redshiftServerlessFetcher) getWorkgroups(ctx context.Context) ([]*redsh
 	var pages [][]*redshiftserverless.Workgroup
 	err := f.cfg.Client.ListWorkgroupsPagesWithContext(ctx, nil, func(page *redshiftserverless.ListWorkgroupsOutput, lastPage bool) bool {
 		pages = append(pages, page.Workgroups)
-		return len(pages) <= common.MaxPages
+		return len(pages) <= maxAWSPages
 	})
 	return flatten(pages), libcloudaws.ConvertRequestFailureError(err)
 }
@@ -189,7 +191,7 @@ func (f *redshiftServerlessFetcher) getVPCEndpoints(ctx context.Context) ([]*red
 	var pages [][]*redshiftserverless.EndpointAccess
 	err := f.cfg.Client.ListEndpointAccessPagesWithContext(ctx, nil, func(page *redshiftserverless.ListEndpointAccessOutput, lastPage bool) bool {
 		pages = append(pages, page.Endpoints)
-		return len(pages) <= common.MaxPages
+		return len(pages) <= maxAWSPages
 	})
 	return flatten(pages), libcloudaws.ConvertRequestFailureError(err)
 }

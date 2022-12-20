@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"context"
@@ -22,13 +22,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -45,7 +43,7 @@ type azureListClient[DBType comparable] interface {
 // functions that can be used by the common Azure fetcher.
 type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] interface {
 	// GetListClient returns the azureListClient for the provided subscription.
-	GetListClient(cfg *azureFetcherConfig, subID string) (ListClient, error)
+	GetListClient(cfg *AzureFetcherConfig, subID string) (ListClient, error)
 	// GetServerLocation returns the server location.
 	GetServerLocation(server DBType) string
 	// NewDatabaseFromServer creates a types.Database from provided server.
@@ -53,7 +51,7 @@ type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] i
 }
 
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
-func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](config azureFetcherConfig, plugin azureFetcherPlugin[DBType, ListClient]) (Fetcher, error) {
+func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](config AzureFetcherConfig, plugin azureFetcherPlugin[DBType, ListClient]) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,8 +71,8 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 	return fetcher, nil
 }
 
-// azureFetcherConfig is the Azure database servers fetcher configuration.
-type azureFetcherConfig struct {
+// AzureFetcherConfig is the Azure database servers fetcher configuration.
+type AzureFetcherConfig struct {
 	// AzureClients are the Azure API clients.
 	AzureClients cloud.AzureClients
 	// Type is the type of DB matcher, such as "mysql" or "postgres"
@@ -103,7 +101,7 @@ func (f *azureFetcher[DBType, ListClient]) regionMatches(region string) bool {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *azureFetcherConfig) CheckAndSetDefaults() error {
+func (c *AzureFetcherConfig) CheckAndSetDefaults() error {
 	if c.AzureClients == nil {
 		return trace.BadParameter("missing parameter AzureClients")
 	}
@@ -130,18 +128,28 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 type azureFetcher[DBType comparable, ListClient azureListClient[DBType]] struct {
 	azureFetcherPlugin[DBType, ListClient]
 
-	cfg azureFetcherConfig
+	cfg AzureFetcherConfig
 	log logrus.FieldLogger
 }
 
+// Cloud returns the cloud the fetcher is operating.
+func (f *azureFetcher[DBType, ListClient]) Cloud() string {
+	return types.CloudAzure
+}
+
+// ResourceType identifies the resource type the fetcher is returning.
+func (f *azureFetcher[DBType, ListClient]) ResourceType() string {
+	return types.KindDatabase
+}
+
 // Get returns Azure DB servers matching the watcher's selectors.
-func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.Databases, error) {
+func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	databases, err := f.getDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 
 // getSubscriptions returns the subscriptions that this fetcher is configured to query.
@@ -224,38 +232,4 @@ func (f *azureFetcher[DBType, ListClient]) getDatabases(ctx context.Context) (ty
 func (f *azureFetcher[DBType, ListClient]) String() string {
 	return fmt.Sprintf("azureFetcher(Type=%v, Subscription=%v, ResourceGroup=%v, Regions=%v, Labels=%v)",
 		f.cfg.Type, f.cfg.Subscription, f.cfg.ResourceGroup, f.cfg.Regions, f.cfg.Labels)
-}
-
-// simplifyMatchers returns simplified Azure Matchers.
-// Selectors are deduplicated, wildcard in a selector reduces the selector
-// to just the wildcard, and defaults are applied.
-func simplifyMatchers(matchers []services.AzureMatcher) []services.AzureMatcher {
-	result := make([]services.AzureMatcher, 0, len(matchers))
-	for _, m := range matchers {
-		subs := apiutils.Deduplicate(m.Subscriptions)
-		groups := apiutils.Deduplicate(m.ResourceGroups)
-		regions := apiutils.Deduplicate(m.Regions)
-		ts := apiutils.Deduplicate(m.Types)
-		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
-			subs = []string{types.Wildcard}
-		}
-		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
-			groups = []string{types.Wildcard}
-		}
-		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
-			regions = []string{types.Wildcard}
-		} else {
-			for i, region := range regions {
-				regions[i] = azureutils.NormailizeLocation(region)
-			}
-		}
-		result = append(result, services.AzureMatcher{
-			Subscriptions:  subs,
-			ResourceGroups: groups,
-			Regions:        regions,
-			Types:          ts,
-			ResourceTags:   m.ResourceTags,
-		})
-	}
-	return result
 }

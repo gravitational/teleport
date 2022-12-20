@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package watchers
+package db
 
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
@@ -22,10 +22,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// newAzureSQLServer creates a fetcher for Azure SQL Servers.
-func newAzureSQLServerFetcher(config azureFetcherConfig) (Fetcher, error) {
+// NewAzureSQLServer creates a fetcher for Azure SQL Servers.
+func NewAzureSQLServerFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*armsql.Server, azure.SQLServerClient](config, &azureSQLServerFetcher{})
 }
 
@@ -33,7 +34,7 @@ func newAzureSQLServerFetcher(config azureFetcherConfig) (Fetcher, error) {
 type azureSQLServerFetcher struct {
 }
 
-func (f *azureSQLServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.SQLServerClient, error) {
+func (f *azureSQLServerFetcher) GetListClient(cfg *AzureFetcherConfig, subID string) (azure.SQLServerClient, error) {
 	client, err := cfg.AzureClients.GetAzureSQLServerClient(subID)
 	return client, trace.Wrap(err)
 }

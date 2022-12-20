@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"github.com/gravitational/trace"
@@ -23,15 +23,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// newAzureMySQLFetcher creates a fetcher for Azure MySQL.
-func newAzureMySQLFetcher(config azureFetcherConfig) (Fetcher, error) {
+// NewAzureMySQLFetcher creates a fetcher for Azure MySQL.
+func NewAzureMySQLFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
-// newAzureMySQLFetcher creates a fetcher for Azure PostgresSQL.
-func newAzurePostgresFetcher(config azureFetcherConfig) (Fetcher, error) {
+// NewAzureMySQLFetcher creates a fetcher for Azure PostgresSQL.
+func NewAzurePostgresFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
@@ -39,7 +40,7 @@ func newAzurePostgresFetcher(config azureFetcherConfig) (Fetcher, error) {
 type azureDBServerPlugin struct {
 }
 
-func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
+func (p *azureDBServerPlugin) GetListClient(cfg *AzureFetcherConfig, subID string) (azure.DBServersClient, error) {
 	switch cfg.Type {
 	case services.AzureMatcherMySQL:
 		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
@@ -24,16 +24,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-func newAzureRedisEnterpriseFetcher(config azureFetcherConfig) (Fetcher, error) {
+// NewAzureRedisEnterpriseFetcher creates a fetcher for Azure Redis Enterprise.
+func NewAzureRedisEnterpriseFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.RedisEnterpriseDatabase, azure.RedisEnterpriseClient](config, &azureRedisEnterprisePlugin{})
 }
 
 type azureRedisEnterprisePlugin struct {
 }
 
-func (p *azureRedisEnterprisePlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.RedisEnterpriseClient, error) {
+func (p *azureRedisEnterprisePlugin) GetListClient(cfg *AzureFetcherConfig, subID string) (azure.RedisEnterpriseClient, error) {
 	client, err := cfg.AzureClients.GetAzureRedisEnterpriseClient(subID)
 	return client, trace.Wrap(err)
 }

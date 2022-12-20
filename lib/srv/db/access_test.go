@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -562,7 +561,7 @@ func TestGCPRequireSSL(t *testing.T) {
 			withCloudSQLPostgres("postgres", cloudSQLAuthToken)(t, ctx, testCtx),
 			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 		},
-		GCPSQL: &cloud.GCPSQLAdminClientMock{
+		GCPSQL: &cloudtest.GCPSQLAdminClientMock{
 			EphemeralCert: ephemeralCert,
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
@@ -1930,9 +1929,15 @@ type agentParams struct {
 	// NoStart indicates server should not be started.
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
-	GCPSQL *cloud.GCPSQLAdminClientMock
+	GCPSQL *cloudtest.GCPSQLAdminClientMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
+	// CloudClients is the cloud API clients for database service.
+	CloudClients clients.Clients
+	// AWSMatchers is a list of AWS databases matchers.
+	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of Azure databases matchers.
+	AzureMatchers []services.AzureMatcher
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -1940,7 +1945,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 		p.HostID = c.hostID
 	}
 	if p.GCPSQL == nil {
-		p.GCPSQL = &cloud.GCPSQLAdminClientMock{
+		p.GCPSQL = &cloudtest.GCPSQLAdminClientMock{
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
 					IpConfiguration: &sqladmin.IpConfiguration{
@@ -1984,6 +1989,20 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	connLimiter, err := limiter.NewLimiter(limiter.Config{})
 	require.NoError(t, err)
 
+	if p.CloudClients == nil {
+		p.CloudClients = &clients.TestCloudClients{
+			STS:                &cloudtest.STSMock{},
+			RDS:                &cloudtest.RDSMock{},
+			Redshift:           &cloudtest.RedshiftMock{},
+			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
+			ElastiCache:        &cloudtest.ElastiCacheMock{},
+			MemoryDB:           &cloudtest.MemoryDBMock{},
+			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                &cloudtest.IAMMock{},
+			GCPSQL:             p.GCPSQL,
+		}
+	}
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            c.clock,
@@ -2015,19 +2034,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		CADownloader: &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
 		},
-		OnReconcile: p.OnReconcile,
-		LockWatcher: lockWatcher,
-		CloudClients: &clients.TestCloudClients{
-			STS:                &cloud.STSMock{},
-			RDS:                &cloud.RDSMock{},
-			Redshift:           &cloud.RedshiftMock{},
-			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
-			ElastiCache:        &cloud.ElastiCacheMock{},
-			MemoryDB:           &cloud.MemoryDBMock{},
-			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:                &cloud.IAMMock{},
-			GCPSQL:             p.GCPSQL,
-		},
+		OnReconcile:   p.OnReconcile,
+		LockWatcher:   lockWatcher,
+		CloudClients:  p.CloudClients,
+		AWSMatchers:   p.AWSMatchers,
+		AzureMatchers: p.AzureMatchers,
 	})
 	require.NoError(t, err)
 
