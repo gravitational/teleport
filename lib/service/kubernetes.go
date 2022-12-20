@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -72,21 +71,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 
 	teleportClusterName := conn.ServerIdentity.ClusterName
-
-	// Start uploader that will scan a path on disk and upload completed
-	// sessions to the Auth Server.
-	uploaderCfg := filesessions.UploaderConfig{
-		Streamer: accessPoint,
-		AuditLog: conn.Client,
-	}
-	completerCfg := events.UploadCompleterConfig{
-		SessionTracker: conn.Client,
-		ClusterName:    teleportClusterName,
-	}
-	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-		return trace.Wrap(err)
-	}
-
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	// This service can run in 2 modes:

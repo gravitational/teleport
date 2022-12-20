@@ -97,11 +97,6 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	nodeRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
-	})
-	require.NoError(t, err)
-
 	nodeRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtNodeSync,
 	})
@@ -163,28 +158,6 @@ func TestSession_newRecorder(t *testing.T) {
 				_, ok := i.(*events.DiscardStream)
 				require.True(t, ok)
 			},
-		},
-		{
-			desc: "err-new-streamer-fails",
-			sess: &session{
-				id:  "test",
-				log: logger,
-				registry: &SessionRegistry{
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
-			sctx: &ServerContext{
-				SessionRecordingConfig: nodeRecording,
-				srv: &mockServer{
-					component: teleport.ComponentNode,
-				},
-			},
-			errAssertion: require.Error,
-			recAssertion: require.Nil,
 		},
 		{
 			desc: "strict-err-new-audit-writer-fails",
@@ -613,7 +586,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 
 type mockRecorder struct {
 	events.StreamWriter
-	done bool
+	emitter eventstest.MockEmitter
+	done    bool
 }
 
 func (m *mockRecorder) Done() <-chan struct{} {
@@ -623,6 +597,10 @@ func (m *mockRecorder) Done() <-chan struct{} {
 	}
 
 	return ch
+}
+
+func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return m.emitter.EmitAuditEvent(ctx, event)
 }
 
 type trackerService struct {

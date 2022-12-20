@@ -87,7 +87,7 @@ func main() {
 
 	syncPeriod, err := time.ParseDuration(syncPeriodString)
 	if err != nil {
-		setupLog.Error(err, "invalid sync-period, please ensure the value is currectly parsed with https://pkg.go.dev/time#ParseDuration")
+		setupLog.Error(err, "invalid sync-period, please ensure the value is correctly parsed with https://pkg.go.dev/time#ParseDuration")
 		os.Exit(1)
 	}
 
