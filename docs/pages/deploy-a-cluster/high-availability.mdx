@@ -22,16 +22,18 @@ This includes:
 
 - **A Layer 4 load balancer** to direct traffic from users and services to an
   available `teleport` process.
-- A **key-value store** for Auth Service state and audit events that all Auth
-  Service instances can access. This requires permissions for Auth Service
-  instances to manage records within the key-value store.
-- An **object storage service** for session recordings uploaded by the Auth
-  Service. This requires permissions for `teleport` instances to manage objects
-  within the storage service.
-- An **automated TLS credential provisioner** that obtains TLS credentials from
-  a certificate authority like Let's Encrypt (or an internal public key
-  infrastructure), renews the credentials, and provisions `teleport` instances
-  with them.
+- A **cluster state backend**. This is a key-value store for cluster state and
+  audit events that all Auth Service instances can access. This requires
+  permissions for Auth Service instances to manage records within the key-value
+  store.
+- A **session recording backend**. This is an object storage service where the
+  Auth Service uploads session recordings. The session recording backend
+  requires permissions for `teleport` instances to manage objects within the
+  storage service.
+- A **TLS credential provisioning system**. You need a way to obtain TLS
+  credentials from a certificate authority like Let's Encrypt (or an internal
+  public key infrastructure), provision `teleport` instances with them, and
+  renew them periodically. 
 - A **DNS service** you can use to create records for the Teleport Proxy
   Service. If you are using Let's Encrypt for TLS credentials, the TLS
   credential provisioner will need to manage DNS records to demonstrate control
@@ -47,6 +49,10 @@ Teleport instance. This must not terminate TLS, and must transparently forward
 the TCP traffic it receives. In other words, this must be a Layer 4 load
 balancer, not a Layer 7 (e.g., HTTP) load balancer. 
 
+We recommend configuring your load balancer to route traffic across multiple
+zones (if using a cloud provider) or data centers (if using an on-premise
+solution) to ensure availability. 
+
 ### TLS Routing
 
 Your load balancer configuration depends on whether you will enable [TLS
@@ -55,7 +61,7 @@ Routing](../management/operations/tls-routing.mdx) in your Teleport cluster.
 With TLS Routing, the Teleport Proxy Service uses application-layer protocol
 negotiation (ALPN) to handle all communication with users and services via the
 HTTPS port, regardless of protocol. Without TLS Routing, the Proxy Service
-listens on a separate port for each protocol.
+listens on separate ports for each protocol.
 
 The advantage of TLS Routing is its simplicity: you can expose only a single
 port on the load balancer to the public internet.
@@ -104,7 +110,7 @@ services:
 </TabItem>
 </Tabs>
 
-## Key-value store
+## Cluster state backend
 
 The Teleport Auth Service stores cluster state (such as dynamic configuration
 resources) and audit events as key/value pairs. In high-availability
@@ -116,6 +122,7 @@ events:
 
 - Amazon DynamoDB
 - Google Cloud Firestore
+- etcd (cluster state only)
 
 For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration (which
 we will describe in more detail in the [Configuration](#configuration) section)
@@ -138,7 +145,7 @@ store supports them).
 
 </Admonition>
 
-## Object storage service
+## Session recording backend
 
 High-availability Teleport deployments use an object storage service for
 persisting session recordings. The Teleport Auth Service supports two object
@@ -156,13 +163,18 @@ create it in advance.
 <Admonition title="Required permissions">
 
 In your cloud provider's RBAC solution, your Auth Service instances need
-permissions to create, read from, and write to buckets.
+permissions to get buckets as well as to create, get, list, and update objects.
+Since this setup lets Teleport create buckets for you, you should also assign
+Auth Service instances permissions to create buckets
+
+In Google Cloud Storage, Auth Service instances also need permissions to delete
+objects. 
 
 </Admonition>
 
 ## TLS credential provisioning 
 
-High-availability Teleport deployments require an automated system to fetch TLS
+High-availability Teleport deployments require a  system to fetch TLS
 credentials from a certificate authority like Let's Encrypt, AWS Certificate
 Manager, Digicert, or a trusted internal authority. The system must then
 provision Teleport Proxy Service instances with these credentials and renew them
@@ -245,8 +257,14 @@ records.
 Run the Teleport Auth Service and Proxy Service as a scalable group of compute
 resources, for example, a Kubernetes `Deployment` or AWS Auto Scaling group.
 This requires running the `teleport` binary on each Kubernetes pod or virtual
-machine or in your group. In the [Configuration](#configuration) section, we
-will show you how to configure each binary for high availability.
+machine or in your group. 
+
+You should deploy your Teleport instancess across multiple zones (if using a
+cloud provider) or data centers (if using an on-premise solution) to ensure
+availability.
+
+In the [Configuration](#configuration) section, we will show you how to
+configure each binary for high availability.
 
 ### Open ports
 
@@ -315,65 +333,18 @@ more specific [deployment guide](introduction.mdx) for your environment.
 #### `storage` 
 
 The first configuration section to write is the `storage` section, which
-configures the key-value store and object store for the Teleport Auth Service.
-
-The example configurations below apply to Teleport deployments that use Amazon
-DynamoDB, Google Cloud Firestore, and etcd as the Auth Service backend:
-
-<Tabs>
-<TabItem label="Amazon DynamoDB">
+configures the cluster state backend and session recording backend for the
+Teleport Auth Service:
 
 ```yaml
-version: v2
+version: v3
 teleport:
   storage:
-    type: dynamodb
-    region: "us-east-1" # Or another region
-    table_name: "my-kv-table"
-    audit_events_uri: ["dynamodb://my-audit-events-table", "stdout://"]
-    continuous_backups: true
-    audit_sessions_uri: "s3://my-session-recording-bucket"
+    # ...
 ```
-</TabItem>
-<TabItem label="Google cloud Firestore">
-```yaml
-version: v2
-teleport:
-  storage:
-    type: firestore
-    project_id: my-google-cloud-project
-    collection_name: my-cluster-state-table
-    credentials_path: /etc/teleport-secrets/gcp-credentials.json
-    audit_events_uri: ['firestore://my-audit-events-table?projectID=my-google-cloud-project&credentialsPath=/etc/teleport-secrets/gcp-credentials.json', 'stdout://']
-    audit_sessions_uri: "gs://session-recording-bucket?projectID=my-google-cloud-project&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
-```
-</TabItem>
-<TabItem label="etcd">
-```yaml
-version: v2
-teleport:
-  storage:
-    type: etcd
-    peers: ["https://172.17.0.1:4001", "https://172.17.0.2:4001"]
-    tls_cert_file: /var/lib/teleport/etcd-cert.pem
-    tls_key_file: /var/lib/teleport/etcd-key.pem
-    tls_ca_file: /var/lib/teleport/etcd-ca.pem
-    username: username
-    password_file: /mnt/secrets/etcd-pass
-    prefix: /teleport/
-    insecure: false
-    etcd_max_client_msg_size_bytes: 15728640
-    audit_sessions_uri: "s3://my-session-recording-bucket"
-```
-</TabItem>
-</Tabs>
 
-In the `storage` section, the `audit_sessions_uri` field names the bucket within
-Google Cloud Storage or an S3-compatible service to use for session recordings,
-and the remaining fields are specific to each backend. 
-
-Consult our [Backends Reference](../reference/backends.mdx) for the values you
-should use.  
+Consult our [Backends Reference](../reference/backends.mdx) for the configuration
+fields you should set in the `storage` section.
 
 #### `auth_service` and `proxy_service` 
 
@@ -389,21 +360,21 @@ To enable TLS Routing in your Teleport cluster, add the following to your
 Teleport configuration:
 
 ```yaml
-version: v2
+version: v3
 teleport:
   storage:
   # ...
-  auth_service:
-    enabled: true
-    cluster_name: "mycluster.example.com"
-    # Remove this if not using Teleport Enterprise
-    license_file: "/var/lib/license/license.pem"
-  proxy_service:
-    enabled: true
-    public_addr: "mycluster.example.com:443"
-    https_keypairs:
-    - key_file: /etc/teleport-tls/tls.key
-      cert_file: /etc/teleport-tls/tls.crt
+auth_service:
+  enabled: true
+  cluster_name: "mycluster.example.com"
+  # Remove this if not using Teleport Enterprise
+  license_file: "/var/lib/license/license.pem"
+proxy_service:
+  enabled: true
+  public_addr: "mycluster.example.com:443"
+  https_keypairs:
+  - key_file: /etc/teleport-tls/tls.key
+    cert_file: /etc/teleport-tls/tls.crt
 ```
 
 This configuration has no fields specific to TLS Routing. In `v2`, the
@@ -416,24 +387,24 @@ To disable TLS Routing in your Teleport cluster, add the following to your
 Teleport configuration:
 
 ```yaml
-version: v2
+version: v3
 teleport:
   storage:
   # ...
-  auth_service:
-    proxy_listener_mode: separate
-    enabled: true
-    cluster_name: "mycluster.example.com"
-    # Remove this if not using Teleport Enterprise
-    license_file: "/var/lib/license/license.pem"
-  proxy_service:
-    enabled: true
-    listen_addr: 0.0.0.0:3023
-    tunnel_listen_addr: 0.0.0.0:3024
-    public_addr: "mycluster.example.com:443"
-    https_keypairs:
-    - key_file: /etc/teleport-tls/tls.key
-      cert_file: /etc/teleport-tls/tls.crt
+auth_service:
+  proxy_listener_mode: separate
+  enabled: true
+  cluster_name: "mycluster.example.com"
+  # Remove this if not using Teleport Enterprise
+  license_file: "/var/lib/license/license.pem"
+proxy_service:
+  enabled: true
+  listen_addr: 0.0.0.0:3023
+  tunnel_listen_addr: 0.0.0.0:3024
+  public_addr: "mycluster.example.com:443"
+  https_keypairs:
+  - key_file: /etc/teleport-tls/tls.key
+    cert_file: /etc/teleport-tls/tls.crt
 ```
 
 This configuration assigns `auth_service.proxy_listener_mode` to `separate` to
@@ -460,16 +431,16 @@ You can disable the SSH Service on each Teleport instance by adding the
 following to each instance's configuration file: 
 
 ```yaml
-version: v2
+version: v3
 teleport:
   storage:
   # ...
-  auth_service:
-  # ...
-  proxy_service:
-  # ...
-  ssh_service:
-    enabled: false
+auth_service:
+# ...
+proxy_service:
+# ...
+ssh_service:
+  enabled: false
 ```
 
 This is suitable for deploying Teleport on Kubernetes, where the `teleport` pod
@@ -490,11 +461,6 @@ cluster of virtual machines in your cloud of choice:
   Helm](helm-deployments.mdx)
 - [Reference Deployments](deployments.mdx) for running Teleport on a cluster of
   virtual machines
-
-### Configure your backend
-
-Teleport supports a range of Auth Service backends, and you can plan the best
-one for your use case in our [backends guide](../reference/backends.mdx).
 
 ### Ensure high performance
 
