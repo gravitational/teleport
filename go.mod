@@ -105,7 +105,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.12.2
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.0 // replaced
-	github.com/snowflakedb/gosnowflake v1.6.15
+	github.com/snowflakedb/gosnowflake v1.6.16
 	github.com/stretchr/testify v1.8.1
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
@@ -172,11 +172,6 @@ require golang.org/x/crypto v0.2.0 // DO NOT UPDATE
 require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
-)
-
-// Do not remove. It breaks github.com/gravitational/go-oidc.
-require (
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 )
 
 require (
