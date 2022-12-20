@@ -265,7 +265,7 @@ func releaseMakefileTarget(b buildType) string {
 		makefileTarget += "-fips"
 	}
 
-	// Override non-Unix targets.
+	// Override non-Linux targets.
 	if b.os == "windows" {
 		if b.unsigned {
 			makefileTarget = "release-windows-unsigned"
