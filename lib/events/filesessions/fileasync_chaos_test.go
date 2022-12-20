@@ -47,7 +47,6 @@ import (
 // Data race detector slows down the test significantly (10x+),
 // that is why the test is skipped when tests are running with
 // `go test -race` flag or `go test -short` flag
-//
 func TestChaosUpload(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping chaos test in short mode.")
@@ -65,9 +64,8 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanDir, err := ioutil.TempDir("", "teleport-streams")
-	require.NoError(t, err)
-	defer os.RemoveAll(scanDir)
+	scanDir := t.TempDir()
+	corruptedDir := t.TempDir()
 
 	terminateConnection := atomic.NewUint64(0)
 	failCreateAuditStream := atomic.NewUint64(0)
@@ -118,11 +116,12 @@ func TestChaosUpload(t *testing.T) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		ScanDir:    scanDir,
-		ScanPeriod: scanPeriod,
-		Streamer:   faultyStreamer,
-		Clock:      clock,
-		AuditLog:   &events.DiscardAuditLog{},
+		ScanDir:      scanDir,
+		CorruptedDir: corruptedDir,
+		ScanPeriod:   scanPeriod,
+		Streamer:     faultyStreamer,
+		Clock:        clock,
+		AuditLog:     &events.DiscardAuditLog{},
 	})
 	require.NoError(t, err)
 	go uploader.Serve(ctx)
