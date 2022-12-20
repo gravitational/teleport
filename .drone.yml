@@ -78,7 +78,6 @@ steps:
   - mkdir -pv /go/cache
   - cd /go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
   - git submodule update --init packages/webapps.e
   - cd -
   - rm -f /root/.ssh/id_rsa
@@ -513,7 +512,6 @@ steps:
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init packages/webapps.e
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
@@ -699,7 +697,6 @@ steps:
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Checkout Submodules
@@ -988,7 +985,6 @@ steps:
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Checkout Submodules
@@ -1627,7 +1623,7 @@ steps:
   - name: Download chart repo contents
     image: amazon/aws-cli
     environment:
-      AWS_REGION: us-west-2        
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -2103,7 +2099,6 @@ steps:
   - git submodule update --init --recursive webassets || true
   - cd /go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
   - git submodule update --init packages/webapps.e
   - cd -
   - rm -f /root/.ssh/id_rsa
@@ -3013,7 +3008,6 @@ steps:
   - git submodule update --init --recursive webassets || true
   - cd /go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
   - git submodule update --init packages/webapps.e
   - cd -
   - rm -f /root/.ssh/id_rsa
@@ -7817,7 +7811,6 @@ steps:
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init packages/webapps.e
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
