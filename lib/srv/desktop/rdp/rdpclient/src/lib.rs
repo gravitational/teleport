@@ -301,9 +301,10 @@ fn connect_rdp_inner(
         // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
         Some(
-            sec::ExtendedInfoFlag::PerfDisableCursorBlink as u32
+            sec::ExtendedInfoFlag::PerfDisableWallpaper as u32
                 | sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
-                | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32,
+                | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32
+                | sec::ExtendedInfoFlag::PerfDisableTheming as u32,
         ),
     )?;
     // Client for the "global" channel - video output and user input.
