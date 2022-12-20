@@ -54,8 +54,8 @@ type Cluster struct {
 	// Auth server features
 	// only present where the auth client can be queried
 	// and set with GetClusterFeatures
-	Features *proto.Features
-	LoggedInUser
+	Features     *proto.Features
+	LoggedInUser LoggedInUser
 }
 
 // Connected indicates if connection to the cluster can be established
