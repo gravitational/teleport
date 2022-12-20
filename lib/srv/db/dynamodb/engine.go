@@ -349,13 +349,6 @@ func rewriteRequest(ctx context.Context, r *http.Request, uri string, body io.Re
 	reqCopy.URL.Scheme = "https"
 	reqCopy.Host = uri
 	reqCopy.URL.Host = uri
-
-	for key := range reqCopy.Header {
-		// Remove Content-Length header for SigV4 signing.
-		if http.CanonicalHeaderKey(key) == "Content-Length" {
-			reqCopy.Header.Del(key)
-		}
-	}
 	return reqCopy, nil
 }
 
