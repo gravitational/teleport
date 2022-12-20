@@ -1451,12 +1451,11 @@ func TestTerminalRouting(t *testing.T) {
 	}
 
 	closeOkNetworkError := func(t *testing.T, err error) {
-		if err != nil {
-			require.True(t, utils.IsOKNetworkError(err))
+		if err == nil {
 			return
 		}
 
-		require.NoError(t, err)
+		require.True(t, utils.IsOKNetworkError(err), "websocket closure should have return an error indicating that the server already terminated the connection")
 	}
 
 	cases := []struct {
