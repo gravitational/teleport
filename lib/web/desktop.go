@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -197,9 +198,10 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(ws, err)
 	}
 
-	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
-		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
-	}
+	// proxyWebsocketConn hangs here until connection is closed
+	handleProxyWebsocketConnErr(
+		proxyWebsocketConn(ws, serviceConnTLS), log)
+
 	return nil
 }
 
@@ -382,4 +384,38 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
+}
+
+// handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
+// unwrapping it and determining whether to log an error.
+func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
+	if proxyWsConnErr == nil {
+		log.Debug("proxyWebsocketConn returned with no error")
+		return
+	}
+
+	errs := []error{proxyWsConnErr}
+	for len(errs) > 0 {
+		err := errs[0] // pop first error
+		errs = errs[1:]
+
+		switch err := err.(type) {
+		case trace.Aggregate:
+			errs = append(errs, err.Errors()...)
+		case *websocket.CloseError:
+			switch err.Code {
+			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
+				websocket.CloseGoingAway: // when the user closes the tab
+				log.Debugf("Web socket closed by client with code: %v", err.Code)
+				return
+			}
+			return
+		default:
+			if wrapped := errors.Unwrap(err); wrapped != nil {
+				errs = append(errs, wrapped)
+			}
+		}
+	}
+
+	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
