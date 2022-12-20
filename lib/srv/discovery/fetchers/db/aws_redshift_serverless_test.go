@@ -96,7 +96,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			fetchers := mustMakeFetchersForMatcher(t, test.inputClients, services.AWSMatcherRedshiftServerless, "us-east-2", toTypeLabels(test.inputLabels))
+			fetchers := mustMakeAWSFetchersForMatcher(t, test.inputClients, services.AWSMatcherRedshiftServerless, "us-east-2", toTypeLabels(test.inputLabels))
 			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
 		})
 	}

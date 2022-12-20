@@ -57,7 +57,7 @@ func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []serv
 	return fetchers
 }
 
-func mustMakeFetchersForMatcher(t *testing.T, clients cloud.AWSClients, matcherType, region string, tags types.Labels) []common.Fetcher {
+func mustMakeAWSFetchersForMatcher(t *testing.T, clients cloud.AWSClients, matcherType, region string, tags types.Labels) []common.Fetcher {
 	t.Helper()
 
 	return mustMakeAWSFetchers(t, clients, []services.AWSMatcher{{

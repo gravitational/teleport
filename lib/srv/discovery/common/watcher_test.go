@@ -64,6 +64,7 @@ func TestWatcher(t *testing.T) {
 		Interval: time.Hour,
 		Clock:    clock,
 	})
+	require.NoError(t, err)
 	go watcher.Start()
 
 	// Watcher should fetch once right away at watcher.Start.
