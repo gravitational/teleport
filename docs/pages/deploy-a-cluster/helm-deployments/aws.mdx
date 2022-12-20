@@ -411,18 +411,25 @@ Once the chart is installed, you can use `kubectl` commands to view the deployme
 ```code
 $ kubectl --namespace teleport get all
 
-# NAME                            READY   STATUS    RESTARTS   AGE
-# pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
-# pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
+NAME                                 READY   STATUS    RESTARTS   AGE
+pod/teleport-auth-57989d4cbd-4q2ds   1/1     Running   0          22h
+pod/teleport-auth-57989d4cbd-rtrzn   1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-w96d2   1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-z256w   1/1     Running   0          22h
 
-# NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
-# service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
+NAME                        TYPE           CLUSTER-IP     EXTERNAL-IP                         PORT(S)                                                                     AGE
+service/teleport            LoadBalancer   10.40.11.180   xxxxx.elb.us-east-1.amazonaws.com   443:30258/TCP,3023:31802/TCP,3026:32182/TCP,3024:30101/TCP,3036:30302/TCP   22h
+service/teleport-auth       ClusterIP      10.40.8.251    <none>                              3025/TCP,3026/TCP                                                           22h
+service/teleport-auth-v11   ClusterIP      None           <none>                              <none>                                                                      22h
+service/teleport-auth-v12   ClusterIP      None           <none>                              <none>                                                                      22h
 
-# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-# deployment.apps/teleport   2/2     2            2           4m21s
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport-auth    2/2     2            2           22h
+deployment.apps/teleport-proxy   2/2     2            2           22h
 
-# NAME                                  DESIRED   CURRENT   READY   AGE
-# replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
+NAME                                       DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-auth-57989d4cbd   2         2         2       22h
+replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 ```
 
 ## Step 6/7. Set up DNS
@@ -499,11 +506,12 @@ Create a user to be able to log into Teleport. This needs to be done on the Tele
 so we can run the command using `kubectl`:
 
 ```code
-$ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
-# User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
-# https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+$ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor
 
-# NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
@@ -615,4 +623,3 @@ Teleport cluster.
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 
 Read the [`cert-manager` documentation](https://cert-manager.io/docs/).
-
