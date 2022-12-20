@@ -44,7 +44,7 @@ func (process *TeleportProcess) initWindowsDesktopService() {
 	})
 	process.RegisterWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
-		conn, err := process.waitForConnector(WindowsDesktopIdentityEvent, log)
+		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
