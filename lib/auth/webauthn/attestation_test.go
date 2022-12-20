@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -42,7 +42,7 @@ type attestationTest struct {
 }
 
 func TestVerifyAttestation(t *testing.T) {
-	var sig = []byte{1, 2, 3} // fake signature
+	sig := []byte{1, 2, 3} // fake signature
 
 	// secureKeyCA stands for a security key manufacturer CA.
 	// In practice, attestation certs are likely to derive directly from this one,

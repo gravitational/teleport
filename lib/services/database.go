@@ -1294,7 +1294,7 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 	// if the status is resulted by modifying the cluster, and the cluster is
 	// assumed to be unavailable if the cluster cannot be created or restored.
 	switch aws.StringValue(cluster.ClusterStatus) {
-	// nolint:misspell
+	//nolint:misspell // cancelling is marked as non-existing word
 	case "available", "available, prep-for-resize", "available, resize-cleanup",
 		"cancelling-resize", "final-snapshot", "modifying", "rebooting",
 		"renaming", "resizing", "rotating-keys", "storage-full", "updating-hsm",
