@@ -20,15 +20,19 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // mockGetter mocks the UserAndRoleGetter interface.
@@ -218,6 +222,10 @@ func TestReviewThresholds(t *testing.T) {
 				Roles: []string{"dictator"},
 				Where: `contains(request.system_annotations["mechanisms"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
 			},
+		},
+		// never is the role that will never be requested
+		"never": {
+			// ...
 		},
 	}
 
@@ -528,12 +536,17 @@ func TestReviewThresholds(t *testing.T) {
 		req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
+		clock := clockwork.NewFakeClock()
+		identity := tlsca.Identity{
+			Expires: clock.Now().UTC().Add(8 * time.Hour),
+		}
+
 		// perform request validation (necessary in order to initialize internal
 		// request variables like annotations and thresholds).
-		validator, err := NewRequestValidator(context.Background(), g, tt.requestor, ExpandVars(true))
+		validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
-		require.NoError(t, validator.Validate(context.Background(), req), "scenario=%q", tt.desc)
+		require.NoError(t, validator.Validate(context.Background(), req, identity), "scenario=%q", tt.desc)
 
 	Inner:
 		for ri, rt := range tt.reviews {
@@ -935,6 +948,10 @@ func TestRolesForResourceRequest(t *testing.T) {
 				},
 			},
 		},
+		// splunk-super-admins is a role that will never be requested
+		"splunk-super-admins": {
+			// ...
+		},
 	}
 	roles := make(map[string]types.Role)
 	for name, spec := range roleDesc {
@@ -1034,10 +1051,15 @@ func TestRolesForResourceRequest(t *testing.T) {
 				"some-id", user.GetName(), tc.requestRoles, tc.requestResourceIDs)
 			require.NoError(t, err)
 
-			validator, err := NewRequestValidator(context.Background(), g, user.GetName(), ExpandVars(true))
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, g, user.GetName(), ExpandVars(true))
 			require.NoError(t, err)
 
-			err = validator.Validate(context.Background(), req)
+			err = validator.Validate(context.Background(), req, identity)
 			require.ErrorIs(t, err, tc.expectError)
 			if err != nil {
 				return
@@ -1393,10 +1415,15 @@ func TestPruneRequestRoles(t *testing.T) {
 
 			req.SetLoginHint(tc.loginHint)
 
-			accessCaps, err := CalculateAccessCapabilities(ctx, g, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			accessCaps, err := CalculateAccessCapabilities(ctx, clock, g, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
 			require.NoError(t, err)
 
-			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
+			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, ExpandVars(true))
 			if tc.expectError {
 				require.Error(t, err)
 				return
@@ -1412,6 +1439,172 @@ func TestPruneRequestRoles(t *testing.T) {
 			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
 				"Length of rtm does not match number of roles. rtm: %v roles %v",
 				req.GetRoleThresholdMapping(), req.GetRoles())
+		})
+	}
+}
+
+// TestRequestTTL verifies that the TTL for the Access Request gets reduced by
+// requested access time and lifetime of the requesting certificate.
+func TestRequestTTL(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
+
+	tests := []struct {
+		desc          string
+		expiry        time.Time
+		identity      tlsca.Identity
+		maxSessionTTL time.Duration
+		expectedTTL   time.Duration
+		assertion     require.ErrorAssertionFunc
+	}{
+		{
+			desc:          "access request with ttl, below limit",
+			expiry:        now.Add(8 * time.Hour),
+			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
+			maxSessionTTL: 10 * time.Hour,
+			expectedTTL:   8 * time.Hour,
+			assertion:     require.NoError,
+		},
+		{
+			desc:          "access request with ttl, above limit",
+			expiry:        now.Add(11 * time.Hour),
+			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
+			maxSessionTTL: 10 * time.Hour,
+			assertion:     require.Error,
+		},
+		{
+			desc:          "access request without ttl (default ttl)",
+			expiry:        time.Time{},
+			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
+			maxSessionTTL: 10 * time.Hour,
+			expectedTTL:   defaults.PendingAccessDuration,
+			assertion:     require.NoError,
+		},
+		{
+			desc:          "access request without ttl (default ttl), truncation by identity expiration",
+			expiry:        time.Time{},
+			identity:      tlsca.Identity{Expires: now.Add(12 * time.Minute)},
+			maxSessionTTL: 13 * time.Minute,
+			expectedTTL:   12 * time.Minute,
+			assertion:     require.NoError,
+		},
+		{
+			desc:          "access request without ttl (default ttl), truncation by role max session ttl",
+			expiry:        time.Time{},
+			identity:      tlsca.Identity{Expires: now.Add(14 * time.Hour)},
+			maxSessionTTL: 13 * time.Minute,
+			expectedTTL:   13 * time.Minute,
+			assertion:     require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			// Setup test user "foo" and "bar" and the mock auth server that
+			// will return users and roles.
+			user, err := types.NewUser("foo")
+			require.NoError(t, err)
+			user.SetRoles([]string{"bar"})
+
+			role, err := types.NewRole("bar", types.RoleSpecV5{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.NewDuration(tt.maxSessionTTL),
+				},
+			})
+			require.NoError(t, err)
+
+			getter := &mockGetter{
+				users: map[string]types.User{"foo": user},
+				roles: map[string]types.Role{"bar": role},
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
+			require.NoError(t, err)
+
+			request, err := types.NewAccessRequest("some-id", "foo", "bar")
+			request.SetExpiry(tt.expiry)
+			require.NoError(t, err)
+
+			ttl, err := validator.requestTTL(context.Background(), tt.identity, request)
+			tt.assertion(t, err)
+			if err == nil {
+				require.Equal(t, tt.expectedTTL, ttl)
+			}
+		})
+	}
+}
+
+// TestSessionTTL verifies that the TTL for elevated access gets reduced by
+// requested access time, lifetime of certificate, and strictest session TTL on
+// any role.
+func TestSessionTTL(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
+
+	tests := []struct {
+		desc          string
+		accessExpiry  time.Time
+		identity      tlsca.Identity
+		maxSessionTTL time.Duration
+		expectedTTL   time.Duration
+		assertion     require.ErrorAssertionFunc
+	}{
+		{
+			desc:          "less than identity expiration and role session ttl allowed",
+			accessExpiry:  now.Add(13 * time.Minute),
+			identity:      tlsca.Identity{Expires: now.Add(defaults.MaxAccessDuration)},
+			maxSessionTTL: defaults.MaxAccessDuration,
+			expectedTTL:   13 * time.Minute,
+			assertion:     require.NoError,
+		},
+		{
+			desc:          "greater than identity expiration and role session ttl not allowed",
+			accessExpiry:  now.Add(14 * time.Minute),
+			identity:      tlsca.Identity{Expires: now.Add(13 * time.Minute)},
+			maxSessionTTL: 13 * time.Minute,
+			assertion:     require.Error,
+		},
+		{
+			desc:          "greater than certificate duration not allowed",
+			accessExpiry:  now.Add(defaults.MaxAccessDuration).Add(1 * time.Minute),
+			identity:      tlsca.Identity{Expires: now.Add(defaults.MaxAccessDuration)},
+			maxSessionTTL: defaults.MaxAccessDuration,
+			assertion:     require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			// Setup test user "foo" and "bar" and the mock auth server that
+			// will return users and roles.
+			user, err := types.NewUser("foo")
+			require.NoError(t, err)
+			user.SetRoles([]string{"bar"})
+
+			role, err := types.NewRole("bar", types.RoleSpecV5{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.NewDuration(tt.maxSessionTTL),
+				},
+			})
+			require.NoError(t, err)
+
+			getter := &mockGetter{
+				users: map[string]types.User{"foo": user},
+				roles: map[string]types.Role{"bar": role},
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
+			require.NoError(t, err)
+
+			request, err := types.NewAccessRequest("some-id", "foo", "bar")
+			request.SetAccessExpiry(tt.accessExpiry)
+			require.NoError(t, err)
+
+			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request)
+			tt.assertion(t, err)
+			if err == nil {
+				require.Equal(t, tt.expectedTTL, ttl)
+			}
 		})
 	}
 }

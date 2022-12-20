@@ -1371,6 +1371,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	roleReq, err := services.NewAccessRequest(username, requestableRoleName)
 	require.NoError(t, err)
 	roleReq.SetState(types.RequestState_APPROVED)
+	roleReq.SetAccessExpiry(tt.clock.Now().Add(8 * time.Hour))
 	err = clt.CreateAccessRequest(ctx, roleReq)
 	require.NoError(t, err)
 
@@ -1710,7 +1711,6 @@ func TestGetCertAuthority(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
-		fmt.Printf("--> keyPair.Key: %v.\n", keyPair)
 		require.Nil(t, keyPair.Key)
 	}
 	for _, keyPair := range ca.GetActiveKeys().SSH {

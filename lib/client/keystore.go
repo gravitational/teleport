@@ -57,6 +57,10 @@ const (
 	// tshConfigFileName is the name of the directory containing the
 	// tsh config file.
 	tshConfigFileName = "config"
+
+	// tshAzureDirName is the name of the directory containing the
+	// az cli app-specific profiles.
+	tshAzureDirName = "azure"
 )
 
 // LocalKeyStore interface allows for different storage backends for tsh to
@@ -260,7 +264,12 @@ func (fs *FSLocalKeyStore) DeleteKeys() error {
 		return trace.ConvertSystemError(err)
 	}
 	for _, file := range files {
+		// Don't delete 'config' and 'azure' directories.
+		// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
 		if file.IsDir() && file.Name() == tshConfigFileName {
+			continue
+		}
+		if file.IsDir() && file.Name() == tshAzureDirName {
 			continue
 		}
 		if file.IsDir() {
