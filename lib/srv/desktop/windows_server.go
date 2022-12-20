@@ -420,14 +420,12 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	if i := strings.LastIndex(s.cfg.Username, `\`); i != -1 {
 		user = user[i+1:]
 	}
-	var activeDirectorySID *string = &s.cfg.SID
 	if s.cfg.SID == "" {
 		s.cfg.Log.Warnf(`Your LDAP config is missing the SID of the user you're
 		using to sign in. This is set to become a strict requirement by May 2023,
 		please update your configuration file before then.`)
-		activeDirectorySID = nil
 	}
-	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL, activeDirectorySID)
+	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL, s.cfg.SID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1059,7 +1057,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	}
 	s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
 	// Generate credentials with the user's SID
-	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, &activeDirectorySID)
+	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -1067,7 +1065,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID *string) (certDER, keyDER []byte, err error) {
+func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID string) (certDER, keyDER []byte, err error) {
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		Username:           username,
 		Domain:             domain,

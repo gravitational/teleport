@@ -67,15 +67,15 @@ func TestGenerateCredentials(t *testing.T) {
 
 	for _, test := range []struct {
 		name               string
-		activeDirectorySID *string
+		activeDirectorySID string
 	}{
 		{
 			name:               "no ad sid",
-			activeDirectorySID: nil,
+			activeDirectorySID: "",
 		},
 		{
 			name:               "with ad sid",
-			activeDirectorySID: &testSid,
+			activeDirectorySID: testSid,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -132,7 +132,7 @@ func TestGenerateCredentials(t *testing.T) {
 			}
 			require.True(t, foundKeyUsage)
 			require.True(t, foundAltName)
-			require.Equal(t, test.activeDirectorySID != nil, foundAdUserMapping)
+			require.Equal(t, test.activeDirectorySID != "", foundAdUserMapping)
 		})
 	}
 }

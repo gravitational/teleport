@@ -78,12 +78,12 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		},
 	}
 
-	if req.ActiveDirectorySID != nil {
+	if req.ActiveDirectorySID != "" {
 		adUserMapping, err := asn1.Marshal(SubjectAltName[adSid]{
 			otherName[adSid]{
 				OID: ADUserMappingInternalOID,
 				Value: adSid{
-					Value: []byte(*req.ActiveDirectorySID),
+					Value: []byte(req.ActiveDirectorySID),
 				},
 			}})
 		if err != nil {
@@ -135,9 +135,9 @@ type GenerateCredentialsRequest struct {
 	// ClusterName is the local cluster name
 	ClusterName string
 	// ActiveDirectorySID is the SID of the Windows user
-	// specified by Username. If specified (non-nil), it is
+	// specified by Username. If specified (!= ""), it is
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
-	ActiveDirectorySID *string
+	ActiveDirectorySID string
 	// LDAPConfig is the ldap config
 	LDAPConfig LDAPConfig
 	// AuthClient is the windows AuthInterface
