@@ -438,7 +438,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 				scpEvent.Code = events.SCPDownloadCode
 			}
 		}
-		if err := ctx.session.recorder.EmitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
+		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit scp event.")
 		}
 	} else {
@@ -458,7 +458,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		} else {
 			execEvent.Code = events.ExecCode
 		}
-		if err := ctx.session.recorder.EmitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
+		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit exec event.")
 		}
 	}
