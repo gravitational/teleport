@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// NewAzureRedisFetcher creates a fetcher for Azure Redis.
-func NewAzureRedisFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
+// newAzureRedisFetcher creates a fetcher for Azure Redis.
+func newAzureRedisFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*armredis.ResourceInfo, azure.RedisClient](config, &azureRedisPlugin{})
 }
 
@@ -36,7 +36,7 @@ func NewAzureRedisFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
 type azureRedisPlugin struct {
 }
 
-func (p *azureRedisPlugin) GetListClient(cfg *AzureFetcherConfig, subID string) (azure.RedisClient, error) {
+func (p *azureRedisPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.RedisClient, error) {
 	client, err := cfg.AzureClients.GetAzureRedisClient(subID)
 	return client, trace.Wrap(err)
 }

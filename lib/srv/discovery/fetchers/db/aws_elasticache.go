@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// ElastiCacheFetcherConfig is the ElastiCache databases fetcher configuration.
-type ElastiCacheFetcherConfig struct {
+// elastiCacheFetcherConfig is the ElastiCache databases fetcher configuration.
+type elastiCacheFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// ElastiCache is the ElastiCache API client.
@@ -42,7 +42,7 @@ type ElastiCacheFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *ElastiCacheFetcherConfig) CheckAndSetDefaults() error {
+func (c *elastiCacheFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -59,12 +59,12 @@ func (c *ElastiCacheFetcherConfig) CheckAndSetDefaults() error {
 type elastiCacheFetcher struct {
 	awsFetcher
 
-	cfg ElastiCacheFetcherConfig
+	cfg elastiCacheFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewElastiCacheFetcher returns a new ElastiCache databases fetcher instance.
-func NewElastiCacheFetcher(config ElastiCacheFetcherConfig) (common.Fetcher, error) {
+// newElastiCacheFetcher returns a new ElastiCache databases fetcher instance.
+func newElastiCacheFetcher(config elastiCacheFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

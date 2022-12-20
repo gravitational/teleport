@@ -1955,6 +1955,20 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
+
+	if p.CloudClients == nil {
+		p.CloudClients = &clients.TestCloudClients{
+			STS:                &cloudtest.STSMock{},
+			RDS:                &cloudtest.RDSMock{},
+			Redshift:           &cloudtest.RedshiftMock{},
+			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
+			ElastiCache:        &cloudtest.ElastiCacheMock{},
+			MemoryDB:           &cloudtest.MemoryDBMock{},
+			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                &cloudtest.IAMMock{},
+			GCPSQL:             p.GCPSQL,
+		}
+	}
 }
 
 func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p agentParams) *Server {
@@ -1988,20 +2002,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	// Create default limiter.
 	connLimiter, err := limiter.NewLimiter(limiter.Config{})
 	require.NoError(t, err)
-
-	if p.CloudClients == nil {
-		p.CloudClients = &clients.TestCloudClients{
-			STS:                &cloudtest.STSMock{},
-			RDS:                &cloudtest.RDSMock{},
-			Redshift:           &cloudtest.RedshiftMock{},
-			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
-			ElastiCache:        &cloudtest.ElastiCacheMock{},
-			MemoryDB:           &cloudtest.MemoryDBMock{},
-			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:                &cloudtest.IAMMock{},
-			GCPSQL:             p.GCPSQL,
-		}
-	}
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{

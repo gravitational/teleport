@@ -43,7 +43,7 @@ type azureListClient[DBType comparable] interface {
 // functions that can be used by the common Azure fetcher.
 type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] interface {
 	// GetListClient returns the azureListClient for the provided subscription.
-	GetListClient(cfg *AzureFetcherConfig, subID string) (ListClient, error)
+	GetListClient(cfg *azureFetcherConfig, subID string) (ListClient, error)
 	// GetServerLocation returns the server location.
 	GetServerLocation(server DBType) string
 	// NewDatabaseFromServer creates a types.Database from provided server.
@@ -51,7 +51,7 @@ type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] i
 }
 
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
-func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](config AzureFetcherConfig, plugin azureFetcherPlugin[DBType, ListClient]) (common.Fetcher, error) {
+func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](config azureFetcherConfig, plugin azureFetcherPlugin[DBType, ListClient]) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,8 +71,8 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 	return fetcher, nil
 }
 
-// AzureFetcherConfig is the Azure database servers fetcher configuration.
-type AzureFetcherConfig struct {
+// azureFetcherConfig is the Azure database servers fetcher configuration.
+type azureFetcherConfig struct {
 	// AzureClients are the Azure API clients.
 	AzureClients cloud.AzureClients
 	// Type is the type of DB matcher, such as "mysql" or "postgres"
@@ -101,7 +101,7 @@ func (f *azureFetcher[DBType, ListClient]) regionMatches(region string) bool {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *AzureFetcherConfig) CheckAndSetDefaults() error {
+func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	if c.AzureClients == nil {
 		return trace.BadParameter("missing parameter AzureClients")
 	}
@@ -128,7 +128,7 @@ func (c *AzureFetcherConfig) CheckAndSetDefaults() error {
 type azureFetcher[DBType comparable, ListClient azureListClient[DBType]] struct {
 	azureFetcherPlugin[DBType, ListClient]
 
-	cfg AzureFetcherConfig
+	cfg azureFetcherConfig
 	log logrus.FieldLogger
 }
 

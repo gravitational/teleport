@@ -232,16 +232,16 @@ func (m *RDSMock) ListTagsForResourceWithContext(ctx aws.Context, input *rds.Lis
 type IAMMock struct {
 	iamiface.IAMAPI
 	mu sync.RWMutex
-	// AttachedRolePolicies maps roleName -> policyName -> policyDocument
-	AttachedRolePolicies map[string]map[string]string
-	// AttachedUserPolicies maps userName -> policyName -> policyDocument
-	AttachedUserPolicies map[string]map[string]string
+	// attachedRolePolicies maps roleName -> policyName -> policyDocument
+	attachedRolePolicies map[string]map[string]string
+	// attachedUserPolicies maps userName -> policyName -> policyDocument
+	attachedUserPolicies map[string]map[string]string
 }
 
 func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	policy, ok := m.AttachedRolePolicies[*input.RoleName]
+	policy, ok := m.attachedRolePolicies[*input.RoleName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
 	}
@@ -259,21 +259,21 @@ func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePo
 func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.AttachedRolePolicies == nil {
-		m.AttachedRolePolicies = make(map[string]map[string]string)
+	if m.attachedRolePolicies == nil {
+		m.attachedRolePolicies = make(map[string]map[string]string)
 	}
-	if m.AttachedRolePolicies[*input.RoleName] == nil {
-		m.AttachedRolePolicies[*input.RoleName] = make(map[string]string)
+	if m.attachedRolePolicies[*input.RoleName] == nil {
+		m.attachedRolePolicies[*input.RoleName] = make(map[string]string)
 	}
-	m.AttachedRolePolicies[*input.RoleName][*input.PolicyName] = *input.PolicyDocument
+	m.attachedRolePolicies[*input.RoleName][*input.PolicyName] = *input.PolicyDocument
 	return &iam.PutRolePolicyOutput{}, nil
 }
 
 func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.AttachedRolePolicies[*input.RoleName]; ok {
-		delete(m.AttachedRolePolicies[*input.RoleName], *input.PolicyName)
+	if _, ok := m.attachedRolePolicies[*input.RoleName]; ok {
+		delete(m.attachedRolePolicies[*input.RoleName], *input.PolicyName)
 	}
 	return &iam.DeleteRolePolicyOutput{}, nil
 }
@@ -281,7 +281,7 @@ func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.Delete
 func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	policy, ok := m.AttachedUserPolicies[*input.UserName]
+	policy, ok := m.attachedUserPolicies[*input.UserName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
 	}
@@ -299,21 +299,21 @@ func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPo
 func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.AttachedUserPolicies == nil {
-		m.AttachedUserPolicies = make(map[string]map[string]string)
+	if m.attachedUserPolicies == nil {
+		m.attachedUserPolicies = make(map[string]map[string]string)
 	}
-	if m.AttachedUserPolicies[*input.UserName] == nil {
-		m.AttachedUserPolicies[*input.UserName] = make(map[string]string)
+	if m.attachedUserPolicies[*input.UserName] == nil {
+		m.attachedUserPolicies[*input.UserName] = make(map[string]string)
 	}
-	m.AttachedUserPolicies[*input.UserName][*input.PolicyName] = *input.PolicyDocument
+	m.attachedUserPolicies[*input.UserName][*input.PolicyName] = *input.PolicyDocument
 	return &iam.PutUserPolicyOutput{}, nil
 }
 
 func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.DeleteUserPolicyInput, options ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.AttachedUserPolicies[*input.UserName]; ok {
-		delete(m.AttachedUserPolicies[*input.UserName], *input.PolicyName)
+	if _, ok := m.attachedUserPolicies[*input.UserName]; ok {
+		delete(m.attachedUserPolicies[*input.UserName], *input.PolicyName)
 	}
 	return &iam.DeleteUserPolicyOutput{}, nil
 }

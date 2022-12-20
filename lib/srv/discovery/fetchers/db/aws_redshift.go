@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// RedshiftFetcherConfig is the Redshift databases fetcher configuration.
-type RedshiftFetcherConfig struct {
+// redshiftFetcherConfig is the Redshift databases fetcher configuration.
+type redshiftFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// Redshift is the Redshift API client.
@@ -43,7 +43,7 @@ type RedshiftFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *RedshiftFetcherConfig) CheckAndSetDefaults() error {
+func (c *redshiftFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -60,12 +60,12 @@ func (c *RedshiftFetcherConfig) CheckAndSetDefaults() error {
 type redshiftFetcher struct {
 	awsFetcher
 
-	cfg RedshiftFetcherConfig
+	cfg redshiftFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewRedshiftFetcher returns a new Redshift databases fetcher instance.
-func NewRedshiftFetcher(config RedshiftFetcherConfig) (common.Fetcher, error) {
+// newRedshiftFetcher returns a new Redshift databases fetcher instance.
+func newRedshiftFetcher(config redshiftFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -117,7 +117,7 @@ func (a *gkeFetcher) Cloud() string {
 }
 
 func (a *gkeFetcher) String() string {
-	return fmt.Sprintf("gkeFetcher(ProjectID=%v, Location=%v, Labels=%v)",
+	return fmt.Sprintf("gkeFetcher(ProjectID=%v, Location=%v, FilterLabels=%v)",
 		a.ProjectID, a.Location, a.FilterLabels)
 }
 

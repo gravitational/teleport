@@ -27,15 +27,15 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// NewAzureRedisEnterpriseFetcher creates a fetcher for Azure Redis Enterprise.
-func NewAzureRedisEnterpriseFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
+// newAzureRedisEnterpriseFetcher creates a fetcher for Azure Redis Enterprise.
+func newAzureRedisEnterpriseFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.RedisEnterpriseDatabase, azure.RedisEnterpriseClient](config, &azureRedisEnterprisePlugin{})
 }
 
 type azureRedisEnterprisePlugin struct {
 }
 
-func (p *azureRedisEnterprisePlugin) GetListClient(cfg *AzureFetcherConfig, subID string) (azure.RedisEnterpriseClient, error) {
+func (p *azureRedisEnterprisePlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.RedisEnterpriseClient, error) {
 	client, err := cfg.AzureClients.GetAzureRedisEnterpriseClient(subID)
 	return client, trace.Wrap(err)
 }

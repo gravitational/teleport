@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// NewAzureSQLServer creates a fetcher for Azure SQL Servers.
-func NewAzureManagedSQLServerFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
+// newAzureManagedSQLServerFetcher creates a fetcher for Azure SQL Servers.
+func newAzureManagedSQLServerFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*armsql.ManagedInstance, azure.ManagedSQLServerClient](config, &azureManagedSQLServerFetcher{})
 }
 
@@ -35,7 +35,7 @@ func NewAzureManagedSQLServerFetcher(config AzureFetcherConfig) (common.Fetcher,
 type azureManagedSQLServerFetcher struct {
 }
 
-func (f *azureManagedSQLServerFetcher) GetListClient(cfg *AzureFetcherConfig, subID string) (azure.ManagedSQLServerClient, error) {
+func (f *azureManagedSQLServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.ManagedSQLServerClient, error) {
 	client, err := cfg.AzureClients.GetAzureManagedSQLServerClient(subID)
 	return client, trace.Wrap(err)
 }

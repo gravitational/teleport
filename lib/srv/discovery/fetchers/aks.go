@@ -141,6 +141,6 @@ func (a *aksFetcher) Cloud() string {
 }
 
 func (a *aksFetcher) String() string {
-	return fmt.Sprintf("aksFetcher(ResourceGroups=%v, Regions=%v, Labels=%v)",
+	return fmt.Sprintf("aksFetcher(ResourceGroups=%v, Regions=%v, FilterLabels=%v)",
 		a.ResourceGroups, a.Regions, a.FilterLabels)
 }

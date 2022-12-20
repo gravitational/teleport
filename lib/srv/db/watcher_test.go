@@ -195,13 +195,13 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 }
 
 // TestWatcherCloudFetchers tests usasge of discovery database fetchers by the
-// database service watcher.
+// database service.
 func TestWatcherCloudFetchers(t *testing.T) {
-	// Test an AWS fetcher.
+	// Test an AWS fetcher. Note that status AWS can be set by Metadata
+	// service.
 	redshiftServerlessWorkgroup := cloudtest.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
 	redshiftServerlessDatabase, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
-	// Status AWS should be set by Metadata service.
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 
 	// Test an Azure fetcher.

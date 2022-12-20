@@ -144,7 +144,7 @@ func (a *eksFetcher) Cloud() string {
 }
 
 func (a *eksFetcher) String() string {
-	return fmt.Sprintf("eksFetcher(Region=%v, Labels=%v)",
+	return fmt.Sprintf("eksFetcher(Region=%v, FilterLabels=%v)",
 		a.Region, a.FilterLabels)
 }
 

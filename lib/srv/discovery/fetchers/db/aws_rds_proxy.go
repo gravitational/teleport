@@ -33,12 +33,12 @@ import (
 type rdsDBProxyFetcher struct {
 	awsFetcher
 
-	cfg RDSFetcherConfig
+	cfg rdsFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewRDSDBProxyFetcher returns a new RDS Proxy fetcher instance.
-func NewRDSDBProxyFetcher(config RDSFetcherConfig) (common.Fetcher, error) {
+// newRDSDBProxyFetcher returns a new RDS Proxy fetcher instance.
+func newRDSDBProxyFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

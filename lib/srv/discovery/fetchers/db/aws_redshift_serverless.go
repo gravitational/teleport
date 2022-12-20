@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// RedshiftServerlessFetcherConfig is the Redshift Serverless databases fetcher
+// redshiftServerlessFetcherConfig is the Redshift Serverless databases fetcher
 // configuration.
-type RedshiftServerlessFetcherConfig struct {
+type redshiftServerlessFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// Region is the AWS region to query databases in.
@@ -44,7 +44,7 @@ type RedshiftServerlessFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *RedshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
+func (c *redshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -61,13 +61,13 @@ func (c *RedshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
 type redshiftServerlessFetcher struct {
 	awsFetcher
 
-	cfg RedshiftServerlessFetcherConfig
+	cfg redshiftServerlessFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewRedshiftServerlessFetcher returns a new Redshift Serverless databases
+// newRedshiftServerlessFetcher returns a new Redshift Serverless databases
 // fetcher instance.
-func NewRedshiftServerlessFetcher(config RedshiftServerlessFetcherConfig) (common.Fetcher, error) {
+func newRedshiftServerlessFetcher(config redshiftServerlessFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

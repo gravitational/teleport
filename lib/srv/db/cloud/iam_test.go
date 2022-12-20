@@ -143,21 +143,27 @@ func TestAWSIAM(t *testing.T) {
 	policyName, err := configurator.getPolicyName()
 	require.NoError(t, err)
 
+	getRolePolicyInput := &iam.GetRolePolicyInput{
+		RoleName:   aws.String("test-role"),
+		PolicyName: aws.String(policyName),
+	}
+
 	t.Run("RDS", func(t *testing.T) {
 		// Configure RDS database and make sure IAM was enabled and policy was attached.
 		err = configurator.Setup(ctx, rdsDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
+		output, err := iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.NoError(t, err)
+		require.Contains(t, aws.StringValue(output.PolicyDocument), rdsDatabase.GetAWS().RDS.ResourceID)
 
 		// Deconfigure RDS database, policy should get detached.
 		err = configurator.Teardown(ctx, rdsDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
+		_, err = iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.True(t, trace.IsNotFound(err))
 	})
 
 	t.Run("Aurora", func(t *testing.T) {
@@ -166,15 +172,16 @@ func TestAWSIAM(t *testing.T) {
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
+		output, err := iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.NoError(t, err)
+		require.Contains(t, aws.StringValue(output.PolicyDocument), auroraDatabase.GetAWS().RDS.ResourceID)
 
 		// Deconfigure Aurora database, policy should get detached.
 		err = configurator.Teardown(ctx, auroraDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
+		_, err = iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.True(t, trace.IsNotFound(err))
 	})
 
 	t.Run("RDS Proxy", func(t *testing.T) {
@@ -182,15 +189,16 @@ func TestAWSIAM(t *testing.T) {
 		err = configurator.Setup(ctx, rdsProxy)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.Contains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
+		output, err := iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.NoError(t, err)
+		require.Contains(t, aws.StringValue(output.PolicyDocument), rdsProxy.GetAWS().RDSProxy.ResourceID)
 
 		// Deconfigure RDS Proxy database, policy should get detached.
 		err = configurator.Teardown(ctx, rdsProxy)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
+		_, err = iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.True(t, trace.IsNotFound(err))
 	})
 
 	t.Run("Redshift", func(t *testing.T) {
@@ -198,15 +206,16 @@ func TestAWSIAM(t *testing.T) {
 		err = configurator.Setup(ctx, redshiftDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy := iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
+		output, err := iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.NoError(t, err)
+		require.Contains(t, aws.StringValue(output.PolicyDocument), redshiftDatabase.GetAWS().Redshift.ClusterID)
 
 		// Deconfigure Redshift database, policy should get detached.
 		err = configurator.Teardown(ctx, redshiftDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.AttachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
+		_, err = iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+		require.True(t, trace.IsNotFound(err))
 	})
 }
 

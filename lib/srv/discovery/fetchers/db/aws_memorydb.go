@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// MemoryDBFetcherConfig is the MemoryDB databases fetcher configuration.
-type MemoryDBFetcherConfig struct {
+// memoryDBFetcherConfig is the MemoryDB databases fetcher configuration.
+type memoryDBFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// MemoryDB is the MemoryDB API client.
@@ -42,7 +42,7 @@ type MemoryDBFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *MemoryDBFetcherConfig) CheckAndSetDefaults() error {
+func (c *memoryDBFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -59,12 +59,12 @@ func (c *MemoryDBFetcherConfig) CheckAndSetDefaults() error {
 type memoryDBFetcher struct {
 	awsFetcher
 
-	cfg MemoryDBFetcherConfig
+	cfg memoryDBFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewMemoryDBFetcher returns a new MemoryDB databases fetcher instance.
-func NewMemoryDBFetcher(config MemoryDBFetcherConfig) (common.Fetcher, error) {
+// newMemoryDBFetcher returns a new MemoryDB databases fetcher instance.
+func newMemoryDBFetcher(config memoryDBFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

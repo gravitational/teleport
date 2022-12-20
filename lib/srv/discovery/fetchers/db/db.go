@@ -28,7 +28,7 @@ import (
 )
 
 type makeAWSFetcherFunc func(cloud.AWSClients, string, types.Labels) (common.Fetcher, error)
-type makeAzureFetcherFunc func(AzureFetcherConfig) (common.Fetcher, error)
+type makeAzureFetcherFunc func(azureFetcherConfig) (common.Fetcher, error)
 
 var (
 	makeAWSFetcherFuncs = map[string][]makeAWSFetcherFunc{
@@ -41,10 +41,10 @@ var (
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
-		services.AzureMatcherMySQL:     {NewAzureMySQLFetcher},
-		services.AzureMatcherPostgres:  {NewAzurePostgresFetcher},
-		services.AzureMatcherRedis:     {NewAzureRedisFetcher, NewAzureRedisEnterpriseFetcher},
-		services.AzureMatcherSQLServer: {NewAzureSQLServerFetcher, NewAzureManagedSQLServerFetcher},
+		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
 )
 
@@ -83,7 +83,7 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []services.AzureMatc
 			for _, makeFetcher := range makeFetchers {
 				for _, sub := range matcher.Subscriptions {
 					for _, group := range matcher.ResourceGroups {
-						fetcher, err := makeFetcher(AzureFetcherConfig{
+						fetcher, err := makeFetcher(azureFetcherConfig{
 							AzureClients:  clients,
 							Type:          matcherType,
 							Subscription:  sub,
@@ -110,7 +110,7 @@ func makeRDSInstanceFetcher(clients cloud.AWSClients, region string, tags types.
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher, err := NewRDSDBInstancesFetcher(RDSFetcherConfig{
+	fetcher, err := newRDSDBInstancesFetcher(rdsFetcherConfig{
 		Region: region,
 		Labels: tags,
 		RDS:    rds,
@@ -125,7 +125,7 @@ func makeRDSAuroraFetcher(clients cloud.AWSClients, region string, tags types.La
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher, err := NewRDSAuroraClustersFetcher(RDSFetcherConfig{
+	fetcher, err := newRDSAuroraClustersFetcher(rdsFetcherConfig{
 		Region: region,
 		Labels: tags,
 		RDS:    rds,
@@ -140,7 +140,7 @@ func makeRDSProxyFetcher(clients cloud.AWSClients, region string, tags types.Lab
 		return nil, trace.Wrap(err)
 	}
 
-	return NewRDSDBProxyFetcher(RDSFetcherConfig{
+	return newRDSDBProxyFetcher(rdsFetcherConfig{
 		Region: region,
 		Labels: tags,
 		RDS:    rds,
@@ -153,7 +153,7 @@ func makeRedshiftFetcher(clients cloud.AWSClients, region string, tags types.Lab
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewRedshiftFetcher(RedshiftFetcherConfig{
+	return newRedshiftFetcher(redshiftFetcherConfig{
 		Region:   region,
 		Labels:   tags,
 		Redshift: redshift,
@@ -166,7 +166,7 @@ func makeElastiCacheFetcher(clients cloud.AWSClients, region string, tags types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewElastiCacheFetcher(ElastiCacheFetcherConfig{
+	return newElastiCacheFetcher(elastiCacheFetcherConfig{
 		Region:      region,
 		Labels:      tags,
 		ElastiCache: elastiCache,
@@ -179,7 +179,7 @@ func makeMemoryDBFetcher(clients cloud.AWSClients, region string, tags types.Lab
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewMemoryDBFetcher(MemoryDBFetcherConfig{
+	return newMemoryDBFetcher(memoryDBFetcherConfig{
 		Region:   region,
 		Labels:   tags,
 		MemoryDB: memorydb,
@@ -193,7 +193,7 @@ func makeRedshiftServerlessFetcher(clients cloud.AWSClients, region string, tags
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewRedshiftServerlessFetcher(RedshiftServerlessFetcherConfig{
+	return newRedshiftServerlessFetcher(redshiftServerlessFetcherConfig{
 		Region: region,
 		Labels: tags,
 		Client: client,

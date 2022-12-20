@@ -26,13 +26,13 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// NewAzureMySQLFetcher creates a fetcher for Azure MySQL.
-func NewAzureMySQLFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
+// newAzureMySQLFetcher creates a fetcher for Azure MySQL.
+func newAzureMySQLFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
-// NewAzureMySQLFetcher creates a fetcher for Azure PostgresSQL.
-func NewAzurePostgresFetcher(config AzureFetcherConfig) (common.Fetcher, error) {
+// newAzureMySQLFetcher creates a fetcher for Azure PostgresSQL.
+func newAzurePostgresFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
@@ -40,7 +40,7 @@ func NewAzurePostgresFetcher(config AzureFetcherConfig) (common.Fetcher, error) 
 type azureDBServerPlugin struct {
 }
 
-func (p *azureDBServerPlugin) GetListClient(cfg *AzureFetcherConfig, subID string) (azure.DBServersClient, error) {
+func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
 	switch cfg.Type {
 	case services.AzureMatcherMySQL:
 		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)

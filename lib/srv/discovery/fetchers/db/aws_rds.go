@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// RDSFetcherConfig is the RDS databases fetcher configuration.
-type RDSFetcherConfig struct {
+// rdsFetcherConfig is the RDS databases fetcher configuration.
+type rdsFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// RDS is the RDS API client.
@@ -44,7 +44,7 @@ type RDSFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *RDSFetcherConfig) CheckAndSetDefaults() error {
+func (c *rdsFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -61,12 +61,12 @@ func (c *RDSFetcherConfig) CheckAndSetDefaults() error {
 type rdsDBInstancesFetcher struct {
 	awsFetcher
 
-	cfg RDSFetcherConfig
+	cfg rdsFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewRDSDBInstancesFetcher returns a new RDS DB instances fetcher instance.
-func NewRDSDBInstancesFetcher(config RDSFetcherConfig) (common.Fetcher, error) {
+// newRDSDBInstancesFetcher returns a new RDS DB instances fetcher instance.
+func newRDSDBInstancesFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,12 +157,12 @@ func (f *rdsDBInstancesFetcher) String() string {
 type rdsAuroraClustersFetcher struct {
 	awsFetcher
 
-	cfg RDSFetcherConfig
+	cfg rdsFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewRDSAuroraClustersFetcher returns a new RDS Aurora fetcher instance.
-func NewRDSAuroraClustersFetcher(config RDSFetcherConfig) (common.Fetcher, error) {
+// newRDSAuroraClustersFetcher returns a new RDS Aurora fetcher instance.
+func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
