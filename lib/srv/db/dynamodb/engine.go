@@ -96,6 +96,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 }
 
 // jsonErr is used to marshal a JSON error response as the AWS CLI expects for errors.
+// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.Components
 type jsonErr struct {
 	Code    string `json:"__type"`
 	Message string `json:"message"`
