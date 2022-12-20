@@ -131,7 +131,7 @@ func (e *Engine) SendError(err error) {
 		Header: map[string][]string{
 			"Content-Type": {"application/json"},
 		},
-		Body: ioutil.NopCloser(bytes.NewBuffer(body)),
+		Body: io.NopCloser(bytes.NewBuffer(body)),
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
