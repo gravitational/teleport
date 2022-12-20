@@ -80,7 +80,7 @@ Click **Review + create**, then **Create**.
 
 Once creation finishes, click **Go to resource**. On the page for the new
 identity, click **JSON View**. At the top of the right sidebar, you will see a
-field called **Resource ID** with a value resmmbling the following:
+field called **Resource ID** with a value resembling the following:
 
 ```
 /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
@@ -368,7 +368,7 @@ $ tctl create -f azure-cli-access.yaml
 <TabItem options="Static Identities" label="All Authentication Methods">
 
 Define a role with access to specific Azure identities, which means that
-Teleport users who assume this role can use those (and only those) identites to
+Teleport users who assume this role can use those (and only those) identities to
 execute commands via an Azure CLI.
 
 Create a file called `azure-cli-access.yaml` with the following content:
@@ -408,7 +408,7 @@ You can define a Teleport role that denies a user access to one or more Azure
 identities. To do so, assign values to the `azure_identities` field within the
 `spec.deny` section of a `role` resource. 
 
-For example, this role denies the user access to all Azure idenitities:
+For example, this role denies the user access to all Azure identities:
 
 ```yaml
 kind: role
@@ -430,7 +430,7 @@ applications, but makes use of the wildcard character (`*`) within the
 identity. 
 
 Unlike values of `allow.azure_identities`, values of `deny.azure_identities` can
-include wildcard expessions in addition to the URIs of specific Azure
+include wildcard expressions in addition to the URIs of specific Azure
 identities.
 
 The Teleport Auth Service gives `deny` rules precedence over `allow` rules when
