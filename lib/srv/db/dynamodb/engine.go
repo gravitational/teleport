@@ -96,7 +96,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	return nil
 }
 
-// jsonErr is used to marshal a JSON error response as the AWS cli expects for errors.
+// jsonErr is used to marshal a JSON error response as the AWS CLI expects for errors.
 type jsonErr struct {
 	Code    string `json:"__type"`
 	Message string `json:"message"`
