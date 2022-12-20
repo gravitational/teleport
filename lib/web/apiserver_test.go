@@ -224,11 +224,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
+	nodeID := "node"
+
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
 		&authproto.HostCertsRequest{
 			HostID:       hostID,
-			NodeName:     s.server.ClusterName(),
+			NodeName:     nodeID,
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
@@ -238,7 +240,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
-	nodeID := "node"
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -270,7 +271,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	node, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		s.server.ClusterName(),
+		nodeID,
 		[]ssh.Signer{signer},
 		nodeClient,
 		nodeDataDir,
@@ -471,6 +472,86 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 
 	return s
+}
+
+func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address string) *regular.Server {
+	priv, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// start node
+	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+		&authproto.HostCertsRequest{
+			HostID:       uuid,
+			NodeName:     hostname,
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
+	require.NoError(t, err)
+
+	nodeClient, err := s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     types.RoleNode,
+			Username: uuid,
+		},
+	})
+	require.NoError(t, err)
+
+	nodeLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    nodeClient,
+		},
+	})
+	require.NoError(t, err)
+
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     uuid,
+	})
+	require.NoError(t, err)
+
+	// create SSH service:
+	node, err := regular.New(
+		context.Background(),
+		utils.NetAddr{AddrNetwork: "tcp", Addr: address},
+		hostname,
+		[]ssh.Signer{signer},
+		nodeClient,
+		t.TempDir(),
+		"",
+		utils.NetAddr{},
+		nodeClient,
+		regular.SetUUID(uuid),
+		regular.SetNamespace(apidefaults.Namespace),
+		regular.SetShell("/bin/sh"),
+		regular.SetEmitter(nodeClient),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
+		regular.SetClock(s.clock),
+		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
+	)
+	require.NoError(t, err)
+	require.NoError(t, node.Start())
+
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		node.Wait()
+	})
+
+	return node
 }
 
 func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
@@ -1351,6 +1432,95 @@ func TestTerminal(t *testing.T) {
 			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
 			require.NoError(t, waitForOutput(stream, "teleport"))
+		})
+	}
+}
+
+func TestTerminalRouting(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+
+	// add nodes with various conflicting values
+	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
+	s.addNode(t, uuid.NewString(), "llamas", "127.0.0.1:0")
+	alpaca1 := s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
+	s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
+
+	closeNoError := func(t *testing.T, err error) {
+		require.NoError(t, err)
+	}
+
+	closeOkNetworkError := func(t *testing.T, err error) {
+		if err == nil {
+			return
+		}
+
+		require.True(t, utils.IsOKNetworkError(err), "websocket closure should have return an error indicating that the server already terminated the connection")
+	}
+
+	cases := []struct {
+		name             string
+		target           string
+		output           string
+		wsCloseAssertion func(t *testing.T, err error)
+	}{
+		{
+			name:             "exact match by uuid",
+			target:           llama.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:             "exact match by hostname",
+			target:           "llama",
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:             "exact match by ip",
+			target:           llama.Addr(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:   "ambiguous host",
+			target: "alpaca",
+			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
+		},
+		{
+			name:             "connect by uuid successful when multiple hostnames match",
+			target:           alpaca1.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:   "ambiguous ip",
+			target: "127.0.0.1",
+			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
+		},
+	}
+
+	for i, tt := range cases {
+		i, tt := i, tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ws, _, err := s.makeTerminal(t, s.authPack(t, fmt.Sprintf("foo-%d", i)), withServer(tt.target))
+			require.NoError(t, err)
+			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
+
+			termHandler := newTerminalHandler()
+			stream := termHandler.asTerminalStream(ws)
+
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, tt.output))
 		})
 	}
 }
@@ -5824,6 +5994,10 @@ func withSessionID(sid session.ID) terminalOpt {
 	return func(t *TerminalRequest) { t.SessionID = sid }
 }
 
+func withServer(target string) terminalOpt {
+	return func(t *TerminalRequest) { t.Server = target }
+}
+
 func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
 }
@@ -6048,11 +6222,12 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
+	const nodeID = "node"
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
 		&authproto.HostCertsRequest{
 			HostID:       hostID,
-			NodeName:     server.TLS.ClusterName(),
+			NodeName:     nodeID,
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
@@ -6063,7 +6238,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 	hostSigners := []ssh.Signer{signer}
 
-	const nodeID = "node"
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -6097,7 +6271,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	node, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		server.TLS.ClusterName(),
+		nodeID,
 		hostSigners,
 		nodeClient,
 		nodeDataDir,

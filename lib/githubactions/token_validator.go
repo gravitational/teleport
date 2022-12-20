@@ -19,7 +19,7 @@ package githubactions
 import (
 	"context"
 	"encoding/json"
-	"sync"
+	"fmt"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -31,24 +31,22 @@ type IDTokenValidatorConfig struct {
 	// Clock is used by the validator when checking expiry and issuer times of
 	// tokens. If omitted, a real clock will be used.
 	Clock clockwork.Clock
-	// IssuerURL is the URL of the OIDC token issuer, on which the
-	// /well-known/openid-configuration endpoint can be found.
-	// If this is omitted, a default value will be set.
-	IssuerURL string
+	// GitHubIssuerHost is the host of the Issuer for tokens issued by
+	// GitHub's cloud hosted version. If no GHESHost override is provided to
+	// the call to Validate, then this will be used as the host.
+	GitHubIssuerHost string
+	// insecure configures the validator to use HTTP rather than HTTPS. This
+	// is not exported as this is only used in the test for now.
+	insecure bool
 }
 
 type IDTokenValidator struct {
 	IDTokenValidatorConfig
-
-	mu sync.Mutex
-	// oidc is protected by mu and should only be accessed via the getProvider
-	// method.
-	oidc *oidc.Provider
 }
 
 func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
-	if cfg.IssuerURL == "" {
-		cfg.IssuerURL = IssuerURL
+	if cfg.GitHubIssuerHost == "" {
+		cfg.GitHubIssuerHost = DefaultIssuerHost
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -59,29 +57,23 @@ func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 	}
 }
 
-// getProvider allows the lazy initialisation of the oidc provider.
-func (id *IDTokenValidator) getProvider() (*oidc.Provider, error) {
-	id.mu.Lock()
-	defer id.mu.Unlock()
-	if id.oidc != nil {
-		return id.oidc, nil
-	}
-	// Intentionally use context.Background() here since this actually controls
-	// cache functionality.
-	p, err := oidc.NewProvider(
-		context.Background(),
-		id.IDTokenValidatorConfig.IssuerURL,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (id *IDTokenValidator) issuerURL(GHESHost string) string {
+	scheme := "https"
+	if id.insecure {
+		scheme = "http"
 	}
 
-	id.oidc = p
-	return p, nil
+	if GHESHost == "" {
+		return fmt.Sprintf("%s://%s", scheme, id.GitHubIssuerHost)
+	}
+	return fmt.Sprintf("%s://%s/_services/token", scheme, GHESHost)
 }
 
-func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
-	p, err := id.getProvider()
+func (id *IDTokenValidator) Validate(ctx context.Context, GHESHost string, token string) (*IDTokenClaims, error) {
+	p, err := oidc.NewProvider(
+		ctx,
+		id.issuerURL(GHESHost),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
