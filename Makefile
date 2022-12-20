@@ -166,7 +166,7 @@ endif
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
-# PIV=yes and PIV=static enable static piv builds. This is used by the build 
+# PIV=yes and PIV=static enable static piv builds. This is used by the build
 # process to link a static library of libpcsclite for piv-go to connect to.
 #
 # PIV=dynamic enables dynamic piv builds. This can be used for local
@@ -439,7 +439,7 @@ build-archive:
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	
+
 #
 # make release-unix - Produces a binary release tarball containing teleport,
 # tctl, and tsh.
@@ -554,8 +554,9 @@ helmunit/installed:
 # The CI environment is responsible for setting HELM_PLUGINS to a directory where
 # quintish/helm-unittest is installed.
 #
-# The unittest plugin changed in teleport12, if the tests are failing, please ensure
-# you are using  https://github.com/quintush/helm-unittest and not the vbehar fork.
+# Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
+# so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true
+# environment variable.
 .PHONY: test-helm
 test-helm: helmunit/installed
 	helm unittest -3 examples/chart/teleport-cluster
@@ -1174,3 +1175,9 @@ dronegen:
 .PHONY: backport
 backport:
 	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))
+
+.PHONY: build-ui
+build-ui:
+	docker build --no-cache --build-arg NPM_CMD=build-teleport-oss -f ./build.assets/Dockerfile-web -t webui .
+	docker run --name build-webassets -di webui
+	docker cp build-webassets:/webapp/dist/. $(PWD)/webassets

@@ -1,0 +1,24 @@
+FROM node:16.18.1-slim
+RUN apt update && apt install -y git g++ make python3 tree
+
+WORKDIR webapp
+
+COPY web/yarn.lock \
+    web/package.json \
+    web/tsconfig.json .
+
+# copy the entire build packages as it has the required .bin files
+COPY web/packages/build/ packages/build/
+
+COPY web/packages/design/package.json packages/design/
+COPY web/packages/shared/package.json packages/shared/
+COPY web/packages/teleport/package.json packages/teleport/
+COPY web/packages/teleterm/package.json packages/teleterm/
+
+RUN yarn install
+
+COPY web/ .
+
+ARG NPM_CMD=nop
+
+RUN yarn $NPM_CMD
