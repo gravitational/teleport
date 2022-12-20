@@ -596,7 +596,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 
 type mockRecorder struct {
 	events.StreamWriter
-	done bool
+	emitter eventstest.MockEmitter
+	done    bool
 }
 
 func (m *mockRecorder) Done() <-chan struct{} {
@@ -606,6 +607,10 @@ func (m *mockRecorder) Done() <-chan struct{} {
 	}
 
 	return ch
+}
+
+func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return m.emitter.EmitAuditEvent(ctx, event)
 }
 
 type trackerService struct {
