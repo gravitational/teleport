@@ -495,7 +495,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.IsDynamoDB() {
 		// DynamoDB gets its own checking logic for its unusual config.
-		return trace.Wrap(d.checkAndSetDynamoDBDefaults())
+		return trace.Wrap(d.handleDynamoDBConfig())
 	}
 	if d.Spec.URI == "" {
 		switch {
@@ -655,8 +655,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// checkAndSetDynamoDBDefaults checks DynamoDB configuration and sets defaults.
-func (d *DatabaseV3) checkAndSetDynamoDBDefaults() error {
+// handleDynamoDBConfig handles DynamoDB configuration checking.
+func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.AWS.AccountID == "" {
 		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 	}
