@@ -14,4 +14,5 @@
 
 package client
 
+var DTAuthnRunCeremony = &dtAuthnRunCeremony
 var HasTouchIDCredentials = &hasTouchIDCredentials
