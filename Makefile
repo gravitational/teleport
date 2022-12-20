@@ -449,6 +449,7 @@ release-darwin: release-darwin-unsigned
 	cp ./build.assets/build-common.sh ./build.assets/notarize-binaries.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/notarize-binaries.sh
 	./$(BUILDDIR)/notarize-binaries.sh $(BINARIES)
+	rm $(BUILDDIR)/build-common.sh $(BUILDDIR)/notarize-binaries.sh
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 

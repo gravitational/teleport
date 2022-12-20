@@ -65,7 +65,7 @@ EOF
   cat "$goncfg"
   
   # Workaround for https://github.com/mitchellh/gon/issues/43
-  if ! output=$(gon -log-level=debug "$goncfg"); then
+  if ! output=$(gon "$goncfg"); then
     if ! (echo "$output" | grep -qF "[$notarization_zip] File notarized!"); then
       # Look for a success message. If none was received, then the tool really did fail.
       # Log the failure.
@@ -96,20 +96,6 @@ EOF
   #   echo "Stapling $BINARY..."
   #   xcrun stapler staple -v "$BINARY"
   # done
-
-  unzip -l "$notarization_zip"
-  unzip -z "$notarization_zip"
-  for BINARY in "$targets"; do
-    echo "Replacing $BINARY with signed copy..."
-    echo "Before sha256: $(shasum -a 256 $BINARY)" || true
-    echo "removing:"
-    rm -vf "$BINARY"
-    echo "unziping"
-    unzip "$notarization_zip" "$(basename $BINARY)" -d "$(dirname $BINARY)"
-    echo "ls"
-    ls -laht "$(dirname $BINARY)"
-    echo "After sha256: $(shasum -a 256 $BINARY)" || true
-  done
 
   echo "Binary notarization complete"
 }
