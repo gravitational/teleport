@@ -1446,40 +1446,62 @@ func TestTerminalRouting(t *testing.T) {
 	alpaca1 := s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
 	s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
 
+	closeNoError := func(t *testing.T, err error) {
+		require.NoError(t, err)
+	}
+
+	closeOkNetworkError := func(t *testing.T, err error) {
+		if err != nil {
+			require.True(t, utils.IsOKNetworkError(err))
+			return
+		}
+
+		require.NoError(t, err)
+	}
+
 	cases := []struct {
-		name   string
-		target string
-		output string
+		name             string
+		target           string
+		output           string
+		wsCloseAssertion func(t *testing.T, err error)
 	}{
 		{
-			name:   "exact match by uuid",
-			target: llama.ID(),
-			output: "teleport",
+			name:             "exact match by uuid",
+			target:           llama.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
-			name:   "exact match by hostname",
-			target: "llama",
-			output: "teleport",
+			name:             "exact match by hostname",
+			target:           "llama",
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
-			name:   "exact match by ip",
-			target: llama.Addr(),
-			output: "teleport",
+			name:             "exact match by ip",
+			target:           llama.Addr(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
 			name:   "ambiguous host",
 			target: "alpaca",
 			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
 		},
 		{
-			name:   "connect by uuid successful when multiple hostnames match",
-			target: alpaca1.ID(),
-			output: "teleport",
+			name:             "connect by uuid successful when multiple hostnames match",
+			target:           alpaca1.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
 			name:   "ambiguous ip",
 			target: "127.0.0.1",
 			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
 		},
 	}
 
@@ -1490,7 +1512,7 @@ func TestTerminalRouting(t *testing.T) {
 
 			ws, _, err := s.makeTerminal(t, s.authPack(t, fmt.Sprintf("foo-%d", i)), withServer(tt.target))
 			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
 
 			termHandler := newTerminalHandler()
 			stream := termHandler.asTerminalStream(ws)
