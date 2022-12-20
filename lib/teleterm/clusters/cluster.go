@@ -63,9 +63,10 @@ func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
 }
 
-// GetClusterDetails makes a request to the auth client to retrieve details about the cluster
-// including enterprise features and the current logged in user's capabilities.
-func (c *Cluster) GetClusterDetails(ctx context.Context) (*GetClusterDetailsResponse, error) {
+// EnrichCluster will make a network request to the auth server and add details to the
+// current Cluster that cannot be found on the disk only, including details about the LoggedInUser
+// and enabled enterprise features. This method requires a valid cert.
+func (c *Cluster) EnrichCluster(ctx context.Context) (*Cluster, error) {
 	var (
 		authClient   auth.ClientI
 		proxyClient  *client.ProxyClient
@@ -109,11 +110,11 @@ func (c *Cluster) GetClusterDetails(ctx context.Context) (*GetClusterDetailsResp
 	user := c.GetLoggedInUser()
 	user.SuggestedReviewers = caps.SuggestedReviewers
 	user.RequestableRoles = caps.RequestableRoles
+	c.LoggedInUser = user
 
-	return &GetClusterDetailsResponse{
-		Features:     pingResponse.ServerFeatures,
-		LoggedInUser: user,
-	}, nil
+	c.Features = pingResponse.ServerFeatures
+
+	return c, nil
 }
 
 // GetRoles returns currently logged-in user roles
@@ -236,9 +237,4 @@ func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	}
 
 	return trace.Wrap(err)
-}
-
-type GetClusterDetailsResponse struct {
-	LoggedInUser
-	Features *proto.Features
 }

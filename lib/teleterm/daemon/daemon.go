@@ -134,13 +134,10 @@ func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters
 		return nil, trace.Wrap(err)
 	}
 
-	clusterDetails, err := cluster.GetClusterDetails(ctx)
+	cluster, err = cluster.EnrichCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cluster.LoggedInUser = clusterDetails.LoggedInUser
-	cluster.Features = clusterDetails.Features
 
 	return cluster, nil
 }
