@@ -168,7 +168,7 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 			}
 		default:
 			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
-			l.WithFields(fields).Warnf("Got a event that exeeded max allowed size.")
+			l.WithFields(fields).Warnf("Got a event that exceeded max allowed size.")
 			return trace.BadParameter("event size %v exceeds max entry size %v", len(line), l.MaxScanTokenSize)
 		}
 	}

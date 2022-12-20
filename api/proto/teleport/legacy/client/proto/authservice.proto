@@ -839,6 +839,24 @@ message DeleteAllDatabaseServersRequest {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
+// GetAllDatabaseServicesRequest is a request to fetch all DatabaseServices.
+message GetAllDatabaseServicesRequest {}
+
+// DatabaseServiceV1List represents a list of DatabaseService resources.
+message DatabaseServiceV1List {
+  // Services is a list of DatabaseService resources.
+  repeated types.DatabaseServiceV1 Services = 1;
+}
+
+// UpsertDatabaseServiceRequest is a request to register DatabaseService.
+message UpsertDatabaseServiceRequest {
+  // Service is the database service to register.
+  types.DatabaseServiceV1 Service = 1 [(gogoproto.jsontag) = "service"];
+}
+
+// DeleteAllDatabaseServicesRequest is a request to delete all DatabaseServices.
+message DeleteAllDatabaseServicesRequest {}
+
 // DatabaseCSRRequest is a request to generate a client certificate used
 // by the proxy to authenticate with a remote database service.
 message DatabaseCSRRequest {
@@ -2194,6 +2212,17 @@ service AuthService {
   rpc DeleteDatabaseServer(DeleteDatabaseServerRequest) returns (google.protobuf.Empty);
   // DeleteAllDatabaseServers removes all registered database proxy servers.
   rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
+
+  // GetAllDatabaseServices returns all DatabaseService resources.
+  rpc GetAllDatabaseServices(GetAllDatabaseServicesRequest) returns (DatabaseServiceV1List);
+  // UpsertDatabaseService registers a new DatabaseService.
+  rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (google.protobuf.Empty);
+  // DeleteDatabaseService removes the specified DatabaseService.
+  rpc DeleteDatabaseService(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllDatabaseServices removes all registered DatabaseServices.
+  // If there's an error deleting the resources, there's no guarantee of a rollback.
+  // A subset of resources might be deleted while others still exist.
+  rpc DeleteAllDatabaseServices(DeleteAllDatabaseServicesRequest) returns (google.protobuf.Empty);
 
   // SignDatabaseCSR generates client certificate used by proxy to
   // authenticate with a remote database service.
