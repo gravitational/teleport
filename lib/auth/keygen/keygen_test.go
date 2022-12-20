@@ -19,7 +19,6 @@ package keygen
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -35,14 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
-
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
-	os.Exit(m.Run())
-}
 
 type nativeContext struct {
 	suite *test.AuthSuite
