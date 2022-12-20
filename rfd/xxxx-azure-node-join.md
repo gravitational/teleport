@@ -57,13 +57,14 @@ to implement the following flow at a new `RegisterWithAzureToken` gRPC endpoint:
   - The access token's signature is valid.
   - The access token was not issues before the start of the
   `RegisterWithAzureToken` request.
-  - The requested Teleport token allows the node to join.
+  - The requested Teleport token allows the node to join. Teleport will get the
+    subscription ID and resource group from the access token's claims.
 8. The auth server sends credentials to join the cluster.
 
 As with IAM join, the flow will occur within a single streaming gRPC request and
 only 1 attempt with a given challenge will be allowed, with a 1 minute timeout.
 
-an Azure VM will need either a system- or user-assigned
+The Azure VM will need either a system- or user-assigned
 [managed identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/qs-configure-portal-windows-vm)
 to be able to request an access token. The identity does not require any
 particular permissions.
