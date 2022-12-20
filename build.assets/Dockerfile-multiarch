@@ -5,10 +5,10 @@
 #   b) is currently only used for ARM64 builds
 # #############################################################################
 
-FROM centos:7 AS base
-
 # Automatically supplied by the Docker buildkit
 ARG TARGETARCH
+
+FROM centos:7 AS base
 
 # #############################################################################
 # Platform-specific customisation.
