@@ -50,8 +50,9 @@ application in Teleport regardless of the user's permissions within Teleport.
 
 #### Teleport CLI
 
-* Okta applications will show up when doing a `tsh apps ls` from the command line, with a type "okta".
-* Okta groups will be queryable by doing a new command `tsh okta groups ls`.
+* Okta applications will show up when doing a `tsh apps ls` from the command line, with an origin of `okta`.
+* Okta groups will be using `tctl get oktagroups`.
+* Okta groups will be using `tctl get oktaapps`.
 * Logging in (`tsh app login <app-name>`) will **not** work for Okta apps.
 
 #### Access requests
@@ -71,17 +72,21 @@ flowchart LR
     DB[(Teleport Database)]
     App[Application Service]
     Requests[Access Requests Service]
+    IdP[SAML Identity Provider]
+    WebUI[User Interface]
 
     subgraph OktaSvc[Okta Service]
       BG[Background Synchronization Service]
+      Launcher
     end
 
-    Auth[Auth Service]
-    
     OktaSvc<-->DB
+    OktaSvc<-->IdP
     App<-->DB
     App<-->Requests
     Requests<-->DB
+
+    WebUI<-->Launcher
   end
 
   Okta[Okta API]
@@ -132,7 +137,7 @@ e-mail used for Okta, this will be unnecessary.
 
 ### Okta object synchronization
 
-#### Method 1: Background synchronization
+#### Background synchronization
 
 The background synchronization process, which synchronizes all applications from Okta, is expected
 to run roughly every 2 minutes. This process wil translate Okta users, groups, and applications
@@ -154,12 +159,6 @@ sequenceDiagram
     OktaSvc->>AppSvc: Synchronize groups in Teleport
   end
 ```
-#### Method 2: SCIM provisioning
-
-Teleport could potentially implement a SCIM provisioning server to synchronize to and from Okta. This would allow Okta to synchronize
-to Teleport upon user creation. I worry that we won't have as granular a control with this mechanism, however. It doesn't
-appear that SCIM provisioning can be triggered manually via the API, and for synchronizing to Okta from Teleport, the shorted duration
-is 1 hour, which is too long for us.
 
 #### Okta to Teleport mappings
 
@@ -173,7 +172,7 @@ that belong to this group. This will be later used for RBAC calculation.
 
 ```yaml
 kind: okta_group
-version: v3
+version: v1
 metadata:
   name: Developers
   teleport.dev/origin: okta
@@ -202,7 +201,7 @@ synchronization process. The applications will look like the following:
 
 ```yaml
 kind: app
-version: v3
+version: v1
 metadata:
   name: Slack
   teleport.dev/origin: okta
@@ -217,10 +216,13 @@ for applications.  These objects will look like the following:
 
 ```yaml
 kind: okta_application
-version: v3
+version: v1
 metadata:
   name: 123456789
 spec:
+  appLinks:
+    - name: link1
+      uri: https://my-okta-domain.okta.com/appLink
   users:
     - mike@goteleport.com
     - roman@goteleport.com
@@ -241,21 +243,23 @@ API or UI. These requests will submit access requests through Teleport's
 The Okta service will monitor these approval requests and take appropriate
 action based on the request and the resource targeted.
 
-#### Method 1: Explicit API approval per user
+There are several different methods to implement, as different applications have different
+methods of elevating access.
 
-##### Group approval
-
-When an approval request has been accepted for a group, the Okta service assign the user to the given
-group using the API. When the approval is rescinded, the user will be removed from the group.
-
-##### Application approval
+#### Application approval (top priority)
 
 When an approval request has been accepted for an application, the Okta service will assign the user
 to the application. When the approval is rescinded, the user will be removed from the application.
 
-#### Method 2: Teleport SAML/OIDC IdP
+#### Group approval
 
-The general mechanism for this method involves using an identity provider from within Teleport that Okta can use for authentication.
+When an approval request has been accepted for a group, the Okta service assign the user to the given
+group using the API. When the approval is rescinded, the user will be removed from the group.
+
+#### Teleport SAML/OIDC IdP
+
+The general mechanism for this method involves using an identity provider from within
+Teleport ([associated RFD](https://github.com/gravitational/teleport.e/pull/668)) that Okta can use for authentication.
 We can use this to create special, temporary users within Okta that will only authenticate for a limited amount of time and only have
 specific rules and allowances configured for them.
 
@@ -300,19 +304,8 @@ every 3 days is a good start.
 
 One snag in this process is that, once a user is logged into Okta, the session is reused for subsequent accesses to Okta.
 If you are logged in as your main user and request privileged access, even if a new user is created for you, the existing session
-will be used. In order to get around this, we'll need to configure Okta such that Teleport is a trusted CORS origin and issue
-the following Javascript prior to accessing an application in the browser:
-
-```javascript
-await fetch('https://dev-53161101.okta.com/api/v1/sessions/me', {
-    method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
-    mode: 'cors', // no-cors, *cors, same-origin
-    cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
-    credentials: 'include', // include, *same-origin, omit
-  });
-```
-
-This will delete the current Okta session and allow Teleport users to log in as the newly created temporary users.
+will be used. We'll be able to get around this using (https://support.okta.com/help/s/article/What-are-the-use-cases-of-Deeplink-usage?language=en_US)[SAML Deeplinks].
+These Deeplinks will override the current session for access to these applications.
 
 #### What groups and applications can users request?
 
