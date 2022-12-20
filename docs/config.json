@@ -119,7 +119,8 @@
         },
         {
           "title": "High Availability Deployments",
-          "slug": "/deploy-a-cluster/high-availability/"
+          "slug": "/deploy-a-cluster/high-availability/",
+          "forScopes": ["oss", "enterprise"]
         },
         {
           "title": "Deploy with Helm",
