@@ -357,7 +357,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: ensure-webassets build-ui
+full: ensure-webassets
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -366,7 +366,7 @@ endif
 # make full-ent - Builds Teleport enterprise binaries
 #
 .PHONY:full-ent
-full-ent:
+full-ent: ensure-webassets-e
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
 endif
@@ -1130,6 +1130,17 @@ ensure-webassets:
 		$(MAKE) build-ui; \
 	fi;
 
+.PHONY: ensure-webassets-e
+ensure-webassets-e:
+	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
+		$(MAKE) build-ui-e; \
+	fi;
+
+.PHONY: init-submodules-e
+init-submodules-e:
+	git submodule init e
+	git submodule update
+
 # dronegen generates .drone.yml config
 #
 #    Usage:
@@ -1150,6 +1161,14 @@ backport:
 
 .PHONY: build-ui
 build-ui:
-	docker build --build-arg NPM_CMD=build-teleport-oss -f ./build.assets/Dockerfile-web -t webui .
+	docker build --build-arg NPM_CMD=build-ui-oss -f ./build.assets/Dockerfile-web -t webui .
 	docker run --name build-webassets -d webui
-	docker cp build-webassets:/webapp/dist/. $(PWD)/webassets
+	docker cp build-webassets:/webassets/. $(PWD)/webassets
+	docker rm -f build-webassets
+
+.PHONY: build-ui-e
+build-ui-e:
+	docker build --build-arg NPM_CMD=build-ui-e -f ./build.assets/Dockerfile-web -t webui-e .
+	docker run --name build-webassets-e -d webui-e
+	docker cp build-webassets-e:/webapp/webassets/e/. $(PWD)/webassets/e
+	docker rm -f build-webassets-e
