@@ -223,6 +223,7 @@ func (s *Server) updateCACert(ctx context.Context, database types.Database, file
 	}
 
 	if equal {
+		s.log.Debugf("Database %q CA is up-to-date.", database.GetName())
 		return nil
 	}
 
