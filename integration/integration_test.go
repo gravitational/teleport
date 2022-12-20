@@ -2682,8 +2682,12 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		Priv:        suite.Priv,
 		Pub:         suite.Pub,
 		Log:         suite.Log,
+		CachePolicy: service.CachePolicy{
+			Enabled: false,
+		},
 	}
 	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
+
 	main := helpers.NewInstance(t, mainCfg)
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
 
