@@ -171,15 +171,15 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 		return trace.Wrap(err)
 	}
 
-	service, err := e.getService(req)
+	serviceID, err := e.getService(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signingName, err := serviceToSigningName(service)
+	signingName, err := serviceToSigningName(serviceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	uri, err := e.getTargetURI(service)
+	uri, err := e.getTargetURI(serviceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
