@@ -41,7 +41,7 @@ sign_and_notarize_binaries() {
   # https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
   cat >"$goncfg" <<EOF
 {
-  "source": $(shell_array_to_json_array $targets),
+  "source": $(shell_array_to_json_array ${targets[@]}),
   "bundle_id": "$bundle_id",
   "sign": {
     "application_identity": "$DEVELOPER_ID_APPLICATION"
@@ -101,10 +101,14 @@ EOF
   unzip -z "$notarization_zip"
   for BINARY in "$targets"; do
     echo "Replacing $BINARY with signed copy..."
-    echo "Before sha256: $(shasum -a 256 '$BINARY')" || true
+    echo "Before sha256: $(shasum -a 256 $BINARY)" || true
+    echo "removing:"
     rm -vf "$BINARY"
-    unzip "$notarization_zip" "$BINARY"
-    echo "After sha256: $(shasum -a 256 '$BINARY')" || true
+    echo "unziping"
+    unzip "$notarization_zip" "$(basename $BINARY)" -d "$(dirname $BINARY)"
+    echo "ls"
+    ls -laht "$(dirname $BINARY)"
+    echo "After sha256: $(shasum -a 256 $BINARY)" || true
   done
 
   echo "Binary notarization complete"
