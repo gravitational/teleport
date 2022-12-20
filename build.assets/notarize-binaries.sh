@@ -81,9 +81,30 @@ EOF
 
   echo "Received notarization for binaries, stapling..."
 
+  # Stapling is the process of adding the notarization ticket that Apple issued
+  # to the package distributed to end users.
+  # The stapler tool does not currently support stapling, or mach-o binaries.
+  # As a result the "Gatekeeper" service will contact Apple to verify that the
+  # binaries are signed the first time they are ran. If the user is offline when
+  # the binaries are first ran, then the notarization verification will fail and
+  # notify the user.
+  # For details, see
+  # https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
+  # If mach-o notarization is ever supported, uncomment the below to enable binary
+  # stapling.
+  # for BINARY in "$targets"; do
+  #   echo "Stapling $BINARY..."
+  #   xcrun stapler staple -v "$BINARY"
+  # done
+
+  unzip -l "$notarization_zip"
+  unzip -z "$notarization_zip"
   for BINARY in "$targets"; do
-    echo "Stapling $BINARY..."
-    xcrun stapler staple -v "$BINARY"
+    echo "Replacing $BINARY with signed copy..."
+    echo "Before md5: $(md5sum '$BINARY')" || true
+    rm -vf "$BINARY"
+    uzip "$notarization_zip" "$BINARY"
+    echo "After md5: $(md5sum '$BINARY')" || true
   done
 
   echo "Binary notarization complete"
