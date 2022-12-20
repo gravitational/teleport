@@ -27,6 +27,9 @@ import (
 // XXX_* fields.
 func protoEqual(a, b proto.Message) bool {
 	return cmp.Equal(a, b, cmp.FilterPath(func(path cmp.Path) bool {
-		return strings.HasPrefix(path.Last().String(), ".XXX_")
+		if field, ok := path.Last().(cmp.StructField); ok {
+			return strings.HasPrefix(field.Name(), "XXX_")
+		}
+		return false
 	}, cmp.Ignore()))
 }

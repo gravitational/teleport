@@ -28,10 +28,10 @@ import (
 // CompareResources compares two resources by all significant fields.
 func CompareResources(resA, resB types.Resource) int {
 	equal := cmp.Equal(resA, resB,
+		ignoreProtoXXXFields(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 		cmpopts.EquateEmpty(),
-		ignoreProtoXXXFields(),
 	)
 	if equal {
 		return Equal
@@ -43,6 +43,9 @@ func CompareResources(resA, resB types.Resource) int {
 // messages.
 func ignoreProtoXXXFields() cmp.Option {
 	return cmp.FilterPath(func(path cmp.Path) bool {
-		return strings.HasPrefix(path.Last().String(), ".XXX_")
+		if field, ok := path.Last().(cmp.StructField); ok {
+			return strings.HasPrefix(field.Name(), "XXX_")
+		}
+		return false
 	}, cmp.Ignore())
 }
