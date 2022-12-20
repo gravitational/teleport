@@ -290,7 +290,6 @@ func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 			log.Warnf("Database %v protocol %v does not support --db-name flag, ignoring --db-name=%v",
 				r.ServiceName, defaults.ReadableDatabaseProtocol(r.Protocol), r.Database)
 			r.Database = ""
-		default:
 		}
 	}
 	return nil
