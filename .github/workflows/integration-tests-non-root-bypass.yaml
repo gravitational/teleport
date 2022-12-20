@@ -1,6 +1,6 @@
 # This workflow is required to ensure that required Github check passes even if
-# the actual "Unit Tests (Operator)" workflow skipped due to path filtering. Otherwise
-# it will stay forever pending.
+# the actual "Integration Tests (Non-root)" workflow skipped due to path filtering.
+# Otherwise it will stay forever pending.
 #
 # See "Handling skipped but required checks" for more info:
 #
@@ -8,17 +8,15 @@
 #
 # Note both workflows must have the same name.
 
-name: Unit Tests (Operator)
-run-name: Skip Unit Tests (Operator) - ${{ github.run_id }} - @${{ github.actor }}
+name: Integration Tests (Non-root)
+run-name: Skip Integration Tests (Non-root) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   pull_request:
     paths-ignore:
-      - /go.mod
-      - /go.sum
-      - operator/**
-      - api/types/**
-      - lib/tbot/**
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
 
 jobs:
   test:
