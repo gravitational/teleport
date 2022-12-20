@@ -170,8 +170,6 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 	require.Eventually(t, WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
-	cmd := []string{"echo", "hello world"}
-
 	// Try and connect to a node in the Aux cluster from the Main cluster using
 	// direct dialing.
 	creds, err := GenerateUserCreds(UserCredsRequest{
@@ -201,11 +199,12 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 
 	output := &bytes.Buffer{}
 	tc.Stdout = output
-	require.NoError(t, err)
+
+	cmd := []string{"echo", "hello world"}
 
 	require.Eventually(t, func() bool {
 		return tc.SSH(ctx, cmd, false) == nil
-	}, time.Millisecond*5000, time.Millisecond*500, "Two clusters cannot connect to each other")
+	}, 10*time.Second, 1*time.Second, "Two clusters cannot connect to each other")
 
 	require.Equal(t, "hello world\n", output.String())
 }

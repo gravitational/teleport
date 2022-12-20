@@ -271,6 +271,10 @@ type InstanceConfig struct {
 	Listeners *InstanceListeners
 
 	Fds []service.FileDescriptor
+
+	// CachePolicy sets caching policy for nodes and proxies
+	// in case if they lose connection to auth servers
+	CachePolicy service.CachePolicy
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -337,14 +341,16 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
+	serviceConfig := service.MakeDefaultConfig()
+	serviceConfig.CachePolicy = cfg.CachePolicy
 	i := &TeleInstance{
 		Hostname:          cfg.NodeName,
 		UploadEventsC:     make(chan events.UploadEvent, 100),
 		Log:               cfg.Log,
 		InstanceListeners: *cfg.Listeners,
 		Fds:               cfg.Fds,
+		Config:            serviceConfig,
 	}
-
 	secrets := InstanceSecrets{
 		SiteName:   cfg.ClusterName,
 		PrivKey:    cfg.Priv,
