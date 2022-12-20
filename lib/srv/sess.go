@@ -1170,7 +1170,7 @@ func (s *session) newStreamer(ctx *ServerContext) (events.Streamer, error) {
 func sessionsStreamingUploadDir(ctx *ServerContext) string {
 	return filepath.Join(
 		ctx.srv.GetDataDir(), teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, ctx.srv.GetNamespace(),
+		events.StreamingSessionsDir, ctx.srv.GetNamespace(),
 	)
 }
 
