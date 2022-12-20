@@ -176,10 +176,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing GetRotation")
 	}
 	if c.CADownloader == nil {
-		c.CADownloader, err = NewRealDownloader(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		c.CADownloader = NewRealDownloader()
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")

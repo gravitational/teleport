@@ -270,16 +270,10 @@ type realDownloader struct {
 }
 
 // NewRealDownloader returns real cloud database CA downloader.
-func NewRealDownloader(ctx context.Context) (CADownloader, error) {
-	sqlAdminClient, err := gcp.NewSQLAdminClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func NewRealDownloader() CADownloader {
 	return &realDownloader{
-		httpClient:     http.DefaultClient,
-		sqlAdminClient: sqlAdminClient,
-	}, nil
+		httpClient: http.DefaultClient,
+	}
 }
 
 // Download downloads CA certificate for the provided cloud database instance.
@@ -366,14 +360,21 @@ func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, []byte, er
 // This database service GCP IAM role should have "cloudsql.instances.get"
 // permission in order for this to work.
 func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types.Database) ([]byte, []byte, error) {
-	instance, err := d.sqlAdminClient.GetDatabaseInstance(ctx, database)
+	cl, err := d.getSqlAdminClient(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	instance, err := cl.GetDatabaseInstance(ctx, database)
 	if err != nil {
 		return nil, nil, trace.BadParameter(cloudSQLDownloadError, database.GetName(),
 			err, database.GetGCP().InstanceID)
 	}
+
 	if instance.ServerCaCert != nil {
 		return []byte(instance.ServerCaCert.Cert), []byte(instance.ServerCaCert.Sha1Fingerprint), nil
 	}
+
 	return nil, nil, trace.NotFound("Cloud SQL instance %v does not contain server CA certificate info: %v",
 		database, instance)
 }
@@ -392,6 +393,16 @@ func (d *realDownloader) getVersionFromURL(database types.Database, url string) 
 	}
 
 	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
+}
+
+// getSqlAdminClient returns the client provided on the struct initialization,
+// otherwise init a new one.
+func (d *realDownloader) getSqlAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
+	if d.sqlAdminClient != nil {
+		return d.sqlAdminClient, nil
+	}
+
+	return gcp.NewSQLAdminClient(ctx)
 }
 
 // rdsCAURLForDatabase returns root certificate download URL based on the region
