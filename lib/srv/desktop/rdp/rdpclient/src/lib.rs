@@ -776,11 +776,7 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
 
         // e.decompress consumes e, so we need to call it separately, after populating the fields
         // above.
-        let mut data = if e.is_compress {
-            e.decompress()?
-        } else {
-            e.data
-        };
+        let mut data = e.decompress()?;
         res.data_ptr = data.as_mut_ptr();
         res.data_len = data.len();
         res.data_cap = data.capacity();
