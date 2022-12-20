@@ -25,6 +25,7 @@ export type RuntimeSettings = {
   tshdEvents: {
     requestedNetworkAddress: string;
   };
+  installationId: string;
 };
 
 export type MainProcessClient = {

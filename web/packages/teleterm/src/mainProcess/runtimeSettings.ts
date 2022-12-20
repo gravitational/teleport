@@ -7,6 +7,7 @@ import { app } from 'electron';
 import Logger from 'teleterm/logger';
 
 import { GrpcServerAddresses, RuntimeSettings } from './types';
+import { loadInstallationId } from './loadInstallationId';
 
 const { argv, env } = process;
 
@@ -19,7 +20,7 @@ const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
 // We default to webapps/../teleport/build/tsh.
 // prettier-ignore
 const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
-  __dirname, '..', '..', '..', '..', '..', '..', '..', 'teleport', 'build', 'tsh'
+  __dirname, '..', '..', '..', '..', '..', '..', '..', 'teleport', 'build', 'tsh',
 );
 
 const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
@@ -73,6 +74,9 @@ function getRuntimeSettings(): RuntimeSettings {
     defaultShell: getDefaultShell(),
     kubeConfigsDir: getKubeConfigsDir(),
     platform: process.platform,
+    installationId: loadInstallationId(
+      path.resolve(app.getPath('userData'), 'installation_id')
+    ),
   };
 }
 
