@@ -2471,16 +2471,16 @@ func (c *Client) DeleteAllDatabases(ctx context.Context) error {
 }
 
 // UpsertDatabaseService creates or updates existing DatabaseService resource.
-func (c *Client) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
+func (c *Client) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
 	serviceV1, ok := service.(*types.DatabaseServiceV1)
 	if !ok {
-		return trace.BadParameter("unsupported DatabaseService type %T", serviceV1)
+		return nil, trace.BadParameter("unsupported DatabaseService type %T", serviceV1)
 	}
-	_, err := c.grpc.UpsertDatabaseService(ctx, &proto.UpsertDatabaseServiceRequest{
+	keepAlive, err := c.grpc.UpsertDatabaseService(ctx, &proto.UpsertDatabaseServiceRequest{
 		Service: serviceV1,
 	}, c.callOpts...)
 
-	return trail.FromGRPC(err)
+	return keepAlive, trail.FromGRPC(err)
 }
 
 // DeleteDatabaseService deletes a specific DatabaseService resource.

@@ -1580,6 +1580,38 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	}, nil
 }
 
+// UpsertDatabaseService creates or updates (by name) a DatabaseService resource.
+func (s *PresenceService) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	if err := service.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalDatabaseService(service)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(databaseServicePrefix, service.GetName()),
+		Value:   value,
+		Expires: service.Expiry(),
+		ID:      service.GetResourceID(),
+	}
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if service.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_DATABASE,
+		LeaseID:   lease.ID,
+		Namespace: apidefaults.Namespace,
+		Name:      service.GetName(),
+		HostID:    service.GetName(),
+		Expires:   service.Expiry(),
+	}, nil
+}
+
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {

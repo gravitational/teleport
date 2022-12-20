@@ -21,9 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // DatabaseServicesService manages DatabaseService resources in the backend.
@@ -34,28 +32,6 @@ type DatabaseServicesService struct {
 // NewDatabaseServicesService creates a new DatabaseServicesService.
 func NewDatabaseServicesService(backend backend.Backend) *DatabaseServicesService {
 	return &DatabaseServicesService{Backend: backend}
-}
-
-// UpsertDatabaseService creates or updates (by name) a DatabaseService resource.
-func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
-	if err := service.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalDatabaseService(service)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(databaseServicePrefix, service.GetName()),
-		Value:   value,
-		Expires: service.Expiry(),
-		ID:      service.GetResourceID(),
-	}
-	_, err = s.Put(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // DeleteDatabaseService removes the specified DatabaseService resource.

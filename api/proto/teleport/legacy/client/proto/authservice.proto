@@ -2213,7 +2213,7 @@ service AuthService {
   rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
 
   // UpsertDatabaseService registers a new DatabaseService.
-  rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (google.protobuf.Empty);
+  rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (types.KeepAlive);
   // DeleteDatabaseService removes the specified DatabaseService.
   rpc DeleteDatabaseService(types.ResourceRequest) returns (google.protobuf.Empty);
   // DeleteAllDatabaseServices removes all registered DatabaseServices.

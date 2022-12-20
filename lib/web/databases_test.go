@@ -313,7 +313,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = env.server.Auth().UpsertDatabaseService(ctx, dbService001)
+	_, err = env.server.Auth().UpsertDatabaseService(ctx, dbService001)
 	require.NoError(t, err)
 
 	// The API returns one DatabaseService.

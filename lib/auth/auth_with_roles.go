@@ -3864,9 +3864,9 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 }
 
 // UpsertDatabaseService creates or updates a new DatabaseService resource.
-func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
+func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
 	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	return a.authServer.UpsertDatabaseService(ctx, service)
 }

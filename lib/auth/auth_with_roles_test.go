@@ -2385,7 +2385,7 @@ func TestListDatabaseServices(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = srv.Auth().UpsertDatabaseService(ctx, s)
+		_, err = srv.Auth().UpsertDatabaseService(ctx, s)
 		require.NoError(t, err)
 	}
 
@@ -2452,14 +2452,14 @@ func TestListDatabaseServices(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Create/Update operations")
 
 	currentAllowRules = role.GetRules(types.Allow)
 	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RW())))
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
-	err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
 	require.NoError(t, err)
 
 	listServicesResp, err = clt.ListResources(ctx,

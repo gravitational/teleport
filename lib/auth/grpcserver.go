@@ -1136,17 +1136,17 @@ func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.De
 }
 
 // UpsertDatabaseService registers a new database service.
-func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*emptypb.Empty, error) {
+func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.UpsertDatabaseService(ctx, req.Service)
+	keepAlive, err := auth.UpsertDatabaseService(ctx, req.Service)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &emptypb.Empty{}, nil
+	return keepAlive, nil
 }
 
 // DeleteDatabaseService removes the specified DatabaseService.

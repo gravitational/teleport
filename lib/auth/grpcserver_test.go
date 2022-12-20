@@ -1934,9 +1934,9 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Create both DatabaseServices.
-	err = clt.UpsertDatabaseService(ctx, db1)
+	_, err = clt.UpsertDatabaseService(ctx, db1)
 	require.NoError(t, err)
-	err = clt.UpsertDatabaseService(ctx, db2)
+	_, err = clt.UpsertDatabaseService(ctx, db2)
 	require.NoError(t, err)
 
 	// Fetch all DatabaseServices.
@@ -1960,7 +1960,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 		},
 	}
 
-	err = clt.UpsertDatabaseService(ctx, db1)
+	_, err = clt.UpsertDatabaseService(ctx, db1)
 	require.NoError(t, err)
 	listServicesResp, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{

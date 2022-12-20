@@ -27,8 +27,6 @@ import (
 
 // DatabaseServices defines an interface for managing DatabaseService resources.
 type DatabaseServices interface {
-	// UpsertDatabaseService updates an existing DatabaseService resource.
-	UpsertDatabaseService(context.Context, types.DatabaseService) error
 	// DeleteDatabasService removes the specified DatabaseService resource.
 	DeleteDatabaseService(ctx context.Context, name string) error
 	// DeleteAllDatabaseServices removes all DatabaseService resources.
