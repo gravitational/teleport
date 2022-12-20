@@ -1465,6 +1465,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Generation:              req.generation,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
+		ConnectionDiagnosticID:  req.connectionDiagnosticID,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
