@@ -1163,7 +1163,7 @@ backport:
 build-ui:
 	docker build --build-arg NPM_CMD=build-ui-oss -f ./build.assets/Dockerfile-web -t webui .
 	docker run --name build-webassets -d webui
-	docker cp build-webassets:/webassets/. $(PWD)/webassets
+	docker cp build-webassets:/webapp/webassets/. $(PWD)/webassets
 	docker rm -f build-webassets
 
 .PHONY: build-ui-e
