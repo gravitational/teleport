@@ -41,11 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolMySQL)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new MySQL engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}

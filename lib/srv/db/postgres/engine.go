@@ -28,20 +28,14 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine,
-		defaults.ProtocolPostgres,
-		defaults.ProtocolCockroachDB)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new Postgres engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}

@@ -429,7 +429,7 @@ func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 }
 
 // GetAccessRequest returns AccessRequests filtered by ID
-func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) ([]clusters.AccessRequest, error) {
+func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) (*clusters.AccessRequest, error) {
 	if req.AccessRequestId == "" {
 		return nil, trace.BadParameter("missing request id")
 	}
@@ -439,7 +439,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetAccessRequests(ctx, types.AccessRequestFilter{
+	response, err := cluster.GetAccessRequest(ctx, types.AccessRequestFilter{
 		ID: req.AccessRequestId,
 	})
 	if err != nil {
