@@ -278,7 +278,7 @@ func (c *Client) start() {
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		res := C.read_rdp_output(c.rustClient)
 
-		// Copy the returned message and free the C memory)
+		// Copy the returned message and free the C memory.
 		userMessage := C.GoString(res.user_message)
 		C.free_c_string(res.user_message)
 
