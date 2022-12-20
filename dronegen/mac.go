@@ -262,7 +262,6 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
 			`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init packages/webapps.e`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		)
