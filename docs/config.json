@@ -1289,6 +1289,16 @@
       "source": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
       "destination": "/enterprise/workflow/ssh-approval-pagerduty/",
       "permanent": true
+    },
+    {
+      "source": "/management/guides/fluentd/",
+      "destination": "/management/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/elastic-stack/",
+      "destination": "/management/export-audit-events/elastic-stack/",
+      "permanent": true
     }
   ]
 }
