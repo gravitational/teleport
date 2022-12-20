@@ -33,6 +33,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ghodss/yaml"
+	gops "github.com/google/gops/agent"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -61,16 +72,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/ghodss/yaml"
-	gops "github.com/google/gops/agent"
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -984,16 +985,19 @@ func serializeVersion(format string) (string, error) {
 // onPlay is used to interact with recorded sessions.
 // It has several modes:
 //
-// 1. If --format is "pty" (the default), then the recorded
-//    session is played back in the user's terminal.
-// 2. Otherwise, `tsh play` is used to export a session from the
-//    binary protobuf format into YAML or JSON.
+//  1. If --format is "pty" (the default), then the recorded
+//     session is played back in the user's terminal.
+//  2. Otherwise, `tsh play` is used to export a session from the
+//     binary protobuf format into YAML or JSON.
 //
 // Each of these modes has two subcases:
 // a) --session-id ends with ".tar" - tsh operates on a local file
-//    containing a previously downloaded session
+//
+//	containing a previously downloaded session
+//
 // b) --session-id is the ID of a session - tsh operates on the session
-//    recording by connecting to the Teleport cluster
+//
+//	recording by connecting to the Teleport cluster
 func onPlay(cf *CLIConf) error {
 	if format := strings.ToLower(cf.Format); format == teleport.PTY {
 		return playSession(cf)
@@ -1592,28 +1596,70 @@ func (l nodeListings) Swap(i, j int) {
 }
 
 func listNodesAllClusters(cf *CLIConf) error {
-	var listings nodeListings
+	// Fetch database listings for profiles in parallel. Set an arbitrary limit
+	// just in case.
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(4)
 
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for clusterName, nodes := range result {
-			for _, node := range nodes {
-				listings = append(listings, nodeListing{
-					Proxy:   profile.ProxyURL.Host,
-					Cluster: clusterName,
-					Node:    node,
-				})
+	nodeListingsResultChan := make(chan nodeListings)
+	nodeListingsCollectChan := make(chan nodeListings)
+	go func() {
+		var listings nodeListings
+		for {
+			select {
+			case items := <-nodeListingsResultChan:
+				listings = append(listings, items...)
+			case <-groupCtx.Done():
+				nodeListingsCollectChan <- listings
+				return
 			}
 		}
+	}()
+
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		group.Go(func() error {
+			proxy, err := tc.ConnectToProxy(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer proxy.Close()
+
+			sites, err := proxy.GetSites(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			var listings nodeListings
+			for _, site := range sites {
+				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				for _, node := range nodes {
+					listings = append(listings, nodeListing{
+						Proxy:   profile.ProxyURL.Host,
+						Cluster: site.Name,
+						Node:    node,
+					})
+				}
+			}
+
+			nodeListingsCollectChan <- listings
+			return nil
+		})
+
 		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if err := group.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	listings := <-nodeListingsResultChan
 	sort.Sort(listings)
 
 	format := strings.ToLower(cf.Format)
