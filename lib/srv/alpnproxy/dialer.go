@@ -68,7 +68,9 @@ func (d ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.
 
 	dialer := apiclient.NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout)
 	if d.cfg.ALPNConnUpgradeRequired {
-		dialer = newALPNConnUpgradeDialer(dialer, d.cfg.TLSConfig.InsecureSkipVerify)
+		dialer = newALPNConnUpgradeDialer(dialer, &tls.Config{
+			InsecureSkipVerify: d.cfg.TLSConfig.InsecureSkipVerify,
+		})
 	}
 
 	conn, err := dialer.DialContext(ctx, network, addr)
