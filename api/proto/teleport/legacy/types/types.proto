@@ -4344,6 +4344,14 @@ message ConnectionDiagnosticTrace {
     RBAC_KUBE = 6;
     // KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
     KUBE_PRINCIPAL = 7;
+    // RBAC_DATABASE is for RBAC checks to database access (db_labels).
+    RBAC_DATABASE = 8;
+    // RBAC_DATABASE_LOGIN is for RBAC checks to database login (db_name and db_user).
+    RBAC_DATABASE_LOGIN = 9;
+    // DATABASE_DB_USER is used when checking whether the Database has the requested Database User.
+    DATABASE_DB_USER = 10;
+    // DATABASE_DB_NAME is used when checking whether the Database has the requested Database Name.
+    DATABASE_DB_NAME = 11;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.
