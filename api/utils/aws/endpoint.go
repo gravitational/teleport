@@ -716,8 +716,8 @@ func DynamoDBRegionForEndpoint(endpoint string) (string, error) {
 // Add the service prefix to get a complete endpoint like this: dynamodb.us-west-1.amazonaws.com
 // https://docs.aws.amazon.com/general/latest/gr/ddb.html
 func DynamoDBEndpointSuffixForRegion(region string) string {
-	switch strings.ToLower(region) {
-	case "cn-north-1", "cn-northwest-1":
+	switch {
+	case IsCNRegion(region):
 		return fmt.Sprintf(".%s%s:443", region, AWSCNEndpointSuffix)
 	default:
 		return fmt.Sprintf(".%s%s:443", region, AWSEndpointSuffix)
