@@ -17,12 +17,14 @@ package events
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -149,6 +151,50 @@ func TestNewStreamErrors(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestProtoStreamLargeEvent tests ProtoStream behavior in the case of receiving
+// a large event. If an event is trimmable (implements messageSizeTrimmer) than
+// it should be trimmed otherwise an error should be thrown.
+func TestProtoStreamLargeEvent(t *testing.T) {
+	tests := []struct {
+		name      string
+		event     events.AuditEvent
+		expectErr bool
+	}{
+		{
+			name:      "large trimmable event is trimmed",
+			event:     makeQueryEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
+			expectErr: false,
+		},
+		{
+			name:      "large untrimmable event returns error",
+			event:     makeAccessRequestEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
+			expectErr: true,
+		},
+	}
+
+	ctx := context.Background()
+
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader: NewMemoryUploader(nil),
+	})
+	require.NoError(t, err)
+
+	stream, err := streamer.CreateAuditStream(ctx, session.ID("1"))
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err = stream.EmitAuditEvent(ctx, test.event)
+			if test.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+	require.NoError(t, stream.Complete(ctx))
 }
 
 type mockUploader struct {
