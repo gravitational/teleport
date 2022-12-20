@@ -82,6 +82,9 @@ import (
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	registerTestSnowflakeEngine()
+	registerTestElasticsearchEngine()
+	registerTestSQLServerEngine()
 	os.Exit(m.Run())
 }
 
@@ -599,7 +602,7 @@ func TestGCPRequireSSL(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func init() {
+func registerTestSQLServerEngine() {
 	// Override SQL Server engine that is used normally with the test one
 	// that mocks connection dial and Kerberos auth.
 	common.RegisterEngine(newTestSQLServerEngine, defaults.ProtocolSQLServer)

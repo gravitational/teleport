@@ -24,9 +24,5 @@ import (
 
 // Source: os/stat_linux.go
 func GetAtime(fi os.FileInfo) time.Time {
-	return timespecToTime(fi.Sys().(*syscall.Stat_t).Atim)
-}
-
-func timespecToTime(ts syscall.Timespec) time.Time {
-	return time.Unix(ts.Sec, ts.Nsec)
+	return time.Unix(fi.Sys().(*syscall.Stat_t).Atim.Unix())
 }
