@@ -173,6 +173,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
 		case err == nil: // session is still in progress, continue to other uploads
+			u.log.Debugf("session %v has active tracker and is not ready to be uploaded", upload.SessionID)
 			continue
 		case trace.IsNotFound(err): // upload abandoned, complete upload
 		case trace.IsAccessDenied(err): // upload abandoned, complete upload
@@ -193,11 +194,11 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		u.log.Debugf("Upload %v was abandoned, trying to complete.", upload.ID)
+		u.log.Debugf("Upload for session %v was abandoned, trying to complete.", upload.SessionID)
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); err != nil {
 			return trace.Wrap(err)
 		}
-		u.log.Debugf("Completed upload %v.", upload)
+		u.log.Debugf("Completed upload for session %v.", upload.SessionID)
 		completed++
 
 		if len(parts) == 0 {
