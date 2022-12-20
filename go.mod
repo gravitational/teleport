@@ -130,7 +130,7 @@ require (
 	golang.org/x/sys v0.3.0
 	golang.org/x/term v0.3.0
 	golang.org/x/text v0.5.0
-	golang.org/x/tools v0.3.0
+	golang.org/x/tools v0.4.0
 	google.golang.org/api v0.103.0
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
@@ -172,11 +172,6 @@ require golang.org/x/crypto v0.2.0 // DO NOT UPDATE
 require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
-)
-
-// Do not remove. It breaks github.com/gravitational/go-oidc.
-require (
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 )
 
 require (
