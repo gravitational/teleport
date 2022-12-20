@@ -37,6 +37,12 @@ type TestConnectionRequest struct {
 	// ResourceName is the identification of the resource's instance to test.
 	ResourceName string `json:"resource_name"`
 
+	// DialTimeout when trying to connect to the destination host
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+
+	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitempty"`
+
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
@@ -50,8 +56,13 @@ type TestConnectionRequest struct {
 	// Specific to KubernetesTester.
 	KubernetesImpersonation KubernetesImpersonation `json:"kubernetes_impersonation,omitempty"`
 
-	// DialTimeout when trying to connect to the destination host
-	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+	// DatabaseUser is the database User to be tested
+	// Specific to DatabaseTester.
+	DatabaseUser string `json:"database_user,omitempty"`
+
+	// DatabaseName is the database user of the Database to be tested
+	// Specific to DatabaseTester.
+	DatabaseName string `json:"database_name,omitempty"`
 }
 
 // KubernetesImpersonation allows to configure a subset of `kubernetes_users` and
@@ -117,6 +128,9 @@ type ConnectionTesterConfig struct {
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
 
+	// PublicProxyAddr is public address of the proxy.
+	PublicProxyAddr string
+
 	// KubernetesPublicProxyAddr is the kubernetes proxy.
 	KubernetesPublicProxyAddr string
 
@@ -145,6 +159,15 @@ func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, erro
 				ProxyHostPort:             cfg.ProxyHostPort,
 				TLSRoutingEnabled:         cfg.TLSRoutingEnabled,
 				KubernetesPublicProxyAddr: cfg.KubernetesPublicProxyAddr,
+			},
+		)
+		return tester, trace.Wrap(err)
+	case types.KindDatabase:
+		tester, err := NewDatabaseConnectionTester(
+			DatabaseConnectionTesterConfig{
+				UserClient:        cfg.UserClient,
+				PublicProxyAddr:   cfg.PublicProxyAddr,
+				TLSRoutingEnabled: cfg.TLSRoutingEnabled,
 			},
 		)
 		return tester, trace.Wrap(err)
