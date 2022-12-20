@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -266,4 +267,37 @@ func MustGetCurrentUser(t *testing.T) *user.User {
 	user, err := user.Current()
 	require.NoError(t, err)
 	return user
+}
+
+func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service.Database) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+	defer cancel()
+
+	for {
+		all, err := authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+
+		// Count how many input "dbs" are registered.
+		var registered int
+		for _, db := range dbs {
+			for _, a := range all {
+				if a.GetName() == db.Name {
+					registered++
+					break
+				}
+			}
+		}
+
+		if registered == len(dbs) {
+			return
+		}
+
+		select {
+		case <-time.After(500 * time.Millisecond):
+		case <-ctx.Done():
+			require.Fail(t, "database servers not registered after 10s")
+		}
+	}
 }
