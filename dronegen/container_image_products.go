@@ -262,6 +262,7 @@ func (p *Product) getBaseImage(arch string, version *ReleaseVersion, containerRe
 			ShellBaseValue:   version.GetFullSemver().GetSemverValue(),
 			DisplayBaseValue: version.MajorVersion,
 			Arch:             arch,
+			IsForFullSemver:  true,
 		},
 	)
 }

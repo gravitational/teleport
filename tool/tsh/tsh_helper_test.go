@@ -260,7 +260,7 @@ func localListenerAddr() string {
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
 		_, err := svc.WaitForEventTimeout(30*time.Second, event)
-		require.NoError(t, err, "service server didn't receved %v event after 30s", event)
+		require.NoError(t, err, "service server didn't receive %v event after 30s", event)
 	}
 }
 
