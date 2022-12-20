@@ -69,6 +69,21 @@ The Azure VM will need either a system- or user-assigned
 to be able to request an access token. The identity does not require any
 particular permissions.
 
+### Signature verification and CAs
+
+When verifying the signature of attested data, Teleport should accept the
+following common names in certificates:
+
+- *.metadata.azure.com          # Public
+- *.metadata.azure.us           # Government
+- *.metadata.azure.cn           # China
+- *.metadata.microsoftazure.de  # Germany
+
+Additionally, Teleport will pin any needed intermediate certificates at build
+time, as it already does for EC2 join. More information on Azure certificate
+authorities can be found in the
+[Azure documentation](https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details).
+
 ### Teleport Configuration
 
 The existing provision token type can be extended to support Azure
