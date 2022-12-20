@@ -101,10 +101,10 @@ EOF
   unzip -z "$notarization_zip"
   for BINARY in "$targets"; do
     echo "Replacing $BINARY with signed copy..."
-    echo "Before md5: $(md5sum '$BINARY')" || true
+    echo "Before sha256: $(shasum -a 256 '$BINARY')" || true
     rm -vf "$BINARY"
-    uzip "$notarization_zip" "$BINARY"
-    echo "After md5: $(md5sum '$BINARY')" || true
+    unzip "$notarization_zip" "$BINARY"
+    echo "After sha256: $(shasum -a 256 '$BINARY')" || true
   done
 
   echo "Binary notarization complete"
