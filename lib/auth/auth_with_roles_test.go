@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -3752,6 +3753,95 @@ func TestGenerateHostCert(t *testing.T) {
 
 			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
+		})
+	}
+}
+
+// TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
+// builtin roles have permissions to execute the calls required by the uploader service.
+// This is because only one uploader service runs per Teleport process, and it will use
+// the first available identity.
+func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	for _, role := range types.LocalServiceMappings() {
+		if role == types.RoleAuth {
+			continue
+		}
+		t.Run(role.String(), func(t *testing.T) {
+			ctx := context.Background()
+
+			identity := TestBuiltin(role)
+			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, identity.I))
+			require.NoError(t, err)
+
+			s := &ServerWithRoles{
+				authServer: srv.AuthServer,
+				alog:       srv.AuditLog,
+				context:    *authContext,
+			}
+
+			t.Run("GetSessionTracker", func(t *testing.T) {
+				sid := session.ID("foo/" + role.String())
+				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
+					ResourceHeader: types.ResourceHeader{
+						Metadata: types.Metadata{
+							Name: sid.String(),
+						},
+					},
+					Spec: types.SessionTrackerSpecV1{
+						SessionID: sid.String(),
+					},
+				})
+				require.NoError(t, err)
+
+				_, err = s.GetSessionTracker(ctx, tracker.GetSessionID())
+				require.NoError(t, err)
+			})
+
+			t.Run("EmitAuditEvent", func(t *testing.T) {
+				err := s.EmitAuditEvent(ctx, &apievents.UserLogin{
+					Metadata: apievents.Metadata{
+						Type: events.UserLoginEvent,
+						Code: events.UserLocalLoginFailureCode,
+					},
+					Method: events.LoginMethodClientCert,
+					Status: apievents.Status{Success: true},
+				})
+				require.NoError(t, err)
+			})
+
+			t.Run("StreamSessionEvents", func(t *testing.T) {
+				// swap out the audit log with a discard log because we don't care if
+				// the streaming actually succeeds, we just want to make sure RBAC checks
+				// pass and allow us to enter the audit log code
+				originalLog := s.alog
+				t.Cleanup(func() { s.alog = originalLog })
+				s.alog = events.NewDiscardAuditLog()
+
+				eventC, errC := s.StreamSessionEvents(ctx, "foo", 0)
+				select {
+				case err := <-errC:
+					require.NoError(t, err)
+				default:
+					// drain eventC to prevent goroutine leak
+					for range eventC {
+					}
+				}
+			})
+
+			t.Run("CreateAuditStream", func(t *testing.T) {
+				stream, err := s.CreateAuditStream(ctx, session.ID("streamer"))
+				require.NoError(t, err)
+				require.NoError(t, stream.Close(ctx))
+			})
+
+			t.Run("ResumeAuditStream", func(t *testing.T) {
+				stream, err := s.ResumeAuditStream(ctx, session.ID("streamer"), "upload")
+				require.NoError(t, err)
+				require.NoError(t, stream.Close(ctx))
+			})
 		})
 	}
 }

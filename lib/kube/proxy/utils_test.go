@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -44,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -198,17 +196,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			}
 		},
 	})
-	require.NoError(t, err)
-	// create session recording path
-	// testCtx.kubeServer.DataDir/log/upload/streaming/default
-	err = os.MkdirAll(
-		filepath.Join(
-			testCtx.kubeServer.DataDir,
-			teleport.LogsDir,
-			teleport.ComponentUpload,
-			events.StreamingLogsDir,
-			apidefaults.Namespace,
-		), os.ModePerm)
 	require.NoError(t, err)
 
 	testCtx.startKubeService(t)
