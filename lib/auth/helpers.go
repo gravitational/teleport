@@ -21,8 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -34,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -89,25 +86,6 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
 	}
-	return nil
-}
-
-// CreateUploaderDir creates directory for file uploader service
-func CreateUploaderDir(dir string) error {
-	// DELETE IN(5.1.0)
-	// this folder is no longer used past 5.0 upgrade
-	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.SessionLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	err = os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
 	return nil
 }
 
