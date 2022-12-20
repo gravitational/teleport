@@ -117,10 +117,10 @@ func main() {
 		log.Fatalf("Build failed: %s", conclusion)
 	}
 
-	log.Printf("Build succeeded")
+	log.Printf("Workflow succeeded")
 }
 
-func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag string, baselineTime time.Time, runs github.RunIDSet) (*ghapi.WorkflowRun, error) {
+func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag string, baselineTime time.Time, existingRuns github.RunIDSet) (*ghapi.WorkflowRun, error) {
 	// Now we need to wait and see if a new workflow is spawned
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -136,7 +136,7 @@ func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag
 				return nil, trace.Wrap(err, "Failed polling for new workflow runs")
 			}
 
-			for candidate := range newRuns.NotIn(runs) {
+			for candidate := range newRuns.NotIn(existingRuns) {
 				run, _, err := gh.Actions.GetWorkflowRunByID(ctx, args.owner, args.repo, candidate)
 				if err != nil {
 					return nil, trace.Wrap(err, "Failed fetching workflow run by id", candidate)
