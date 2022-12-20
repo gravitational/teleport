@@ -273,17 +273,6 @@ func TestInteractiveSession(t *testing.T) {
 		}
 		require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 	})
-
-	t.Run("BrokenRecorder", func(t *testing.T) {
-		t.Parallel()
-		sess, _ := testOpenSession(t, reg, nil)
-
-		// The recorder might be closed in the case of an error downstream.
-		// Closing the session recorder should result in the session ending.
-		err := sess.recorder.Close(context.Background())
-		require.NoError(t, err)
-		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
-	})
 }
 
 // TestStopUnstarted tests that a session may be stopped before it launches.
