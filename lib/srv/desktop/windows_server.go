@@ -162,7 +162,7 @@ type WindowsServiceConfig struct {
 	// HostLabelsFn gets labels that should be applied to a Windows host.
 	HostLabelsFn func(host string) map[string]string
 	// ShowDesktopWallpaper determines whether desktop sessions will show a
-	// user-selected wallpaper vs a system default, single color wallpaper.
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	windows.LDAPConfig

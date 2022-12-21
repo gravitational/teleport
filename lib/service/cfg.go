@@ -1274,7 +1274,7 @@ type WindowsDesktopConfig struct {
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
 	// ShowDesktopWallpaper determines whether desktop sessions will show a
-	// user-selected wallpaper vs a system default, single color wallpaper.
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig

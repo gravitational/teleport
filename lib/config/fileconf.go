@@ -1900,7 +1900,7 @@ type WindowsDesktopService struct {
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// ShowDesktopWallpaper determines whether desktop sessions will show a
-	// user-selected wallpaper vs a system default, single color wallpaper.
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool `yaml:"show_desktop_wallpaper,omitempty"`
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
