@@ -389,7 +389,7 @@ var (
 			Name: teleport.MetricMigrations,
 			Help: "Migrations tracks for each migration if it is active (1) or not (0).",
 		},
-		[]string{"name"},
+		[]string{teleport.TagMigration},
 	)
 
 	prometheusCollectors = []prometheus.Collector{
