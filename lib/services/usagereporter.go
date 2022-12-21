@@ -78,9 +78,9 @@ type UsageAnonymizable interface {
 
 // UsageReporter is a service that accepts Teleport usage events.
 type UsageReporter interface {
-	// SubmitAnonymizedUsageEvent submits a usage event. The payload will be
+	// AnonymizeAndSubmit submits a usage event. The payload will be
 	// anonymized by the reporter implementation.
-	SubmitAnonymizedUsageEvents(event ...UsageAnonymizable) error
+	AnonymizeAndSubmit(event ...UsageAnonymizable) error
 }
 
 // UsageUserLogin is an event emitted when a user logs into Teleport,
@@ -310,7 +310,7 @@ type TeleportUsageReporter struct {
 	clock       clockwork.Clock
 }
 
-func (tur *TeleportUsageReporter) SubmitAnonymizedUsageEvents(events ...UsageAnonymizable) error {
+func (tur *TeleportUsageReporter) AnonymizeAndSubmit(events ...UsageAnonymizable) error {
 	for _, e := range events {
 		req := e.Anonymize(tur.anonymizer)
 		req.Timestamp = timestamppb.New(tur.clock.Now())
@@ -324,7 +324,7 @@ func (tur *TeleportUsageReporter) Run(ctx context.Context) {
 	tur.usageReporter.Run(ctx)
 }
 
-func NewUsageReporterTeleport(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.UsageSubmitFunc[prehogapi.SubmitEventRequest]) (*TeleportUsageReporter, error) {
+func NewUsageReporterTeleport(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.SubmitFunc[prehogapi.SubmitEventRequest]) (*TeleportUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
@@ -361,7 +361,7 @@ func NewUsageReporterTeleport(log logrus.FieldLogger, clusterName types.ClusterN
 	}, nil
 }
 
-func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (usagereporter.UsageSubmitFunc[prehogapi.SubmitEventRequest], error) {
+func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (usagereporter.SubmitFunc[prehogapi.SubmitEventRequest], error) {
 	tlsConfig := &tls.Config{
 		// Self-signed test licenses may not have a proper issuer and won't be
 		// used if just passed in via Certificates, so we'll use this to
@@ -421,7 +421,7 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 // DiscardUsageReporter is a dummy usage reporter that drops all events.
 type DiscardUsageReporter struct{}
 
-func (d *DiscardUsageReporter) SubmitAnonymizedUsageEvents(event ...UsageAnonymizable) error {
+func (d *DiscardUsageReporter) AnonymizeAndSubmit(event ...UsageAnonymizable) error {
 	// do nothing
 	return nil
 }

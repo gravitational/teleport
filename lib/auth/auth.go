@@ -3700,7 +3700,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	if err := a.SubmitAnonymizedUsageEvents(event); err != nil {
+	if err := a.AnonymizeAndSubmit(event); err != nil {
 		return trace.Wrap(err)
 	}
 

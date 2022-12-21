@@ -46,7 +46,7 @@ type TestEvent struct {
 }
 
 // newTestSubmitter creates a submitter that reports batches to a channel.
-func newTestSubmitter(size int) (UsageSubmitFunc[TestEvent], chan []*SubmittedEvent[TestEvent]) {
+func newTestSubmitter(size int) (SubmitFunc[TestEvent], chan []*SubmittedEvent[TestEvent]) {
 	ch := make(chan []*SubmittedEvent[TestEvent], size)
 
 	return func(reporter *UsageReporter[TestEvent], batch []*SubmittedEvent[TestEvent]) ([]*SubmittedEvent[TestEvent], error) {
@@ -58,7 +58,7 @@ func newTestSubmitter(size int) (UsageSubmitFunc[TestEvent], chan []*SubmittedEv
 // newFailingSubmitter creates a submitter function that always reports batches
 // as failed. The current batch of events is written to the channel as usual
 // for inspection.
-func newFailingSubmitter(size int) (UsageSubmitFunc[TestEvent], chan []*SubmittedEvent[TestEvent]) {
+func newFailingSubmitter(size int) (SubmitFunc[TestEvent], chan []*SubmittedEvent[TestEvent]) {
 	ch := make(chan []*SubmittedEvent[TestEvent], size)
 
 	return func(reporter *UsageReporter[TestEvent], batch []*SubmittedEvent[TestEvent]) ([]*SubmittedEvent[TestEvent], error) {
@@ -71,7 +71,7 @@ func newFailingSubmitter(size int) (UsageSubmitFunc[TestEvent], chan []*Submitte
 // tests.
 func newTestingUsageReporter(
 	clock clockwork.FakeClock, submitClock clockwork.FakeClock,
-	submitter UsageSubmitFunc[TestEvent],
+	submitter SubmitFunc[TestEvent],
 ) (*UsageReporter[TestEvent], context.CancelFunc, chan struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
 

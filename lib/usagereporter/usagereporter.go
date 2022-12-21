@@ -78,8 +78,8 @@ var (
 	}
 )
 
-// UsageSubmitFunc is a func that submits a batch of usage events.
-type UsageSubmitFunc[T any] func(reporter *UsageReporter[T], batch []*SubmittedEvent[T]) ([]*SubmittedEvent[T], error)
+// SubmitFunc is a func that submits a batch of usage events.
+type SubmitFunc[T any] func(reporter *UsageReporter[T], batch []*SubmittedEvent[T]) ([]*SubmittedEvent[T], error)
 
 // SubmittedEvent is an event that has been submitted
 type SubmittedEvent[T any] struct {
@@ -111,7 +111,7 @@ type UsageReporter[T any] struct {
 	submissionQueue chan []*SubmittedEvent[T]
 
 	// submit is the func that submits batches of events to a backend
-	submit UsageSubmitFunc[T]
+	submit SubmitFunc[T]
 
 	// minBatchSize is the minimum batch size before a submit is triggered due
 	// to size.
@@ -142,7 +142,7 @@ type UsageReporter[T any] struct {
 }
 
 // runSubmit starts the submission thread. It should be run as a background
-// goroutine to ensure SubmitAnonymizedUsageEvents() never blocks.
+// goroutine to ensure AnonymizeAndSubmit() never blocks.
 func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
 	for {
 		select {
@@ -307,7 +307,7 @@ func (r *UsageReporter[T]) resubmitEvents(events []*SubmittedEvent[T]) {
 type Options[T any] struct {
 	Log logrus.FieldLogger
 	//Submit is a func that submits a batch of usage events.
-	Submit UsageSubmitFunc[T]
+	Submit SubmitFunc[T]
 	// MinBatchSize determines the size at which a batch is sent
 	// regardless of elapsed time.
 	MinBatchSize int
