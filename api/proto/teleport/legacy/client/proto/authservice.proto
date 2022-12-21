@@ -839,9 +839,6 @@ message DeleteAllDatabaseServersRequest {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
-// GetAllDatabaseServicesRequest is a request to fetch all DatabaseServices.
-message GetAllDatabaseServicesRequest {}
-
 // DatabaseServiceV1List represents a list of DatabaseService resources.
 message DatabaseServiceV1List {
   // Services is a list of DatabaseService resources.
@@ -1626,6 +1623,8 @@ message PaginatedResource {
     types.KubernetesServerV3 KubernetesServer = 7 [(gogoproto.jsontag) = "kubernetes_server,omitempty"];
     // WindowsDesktopService represents a WindowsDesktopServiceV3 resource.
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
+    // DatabaseService represents a DatabaseService resource.
+    types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
   }
 }
 
@@ -2213,10 +2212,8 @@ service AuthService {
   // DeleteAllDatabaseServers removes all registered database proxy servers.
   rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
 
-  // GetAllDatabaseServices returns all DatabaseService resources.
-  rpc GetAllDatabaseServices(GetAllDatabaseServicesRequest) returns (DatabaseServiceV1List);
   // UpsertDatabaseService registers a new DatabaseService.
-  rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (google.protobuf.Empty);
+  rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (types.KeepAlive);
   // DeleteDatabaseService removes the specified DatabaseService.
   rpc DeleteDatabaseService(types.ResourceRequest) returns (google.protobuf.Empty);
   // DeleteAllDatabaseServices removes all registered DatabaseServices.
