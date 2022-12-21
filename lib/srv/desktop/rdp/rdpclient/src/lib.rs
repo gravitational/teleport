@@ -176,38 +176,25 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn connect_rdp(
-    go_ref: usize,
-    go_addr: *const c_char,
-    go_username: *const c_char,
-    cert_der_len: u32,
-    cert_der: *mut u8,
-    key_der_len: u32,
-    key_der: *mut u8,
-    screen_width: u16,
-    screen_height: u16,
-    allow_clipboard: bool,
-    allow_directory_sharing: bool,
-    show_desktop_wallpaper: bool,
-) -> ClientOrError {
+pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) -> ClientOrError {
     // Convert from C to Rust types.
-    let addr = from_c_string(go_addr);
-    let username = from_c_string(go_username);
-    let cert_der = from_go_array(cert_der, cert_der_len);
-    let key_der = from_go_array(key_der, key_der_len);
+    let addr = from_c_string(params.go_addr);
+    let username = from_c_string(params.go_username);
+    let cert_der = from_go_array(params.cert_der, params.cert_der_len);
+    let key_der = from_go_array(params.key_der, params.key_der_len);
 
     connect_rdp_inner(
         go_ref,
-        &addr,
         ConnectParams {
+            addr,
             username,
             cert_der,
             key_der,
-            screen_width,
-            screen_height,
-            allow_clipboard,
-            allow_directory_sharing,
-            show_desktop_wallpaper,
+            screen_width: params.screen_width,
+            screen_height: params.screen_height,
+            allow_clipboard: params.allow_clipboard,
+            allow_directory_sharing: params.allow_directory_sharing,
+            show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     )
     .into()
@@ -236,7 +223,23 @@ const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
 const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
+#[repr(C)]
+pub struct CGOConnectParams {
+    go_addr: *const c_char,
+    go_username: *const c_char,
+    cert_der_len: u32,
+    cert_der: *mut u8,
+    key_der_len: u32,
+    key_der: *mut u8,
+    screen_width: u16,
+    screen_height: u16,
+    allow_clipboard: bool,
+    allow_directory_sharing: bool,
+    show_desktop_wallpaper: bool,
+}
+
 struct ConnectParams {
+    addr: String,
     username: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
@@ -247,13 +250,10 @@ struct ConnectParams {
     show_desktop_wallpaper: bool,
 }
 
-fn connect_rdp_inner(
-    go_ref: usize,
-    addr: &str,
-    params: ConnectParams,
-) -> Result<Client, ConnectError> {
+fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
     // Connect and authenticate.
-    let addr = addr
+    let addr = params
+        .addr
         .to_socket_addrs()?
         .next()
         .ok_or(ConnectError::InvalidAddr())?;
