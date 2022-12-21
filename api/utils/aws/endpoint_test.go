@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -509,125 +510,131 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 	}
 }
 
-func TestDynamoDBEndpointSuffixForRegion(t *testing.T) {
+func TestDynamoDBURIForRegion(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
-		desc       string
-		region     string
-		wantSuffix string
+		desc    string
+		region  string
+		wantURI string
 	}{
 		{
-			desc:       "region is in correct AWS partition",
-			region:     "us-east-1",
-			wantSuffix: ".us-east-1.amazonaws.com:443",
+			desc:    "region is in correct AWS partition",
+			region:  "us-east-1",
+			wantURI: "aws://dynamodb.us-east-1.amazonaws.com",
 		},
 		{
-			desc:       "china north region is in correct AWS partition",
-			region:     "cn-north-1",
-			wantSuffix: ".cn-north-1.amazonaws.com.cn:443",
+			desc:    "china north region is in correct AWS partition",
+			region:  "cn-north-1",
+			wantURI: "aws://dynamodb.cn-north-1.amazonaws.com.cn",
 		},
 		{
-			desc:       "china northwest region is in correct AWS partition",
-			region:     "cn-northwest-1",
-			wantSuffix: ".cn-northwest-1.amazonaws.com.cn:443",
+			desc:    "china northwest region is in correct AWS partition",
+			region:  "cn-northwest-1",
+			wantURI: "aws://dynamodb.cn-northwest-1.amazonaws.com.cn",
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			require.Equal(t, tt.wantSuffix, DynamoDBEndpointSuffixForRegion(tt.region))
+			require.Equal(t, tt.wantURI, DynamoDBURIForRegion(tt.region))
 		})
 	}
 }
 
-func TestDynamoDBRegionForEndpoint(t *testing.T) {
+func TestParseDynamoDBEndpoint(t *testing.T) {
 	t.Parallel()
+	t.Run("parses valid endpoint", func(t *testing.T) {
+		t.Parallel()
+		for _, parts := range []struct {
+			services  []string
+			regions   []string
+			partition string
+		}{
+			{
+				services:  []string{DynamoDBServiceName, DynamoDBFipsServiceName, DynamoDBStreamsServiceName, DAXServiceName},
+				regions:   []string{"us-east-1", "us-gov-east-1"},
+				partition: AWSEndpointSuffix,
+			},
+			{
+				services:  []string{DynamoDBServiceName, DynamoDBStreamsServiceName, DAXServiceName},
+				regions:   []string{"cn-north-1", "cn-northwest-1"},
+				partition: AWSCNEndpointSuffix,
+			},
+		} {
+			parts := parts
+			for _, svc := range parts.services {
+				svc := svc
+				for _, region := range parts.regions {
+					region := region
+					endpoint := fmt.Sprintf("%s.%s%s", svc, region, parts.partition)
+					t.Run(endpoint, func(t *testing.T) {
+						t.Parallel()
+						info, err := ParseDynamoDBEndpoint(endpoint)
+						require.NoError(t, err)
+						wantInfo := DynamoDBEndpointInfo{
+							Service:   svc,
+							Region:    region,
+							Partition: parts.partition,
+						}
+						require.NotNil(t, info)
+						require.Equal(t, wantInfo, *info)
+					})
+				}
+			}
+		}
+	})
 
 	tests := []struct {
-		desc       string
-		endpoint   string
-		wantRegion string
-		checkErr   require.ErrorAssertionFunc
+		desc     string
+		services []string
+		regions  []string
+		endpoint string
+		wantInfo *DynamoDBEndpointInfo
 	}{
 		{
-			desc:       "us-east-1",
-			endpoint:   ".us-east-1.amazonaws.com",
-			wantRegion: "us-east-1",
-			checkErr:   require.NoError,
-		},
-		{
-			desc:       "cn-north-1",
-			endpoint:   ".cn-north-1.amazonaws.com.cn",
-			wantRegion: "cn-north-1",
-			checkErr:   require.NoError,
-		},
-		{
-			desc:       "us-gov-east-1",
-			endpoint:   ".us-gov-east-1.amazonaws.com",
-			wantRegion: "us-gov-east-1",
-			checkErr:   require.NoError,
-		},
-		{
-			desc:       "us-east-1 with service prefix",
-			endpoint:   "dynamodb.us-east-1.amazonaws.com",
-			wantRegion: "us-east-1",
-			checkErr:   require.NoError,
-		},
-		{
-			desc:       "cn-north-1 with service prefix",
-			endpoint:   "dynamodb.cn-north-1.amazonaws.com.cn",
-			wantRegion: "cn-north-1",
-			checkErr:   require.NoError,
-		},
-		{
-			desc:       "us-gov-east-1 with service prefix",
-			endpoint:   "dynamodb.us-gov-east-1.amazonaws.com",
-			wantRegion: "us-gov-east-1",
-			checkErr:   require.NoError,
-		},
-		{
-			desc:     "empty uri is invalid",
+			desc:     "empty uri",
 			endpoint: "",
-			checkErr: require.Error,
 		},
 		{
-			desc:     "missing region is invalid",
+			desc:     "not AWS uri",
+			endpoint: "localhost",
+		},
+		{
+			desc:     "missing region",
 			endpoint: "amazonaws.com",
-			checkErr: require.Error,
 		},
 		{
-			desc:     "missing china region is invalid",
+			desc:     "missing china region",
 			endpoint: "amazonaws.com.cn",
-			checkErr: require.Error,
 		},
 		{
-			desc:     "unrecognized dynamodb or dax subdomain is invalid",
+			desc:     "unrecognized service subdomain",
 			endpoint: "foo.us-east-1.amazonaws.com",
-			checkErr: require.Error,
 		},
 		{
-			desc:     "unrecognized dynamodb streams subdomain is invalid",
+			desc:     "unrecognized dynamodb service subdomain",
 			endpoint: "foo.dynamodb.us-east-1.amazonaws.com",
-			checkErr: require.Error,
 		},
 		{
-			desc:     "unrecognized dynamodb streams subdomain is invalid",
+			desc:     "unrecognized streams service subdomain",
 			endpoint: "streams.foo.us-east-1.amazonaws.com",
-			checkErr: require.Error,
 		},
 		{
-			desc:     "uri subdomain is invalid",
-			endpoint: "streams.foo.us-east-1.amazonaws.com",
-			checkErr: require.Error,
+			desc:     "mismatched us region and china partition",
+			endpoint: "streams.dynamodb.us-east-1.amazonaws.com.cn",
+		},
+		{
+			desc:     "mismatched china region and non-china partition",
+			endpoint: "streams.dynamodb.cn-north-1.amazonaws.com",
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.desc, func(t *testing.T) {
-			region, err := DynamoDBRegionForEndpoint(tt.endpoint)
-			tt.checkErr(t, err)
-			require.Equal(t, tt.wantRegion, region)
+		t.Run("detects invalid endpoint with"+tt.desc, func(t *testing.T) {
+			t.Parallel()
+			info, err := ParseDynamoDBEndpoint(tt.endpoint)
+			require.Error(t, err, "endpoint %s should be invalid", tt.endpoint)
+			require.Nil(t, info)
 		})
 	}
 }
