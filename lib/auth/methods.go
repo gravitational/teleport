@@ -35,6 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// maxUserAgentLen is the maximum length of a user agent that will be logged.
+	maxUserAgentLen = 2048
+)
+
 // AuthenticateUserRequest is a request to authenticate interactive user
 type AuthenticateUserRequest struct {
 	// Username is a username
@@ -121,7 +126,6 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	}
 	if req.ClientMetadata != nil {
 		event.RemoteAddr = req.ClientMetadata.RemoteAddr
-		const maxUserAgentLen = 2048
 		if len(req.ClientMetadata.UserAgent) > maxUserAgentLen {
 			event.UserAgent = req.ClientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
 		} else {
