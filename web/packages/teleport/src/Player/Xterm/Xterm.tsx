@@ -20,7 +20,7 @@ import { useTheme } from 'styled-components';
 
 import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
-import { TermEventEnum } from 'teleport/lib/term/enums';
+import { TermEvent } from 'teleport/lib/term/enums';
 import StyledXterm from 'teleport/Console/StyledXterm';
 
 export default function Xterm({ tty }: { tty: Tty }) {
@@ -37,7 +37,7 @@ export default function Xterm({ tty }: { tty: Tty }) {
     term.open();
     term.term.focus();
 
-    term.tty.on(TermEventEnum.DATA, () => {
+    term.tty.on(TermEvent.DATA, () => {
       // Keeps the cursor in view.
       term.term.textarea.scrollIntoView(false);
     });

@@ -259,7 +259,7 @@ function Session({
             ...prevState,
             isSharing: false,
           }));
-          tdpClient.nuke();
+          tdpClient.shutdown();
         }}
         userHost={`${username}@${hostname}`}
         canShareDirectory={directorySharingState.canShare}

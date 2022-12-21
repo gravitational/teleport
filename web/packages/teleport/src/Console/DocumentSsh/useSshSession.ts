@@ -19,7 +19,7 @@ import React from 'react';
 import { context, trace } from '@opentelemetry/api';
 
 import cfg from 'teleport/config';
-import { TermEventEnum } from 'teleport/lib/term/enums';
+import { TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
@@ -52,13 +52,13 @@ export default function useSshSession(doc: DocumentSsh) {
           const tty = ctx.createTty(session);
 
           // subscribe to tty events to handle connect/disconnects events
-          tty.on(TermEventEnum.CLOSE, () => ctx.closeTab(doc));
+          tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
 
-          tty.on(TermEventEnum.CONN_CLOSE, () =>
+          tty.on(TermEvent.CONN_CLOSE, () =>
             ctx.updateSshDocument(doc.id, { status: 'disconnected' })
           );
 
-          tty.on(TermEventEnum.SESSION, payload => {
+          tty.on(TermEvent.SESSION, payload => {
             const data = JSON.parse(payload);
             data.session.kind = 'ssh';
             data.session.resourceName = data.session.server_hostname;

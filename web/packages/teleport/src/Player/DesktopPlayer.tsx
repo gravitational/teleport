@@ -149,7 +149,7 @@ const useDesktopPlayer = ({
       );
 
       return () => {
-        playerClient.nuke();
+        playerClient.shutdown();
       };
     }
   }, [playerClient]);
