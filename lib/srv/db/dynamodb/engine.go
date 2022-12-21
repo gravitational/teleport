@@ -214,11 +214,13 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 		// convert the error from round tripping to try to get a trace error.
 		err = common.ConvertConnectError(err, e.sessionCtx)
 		e.Log.WithError(err).Error("Request failed.")
+		// err != nil indicates we failed to get a response at all, so pass status code 0.
+		e.emitAuditEvent(reqCopy, re.URL, 0, err)
 		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
-	e.emitAuditEvent(reqCopy, uri, resp.StatusCode)
+	e.emitAuditEvent(reqCopy, re.URL, resp.StatusCode, nil)
 	return trace.Wrap(e.sendResponse(resp))
 }
 
@@ -228,9 +230,16 @@ func (e *Engine) sendResponse(resp *http.Response) error {
 }
 
 // emitAuditEvent writes the request and response status code to the audit stream.
-func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode int) {
+func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode int, err error) {
+	var eventCode string
+	if err == nil {
+		eventCode = events.DynamoDBRequestCode
+	} else {
+		eventCode = events.DynamoDBRequestFailureCode
+	}
 	// Try to read the body and JSON unmarshal it.
-	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
+	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable,
+	// so it's ok if body is nil here.
 	body, err := libaws.UnmarshalRequestBody(req)
 	if err != nil {
 		e.Log.WithError(err).Warn("Failed to read request body as JSON, omitting the body from the audit event.")
@@ -241,7 +250,7 @@ func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode int) {
 	event := &apievents.DynamoDBRequest{
 		Metadata: apievents.Metadata{
 			Type: events.DatabaseSessionDynamoDBRequestEvent,
-			Code: events.DynamoDBRequestCode,
+			Code: eventCode,
 		},
 		UserMetadata:    e.sessionCtx.Identity.GetUserMetadata(),
 		SessionMetadata: common.MakeSessionMetadata(e.sessionCtx),
