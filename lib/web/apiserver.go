@@ -106,6 +106,7 @@ type Handler struct {
 	auth                    *sessionCache
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
+	limiter                 *limiter.RateLimiter
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -303,9 +304,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 	h.sshPort = sshPort
 
-	// challengeLimiter is used to limit unauthenticated challenge generation for
-	// passwordless.
-	challengeLimiter, err := limiter.NewRateLimiter(limiter.Config{
+	// rateLimiter is used to limit unauthenticated challenge generation for
+	// passwordless and for unauthenticated metrics.
+	h.limiter, err = limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{
 			{
 				Period:  defaults.LimiterPasswordlessPeriod,
@@ -323,7 +324,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if cfg.MinimalReverseTunnelRoutesOnly {
 		h.bindMinimalEndpoints()
 	} else {
-		h.bindDefaultEndpoints(challengeLimiter)
+		h.bindDefaultEndpoints()
 	}
 
 	// if Web UI is enabled, check the assets dir:
@@ -462,7 +463,7 @@ func (h *Handler) bindMinimalEndpoints() {
 }
 
 // bindDefaultEndpoints binds the default endpoints for the web API.
-func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
+func (h *Handler) bindDefaultEndpoints() {
 	h.bindMinimalEndpoints()
 
 	// ping endpoint is used to check if the server is up. the /webapi/ping
@@ -493,7 +494,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
 
 	// Web sessions
-	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
@@ -585,10 +586,10 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
-	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
+	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
 
 	// MFA public endpoints.
-	h.POST("/webapi/mfa/login/begin", h.withLimiter(challengeLimiter, h.mfaLoginBegin))
+	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
@@ -3064,10 +3065,18 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	})
 }
 
-// withLimiter adds IP-based rate limiting to fn.
-func (h *Handler) withLimiter(l *limiter.RateLimiter, fn httplib.HandlerFunc) httprouter.Handle {
+// WithLimiter adds IP-based rate limiting to fn.
+func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		err := l.RegisterRequest(r.RemoteAddr, nil /* customRate */)
+		return h.WithLimiterHandlerFunc(fn)(w, r, p)
+	})
+}
+
+// WithLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This
+// should be used when you need to nest this inside another HandlerFunc.
+func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		err := h.limiter.RegisterRequest(r.RemoteAddr, nil /* customRate */)
 		// MaxRateError doesn't play well with errors.Is, hence the cast.
 		if _, ok := err.(*ratelimit.MaxRateError); ok {
 			return nil, trace.LimitExceeded(err.Error())
@@ -3076,7 +3085,7 @@ func (h *Handler) withLimiter(l *limiter.RateLimiter, fn httplib.HandlerFunc) ht
 			return nil, trace.Wrap(err)
 		}
 		return fn(w, r, p)
-	})
+	}
 }
 
 // AuthenticateRequest authenticates request using combination of a session cookie
