@@ -661,7 +661,7 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 	}
 
-	region, err := awsutils.DynamoDBRegionForEndpoint(d.Spec.URI)
+	info, err := awsutils.ParseDynamoDBEndpoint(d.Spec.URI)
 	switch {
 	case err != nil:
 		// when region parsing returns an error but the region is set, it's ok because we can just construct the URI using the region,
@@ -678,28 +678,16 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 		}
 	case d.Spec.AWS.Region == "":
 		// if the AWS region is empty we can just use the region extracted from the URI.
-		d.Spec.AWS.Region = region
-	case d.Spec.AWS.Region != region:
+		d.Spec.AWS.Region = info.Region
+	case d.Spec.AWS.Region != info.Region:
 		// if the AWS region is not empty but doesn't match the URI, this may indicate a user configuration mistake.
 		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q, "+
 			" omit the URI and it will be derived automatically for the configured AWS region",
-			d.GetName(), d.Spec.AWS.Region, region)
+			d.GetName(), d.Spec.AWS.Region, info.Region)
 	}
 
-	if d.Spec.URI == "" || awsutils.IsAWSEndpoint(d.Spec.URI) {
-		// The full URI will be constructed from the region depending on the incoming request,
-		// as: [dynamodb|streams.dynamodb|dax].<region>.<partition>
-		// Therefore we want just the suffix for an AWS endpoint.
-		suffix := awsutils.DynamoDBEndpointSuffixForRegion(d.Spec.AWS.Region)
-		if suffix != d.Spec.URI {
-			logrus.Warnf("overriding database %q AWS URI from %q to %q. "+
-				"The AWS service endpoint will be constructed based on requested DynamoDB operation.", d.GetName(), d.Spec.URI, suffix)
-			d.Spec.URI = suffix
-		}
-	} else {
-		// log a warning since this is not a "normal" configuration.
-		// If the user wants to send requests to some other endpoint (perhaps some other proxy?) then that's fine.
-		logrus.Warnf("database %q URI %q will be used, but it is not a valid AWS DynamoDB endpoint.", d.GetName(), d.Spec.URI)
+	if d.Spec.URI == "" {
+		d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
 	}
 	return nil
 }
