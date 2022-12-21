@@ -146,8 +146,9 @@ func ghaPushBuild(b buildType) pipeline {
 			Commands: []string{
 				`cd "/go/src/github.com/gravitational/teleport"`,
 				`source DRONE.ENV`,
+				`echo $TELEPORT_E_REF`,
 				`cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"`,
-				`go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo ${DRONE_REPO_NAME} -workflow-ref $TELEPORT_E_REF -workflow release-linux-arm64.yml -input oss-teleport-ref=${DRONE_COMMIT} -input upload-artifacts=false`,
+				`go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow-ref $TELEPORT_E_REF -workflow release-linux-arm64.yml -input oss-teleport-ref=${DRONE_COMMIT} -input upload-artifacts=false`,
 			},
 		},
 		sendErrorToSlackStep(),
