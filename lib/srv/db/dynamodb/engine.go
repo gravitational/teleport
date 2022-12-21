@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/service/dax"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
@@ -167,39 +168,25 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 // to the client.
 func (e *Engine) process(ctx context.Context, req *http.Request) error {
 	defer req.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	re, err := e.resolveEndpoint(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	serviceID, err := e.getService(req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	signingName, err := serviceToSigningName(serviceID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	uri, err := e.getTargetURI(serviceID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	roundTripper, err := e.getRoundTripper(ctx, uri)
+	roundTripper, err := e.getRoundTripper(ctx, re.URL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// rewrite the request URL and headers before signing it.
-	reqCopy, err := rewriteRequest(ctx, req, uri, bytes.NewReader(body))
+	reqCopy, err := rewriteRequest(ctx, req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	region := e.sessionCtx.Database.GetAWS().Region
-	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, region, e.sessionCtx.Database.GetAWS().AccountID)
+	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
 	signedReq, err := e.signingSvc.SignRequest(reqCopy,
 		&libaws.SigningCtx{
-			SigningName:   signingName,
-			SigningRegion: region,
+			SigningName:   re.SigningName,
+			SigningRegion: re.SigningRegion,
 			Expiry:        e.sessionCtx.Identity.Expires,
 			SessionName:   e.sessionCtx.Identity.Username,
 			AWSRoleArn:    roleArn,
@@ -293,76 +280,99 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	return trace.Wrap(err)
 }
 
-// getRoundTripper makes an HTTP client with TLS config based on the given URI host.
-func (e *Engine) getRoundTripper(ctx context.Context, uri string) (http.RoundTripper, error) {
-	if rt, ok := e.RoundTrippers[uri]; ok {
+// getRoundTripper makes an HTTP round tripper with TLS config based on the given URL.
+func (e *Engine) getRoundTripper(ctx context.Context, URL string) (http.RoundTripper, error) {
+	if rt, ok := e.RoundTrippers[URL]; ok {
 		return rt, nil
 	}
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	hostname, err := getURIHostname(uri)
+	// We need to set the ServerName here because the AWS endpoint service prefix is not known in advance,
+	// and the TLS config we got does not set it.
+	host, err := getURLHostname(URL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// We need to set the ServerName here because the AWS endpoint service prefix is not known in advance,
-	// and the TLS config we got does not set it.
-	tlsConfig.ServerName = hostname
+	tlsConfig.ServerName = host
 
 	out, err := defaults.Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	out.TLSClientConfig = tlsConfig
-	e.RoundTrippers[uri] = out
+	e.RoundTrippers[URL] = out
 	return out, nil
 }
 
-// getService extracts the service ID from the request header X-Amz-Target.
-func (e *Engine) getService(req *http.Request) (string, error) {
-	// try to get the service from x-amz-target header.
+// extractEndpointID extracts the AWS endpoint ID from the request header X-Amz-Target.
+func extractEndpointID(req *http.Request) (string, error) {
 	target := req.Header.Get(libaws.AmzTargetHeader)
 	if target == "" {
 		return "", trace.BadParameter("missing %q header in http request", libaws.AmzTargetHeader)
 	}
-	service, err := parseDynamoDBServiceFromTarget(target)
-	return service, trace.Wrap(err)
+	endpointID, err := endpointIDForTarget(target)
+	return endpointID, trace.Wrap(err)
 }
 
-// getTargetURI returns the target URI constructed from a given service.
-func (e *Engine) getTargetURI(service string) (string, error) {
-	uri := e.sessionCtx.Database.GetURI()
-	if !apiaws.IsAWSEndpoint(uri) {
-		// non-aws endpoints are used without modification. This is an unusual configuration but supports unforeseen use-cases.
-		return uri, nil
-	}
-	// when the database is created we ensure any AWS endpoint is configured to be a suffix missing only the service prefix.
-	prefix, err := endpointPrefixForService(service)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return prefix + uri, nil
-}
-
-// rewriteRequest rewrites the request to modify headers and the URL.
-func rewriteRequest(ctx context.Context, r *http.Request, uri string, body io.Reader) (*http.Request, error) {
-	reqCopy, err := http.NewRequestWithContext(ctx, r.Method, r.URL.String(), body)
+// resolveEndpoint returns a resolved endpoint for either the configured URI or the AWS target service and region.
+func (e *Engine) resolveEndpoint(req *http.Request) (*endpoints.ResolvedEndpoint, error) {
+	endpointID, err := extractEndpointID(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reqCopy.Header = r.Header.Clone()
+	opts := func(opts *endpoints.Options) {
+		opts.ResolveUnknownService = true
+	}
+	re, err := endpoints.DefaultResolver().EndpointFor(endpointID, e.sessionCtx.Database.GetAWS().Region, opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uri := e.sessionCtx.Database.GetURI()
+	if uri != "" && uri != apiaws.DynamoDBURIForRegion(e.sessionCtx.Database.GetAWS().Region) {
+		// override the resolved endpoint URL with the user-configured URI.
+		re.URL = uri
+	}
+	if !strings.Contains(re.URL, "://") {
+		re.URL = "https://" + re.URL
+	}
+	return &re, nil
+}
 
-	// force https and set url and host header to match the database uri.
-	reqCopy.URL.Scheme = "https"
-	reqCopy.Host = uri
-	reqCopy.URL.Host = uri
+// rewriteRequest clones a request, modifies the clone to rewrite its URL, and returns the modified request clone.
+func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+	resolvedURL, err := url.Parse(re.URL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reqCopy := r.Clone(ctx)
+	// set url and host header to match the database uri.
+	reqCopy.URL = resolvedURL
+	reqCopy.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
 	return reqCopy, nil
 }
 
-// getURIHostname parses a URI to extract its hostname.
-func getURIHostname(uri string) (string, error) {
+// endpointIDForTarget converts a target operation into the appropriate the AWS endpoint ID.
+// Target looks like one of DynamoDB_$version.$operation, DynamoDBStreams_$version.$operation, AmazonDAX$version.$operation,
+// for example: DynamoDBStreams_20120810.ListStreams
+// See X-Amz-Target: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html
+func endpointIDForTarget(target string) (string, error) {
+	t := strings.ToLower(target)
+	switch {
+	case strings.HasPrefix(t, "dynamodbstreams"):
+		return dynamodbstreams.EndpointsID, nil
+	case strings.HasPrefix(t, "dynamodb"):
+		return dynamodb.EndpointsID, nil
+	case strings.HasPrefix(t, "amazondax"):
+		return dax.EndpointsID, nil
+	default:
+		return "", trace.BadParameter("DynamoDB API target %q is not recognized", target)
+	}
+}
+
+// getURLHostname parses a URL to extract its hostname.
+func getURLHostname(uri string) (string, error) {
 	if !strings.Contains(uri, "://") {
 		uri = "schema://" + uri
 	}
@@ -371,49 +381,4 @@ func getURIHostname(uri string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return parsed.Hostname(), nil
-}
-
-// parseDynamoDBServiceFromTarget parses the DynamoDB service ID given a target operation.
-// Target looks like one of DynamoDB_$version.$operation, DynamoDBStreams_$version.$operation, AmazonDAX$version.$operation,
-// for example: DynamoDBStreams_20120810.ListStreams
-// See X-Amz-Target: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html
-func parseDynamoDBServiceFromTarget(target string) (string, error) {
-	t := strings.ToLower(target)
-	switch {
-	case strings.HasPrefix(t, "dynamodbstreams"):
-		return dynamodbstreams.ServiceID, nil
-	case strings.HasPrefix(t, "dynamodb"):
-		return dynamodb.ServiceID, nil
-	case strings.HasPrefix(t, "amazondax"):
-		return dax.ServiceID, nil
-	default:
-		return "", trace.BadParameter("DynamoDB API target %q is not recognized", target)
-	}
-}
-
-// endpointPrefixForService returns the prefix string used for a given AWS DynamoDB service.
-// The endpoint prefix looks like one of "dynamodb", "dax", "streams.dynamodb".
-func endpointPrefixForService(service string) (string, error) {
-	switch service {
-	case dynamodb.ServiceID:
-		return dynamodb.ServiceName, nil
-	case dynamodbstreams.ServiceID:
-		return dynamodbstreams.ServiceName, nil
-	case dax.ServiceID:
-		return dax.ServiceName, nil
-	default:
-		return "", trace.BadParameter("unrecognized DynamoDB service %q", service)
-	}
-}
-
-// serviceToSigningName converts a DynamoDB service ID to the appropriate signing name.
-func serviceToSigningName(service string) (string, error) {
-	switch service {
-	case dynamodb.ServiceID, dynamodbstreams.ServiceID:
-		return "dynamodb", nil
-	case dax.ServiceID:
-		return "dax", nil
-	default:
-		return "", trace.BadParameter("service %q is not recognized", service)
-	}
 }
