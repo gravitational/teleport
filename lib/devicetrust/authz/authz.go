@@ -58,7 +58,7 @@ func verifyDeviceExtensions(dt *types.DeviceTrust, username string, ext tlsca.De
 	}
 
 	// Teleport-issued device certificates always contain all three fields, so we
-	// either all or none to be present.
+	// expect either all or none to be present.
 	// There's little value in trying to distinguish other situations.
 	if ext.DeviceID == "" || ext.AssetTag == "" || ext.CredentialID == "" {
 		log.
