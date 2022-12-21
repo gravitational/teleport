@@ -190,12 +190,6 @@ func SSHCertPath(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(SSHDir(baseDir, proxy, username), cluster+fileExtSSHCert)
 }
 
-// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
-// DELETE IN 8.0.0
-func OldSSHCertPath(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtSSHCert)
-}
-
 // AppDir returns the path to the user's app directory
 // for the given proxy.
 //

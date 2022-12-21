@@ -197,7 +197,7 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
      rm -r bats-core-1.2.1)
 
 # Install shellcheck.
-RUN scversion='v0.8.0' && \
+RUN scversion='v0.9.0' && \
     curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
@@ -223,7 +223,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.10.0" && \
+    VERSION="1.11.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
