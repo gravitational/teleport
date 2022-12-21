@@ -52,7 +52,7 @@ import (
 	"net/http"
 	"time"
 
-	ghinst "github.com/bradleyfalzon/ghinstallation"
+	ghinst "github.com/bradleyfalzon/ghinstallation/v2"
 	ghapi "github.com/google/go-github/v41/github"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"

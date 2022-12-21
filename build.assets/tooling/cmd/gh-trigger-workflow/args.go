@@ -52,7 +52,8 @@ func (m inputMap) Set(s string) error {
 	return nil
 }
 
-// key holds the bytes of a GutHub app key, stored as an array of bytes.
+// key holds the bytes of a GutHub app key, stored as a slice of bytes so that
+// it can be passed into the ghinstance library without further conversion.
 type key []byte
 
 func (k *key) String() string {
