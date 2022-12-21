@@ -32,12 +32,15 @@ import (
 )
 
 type mockIDTokenValidator struct {
-	tokens map[string]githubactions.IDTokenClaims
+	tokens             map[string]githubactions.IDTokenClaims
+	lastCalledGHESHost string
 }
 
 var errMockInvalidToken = errors.New("invalid token")
 
-func (m *mockIDTokenValidator) Validate(_ context.Context, token string) (*githubactions.IDTokenClaims, error) {
+func (m *mockIDTokenValidator) Validate(_ context.Context, ghes string, token string) (*githubactions.IDTokenClaims, error) {
+	m.lastCalledGHESHost = ghes
+
 	claims, ok := m.tokens[token]
 	if !ok {
 		return nil, errMockInvalidToken
@@ -120,6 +123,21 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
 				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: assert.NoError,
+		},
+		{
+			name: "success with ghes override",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseServerHost: "my.ghes.instance",
 					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
 						allowRule(nil),
 					},
@@ -285,6 +303,14 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 
 			_, err = auth.RegisterUsingToken(ctx, tt.request)
 			tt.assertError(t, err)
+
+			if tt.tokenSpec.GitHub.EnterpriseServerHost != "" {
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.EnterpriseServerHost,
+					idTokenValidator.lastCalledGHESHost,
+				)
+			}
 		})
 	}
 }
