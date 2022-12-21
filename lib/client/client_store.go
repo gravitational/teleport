@@ -34,6 +34,8 @@ import (
 // when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
 // key store and an FS (~/.tsh) profile and trusted certs store.
 type Store struct {
+	log *logrus.Entry
+
 	KeyStore
 	TrustedCertsStore
 	ProfileStore
@@ -48,6 +50,7 @@ func NewFSClientStore(dirPath string) (*Store, error) {
 	}
 	logEntry := logrus.WithField(trace.Component, teleport.ComponentKeyStore)
 	return &Store{
+		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
 		KeyStore:          &FSKeyStore{logEntry, dirPath},
 		TrustedCertsStore: &FSTrustedCertsStore{logEntry, dirPath},
 		ProfileStore:      &FSProfileStore{logEntry, dirPath},
@@ -57,54 +60,11 @@ func NewFSClientStore(dirPath string) (*Store, error) {
 // NewMemClientStore initializes a new in-memory client store.
 func NewMemClientStore() *Store {
 	return &Store{
+		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
 		KeyStore:          NewMemKeyStore(),
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
 	}
-}
-
-// NewClientStoreFromIdentityFile initializes a new in-memory client store
-// and loads data from the given identity file into it. A temporary profile
-// is also added to its profile store with the limited profile data available
-// in the identity file.
-func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*Store, error) {
-	clientStore := NewMemClientStore()
-
-	key, err := KeyFromIdentityFile(identityFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyHost, err := utils.Host(proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key.ProxyHost = proxyHost
-	if clusterName != "" {
-		key.ClusterName = clusterName
-	}
-
-	// Preload the client key from the agent.
-	key.KeyIndex = KeyIndex{
-		ProxyHost:   proxyHost,
-		ClusterName: key.ClusterName,
-		Username:    key.Username,
-	}
-	if err := clientStore.AddKey(key); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Save temporary profile into the key store.
-	profile := &profile.Profile{
-		WebProxyAddr: proxyAddr,
-		SiteName:     key.ClusterName,
-		Username:     key.Username,
-	}
-	if err := clientStore.SaveProfile(profile, true); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clientStore, nil
 }
 
 // AddKey adds the given key to the key store. The key's trusted certificates are
@@ -126,6 +86,22 @@ func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.log.Debugf("Teleport TLS certificate valid until %q.", tlsCertExpiration)
+
+	// Validate the SSH certificate.
+	if key.Cert != nil {
+		if err := key.CheckCert(); err != nil {
+			if !utils.IsCertExpiredError(err) {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
 	trustedCerts, err := s.TrustedCertsStore.GetTrustedCerts(idx.ProxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -134,7 +110,7 @@ func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	return key, nil
 }
 
-// addTrustedHostKeys is a helper function to add ssh host keys directly, rather than through SaveTrustedCerts.
+// AddTrustedHostKeys is a helper function to add ssh host keys directly, rather than through SaveTrustedCerts.
 func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKeys ...ssh.PublicKey) error {
 	var authorizedKeys [][]byte
 	for _, hostKey := range hostKeys {
@@ -250,7 +226,12 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 type noClientStore struct{}
 
 func newNoClientStore() *Store {
-	return &Store{noClientStore{}, noClientStore{}, noClientStore{}}
+	return &Store{
+		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		KeyStore:          noClientStore{},
+		TrustedCertsStore: noClientStore{},
+		ProfileStore:      noClientStore{},
+	}
 }
 
 var errNoClientStore = trace.NotFound("there is no client store")

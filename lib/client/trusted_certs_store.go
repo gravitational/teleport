@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
+	"io"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -38,6 +39,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -224,7 +226,7 @@ func (fs *FSTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]auth.Trusted
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	return trustedCertsFromCACerts(tlsCA, [][]byte{knownHosts})
+	return TrustedCertsFromCACerts(proxyHost, tlsCA, [][]byte{knownHosts})
 }
 
 // GetTrustedHostKeys returns all trusted public host keys. If hostNames are provided, only
@@ -301,7 +303,7 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInCASDir(proxyHost string, cas []
 			continue
 		}
 		// check if cluster name is safe and doesn't contain miscellaneous characters.
-		if !strings.Contains(ca.ClusterName, "..") {
+		if strings.Contains(ca.ClusterName, "..") {
 			fs.log.Warnf("Skipped unsafe cluster name: %q", ca.ClusterName)
 			continue
 		}
@@ -318,9 +320,8 @@ func (fs *FSTrustedCertsStore) writeClusterCertificates(proxyHost, clusterName s
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	defer utils.StoreErrorOf(caFile.Close, &retErr)
-
 	defer caFile.Close()
+
 	for _, cert := range tlsCertificates {
 		if _, err := caFile.Write(cert); err != nil {
 			return trace.ConvertSystemError(err)
@@ -399,7 +400,10 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.Truste
 			// root domain wildcard. OpenSSH clients match against both the proxy
 			// host and nodes (via the wildcard). Teleport itself occasionally uses
 			// the root cluster name.
-			line := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, proxyHost, hostKey)
+			line, err := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, proxyHost, hostKey)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			if _, exists := entries[line]; !exists {
 				output = append(output, line)
@@ -473,4 +477,72 @@ func (fs *FSTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, e
 	}
 
 	return blocks, nil
+}
+
+func TrustedCertsFromCACerts(proxyHost string, tlsCACerts, knownHosts [][]byte) ([]auth.TrustedCerts, error) {
+	clusterCAs := make(map[string]*auth.TrustedCerts)
+
+	// Loop through TLS CA certificates to create trusted certs entries
+	// for known cluster names.
+	for _, certPEM := range tlsCACerts {
+		cert, err := tlsca.ParseCertificatePEM(certPEM)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clusterName := cert.Issuer.CommonName
+		if entry, ok := clusterCAs[clusterName]; !ok {
+			clusterCAs[clusterName] = &auth.TrustedCerts{
+				ClusterName:     clusterName,
+				TLSCertificates: [][]byte{certPEM},
+			}
+		} else {
+			entry.TLSCertificates = append(entry.TLSCertificates, certPEM)
+		}
+	}
+
+	// Parse KnownHosts line by line. If a line matches a known cluster (found above)
+	// or the given proxy host, add the host key to the associated entry, prioritizing
+	// known clusters over proxy host.
+	proxyHostCA := auth.TrustedCerts{
+		ClusterName: proxyHost,
+	}
+
+OUTER:
+	for _, line := range knownHosts {
+		for {
+			_, hosts, publicKey, _, rest, err := ssh.ParseKnownHosts(line)
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
+			}
+
+			for _, hostName := range hosts {
+				if _, knownCluster := clusterCAs[hostName]; knownCluster {
+					clusterCAs[hostName].AuthorizedKeys = append(clusterCAs[hostName].AuthorizedKeys, ssh.MarshalAuthorizedKey(publicKey))
+					continue OUTER
+				}
+			}
+
+			for _, hostName := range hosts {
+				if hostName == proxyHost {
+					proxyHostCA.AuthorizedKeys = append(proxyHostCA.AuthorizedKeys, ssh.MarshalAuthorizedKey(publicKey))
+					continue OUTER
+				}
+			}
+			line = rest
+		}
+	}
+
+	if len(proxyHostCA.AuthorizedKeys) != 0 {
+		clusterCAs[proxyHost] = &proxyHostCA
+	}
+
+	var trustedCerts []auth.TrustedCerts
+	for _, trustedCA := range clusterCAs {
+		trustedCerts = append(trustedCerts, *trustedCA)
+	}
+
+	return trustedCerts, nil
 }

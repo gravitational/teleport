@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -183,7 +182,7 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 			return trace.Wrap(err)
 		}
 		// PPKFile can only be generated from an RSA private key.
-		fs.log.WithError(err).Debugf("Failed to convert private key to PPK-formatted keypair.")
+		fs.log.WithError(err).Debugf("Cannot convert private key to PPK-formatted keypair.")
 	}
 
 	// Store per-cluster key data.
@@ -225,13 +224,9 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 
 func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
 	if err := os.MkdirAll(filepath.Dir(fp), os.ModeDir|profileDirPerms); err != nil {
-		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
 	err := os.WriteFile(fp, bytes, keyFilePerms)
-	if err != nil {
-		fs.log.Error(err)
-	}
 	return trace.ConvertSystemError(err)
 }
 
@@ -321,13 +316,11 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	tlsCertFile := fs.tlsCertPath(idx)
 	tlsCert, err := os.ReadFile(tlsCertFile)
 	if err != nil {
-		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
 	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx))
 	if err != nil {
-		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -335,15 +328,8 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	key.KeyIndex = idx
 	key.TLSCert = tlsCert
 
-	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fs.log.Debugf("Returning Teleport TLS certificate %q valid until %q.", tlsCertFile, tlsCertExpiration)
-
 	for _, o := range opts {
 		if err := fs.updateKeyWithCerts(o, key); err != nil && !trace.IsNotFound(err) {
-			fs.log.Error(err)
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -442,14 +428,6 @@ func (o WithSSHCerts) certPath(keyDir string, idx KeyIndex) string {
 
 func (o WithSSHCerts) updateKeyWithBytes(key *Key, certBytes []byte) error {
 	key.Cert = certBytes
-
-	// Validate the SSH certificate.
-	if err := key.CheckCert(); err != nil {
-		if !utils.IsCertExpiredError(err) {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 
@@ -481,7 +459,7 @@ func (o WithKubeCerts) updateKeyWithMap(key *Key, certMap map[string][]byte) err
 }
 
 func (o WithKubeCerts) deleteFromKey(key *Key) {
-	key.KubeTLSCerts = nil
+	key.KubeTLSCerts = make(map[string][]byte)
 }
 
 // WithDBCerts is a CertOption for handling database access certificates.
@@ -509,7 +487,7 @@ func (o WithDBCerts) updateKeyWithMap(key *Key, certMap map[string][]byte) error
 }
 
 func (o WithDBCerts) deleteFromKey(key *Key) {
-	key.DBTLSCerts = nil
+	key.DBTLSCerts = make(map[string][]byte)
 }
 
 // WithAppCerts is a CertOption for handling application access certificates.
@@ -537,11 +515,10 @@ func (o WithAppCerts) updateKeyWithMap(key *Key, certMap map[string][]byte) erro
 }
 
 func (o WithAppCerts) deleteFromKey(key *Key) {
-	key.AppTLSCerts = nil
+	key.AppTLSCerts = make(map[string][]byte)
 }
 
 type MemKeyStore struct {
-	log *logrus.Entry
 	// keys is a three-dimensional map indexed by [proxyHost][username][clusterName]
 	keys keyMap
 }
@@ -551,7 +528,6 @@ type keyMap map[string]map[string]map[string]*Key
 
 func NewMemKeyStore() *MemKeyStore {
 	return &MemKeyStore{
-		log:  logrus.WithField(trace.Component, teleport.ComponentKeyStore),
 		keys: make(keyMap),
 	}
 }
@@ -582,42 +558,55 @@ func (ms *MemKeyStore) AddKey(key *Key) error {
 
 // GetKey returns the user's key including the specified certs.
 func (ms *MemKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
+	if len(opts) > 0 {
+		if err := idx.Check(); err != nil {
+			return nil, trace.Wrap(err, "GetKey with CertOptions requires a fully specified KeyIndex")
+		}
+	}
+
 	// If clusterName is not specified then the cluster-dependent fields
 	// are not considered relevant and we may simply return any key
 	// associated with any cluster name whatsoever.
+	var key *Key
 	if idx.ClusterName == "" {
-		for clusterName := range ms.keys[idx.ProxyHost][idx.Username] {
-			idx.ClusterName = clusterName
+		for _, k := range ms.keys[idx.ProxyHost][idx.Username] {
+			key = k
 			break
+		}
+	} else {
+		if k, ok := ms.keys[idx.ProxyHost][idx.Username][idx.ClusterName]; ok {
+			key = k
 		}
 	}
 
-	key, ok := ms.keys[idx.ProxyHost][idx.Username][idx.ClusterName]
-	if !ok {
+	if key == nil {
 		return nil, trace.NotFound("key for %+v not found", idx)
 	}
 
-	// It is not necessary to handle opts because all the optional certs are
-	// already part of the Key struct as stored in memory.
-
-	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ms.log.Debugf("Returning Teleport TLS certificate from memory, valid until %q.", tlsCertExpiration)
-
-	// Validate the SSH certificate.
-	if err := key.CheckCert(); err != nil {
-		if !utils.IsCertExpiredError(err) {
-			return nil, trace.Wrap(err)
+	retKey := NewKey(key.PrivateKey)
+	retKey.KeyIndex = idx
+	retKey.TLSCert = key.TLSCert
+	for _, o := range opts {
+		switch o.(type) {
+		case WithSSHCerts:
+			retKey.Cert = key.Cert
+		case WithKubeCerts:
+			retKey.KubeTLSCerts = key.KubeTLSCerts
+		case WithDBCerts:
+			retKey.DBTLSCerts = key.DBTLSCerts
+		case WithAppCerts:
+			retKey.AppTLSCerts = key.AppTLSCerts
 		}
 	}
 
-	return key.Copy(), nil
+	return retKey, nil
 }
 
 // DeleteKey deletes the user's key with all its certs.
 func (ms *MemKeyStore) DeleteKey(idx KeyIndex) error {
+	if _, ok := ms.keys[idx.ProxyHost][idx.Username][idx.ClusterName]; !ok {
+		return trace.NotFound("key for %+v not found", idx)
+	}
 	delete(ms.keys[idx.ProxyHost], idx.Username)
 	return nil
 }

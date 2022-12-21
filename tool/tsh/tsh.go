@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -1745,49 +1744,6 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	tc.AuthMethods = []ssh.AuthMethod{authMethod}
 	tc.Interactive = false
 	tc.SkipLocalAuth = true
-
-	// When user logs in for the first time without a CA in ~/.tsh/known_hosts,
-	// and specifies the -out flag, we need to avoid writing anything to
-	// ~/.tsh/ but still validate the proxy cert. Because the existing
-	// client.Client methods have a side-effect of persisting the CA on disk,
-	// we do all of this by hand.
-	//
-	// Wrap tc.HostKeyCallback with a another checker. This outer checker uses
-	// key.TrustedCA to validate the remote host cert first, before falling
-	// back to the original HostKeyCallback.
-	oldHostKeyCallback := tc.HostKeyCallback
-	tc.HostKeyCallback = func(hostname string, remote net.Addr, hostKey ssh.PublicKey) error {
-		checker := ssh.CertChecker{
-			// ssh.CertChecker will parse hostKey, extract public key of the
-			// signer (CA) and call IsHostAuthority. IsHostAuthority in turn
-			// has to match hostCAKey to any known trusted CA.
-			IsHostAuthority: func(hostCAKey ssh.PublicKey, address string) bool {
-				for _, ca := range key.TrustedCerts {
-					caKeys, err := ca.SSHCertPublicKeys()
-					if err != nil {
-						return false
-					}
-					for _, caKey := range caKeys {
-						if apisshutils.KeysEqual(caKey, hostCAKey) {
-							return true
-						}
-					}
-				}
-				return false
-			},
-		}
-		err := checker.CheckHostKey(hostname, remote, hostKey)
-		if err != nil {
-			if oldHostKeyCallback == nil {
-				return trace.Wrap(err)
-			}
-			errOld := oldHostKeyCallback(hostname, remote, hostKey)
-			if errOld != nil {
-				return trace.NewAggregate(err, errOld)
-			}
-		}
-		return nil
-	}
 	return nil
 }
 
@@ -3302,14 +3258,14 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 	if cf.IdentityFileIn != "" {
-		keyStore, err := client.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+		keyStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return keyStore, nil
 	}
 
-	// When loggin in with an identity file output, we want to avoid writing
+	// When logging in with an identity file output, we want to avoid writing
 	// any keys to disk, so we use a full memory client store.
 	if cf.IdentityFileOut != "" {
 		return client.NewMemClientStore(), nil
@@ -3470,7 +3426,7 @@ func refuseArgs(command string, args []string) error {
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) error {
-	key, err := client.KeyFromIdentityFile(cf.IdentityFileIn)
+	key, err := identityfile.KeyFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

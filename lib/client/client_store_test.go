@@ -264,11 +264,17 @@ func TestProxySSHConfig(t *testing.T) {
 		caPub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 		require.NoError(t, err)
 
+		err = clientStore.AddKey(key)
+		require.NoError(t, err)
+
 		firsthost := "127.0.0.1"
 		err = clientStore.AddTrustedHostKeys(idx.ProxyHost, firsthost, caPub)
 		require.NoError(t, err)
 
-		clientConfig, err := key.ProxyClientSSHConfig(clientStore, firsthost)
+		retrievedKey, err := clientStore.GetKey(idx, WithSSHCerts{})
+		require.NoError(t, err)
+
+		clientConfig, err := retrievedKey.ProxyClientSSHConfig(firsthost)
 		require.NoError(t, err)
 
 		var called atomic.Int32
@@ -338,10 +344,13 @@ func TestProxySSHConfig(t *testing.T) {
 
 		// The ProxyClientSSHConfig should create configuration that validates server authority only based on
 		// second-host instead of all known hosts.
-		clientConfig, err = key.ProxyClientSSHConfig(clientStore, "second-host")
+		retrievedKey, err = clientStore.GetKey(idx, WithSSHCerts{})
 		require.NoError(t, err)
-		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
+		clientConfig, err = retrievedKey.ProxyClientSSHConfig("second-host")
+		require.NoError(t, err)
+
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
+		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.Error(t, err)
 	})
 }

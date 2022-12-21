@@ -25,6 +25,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -34,10 +35,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -135,117 +134,6 @@ func NewKey(priv *keys.PrivateKey) *Key {
 		AppTLSCerts:         make(map[string][]byte),
 		WindowsDesktopCerts: make(map[string][]byte),
 	}
-}
-
-// extractIdentityFromCert parses a tlsca.Identity from raw PEM cert bytes.
-func extractIdentityFromCert(certBytes []byte) (*tlsca.Identity, error) {
-	cert, err := tlsca.ParseCertificatePEM(certBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse TLS certificate")
-	}
-
-	parsed, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return parsed, nil
-}
-
-// KeyFromIdentityFile loads the private key + certificate
-// from an identity file into a Key.
-func KeyFromIdentityFile(path string) (*Key, error) {
-	ident, err := identityfile.ReadFile(path)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse identity file")
-	}
-
-	priv, err := keys.ParsePrivateKey(ident.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	key := NewKey(priv)
-	key.Cert = ident.Certs.SSH
-	key.TLSCert = ident.Certs.TLS
-	key.ClusterName, err = key.RootClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key.Username, err = key.CertUsername()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// validate TLS Cert (if present):
-	if len(ident.Certs.TLS) > 0 {
-		if _, err := priv.TLSCertificate(ident.Certs.TLS); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		parsedIdent, err := extractIdentityFromCert(ident.Certs.TLS)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// If this identity file has any database certs, copy it into the DBTLSCerts map.
-		if parsedIdent.RouteToDatabase.ServiceName != "" {
-			key.DBTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
-		}
-
-		// Similarly, if this identity has any app certs, copy them in.
-		if parsedIdent.RouteToApp.Name != "" {
-			key.AppTLSCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
-		}
-
-	}
-
-	key.TrustedCerts, err = trustedCertsFromCACerts(ident.CACerts.TLS, ident.CACerts.SSH)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return key, nil
-}
-
-func trustedCertsFromCACerts(tlsCACerts, knownHosts [][]byte) ([]auth.TrustedCerts, error) {
-	// Gather trusted TLS certificates from the identity file to create Trusted certs.
-	clusterCAs := make(map[string]*auth.TrustedCerts)
-	for _, certPEM := range tlsCACerts {
-		cert, err := tlsca.ParseCertificatePEM(certPEM)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		clusterName := cert.Issuer.CommonName
-		if entry, ok := clusterCAs[clusterName]; !ok {
-			clusterCAs[clusterName] = &auth.TrustedCerts{
-				ClusterName:     clusterName,
-				TLSCertificates: [][]byte{certPEM},
-			}
-		} else {
-			entry.TLSCertificates = append(entry.TLSCertificates, certPEM)
-		}
-	}
-
-	// Find all known hosts for the same clusters found above.
-	for clusterName, trustedCA := range clusterCAs {
-		hostKeys, err := apisshutils.ParseKnownHosts(knownHosts, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, hostKey := range hostKeys {
-			trustedCA.AuthorizedKeys = append(trustedCA.AuthorizedKeys, ssh.MarshalAuthorizedKey(hostKey))
-		}
-	}
-
-	var trustedCerts []auth.TrustedCerts
-	for _, trustedCA := range clusterCAs {
-		trustedCerts = append(trustedCerts, *trustedCA)
-	}
-
-	return trustedCerts, nil
 }
 
 // RootClusterCAs returns root cluster CAs.
@@ -372,22 +260,56 @@ func (k *Key) clientCertPool(clusters ...string) (*x509.CertPool, error) {
 //
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
-func (k *Key) ProxyClientSSHConfig(keyStore sshKnownHostGetter, host string) (*ssh.ClientConfig, error) {
+func (k *Key) ProxyClientSSHConfig(hostname string) (*ssh.ClientConfig, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
 	}
 
-	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, k)
+	sshConfig, err := apisshutils.ProxyClientSSHConfig(sshCert, k)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if keyStore != nil {
-		sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore, host)
-	}
+	sshConfig.HostKeyCallback = k.CheckHostKeyCallback(hostname)
 
 	return sshConfig, nil
+}
+
+// CheckHostKey checks if the given host key was signed by a Teleport
+// certificate authority (CA) or a host certificate the user has seen before.
+func (k *Key) CheckHostKeyCallback(hostname string) ssh.HostKeyCallback {
+	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
+		certChecker := apisshutils.CertChecker{
+			CertChecker: ssh.CertChecker{
+				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
+					for _, ca := range k.TrustedCerts {
+						if ca.ClusterName == hostname {
+							for _, ak := range ca.AuthorizedKeys {
+								authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(ak)
+								if err != nil {
+									log.Errorf("Failed to parse authorized key: %s; raw key: %s", err, string(ak))
+									return false
+								}
+								if apisshutils.KeysEqual(authorizedKey, key) {
+									return true
+								}
+							}
+						}
+					}
+					return false
+				},
+			},
+			FIPS: isFIPS(),
+		}
+		err := certChecker.CheckHostKey(addr, remote, key)
+		if err != nil {
+			log.Debugf("Host validation failed: %v.", err)
+			return trace.Wrap(err)
+		}
+		log.Debugf("Validated host %v.", addr)
+		return nil
+	}
 }
 
 // CertUsername returns the name of the Teleport user encoded in the SSH certificate.
@@ -557,7 +479,7 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAuthMethod(cert, k)
+	return apisshutils.AsAuthMethod(cert, k)
 }
 
 // SSHSigner returns an ssh.Signer using the SSH certificate in this key.
@@ -566,7 +488,7 @@ func (k *Key) SSHSigner() (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.SSHSigner(cert, k)
+	return apisshutils.SSHSigner(cert, k)
 }
 
 // SSHCert returns parsed SSH certificate
@@ -574,7 +496,7 @@ func (k *Key) SSHCert() (*ssh.Certificate, error) {
 	if k.Cert == nil {
 		return nil, trace.NotFound("SSH cert not available")
 	}
-	return sshutils.ParseCertificate(k.Cert)
+	return apisshutils.ParseCertificate(k.Cert)
 }
 
 // ActiveRequests gets the active requests associated with this key.
@@ -611,13 +533,13 @@ func (k *Key) CheckCert() error {
 func (k *Key) checkCert(sshCert *ssh.Certificate) error {
 	// Check that the certificate was for the current public key. If not, the
 	// public/private key pair may have been rotated.
-	if !sshutils.KeysEqual(sshCert.Key, k.SSHPublicKey()) {
+	if !apisshutils.KeysEqual(sshCert.Key, k.SSHPublicKey()) {
 		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
 	}
 
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
-	certChecker := sshutils.CertChecker{
+	certChecker := apisshutils.CertChecker{
 		FIPS: isFIPS(),
 	}
 	if len(sshCert.ValidPrincipals) == 0 {
@@ -636,7 +558,7 @@ func (k *Key) checkCert(sshCert *ssh.Certificate) error {
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
 func (k *Key) HostKeyCallback(withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
-	return sshutils.HostKeyCallback(k.TrustedCAHostKeys(), withHostKeyFallback)
+	return apisshutils.HostKeyCallback(k.TrustedCAHostKeys(), withHostKeyFallback)
 }
 
 // HostKeyCallbackForClusters returns an ssh.HostKeyCallback that validates host
@@ -650,7 +572,7 @@ func (k *Key) HostKeyCallbackForClusters(withHostKeyFallback bool, clusters []st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.HostKeyCallback(sshCA, withHostKeyFallback)
+	return apisshutils.HostKeyCallback(sshCA, withHostKeyFallback)
 }
 
 // RootClusterName extracts the root cluster name from the issuer

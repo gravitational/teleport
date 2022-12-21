@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // MarshalAuthorizedKeysFormat returns the certificate authority public key exported as a single
@@ -48,7 +50,15 @@ func MarshalAuthorizedKeysFormat(clusterName string, keyBytes []byte) (string, e
 //	@cert-authority proxy.example.com,cluster-a,*.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func MarshalAuthorizedHostsFormat(clusterName, proxyHost string, keyBytes []byte, logins ...string) string {
+func MarshalAuthorizedHostsFormat(clusterName, proxyHost string, keyBytes []byte, logins ...string) (string, error) {
+	if clusterName == "" {
+		return "", trace.BadParameter("missing required argument clusterName")
+	}
+
+	if len(keyBytes) == 0 {
+		return "", trace.BadParameter("missing required argument keyBytes")
+	}
+
 	comment := url.Values{
 		"type":   []string{"host"},
 		"logins": logins,
@@ -56,8 +66,8 @@ func MarshalAuthorizedHostsFormat(clusterName, proxyHost string, keyBytes []byte
 
 	hosts := []string{clusterName, "*." + clusterName}
 	if proxyHost != "" {
-		hosts = append(hosts, proxyHost)
+		hosts = append([]string{proxyHost}, hosts...)
 	}
 
-	return fmt.Sprintf("@cert-authority %s %s %s", strings.Join(hosts, ","), strings.TrimSpace(string(keyBytes)), comment.Encode())
+	return fmt.Sprintf("@cert-authority %s %s %s", strings.Join(hosts, ","), strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
 }

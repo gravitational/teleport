@@ -78,46 +78,6 @@ type LocalKeyAgent struct {
 	loadAllCAs bool
 }
 
-// sshKnownHostGetter allows to fetch key for particular host - trusted cluster.
-type sshKnownHostGetter interface {
-	// GetTrustedHostKeys returns all public keys for the given hostnames.
-	GetTrustedHostKeys(hostnames ...string) ([]ssh.PublicKey, error)
-}
-
-// NewKeyStoreCertChecker returns a new certificate checker
-// using trusted certs from key store
-func NewKeyStoreCertChecker(keyStore sshKnownHostGetter, hostname string) ssh.HostKeyCallback {
-	// CheckHostSignature checks if the given host key was signed by a Teleport
-	// certificate authority (CA) or a host certificate the user has seen before.
-	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
-		certChecker := sshutils.CertChecker{
-			CertChecker: ssh.CertChecker{
-				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
-					keys, err := keyStore.GetTrustedHostKeys(hostname)
-					if err != nil {
-						log.Errorf("Unable to fetch certificate authorities: %v.", err)
-						return false
-					}
-					for i := range keys {
-						if sshutils.KeysEqual(key, keys[i]) {
-							return true
-						}
-					}
-					return false
-				},
-			},
-			FIPS: isFIPS(),
-		}
-		err := certChecker.CheckHostKey(addr, remote, key)
-		if err != nil {
-			log.Debugf("Host validation failed: %v.", err)
-			return trace.Wrap(err)
-		}
-		log.Debugf("Validated host %v.", addr)
-		return nil
-	}
-}
-
 func agentIsPresent() bool {
 	return os.Getenv(teleport.SSHAuthSock) != ""
 }
@@ -369,9 +329,9 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 	return len(a.noHosts) > 0
 }
 
-// CheckHostSignature checks if the given host key was signed by a Teleport
+// CheckHostKey checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
-func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, hostKey ssh.PublicKey) error {
+func (a *LocalKeyAgent) CheckHostKey(addr string, remote net.Addr, hostKey ssh.PublicKey) error {
 	key, err := a.GetCoreKey()
 	if err != nil {
 		return trace.Wrap(err)
@@ -453,10 +413,16 @@ func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.Publi
 	a.log.Warnf("Host %s presented a public key not signed by Teleport. Proceeding due to insecure mode being ON.", addr)
 
 	// Check if this exact host is in the local cache.
-	keys, _ := a.clientStore.GetTrustedHostKeys(addr)
-	if len(keys) > 0 && sshutils.KeysEqual(key, keys[0]) {
-		a.log.Debugf("Verified host %s.", addr)
-		return nil
+	keys, err := a.clientStore.GetTrustedHostKeys(addr)
+	if err != nil {
+		a.log.WithError(err).Debugf("Failed to retrieve client's trusted host keys.")
+	} else {
+		for _, trustedHostKey := range keys {
+			if sshutils.KeysEqual(key, trustedHostKey) {
+				a.log.Debugf("Verified host %s.", addr)
+				return nil
+			}
+		}
 	}
 
 	// If this key was not seen before, prompt the user with a fingerprint.

@@ -63,7 +63,6 @@ func TestKeyStore(t *testing.T) {
 		// check that the key exists in the store and is the same,
 		// except the key's trusted certs should be empty, to be
 		// filled in by a trusted certs store.
-		require.Empty(t, key.TrustedCerts)
 		retrievedKey, err := keyStore.GetKey(idx, WithAllCerts...)
 		require.NoError(t, err)
 		key.TrustedCerts = nil
@@ -74,13 +73,16 @@ func TestKeyStore(t *testing.T) {
 		require.NoError(t, err)
 		retrievedKey, err = keyStore.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
 		require.NoError(t, err)
-		key.DBTLSCerts = make(map[string][]byte)
-		require.Equal(t, retrievedKey, key)
+		expectKey := key.Copy()
+		expectKey.DBTLSCerts = make(map[string][]byte)
+		require.Equal(t, expectKey, retrievedKey)
 
 		// check for the key, now without cluster name
 		retrievedKey, err = keyStore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""})
 		require.NoError(t, err)
-		require.Equal(t, key, retrievedKey)
+		expectKey.ClusterName = ""
+		expectKey.Cert = nil
+		require.Equal(t, expectKey, retrievedKey)
 
 		// delete the key
 		err = keyStore.DeleteKey(idx)
@@ -145,23 +147,22 @@ func TestGetCertificates(t *testing.T) {
 
 		// add keys for 3 different clusters with the same user and proxy.
 		keys := make([]Key, keyNum)
+		certs := make([]*ssh.Certificate, keyNum)
 		var proxy = "proxy.example.com"
 		var user = "bob"
 		for i := 0; i < keyNum; i++ {
 			idx := KeyIndex{proxy, user, fmt.Sprintf("cluster-%v", i)}
 			key := auth.makeSignedKey(t, idx, false)
-			require.NoError(t, keyStore.AddKey(key))
-			keys[i] = *key
-		}
-
-		certificates, err := keyStore.GetSSHCertificates(proxy, user)
-		require.NoError(t, err)
-
-		for i := 0; i < keyNum; i++ {
-			expectCert, err := keys[i].SSHCert()
+			err := keyStore.AddKey(key)
 			require.NoError(t, err)
-			require.Equal(t, expectCert, certificates[i])
+			keys[i] = *key
+			certs[i], err = key.SSHCert()
+			require.NoError(t, err)
 		}
+
+		retrievedCerts, err := keyStore.GetSSHCertificates(proxy, user)
+		require.NoError(t, err)
+		require.ElementsMatch(t, certs, retrievedCerts)
 	})
 }
 

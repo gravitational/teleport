@@ -994,7 +994,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	if tc.HostKeyCallback == nil {
-		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
+		tc.HostKeyCallback = tc.localAgent.CheckHostKey
 	}
 
 	return tc, nil

@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/x509/pkix"
+	"fmt"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
@@ -148,7 +151,9 @@ func TestWrite(t *testing.T) {
 	out, err = os.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
 
-	knownHosts := sshutils.MarshalAuthorizedHostsFormat(key.ClusterName, key.ProxyHost, key.TrustedCerts[0].AuthorizedKeys[0])
+	knownHosts, err := sshutils.MarshalAuthorizedHostsFormat(key.ClusterName, key.ProxyHost, key.TrustedCerts[0].AuthorizedKeys[0])
+	require.NoError(t, err)
+
 	wantArr := [][]byte{
 		key.PrivateKeyPEM(),
 		key.Cert,
@@ -244,23 +249,120 @@ func assertKubeconfigContents(t *testing.T, path, clusterName, serverAddr, kubeT
 	require.Equal(t, kc.Clusters[clusterName].TLSServerName, kubeTLSName)
 }
 
-func TestNewClientStoreFromIdentityFile(t *testing.T) {
+func TestIdentityRead(t *testing.T) {
+	// 3 different types of identities
+	ids := []string{
+		"cert-key.pem", // cert + key concatenated together, cert first
+		"key-cert.pem", // cert + key concatenated together, key first
+		"key",          // two separate files: key and key-cert.pub
+	}
+	for _, id := range ids {
+		// test reading:
+		k, err := KeyFromIdentityFile(fmt.Sprintf("../../../fixtures/certs/identities/%s", id), "proxy.example.com", "")
+		require.NoError(t, err)
+		require.NotNil(t, k)
+
+		cb, err := k.HostKeyCallback(false)
+		require.NoError(t, err)
+		require.Nil(t, cb)
+
+		// test creating an auth method from the key:
+		am, err := k.AsAuthMethod()
+		require.NoError(t, err)
+		require.NotNil(t, am)
+	}
+	k, err := KeyFromIdentityFile("../../../fixtures/certs/identities/lonekey", "proxy.example.com", "")
+	require.Nil(t, k)
+	require.Error(t, err)
+
+	// lets read an identity which includes a CA cert
+	k, err = KeyFromIdentityFile("../../../fixtures/certs/identities/key-cert-ca.pem", "proxy.example.com", "")
+	require.NoError(t, err)
+	require.NotNil(t, k)
+
+	cb, err := k.HostKeyCallback(true)
+	require.NoError(t, err)
+	require.NotNil(t, cb)
+
+	// prepare the cluster CA separately
+	certBytes, err := os.ReadFile("../../../fixtures/certs/identities/ca.pem")
+	require.NoError(t, err)
+
+	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
+	require.NoError(t, err)
+
+	var a net.Addr
+	// host auth callback must succeed
+	require.NoError(t, cb(hosts[0], a, cert))
+
+	// load an identity which include TLS certificates
+	k, err = KeyFromIdentityFile("../../../fixtures/certs/identities/tls.pem", "proxy.example.com", "")
+	require.NoError(t, err)
+	require.NotNil(t, k)
+	require.NotNil(t, k.TLSCert)
+
+	// generate a TLS client config
+	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+}
+
+func TestKeyFromIdentityFile(t *testing.T) {
 	t.Parallel()
 	key := newClientKey(t)
+	key.ProxyHost = "proxy.example.com"
+	key.ClusterName = "cluster"
 
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
 	// First write an ssh key to the file.
-	cfg := WriteConfig{
+	_, err := Write(WriteConfig{
 		OutputPath:           identityFilePath,
 		Format:               FormatFile,
 		Key:                  key,
 		OverwriteDestination: true,
-	}
-	_, err := Write(cfg)
+	})
 	require.NoError(t, err)
 
-	clientStore, err := client.NewClientStoreFromIdentityFile(identityFilePath, key.ProxyHost+":3080", key.ClusterName)
+	// parsed key is unchanged from original with proxy and cluster provided.
+	parsedKey, err := KeyFromIdentityFile(identityFilePath, "proxy.example.com", "cluster")
+	require.NoError(t, err)
+	require.Equal(t, key, parsedKey)
+
+	// Identity file's cluster name defaults to root cluster name.
+	parsedKey, err = KeyFromIdentityFile(identityFilePath, "proxy.example.com", "")
+	key.ClusterName = "root"
+	require.NoError(t, err)
+	require.Equal(t, key, parsedKey)
+
+	// Returns error if proxy host is not provided.
+	_, err = KeyFromIdentityFile(identityFilePath, "", "")
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+}
+
+func TestNewClientStoreFromIdentityFile(t *testing.T) {
+	t.Parallel()
+	key := newClientKey(t)
+
+	idFile := &identityfile.IdentityFile{
+		PrivateKey: key.PrivateKeyPEM(),
+		Certs: identityfile.Certs{
+			SSH: key.Cert,
+			TLS: key.TLSCert,
+		},
+		CACerts: identityfile.CACerts{
+			TLS: key.TLSCAs(),
+			SSH: key.TrustedCAHostKeys(),
+		},
+	}
+	idFilePath := filepath.Join(t.TempDir(), "identity")
+	bytes, err := identityfile.Encode(idFile)
+	require.NoError(t, err)
+	err = os.WriteFile(idFilePath, bytes, 0664)
+	require.NoError(t, err)
+
+	clientStore, err := NewClientStoreFromIdentityFile(idFilePath, key.ProxyHost+":3080", "")
 	require.NoError(t, err)
 
 	currentProfile, err := clientStore.CurrentProfile()
@@ -275,7 +377,7 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 		Username:     key.Username,
 	}, retrievedProfile)
 
-	retrievedKey, err := clientStore.GetKey(key.KeyIndex)
+	retrievedKey, err := clientStore.GetKey(key.KeyIndex, client.WithAllCerts...)
 	require.NoError(t, err)
 	require.Equal(t, key, retrievedKey)
 }

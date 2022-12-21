@@ -68,6 +68,12 @@ func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 	return cert, nil
 }
 
+// AuthorizedHost is an authorized key with host metadata parsed from an authorized hosts entry.
+type AuthorizedHost struct {
+	Hosts              []string
+	AuthorizedKeyBytes []byte
+}
+
 // ParseKnownHosts parses provided known_hosts entries into ssh.PublicKey list.
 // If one or more hostnames are provided, only keys that have at least one match
 // will be returned.
