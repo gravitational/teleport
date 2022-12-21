@@ -1073,6 +1073,8 @@ type certRequest struct {
 	attestationStatement *keys.AttestationStatement
 	// skipAttestation is a server-side flag which is used to skip the attestation check.
 	skipAttestation bool
+	// deviceExtensions holds device-aware user certificate extensions.
+	deviceExtensions DeviceExtensions
 }
 
 // check verifies the cert request is valid.
@@ -1107,6 +1109,12 @@ func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certR
 
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
+}
+
+func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
+	return func(r *certRequest) {
+		r.deviceExtensions = DeviceExtensions(ext)
+	}
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -1622,6 +1630,9 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		SourceIP:                req.sourceIP,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
 		PrivateKeyPolicy:        attestedKeyPolicy,
+		DeviceID:                req.deviceExtensions.DeviceID,
+		DeviceAssetTag:          req.deviceExtensions.AssetTag,
+		DeviceCredentialID:      req.deviceExtensions.CredentialID,
 	}
 	sshCert, err := a.GenerateUserCert(params)
 	if err != nil {
@@ -1706,6 +1717,11 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
+		DeviceExtensions: tlsca.DeviceExtensions{
+			DeviceID:     req.deviceExtensions.DeviceID,
+			AssetTag:     req.deviceExtensions.AssetTag,
+			CredentialID: req.deviceExtensions.CredentialID,
+		},
 	}
 	subject, err := identity.Subject()
 	if err != nil {
