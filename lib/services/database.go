@@ -200,7 +200,7 @@ func ValidateDatabase(db types.Database) error {
 func needsURIValidation(db types.Database) bool {
 	switch db.GetProtocol() {
 	case defaults.ProtocolCassandra, defaults.ProtocolDynamoDB:
-		// In case of cloud hosted Cassandra doesn't require URI validation.
+		// cloud hosted Cassandra doesn't require URI validation.
 		return db.GetAWS().Region == "" || db.GetAWS().AccountID == ""
 	default:
 		return true
