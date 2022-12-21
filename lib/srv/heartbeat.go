@@ -135,7 +135,7 @@ const (
 	HeartbeatModeApp
 	// HeartbeatModeDB sets heatbeat to db
 	HeartbeatModeDB
-	// HeartbeatModeDatabaseService sets heatbeat mode to Databaseservice.
+	// HeartbeatModeDatabaseService sets heatbeat mode to DatabaseService.
 	HeartbeatModeDatabaseService
 	// HeartbeatModeWindowsDesktopService sets heatbeat mode to windows desktop
 	// service.

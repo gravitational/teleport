@@ -939,11 +939,15 @@ func (c *databaseServiceCollection) resources() (r []types.Resource) {
 	return r
 }
 
-func resourceMatchersToString(in []*types.DatabaseResourceMatcher) string {
-	resourceMatchersStrings := make([]string, len(in))
+func databaseResourceMatchersToString(in []*types.DatabaseResourceMatcher) string {
+	resourceMatchersStrings := make([]string, 0, len(in))
 
-	for i, resMatcher := range in {
-		labelsString := []string{}
+	for _, resMatcher := range in {
+		if resMatcher == nil || resMatcher.Labels == nil {
+			continue
+		}
+
+		labelsString := make([]string, 0, len(*resMatcher.Labels))
 		for key, values := range *resMatcher.Labels {
 			if key == types.Wildcard {
 				labelsString = append(labelsString, "<all databases>")
@@ -952,7 +956,7 @@ func resourceMatchersToString(in []*types.DatabaseResourceMatcher) string {
 			labelsString = append(labelsString, fmt.Sprintf("%v=%v", key, values))
 		}
 
-		resourceMatchersStrings[i] = fmt.Sprintf("(Labels: %s)", strings.Join(labelsString, ","))
+		resourceMatchersStrings = append(resourceMatchersStrings, fmt.Sprintf("(Labels: %s)", strings.Join(labelsString, ",")))
 	}
 	return strings.Join(resourceMatchersStrings, ",")
 }
@@ -969,7 +973,7 @@ func (c *databaseServiceCollection) writeText(w io.Writer) error {
 
 	for _, dbService := range c.databaseServices {
 		t.AddRow([]string{
-			dbService.GetName(), resourceMatchersToString(dbService.GetResourceMatchers()),
+			dbService.GetName(), databaseResourceMatchersToString(dbService.GetResourceMatchers()),
 		})
 	}
 
