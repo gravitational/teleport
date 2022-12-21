@@ -893,8 +893,9 @@ func getActiveMigrations(metric *dto.MetricFamily) []string {
 			continue
 		}
 		for _, label := range counter.Label {
-			if label.GetName() == "name" {
+			if label.GetName() == teleport.TagMigration {
 				out = append(out, label.GetValue())
+				break
 			}
 		}
 	}

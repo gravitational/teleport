@@ -85,6 +85,9 @@ const (
 	// MetricMigrations tracks for each migration if it is active or not.
 	MetricMigrations = "migrations"
 
+	// TagMigration is a metric tag for a migration
+	TagMigration = "migration"
+
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 )
