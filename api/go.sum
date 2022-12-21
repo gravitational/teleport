@@ -140,6 +140,8 @@ github.com/gravitational/trace v1.1.19 h1:MHxfSvqHRNyOGF2440JILYrLdseAhCMErenSkg
 github.com/gravitational/trace v1.1.19/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/gravitational/trace v1.1.20 h1:RrG59NtxiLdz5csUYLc0b3VqQV/g+U1v6JgxVu0IZ2s=
 github.com/gravitational/trace v1.1.20/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
+github.com/gravitational/trace v1.1.21-0.20221221165423-040ad96641b1 h1:bTw9LaOiCVhN1keD199k7RbFL2yGTUEyoYgoS7mnT8A=
+github.com/gravitational/trace v1.1.21-0.20221221165423-040ad96641b1/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 h1:BZHcxBETFHIdVyhyEfOvn/RdU/QGdLI4y34qQGjGWO0=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0/go.mod h1:hgWBS7lorOAVIJEQMi4ZsPv9hVvWI6+ch50m39Pf2Ks=
