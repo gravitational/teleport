@@ -768,7 +768,7 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 	}
 
 	// Emit session leave event to Audit Log.
-	if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionLeaveEvent); err != nil {
+	if err := s.emitAuditEvent(ctx.srv.Context(), sessionLeaveEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit session leave event.")
 	}
 
@@ -835,7 +835,7 @@ func (s *session) emitSessionEndEvent() {
 		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
 	}
 
-	if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
+	if err := s.emitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit session end event.")
 	}
 }
