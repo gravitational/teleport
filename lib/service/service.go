@@ -1625,6 +1625,10 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterName: clusterName,
 		AccessPoint: authServer,
 		LockWatcher: lockWatcher,
+		// Auth Server does explicit device authorization.
+		// Various Auth APIs must allow access to unauthorized devices, otherwise it
+		// is not possible to acquire device-aware certificates in the first place.
+		DisableDeviceAuthorization: true,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3754,6 +3758,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
+			// TODO(codingllama): Enable after testing.
+			DisableDeviceAuthorization: true,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4531,6 +4537,8 @@ func (process *TeleportProcess) initApps() {
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
+			// Device authorization breaks browser-based access.
+			DisableDeviceAuthorization: true,
 		})
 		if err != nil {
 			return trace.Wrap(err)

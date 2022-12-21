@@ -178,6 +178,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
+		// TODO(codingllama): Enable after testing.
+		DisableDeviceAuthorization: true,
 	})
 	if err != nil {
 		return trace.Wrap(err)

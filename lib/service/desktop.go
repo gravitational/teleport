@@ -155,6 +155,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
+		// Device authorization breaks browser-based access.
+		DisableDeviceAuthorization: true,
 	})
 	if err != nil {
 		return trace.Wrap(err)

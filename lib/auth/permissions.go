@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -52,6 +53,11 @@ type AuthorizerOpts struct {
 	ClusterName string
 	AccessPoint AuthorizerAccessPoint
 	LockWatcher *services.LockWatcher
+
+	// DisableDeviceAuthorization disables device authorization via [Authorizer].
+	// It is meant for services that do explicit device authorization, like the
+	// Auth Server APIs. Most services should not set this field.
+	DisableDeviceAuthorization bool
 }
 
 // NewAuthorizer returns new authorizer using backends
@@ -63,9 +69,10 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
 	return &authorizer{
-		clusterName: opts.ClusterName,
-		accessPoint: opts.AccessPoint,
-		lockWatcher: opts.LockWatcher,
+		clusterName:                opts.ClusterName,
+		accessPoint:                opts.AccessPoint,
+		lockWatcher:                opts.LockWatcher,
+		disableDeviceAuthorization: opts.DisableDeviceAuthorization,
 	}, nil
 }
 
@@ -104,9 +111,10 @@ type AuthorizerAccessPoint interface {
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName string
-	accessPoint AuthorizerAccessPoint
-	lockWatcher *services.LockWatcher
+	clusterName                string
+	accessPoint                AuthorizerAccessPoint
+	lockWatcher                *services.LockWatcher
+	disableDeviceAuthorization bool
 }
 
 // Context is authorization context
@@ -206,6 +214,13 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	// Enforce required private key policy if set.
 	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Device Trust: authorize device extensions.
+	if !a.disableDeviceAuthorization {
+		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return authContext, nil
