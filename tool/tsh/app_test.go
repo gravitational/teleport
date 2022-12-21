@@ -25,6 +25,8 @@ import (
 )
 
 func TestFormatAppConfig(t *testing.T) {
+	t.Parallel()
+
 	defaultTc := &client.TeleportClient{
 		Config: client.Config{
 			WebProxyAddr: "test-tp.teleport:8443",
