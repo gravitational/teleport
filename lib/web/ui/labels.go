@@ -35,7 +35,8 @@ func makeLabels(labelMaps ...map[string]string) []Label {
 
 	for _, labelMap := range labelMaps {
 		for name, value := range labelMap {
-			if strings.HasPrefix(name, types.TeleportInternalLabelPrefix) {
+			if strings.HasPrefix(name, types.TeleportInternalLabelPrefix) ||
+				strings.HasPrefix(name, types.TeleportHiddenLabelPrefix) {
 				continue
 			}
 

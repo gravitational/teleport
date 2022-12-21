@@ -109,6 +109,29 @@ func TestMakeLabels(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Multiple maps with hidden labels",
+			labelMaps: []map[string]string{
+				{
+					"label1":                 "value1",
+					"teleport.hidden/label3": "value3",
+				},
+				{
+					"label2":                 "value2",
+					"teleport.hidden/label4": "value4",
+				},
+			},
+			expected: []Label{
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value2",
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
