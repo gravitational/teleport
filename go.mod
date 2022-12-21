@@ -162,12 +162,6 @@ require (
 	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
 )
 
-// DO NOT UPDATE crypto beyond v0.2.0, the commit below breaks compatibility
-// with OpenSSH <= 7.6.
-// We are working on landing a patch upstream.
-// https://github.com/golang/crypto/commit/6fad3dfc18918c2ac9c112e46b32473bd2e5e2f9
-require golang.org/x/crypto v0.2.0 // DO NOT UPDATE
-
 // Indirect mailgun dependencies.
 // Updating causes breaking changes.
 require (
@@ -177,6 +171,8 @@ require (
 
 // Do not remove. It breaks github.com/gravitational/go-oidc.
 require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+
+require golang.org/x/crypto v0.2.0
 
 require (
 	cloud.google.com/go v0.107.0 // indirect
@@ -367,4 +363,5 @@ replace (
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
+	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221221152432-903e65687e59
 )
