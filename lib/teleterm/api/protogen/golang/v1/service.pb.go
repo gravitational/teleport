@@ -339,7 +339,7 @@ type GetAccessRequestRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	// specificies a specific request id
+	// specifcies a specific request id
 	AccessRequestId string `protobuf:"bytes,2,opt,name=access_request_id,json=accessRequestId,proto3" json:"access_request_id,omitempty"`
 }
 
