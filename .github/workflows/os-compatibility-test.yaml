@@ -7,8 +7,8 @@ on:
   pull_request:
 
 jobs:
-  build:
-    name: Build Artifacts
+  test:
+    name: OS Compatibility Test
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -28,36 +28,9 @@ jobs:
 
       - name: Run make
         run: |
-          make build/tctl build/tsh build/tbot build/teleport
-
-      - name: Upload binaries
-        uses: actions/upload-artifact@v3
-        with:
-          name: build
-          path: ${{ github.workspace }}/build/
-
-  test-compat:
-    needs: build
-    name: Run Compatibility Test
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Download binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: build
-          path: ${{ github.workspace }}/build
-
-      - name: chmod +x
-        run: chmod +x ${GITHUB_WORKSPACE}/build/*
+          make binaries
 
       - name: Run compat matrix
         timeout-minutes: 10
         run: |
-          cd ${GITHUB_WORKSPACE} && ./build.assets/build-test-compat.sh
+          ./build.assets/build-test-compat.sh

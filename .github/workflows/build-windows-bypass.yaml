@@ -22,7 +22,7 @@ on:
 
 jobs:
   build:
-    name: Skipped
+    name: Build on Windows
     runs-on: windows-latest
 
     permissions:
