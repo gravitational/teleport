@@ -35,6 +35,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/license"
 	reporting "github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -2565,6 +2566,25 @@ func TestCAGeneration(t *testing.T) {
 				"test CA and production CA have different JWT keys for type %v", caType)
 		})
 	}
+}
+
+func TestGetLicense(t *testing.T) {
+	suite := newAuthSuite(t)
+
+	// GetLicense should return error if license is not set
+	_, err := suite.a.GetLicense(context.Background(), &proto.SubmitUsageEventRequest{})
+	assert.NotNil(t, err)
+
+	// GetLicense should return cert and key pem concatenated, when license is set
+	l := license.License{
+		CertPEM: []byte("cert"),
+		KeyPEM:  []byte("key"),
+	}
+	suite.a.SetLicense(&l)
+
+	license, err := suite.a.GetLicense(context.Background(), &proto.SubmitUsageEventRequest{})
+	assert.Nil(t, err)
+	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), license)
 }
 
 type mockEnforcer struct {
