@@ -74,7 +74,7 @@ func main() {
 
 	installationID, err := lookupInstallationID(ctx, args)
 	if err != nil {
-		log.Fatalf("Failed to fetch installation ID for %s/%s: %s", args.owner, args.repo, err)
+		log.Fatalf("Failed to fetch installation ID for app #%d on account %s: %s", args.appID, args.owner, err)
 	}
 
 	tx, err := ghinst.New(http.DefaultTransport, args.appID, installationID, args.appKey)
