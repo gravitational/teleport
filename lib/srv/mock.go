@@ -143,23 +143,23 @@ type mockServer struct {
 
 // ID is the unique ID of the server.
 func (m *mockServer) ID() string {
-	return "test"
+	return "testID"
 }
 
 // HostUUID is the UUID of the underlying host. For the forwarding
 // server this is the proxy the forwarding server is running in.
 func (m *mockServer) HostUUID() string {
-	return "test"
+	return "testHostUUID"
 }
 
 // GetNamespace returns the namespace the server was created in.
 func (m *mockServer) GetNamespace() string {
-	return "test"
+	return "testNamespace"
 }
 
 // AdvertiseAddr is the publicly addressable address of this server.
 func (m *mockServer) AdvertiseAddr() string {
-	return "test"
+	return "testNamespace"
 }
 
 // Component is the type of server, forwarding or regular.
