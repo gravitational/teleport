@@ -14,9 +14,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const (
-)
-
 type ClientConfig struct {
 	// TLSConfig is the client TLS configuration
 	TLSConfig *tls.Config
@@ -112,7 +109,7 @@ func byteCount(b int64) string {
 // GetServerAddr returns the release server address from the environment
 // variables or, i
 func GetServerAddr() string {
-	addr := os.Getenv(envVarServerAddr)
+	addr := os.Getenv(types.ReleaseServerEnvVar)
 	if addr == "" {
 		addr = types.DefaultReleaseServerAddr
 	}
