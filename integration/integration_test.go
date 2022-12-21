@@ -2682,9 +2682,6 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		Priv:        suite.Priv,
 		Pub:         suite.Pub,
 		Log:         suite.Log,
-		CachePolicy: service.CachePolicy{
-			Enabled: false,
-		},
 	}
 	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
 
@@ -2735,6 +2732,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = enableSSH
+		tconf.CachePolicy.Enabled = false
 		return t, nil, tconf
 	}
 	lib.SetInsecureDevMode(true)
