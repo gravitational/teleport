@@ -47,18 +47,25 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 	return authContext, nil
 }
 
+// AuthorizerOpts holds creation options for [NewAuthorizer].
+type AuthorizerOpts struct {
+	ClusterName string
+	AccessPoint AuthorizerAccessPoint
+	LockWatcher *services.LockWatcher
+}
+
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, accessPoint AuthorizerAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
-	if clusterName == "" {
+func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
+	if opts.ClusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
-	if accessPoint == nil {
+	if opts.AccessPoint == nil {
 		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
 	return &authorizer{
-		clusterName: clusterName,
-		accessPoint: accessPoint,
-		lockWatcher: lockWatcher,
+		clusterName: opts.ClusterName,
+		accessPoint: opts.AccessPoint,
+		lockWatcher: opts.LockWatcher,
 	}, nil
 }
 
