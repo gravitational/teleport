@@ -7,8 +7,8 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: OS Compatibility Test
+  build:
+    name: OS Compatibility Build
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -30,7 +30,34 @@ jobs:
         run: |
           make binaries
 
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: ${{ github.workspace }}/build/
+
+  test-compat:
+    needs: build
+    name: OS Compatibility Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Download binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: build
+          path: ${{ github.workspace }}/build
+
+      - name: chmod +x
+        run: chmod +x ${GITHUB_WORKSPACE}/build/*
+
       - name: Run compat matrix
         timeout-minutes: 10
         run: |
-          ./build.assets/build-test-compat.sh
+          cd ${GITHUB_WORKSPACE} && ./build.assets/build-test-compat.sh
