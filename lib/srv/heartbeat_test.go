@@ -405,6 +405,9 @@ func (f *fakeAnnouncer) UpdateWindowsDesktop(ctx context.Context, s types.Window
 	return f.err
 }
 
+func (f *fakeAnnouncer) UpsertDatabaseService(ctx context.Context, s types.DatabaseService) (*types.KeepAlive, error) {
+	return nil, trace.NotImplemented("not yet implemented")
+}
 func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return f, f.err
 }

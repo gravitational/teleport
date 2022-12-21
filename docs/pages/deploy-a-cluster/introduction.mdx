@@ -1,0 +1,57 @@
+---
+title: "Deploying a Teleport Cluster"
+description: "Guides to running Teleport on your infrastructure."
+---
+
+These guides show you how to run a Teleport cluster on your infrastructure.
+
+## Choose an edition
+
+The first step in deploying Teleport is to choose an edition. There are three
+Teleport editions available, and you can see a detailed comparison between them
+on our [Frequently Asked
+Questions](../faq.mdx#how-is-open-source-different-from-enterprise) page.
+
+For each Teleport edition, you can follow one of our guides to try out a
+small-scale demo deployment:
+
+- Try [Teleport Community Edition](./open-source.mdx) on a Linux Server. You can
+  also get started with a [Digital Ocean
+  droplet](deployments/digitalocean.mdx).
+- If you are interested in Teleport Enterprise, see our [getting started
+  guide](./teleport-enterprise/getting-started.mdx) or read our [more detailed
+  introduction](./teleport-enterprise/introduction.mdx) to our Enterprise-only
+  features.
+- Read our Teleport Enterprise Cloud [getting started
+  guide](./teleport-cloud/getting-started.mdx) or see our
+  [introduction](./teleport-cloud/introduction.mdx) for more information.
+
+## Plan your deployment
+
+Read our [High Availability Guide](./high-availability.mdx) for the general
+principles behind deploying a scalable, fault-tolerant Teleport cluster. Once
+you understand what is required to run Teleport in production, choose your
+compute platform and cloud provider:
+
+### Deploy on Kubernetes using Helm 
+
+You can deploy a complete, high-availability Teleport cluster on Kubernetes
+using our `teleport-cluster` Helm chart. These guides show you how to deploy the
+`teleport-cluster` Helm chart on your cloud:
+
+- [Google Cloud](./helm-deployments/gcp.mdx)
+- [AWS](./helm-deployments/aws.mdx)
+- [Kubernetes with SSO](./helm-deployments/kubernetes-cluster.mdx)
+- [Custom Kubernetes Deployment](./helm-deployments/custom.mdx)
+- [Migrating from our Legacy Helm Charts](./helm-deployments/migration.mdx)
+- [Digital Ocean](./helm-deployments/digitalocean.mdx)
+
+### Deploy using virtual machines
+
+You can run a production cluster of Teleport instances using virtual machines.
+In these guides, we will show you how to deploy a high-availability, VM-based
+Teleport cluster on your cloud:
+
+- [AWS with Terraform](./deployments/aws-terraform.mdx)
+- [Google Cloud](./deployments/gcp.mdx)
+- [IBM Cloud](./deployments/ibm.mdx)
