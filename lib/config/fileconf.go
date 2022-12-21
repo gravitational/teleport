@@ -1560,7 +1560,7 @@ type DatabaseAWS struct {
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
-	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_severless"`
+	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.

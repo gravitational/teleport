@@ -57,6 +57,11 @@ type Resource interface {
 	CheckAndSetDefaults() error
 }
 
+// ResourceDetails includes details about the resource
+type ResourceDetails struct {
+	Hostname string
+}
+
 // ResourceWithSecrets includes additional properties which must
 // be provided by resources which *may* contain secrets.
 type ResourceWithSecrets interface {
@@ -158,6 +163,19 @@ func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 		dbs = append(dbs, db)
 	}
 	return dbs, nil
+}
+
+// AsDatabaseServices converts each resource into type DatabaseService.
+func (r ResourcesWithLabels) AsDatabaseServices() ([]DatabaseService, error) {
+	services := make([]DatabaseService, len(r))
+	for i, resource := range r {
+		dbService, ok := resource.(DatabaseService)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseService, got: %T", resource)
+		}
+		services[i] = dbService
+	}
+	return services, nil
 }
 
 // AsWindowsDesktops converts each resource into type WindowsDesktop.
