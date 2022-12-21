@@ -756,7 +756,7 @@ func TestMaxSessions(t *testing.T) {
 // command and send the command to then launch through a pipe.
 func TestExecLongCommand(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	// Get the path to where the "echo" command is on disk.
