@@ -39,19 +39,23 @@
 // The tool uses the more-generic/more-racy option 1 by default. Run with the
 // `-tag-workflow` option to use the more-specific/less-racy option 2.
 //
+// The app authenticates to github via a GitHub app.
+//
 // Note that killing the tool WILL NOT cancel the corresponding GitHub
 // workflow run.
 package main
 
 import (
 	"context"
+	"flag"
 	"log"
+	"net/http"
 	"time"
 
+	ghinst "github.com/bradleyfalzon/ghinstallation"
 	ghapi "github.com/google/go-github/v41/github"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
@@ -59,15 +63,26 @@ import (
 const wokflowTagInput = "workflow-tag"
 
 func main() {
-	args := parseCommandLine()
+	args, err := parseCommandLine()
+	if err != nil {
+		flag.Usage()
+		log.Fatal(err.Error())
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), args.timeout)
 	defer cancel()
 
-	// Create a GitHub client that authenticates with a Personal Access Token
-	authClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: args.token},
-	))
-	gh := ghapi.NewClient(authClient)
+	installationID, err := lookupInstallationID(ctx, args)
+	if err != nil {
+		log.Fatalf("Failed to fetch installation ID for %s/%s: %s", args.owner, args.repo, err)
+	}
+
+	tx, err := ghinst.New(http.DefaultTransport, args.appID, installationID, args.appKey)
+	if err != nil {
+		log.Fatalf("Failed creating authenticated transport: %s", err)
+	}
+
+	gh := ghapi.NewClient(&http.Client{Transport: tx})
 
 	dispatchCtx, cancelDispatch := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancelDispatch()
@@ -118,6 +133,26 @@ func main() {
 	}
 
 	log.Printf("Workflow succeeded")
+}
+
+// lookupInstallationID attempts to find an installation of the interface app
+// we're using to authenticate.
+func lookupInstallationID(ctx context.Context, args args) (int64, error) {
+	// Because we don't know the Installtion ID yet (otherwise we wouldn't be
+	// here at all) we have to uses a special, short-lived github client that
+	// can authenticate without it.
+	tx, err := ghinst.NewAppsTransport(http.DefaultTransport, args.appID, args.appKey)
+	if err != nil {
+		return 0, trace.Wrap(err, "Failed creating authenticated transport")
+	}
+	gh := ghapi.NewClient(&http.Client{Transport: tx})
+
+	installationID, err := github.FindAppInstallID(ctx, gh.Apps, args.owner)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return installationID, nil
 }
 
 func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag string, baselineTime time.Time, existingRuns github.RunIDSet) (*ghapi.WorkflowRun, error) {

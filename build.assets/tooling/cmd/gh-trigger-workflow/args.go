@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -51,9 +52,22 @@ func (m inputMap) Set(s string) error {
 	return nil
 }
 
+// key holds the bytes of a GutHub app key, stored as an array of bytes.
+type key []byte
+
+func (k *key) String() string {
+	return string(*k)
+}
+
+func (k *key) Set(s string) error {
+	*k = []byte(s)
+	return nil
+}
+
 // args holds the parsed command-line arguments for the command.
 type args struct {
-	token          string
+	appID          int64
+	appKey         key
 	owner          string
 	repo           string
 	workflow       string
@@ -63,23 +77,37 @@ type args struct {
 	inputs         inputMap
 }
 
-func parseCommandLine() args {
+func parseCommandLine() (args, error) {
 
-	args := args{
+	cliArgs := args{
 		workflowRef: "main",
 		inputs:      make(inputMap),
 	}
 
-	flag.StringVar(&args.token, "token", "", "GitHub PAT")
-	flag.StringVar(&args.owner, "owner", "", "Owner of the repo to target")
-	flag.StringVar(&args.repo, "repo", "", "Repo to target")
-	flag.StringVar(&args.workflow, "workflow", "", "Path to workflow")
-	flag.StringVar(&args.workflowRef, "workflow-ref", args.workflowRef, "Revision reference")
-	flag.BoolVar(&args.useWorkflowTag, "tag-workflow", false, "Use a workflow input to tag and ID workflows spawned by the event")
-	flag.DurationVar(&args.timeout, "timeout", 30*time.Minute, "Timeout")
-	flag.Var(args.inputs, "input", "Input to target workflow")
+	// 274696 is the Github-assigned app id for the default Drone interface app.
+	flag.Int64Var(&cliArgs.appID, "app-id", 274696, "ID of the Drone interface GitHub App")
+	flag.Var(&cliArgs.appKey, "app-key", "App key in PEM format for the Drone interface GitHub App. Can also be supplied via $GHA_APP_KEY.")
+	flag.StringVar(&cliArgs.owner, "owner", "", "Owner of the repo to target")
+	flag.StringVar(&cliArgs.repo, "repo", "", "Repo to target")
+	flag.StringVar(&cliArgs.workflow, "workflow", "", "Path to workflow")
+	flag.StringVar(&cliArgs.workflowRef, "workflow-ref", cliArgs.workflowRef, "Revision reference")
+	flag.BoolVar(&cliArgs.useWorkflowTag, "tag-workflow", false, "Use a workflow input to tag and ID workflows spawned by the event")
+	flag.DurationVar(&cliArgs.timeout, "timeout", 30*time.Minute, "Timeout")
+	flag.Var(cliArgs.inputs, "input", "Input to target workflow")
 
 	flag.Parse()
 
-	return args
+	if cliArgs.appKey == nil {
+		keyText := os.Getenv("GHA_APP_KEY")
+		if keyText == "" {
+			return args{}, trace.BadParameter("No app key supplied")
+		}
+		cliArgs.appKey = key(keyText)
+	}
+
+	if cliArgs.appID == 0 {
+		return args{}, trace.BadParameter("No app ID supplied")
+	}
+
+	return cliArgs, nil
 }
