@@ -368,7 +368,7 @@ type CLIConf struct {
 	// SampleTraces indicates whether traces should be sampled.
 	SampleTraces bool
 
-	// TraceExporter is a manually provided uri provided to send traces to instead of
+	// TraceExporter is a manually provided URI to send traces to instead of
 	// forwarding them to the Auth service.
 	TraceExporter string
 
@@ -959,12 +959,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// Connect to the span exporter and initialize the trace provider only if
 	// the --trace flag was set.
 	if cf.SampleTraces {
-		// login only needs to be whitelisted if forwarding to auth
-		var whitelist []string
+		// login only needs to be ignored if forwarding to auth
+		var ignored []string
 		if cf.TraceExporter == "" {
-			whitelist = []string{login.FullCommand()}
+			ignored = []string{login.FullCommand()}
 		}
-		provider, err := newTraceProvider(&cf, command, whitelist)
+		provider, err := newTraceProvider(&cf, command, ignored)
 		if err != nil {
 			log.WithError(err).Debug("failed to set up span forwarding.")
 		} else {
@@ -1162,14 +1162,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 //
 // If an explicit exporter url was provided via --trace-exporter all spans will be
 // send to the provided exporter. Otherwise all recorded spans are exported to the
-// Auth server which then forwards to the telemetry backend. The whitelist allows
+// Auth server which then forwards to the telemetry backend. The ignored list contains
 // certain commands to have exporting spans be a no-op. Since the provider requires
 // connecting to the auth server, this means a user may have to login first before
-// the provider can be created. By whitelisting the login command we can avoid having
+// the provider can be created. By ignoring the login command we can avoid having
 // users logging in twice at the expense of not exporting spans for the login command.
-func newTraceProvider(cf *CLIConf, command string, whitelist []string) (*tracing.Provider, error) {
-	// don't record any spans for commands that have been whitelisted
-	for _, c := range whitelist {
+func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.Provider, error) {
+	// don't record any spans for commands that have been allowed
+	for _, c := range ignored {
 		if strings.EqualFold(command, c) {
 			return tracing.NoopProvider(), nil
 		}
