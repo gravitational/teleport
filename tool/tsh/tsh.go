@@ -1570,6 +1570,13 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	// Attempt device login. This activates a fresh key if successful.
+	// We do not save the resulting in the identity file above on purpose, as this
+	// certificate is bound to the present device.
+	if err := tc.AttemptDeviceLogin(cf.Context, key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
 		if err := updateKubeConfig(cf, tc, ""); err != nil {

@@ -70,6 +70,9 @@ type Announcer interface {
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	// UpdateWindowsDesktop updates a Windows desktop host.
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
+
+	// UpsertDatabaseService registers a DatabaseService.
+	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)
