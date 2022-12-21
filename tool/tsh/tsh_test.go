@@ -3615,11 +3615,6 @@ func spanAssertion(containsTSH, empty bool) func(t *testing.T, spans []*otlp.Sco
 func TestForwardingTraces(t *testing.T) {
 	t.Parallel()
 
-	connector := mockConnector(t)
-	alice, err := types.NewUser("alice@example.com")
-	require.NoError(t, err)
-	alice.SetRoles([]string{"access"})
-
 	cases := []struct {
 		name          string
 		cfg           func(c *tracing.Collector) service.TracingConfig
@@ -3662,6 +3657,12 @@ func TestForwardingTraces(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			connector := mockConnector(t)
+
+			alice, err := types.NewUser("alice@example.com")
+			require.NoError(t, err)
+			alice.SetRoles([]string{"access"})
+
 			tmpHomePath := t.TempDir()
 			collector, err := tracing.NewCollector(tracing.CollectorConfig{})
 			require.NoError(t, err)
@@ -3733,11 +3734,6 @@ func TestForwardingTraces(t *testing.T) {
 func TestExportingTraces(t *testing.T) {
 	t.Parallel()
 
-	connector := mockConnector(t)
-	alice, err := types.NewUser("alice@example.com")
-	require.NoError(t, err)
-	alice.SetRoles([]string{"access"})
-
 	cases := []struct {
 		name                  string
 		cfg                   func(c *tracing.Collector) service.TracingConfig
@@ -3782,6 +3778,12 @@ func TestExportingTraces(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			alice, err := types.NewUser("alice@example.com")
+			require.NoError(t, err)
+			alice.SetRoles([]string{"access"})
+
+			connector := mockConnector(t)
 			tmpHomePath := t.TempDir()
 
 			teleportCollector, err := tracing.NewCollector(tracing.CollectorConfig{})
