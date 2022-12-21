@@ -30,6 +30,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -1382,54 +1383,31 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
 	case types.KindDatabaseService:
-		dbServices, err := listDatabaseServices(ctx, client, rc.ref.Name)
+		resourceName := rc.ref.Name
+		listReq := proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+		}
+		if resourceName != "" {
+			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+		}
+
+		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if len(dbServices) == 0 && rc.ref.Name != "" {
-			return nil, trace.NotFound("Database Service %q not found", rc.ref.Name)
+		databaseServices, err := types.ResourcesWithLabels(getResp).AsDatabaseServices()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return &databaseServiceCollection{databaseServices: dbServices}, nil
+		if len(databaseServices) == 0 && resourceName != "" {
+			return nil, trace.NotFound("Database Service %q not found", resourceName)
+		}
+
+		return &databaseServiceCollection{databaseServices: databaseServices}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
-}
-
-func listDatabaseServices(ctx context.Context, client auth.ClientI, name string) ([]types.DatabaseService, error) {
-	out := make([]types.DatabaseService, 0)
-
-	listReq := proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        apidefaults.DefaultChunkSize,
-	}
-
-	if name != "" {
-		listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, name)
-	}
-
-	nextKey := ""
-	for {
-		listReq.StartKey = nextKey
-		listResp, err := client.ListResources(ctx, listReq)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		databaseServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		out = append(out, databaseServices...)
-
-		nextKey = listResp.NextKey
-		if nextKey == "" || len(listResp.Resources) == 0 {
-			break
-		}
-	}
-
-	return out, nil
 }
 
 func getSAMLConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.SAMLConnector, error) {
