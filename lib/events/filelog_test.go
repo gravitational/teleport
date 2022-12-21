@@ -183,7 +183,7 @@ func TestLargeEvent(t *testing.T) {
 				makeQueryEvent("1", "select 1"),
 				makeQueryEvent("2", strings.Repeat("A", bufio.MaxScanTokenSize)),
 				makeQueryEvent("3", "select 3"),
-				makeQueryEvent("4", makeMongoQuery()),
+				makeQueryEvent("4", makeLargeMongoQuery()),
 			},
 			checks: []check{
 				hasEventsLength(4),
@@ -232,10 +232,10 @@ func TestLargeEvent(t *testing.T) {
 	}
 }
 
-// makeMongoQuery returns an example MongoDB query to test TrimToMaxSize when a
+// makeLargeMongoQuery returns an example MongoDB query to test TrimToMaxSize when a
 // query contains a lot of characters that need to be escaped. The additional
 // escaping might push the message size over the limit even after being trimmed.
-func makeMongoQuery() string {
+func makeLargeMongoQuery() string {
 	return `OpMsg(Body={"insert": "books","ordered": true,"lsid": {"id": {"$binary":{"base64":"NX7MXcLdRi6pIT86e52k5A==","subType":"04"}}},"$db": "teleport"}, Documents=[` +
 		strings.Repeat(`{"_id": {"$oid":"63a0dd6da68baaeb828581fe"},"title": "sQtjZtXfYlm7hFwe","author": "55ME1NendNsDZqtI","year_published": 2010}, `, 550) +
 		`], Flags=)`
