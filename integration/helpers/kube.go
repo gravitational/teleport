@@ -120,6 +120,7 @@ func genUserKey() (*client.Key, error) {
 		PrivateKey: priv,
 		TLSCert:    tlsCert,
 		TrustedCerts: []auth.TrustedCerts{{
+			ClusterName:     "localhost",
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, nil

@@ -124,6 +124,7 @@ func TestListKeys(t *testing.T) {
 		for i := 0; i < keyNum; i++ {
 			key, err := keyStore.GetKey(keys[i].KeyIndex, WithSSHCerts{}, WithDBCerts{})
 			require.NoError(t, err)
+			key.TrustedCerts = keys[i].TrustedCerts
 			require.Equal(t, &keys[i], key)
 		}
 

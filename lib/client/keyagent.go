@@ -48,7 +48,7 @@ type LocalKeyAgent struct {
 	agent.ExtendedAgent
 
 	// clientStore is the local storage backend for the client.
-	clientStore *ClientStore
+	clientStore *Store
 
 	// sshAgent is the system ssh agent
 	sshAgent agent.ExtendedAgent
@@ -136,7 +136,7 @@ func shouldAddKeysToAgent(addKeysToAgent string) bool {
 
 // LocalAgentConfig contains parameters for creating the local keys agent.
 type LocalAgentConfig struct {
-	ClientStore *ClientStore
+	ClientStore *Store
 	Agent       agent.ExtendedAgent
 	ProxyHost   string
 	Username    string

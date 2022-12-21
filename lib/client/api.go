@@ -239,7 +239,7 @@ type Config struct {
 	// Agent is used when SkipLocalAuth is true
 	Agent agent.ExtendedAgent
 
-	ClientStore *ClientStore
+	ClientStore *Store
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
 	ForwardAgent AgentForwardingMode
@@ -972,21 +972,18 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			}
 			localAgentCfg.ClientStore = newNoClientStore()
 		} else {
-			fsClientStore, err := NewFSClientStore(c.KeysDir)
+			clientStore, err := NewFSClientStore(c.KeysDir)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
+			// Store client keys in memory, but still save trusted certs and profile to disk.
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				// Store client keys in memory, but save trusted certs and profile to disk.
-				localAgentCfg.ClientStore = NewClientStore(
-					NewMemClientStore(),
-					fsClientStore.TrustedCertsStore,
-					fsClientStore.ProfileStore,
-				)
-			} else {
-				localAgentCfg.ClientStore = fsClientStore
+				clientStore.KeyStore = NewMemKeyStore()
 			}
+
+			localAgentCfg.ClientStore = clientStore
+
 		}
 	}
 

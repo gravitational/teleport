@@ -22,59 +22,54 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ClientStore is a storage interface for client data. ClientStore is made up three types
-// of data stores.
+// Store is a storage interface for client data. Store is made up of three
+// partial data stores; KeyStore, TrustedCertsStore, and ProfileStore.
 //
-// A ClientStore can be made up of partial data stores with different backends. For example,
-// when using `tsh --add-keys-to-agent=only`, ClientStore will be made up of an in-memory
+// A Store can be made up of partial data stores with different backends. For example,
+// when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
 // key store and an FS (~/.tsh) profile and trusted certs store.
-type ClientStore struct {
+type Store struct {
 	KeyStore
 	TrustedCertsStore
 	ProfileStore
 }
 
-// NewClientStore creates a new ClientStore using the provided partial stores.
-func NewClientStore(ks KeyStore, ns TrustedCertsStore, ps ProfileStore) *ClientStore {
-	return &ClientStore{
-		KeyStore:          ks,
-		TrustedCertsStore: ns,
-		ProfileStore:      ps,
-	}
-}
-
-// NewMemClientStore initializes a FS backed client store.
-func NewFSClientStore(dirPath string) (*ClientStore, error) {
+// NewMemClientStore initializes an FS backed client store with the given key dir.
+func NewFSClientStore(dirPath string) (*Store, error) {
 	var err error
 	dirPath, err = initKeysDir(dirPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	logEntry := logrus.WithField(trace.Component, teleport.ComponentKeyStore)
-	return &ClientStore{
+	return &Store{
 		KeyStore:          &FSKeyStore{logEntry, dirPath},
 		TrustedCertsStore: &FSTrustedCertsStore{logEntry, dirPath},
 		ProfileStore:      &FSProfileStore{logEntry, dirPath},
 	}, nil
 }
 
-// NewMemClientStore initializes an in-memory client store.
-func NewMemClientStore() *ClientStore {
-	return &ClientStore{
+// NewMemClientStore initializes a new in-memory client store.
+func NewMemClientStore() *Store {
+	return &Store{
 		KeyStore:          NewMemKeyStore(),
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
 	}
 }
 
-// NewClientStoreFromIdentityFile creates a new local client store using the given identity file path.
-func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*ClientStore, error) {
+// NewClientStoreFromIdentityFile initializes a new in-memory client store
+// and loads data from the given identity file into it. A temporary profile
+// is also added to its profile store with the limited profile data available
+// in the identity file.
+func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*Store, error) {
+	clientStore := NewMemClientStore()
+
 	key, err := KeyFromIdentityFile(identityFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -84,22 +79,9 @@ func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	key.ProxyHost = proxyHost
 	if clusterName != "" {
 		key.ClusterName = clusterName
-	}
-
-	keyStore := NewMemClientStore()
-
-	// Save the temporary profile into the key store.
-	profile := &profile.Profile{
-		WebProxyAddr: proxyAddr,
-		SiteName:     key.ClusterName,
-		Username:     key.Username,
-	}
-	if err := keyStore.SaveProfile(profile, true); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Preload the client key from the agent.
@@ -108,20 +90,26 @@ func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string)
 		ClusterName: key.ClusterName,
 		Username:    key.Username,
 	}
-	if err := keyStore.AddKey(key); err != nil {
+	if err := clientStore.AddKey(key); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := keyStore.SaveTrustedCerts(key.ProxyHost, key.TrustedCerts); err != nil {
+	// Save temporary profile into the key store.
+	profile := &profile.Profile{
+		WebProxyAddr: proxyAddr,
+		SiteName:     key.ClusterName,
+		Username:     key.Username,
+	}
+	if err := clientStore.SaveProfile(profile, true); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return keyStore, nil
+	return clientStore, nil
 }
 
 // AddKey adds the given key to the key store. The key's trusted certificates are
-// also added the the trusted certs store.
-func (s *ClientStore) AddKey(key *Key) error {
+// added the the trusted certs store.
+func (s *Store) AddKey(key *Key) error {
 	if err := s.KeyStore.AddKey(key); err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,9 +119,9 @@ func (s *ClientStore) AddKey(key *Key) error {
 	return nil
 }
 
-// GetKey gets the requested key with the requested certificates. The key will also
-// be populated with corresponding trusted certificates.
-func (s *ClientStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
+// GetKey gets the requested key with trusted the requested certificates. The key's
+// trusted certs will be retrieved from the trusted certs store.
+func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	key, err := s.KeyStore.GetKey(idx, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,7 +135,7 @@ func (s *ClientStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 }
 
 // addTrustedHostKeys is a helper function to add ssh host keys directly, rather than through SaveTrustedCerts.
-func (s *ClientStore) AddTrustedHostKeys(proxyHost string, clusterName string, hostKeys ...ssh.PublicKey) error {
+func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKeys ...ssh.PublicKey) error {
 	var authorizedKeys [][]byte
 	for _, hostKey := range hostKeys {
 		authorizedKeys = append(authorizedKeys, ssh.MarshalAuthorizedKey(hostKey))
@@ -163,7 +151,7 @@ func (s *ClientStore) AddTrustedHostKeys(proxyHost string, clusterName string, h
 
 // ReadProfileStatus returns the profile status for the given profile name.
 // If no profile name is provided, return the current profile.
-func (s *ClientStore) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
+func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	var err error
 	if profileName == "" {
 		profileName, err = s.CurrentProfile()
@@ -224,7 +212,7 @@ func (s *ClientStore) ReadProfileStatus(profileName string) (*ProfileStatus, err
 
 // FullProfileStatus returns the name of the current profile with a
 // a list of all active profile statuses.
-func (s *ClientStore) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
+func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 	currentProfileName, err := s.CurrentProfile()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -261,8 +249,8 @@ func (s *ClientStore) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, err
 // LocalKeyAgent and prevent nil pointer panics.
 type noClientStore struct{}
 
-func newNoClientStore() *ClientStore {
-	return &ClientStore{noClientStore{}, noClientStore{}, noClientStore{}}
+func newNoClientStore() *Store {
+	return &Store{noClientStore{}, noClientStore{}, noClientStore{}}
 }
 
 var errNoClientStore = trace.NotFound("there is no client store")

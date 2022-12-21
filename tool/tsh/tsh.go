@@ -3300,7 +3300,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	return tc, nil
 }
 
-func initClientStore(cf *CLIConf, proxy string) (*client.ClientStore, error) {
+func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 	if cf.IdentityFileIn != "" {
 		keyStore, err := client.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
 		if err != nil {
@@ -3315,36 +3315,33 @@ func initClientStore(cf *CLIConf, proxy string) (*client.ClientStore, error) {
 		return client.NewMemClientStore(), nil
 	}
 
-	fsClientStore, err := client.NewFSClientStore(cf.HomePath)
+	clientStore, err := client.NewFSClientStore(cf.HomePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// When using --add-keys-to-agent=only, we want to avoid writing keys to disk.
-	// However, we still want to write profile data to disk to improve UX between
-	// tsh calls.
+	// Store client keys in memory, but still save trusted certs and profile to disk.
 	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {
-		memKeyStore := client.NewMemClientStore()
-		return client.NewClientStore(memKeyStore, fsClientStore, fsClientStore), nil
+		clientStore.KeyStore = client.NewMemKeyStore()
 	}
 
-	return fsClientStore, nil
+	return clientStore, nil
 }
 
-func (cf *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
-	clientStore, err := initClientStore(cf, cf.Proxy)
+func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
+	clientStore, err := initClientStore(c, c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	profile, err := clientStore.ReadProfileStatus(cf.Proxy)
+	profile, err := clientStore.ReadProfileStatus(c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return profile, nil
 }
 
-func (cf *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
-	clientStore, err := initClientStore(cf, cf.Proxy)
+func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
+	clientStore, err := initClientStore(c, c.Proxy)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -146,7 +146,7 @@ func TestAddTrustedHostKeys(t *testing.T) {
 	t.Parallel()
 	auth := newTestAuthority(t)
 
-	testEachClientStore(t, func(t *testing.T, clientStore *ClientStore) {
+	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
 		t.Parallel()
 
 		pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)

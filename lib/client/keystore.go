@@ -57,7 +57,8 @@ type KeyStore interface {
 	// AddKey adds the given key to the store.
 	AddKey(key *Key) error
 
-	// GetKey returns the user's key including the specified certs.
+	// GetKey returns the user's key including the specified certs. The key's
+	// TrustedCerts will be nil and should be filled in using a TrustedCertsStore.
 	GetKey(idx KeyIndex, opts ...CertOption) (*Key, error)
 
 	// DeleteKey deletes the user's key with all its certs.
@@ -107,11 +108,6 @@ func initKeysDir(dirPath string) (string, error) {
 		return "", trace.ConvertSystemError(err)
 	}
 	return dirPath, nil
-}
-
-// proxyKeyDir returns the keystore's keys directory for the given proxy.
-func (fs *FSKeyStore) proxyKeyDir(proxy string) string {
-	return keypaths.ProxyKeyDir(fs.KeyDir, proxy)
 }
 
 // userKeyPath returns the private key path for the given KeyIndex.

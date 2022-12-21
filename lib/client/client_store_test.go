@@ -58,7 +58,7 @@ func newTestAuthority(t *testing.T) testAuthority {
 	}
 }
 
-// makeSignedKey helper returns all 3 components of a user key (signed by CAPriv key)
+// makeSignedKey helper returns a new user key signed by CAPriv key.
 func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *Key {
 	priv, err := s.keygen.GeneratePrivateKey()
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
-		Groups:   []string{"placeholder"},
+		Groups:   []string{"groups"},
 	}
 	subject, err := identity.Subject()
 	require.NoError(t, err)
@@ -137,13 +137,13 @@ func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, a
 	}, nil
 }
 
-func newTestFSClientStore(t *testing.T) *ClientStore {
+func newTestFSClientStore(t *testing.T) *Store {
 	fsClientStore, err := NewFSClientStore(t.TempDir())
 	require.NoError(t, err)
 	return fsClientStore
 }
 
-func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *ClientStore)) {
+func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *Store)) {
 	t.Run("FS", func(t *testing.T) {
 		testFunc(t, newTestFSClientStore(t))
 	})
@@ -157,7 +157,7 @@ func TestClientStore(t *testing.T) {
 	t.Parallel()
 	a := newTestAuthority(t)
 
-	testEachClientStore(t, func(t *testing.T, clientStore *ClientStore) {
+	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
 		t.Parallel()
 
 		idx := KeyIndex{
@@ -255,7 +255,7 @@ func TestProxySSHConfig(t *testing.T) {
 	t.Parallel()
 	auth := newTestAuthority(t)
 
-	testEachClientStore(t, func(t *testing.T, clientStore *ClientStore) {
+	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
 		t.Parallel()
 
 		idx := KeyIndex{"host.a", "bob", "root"}

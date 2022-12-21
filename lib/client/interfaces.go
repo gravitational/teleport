@@ -620,6 +620,9 @@ func (k *Key) checkCert(sshCert *ssh.Certificate) error {
 	certChecker := sshutils.CertChecker{
 		FIPS: isFIPS(),
 	}
+	if len(sshCert.ValidPrincipals) == 0 {
+		return trace.BadParameter("cert is not valid for any principles")
+	}
 	if err := certChecker.CheckCert(sshCert.ValidPrincipals[0], sshCert); err != nil {
 		return trace.Wrap(err)
 	}

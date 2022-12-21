@@ -262,7 +262,7 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	for scanln() {
 		switch {
 		case isSSHCert(line):
-			ident.Certs.SSH = cloneln()
+			ident.Certs.SSH = append(cloneln(), byte('\n'))
 		case hasPrefix("@cert-authority"):
 			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
 		case hasPrefix("-----BEGIN"):
@@ -271,10 +271,10 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 			var pemBlock []byte
 			for {
 				pemBlock = append(pemBlock, line...)
-				pemBlock = append(pemBlock, '\n')
 				if hasPrefix("-----END") {
 					break
 				}
+				pemBlock = append(pemBlock, '\n')
 				if !scanln() {
 					// If scanner has terminated in the middle of a PEM block, either
 					// the reader encountered an error, or the PEM block is a fragment.
@@ -290,8 +290,10 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 			case ident.PrivateKey == nil:
 				ident.PrivateKey = pemBlock
 			case ident.Certs.TLS == nil:
+				pemBlock = append(pemBlock, '\n')
 				ident.Certs.TLS = pemBlock
 			default:
+				pemBlock = append(pemBlock, '\n')
 				ident.CACerts.TLS = append(ident.CACerts.TLS, pemBlock)
 			}
 		}
