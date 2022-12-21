@@ -190,6 +190,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 			Expiry:        e.sessionCtx.Identity.Expires,
 			SessionName:   e.sessionCtx.Identity.Username,
 			AWSRoleArn:    roleArn,
+			AWSExternalID: e.sessionCtx.Database.GetAWS().ExternalID,
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -306,16 +307,6 @@ func (e *Engine) getRoundTripper(ctx context.Context, URL string) (http.RoundTri
 	return out, nil
 }
 
-// extractEndpointID extracts the AWS endpoint ID from the request header X-Amz-Target.
-func extractEndpointID(req *http.Request) (string, error) {
-	target := req.Header.Get(libaws.AmzTargetHeader)
-	if target == "" {
-		return "", trace.BadParameter("missing %q header in http request", libaws.AmzTargetHeader)
-	}
-	endpointID, err := endpointIDForTarget(target)
-	return endpointID, trace.Wrap(err)
-}
-
 // resolveEndpoint returns a resolved endpoint for either the configured URI or the AWS target service and region.
 func (e *Engine) resolveEndpoint(req *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	endpointID, err := extractEndpointID(req)
@@ -351,6 +342,16 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	reqCopy.URL = resolvedURL
 	reqCopy.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
 	return reqCopy, nil
+}
+
+// extractEndpointID extracts the AWS endpoint ID from the request header X-Amz-Target.
+func extractEndpointID(req *http.Request) (string, error) {
+	target := req.Header.Get(libaws.AmzTargetHeader)
+	if target == "" {
+		return "", trace.BadParameter("missing %q header in http request", libaws.AmzTargetHeader)
+	}
+	endpointID, err := endpointIDForTarget(target)
+	return endpointID, trace.Wrap(err)
 }
 
 // endpointIDForTarget converts a target operation into the appropriate the AWS endpoint ID.

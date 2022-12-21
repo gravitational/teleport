@@ -540,11 +540,7 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 			return trace.BadParameter("--protocol is required when configuring static database")
 		}
 		if f.StaticDatabaseURI == "" {
-			switch f.StaticDatabaseProtocol {
-			case defaults.ProtocolDynamoDB, defaults.ProtocolCassandra:
-			default:
-				return trace.BadParameter("--uri is required when configuring static database")
-			}
+			return trace.BadParameter("--uri is required when configuring static database")
 		}
 
 		if f.StaticDatabaseRawLabels != "" {
