@@ -71,19 +71,22 @@ type License interface {
 	// SetSupportsDesktopAccess sets desktop access support flag
 	SetSupportsDesktopAccess(Bool)
 
-	// GetTrial returns the trial flag
+	// GetTrial returns the trial flag.
+	//  Note: This is not applicable to Cloud licenses
 	GetTrial() Bool
-	// SetTrial sets the trial flag
+	// SetTrial sets the trial flag.
+	//  Note: This is not applicable to Cloud licenses
 	SetTrial(Bool)
 
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
-	// GetAccountID returns Account ID
+	// GetAccountID returns Account ID.
+	//  Note: This is not applicable to all Cloud licenses
 	GetAccountID() string
 }
 
-// NewLicense is a convenience method to to create LicenseV3.
+// NewLicense is a convenience method to create LicenseV3.
 func NewLicense(name string, spec LicenseSpecV3) (License, error) {
 	l := &LicenseV3{
 		Metadata: Metadata{

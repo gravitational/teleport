@@ -877,6 +877,9 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 	}
 
 	checker := apisshutils.CertChecker{
+		CertChecker: ssh.CertChecker{
+			Clock: s.Clock.Now,
+		},
 		FIPS: s.FIPS,
 	}
 	if err := checker.CheckCert(user, cert); err != nil {

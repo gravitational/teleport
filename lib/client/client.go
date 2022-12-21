@@ -871,6 +871,30 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	return ws, nil
 }
 
+// GetAppSession creates a new application access session.
+func (proxy *ProxyClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/GetAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	clusterName, err := proxy.RootClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authClient, err := proxy.ConnectToCluster(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ws, err := authClient.GetAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
+}
+
 // DeleteAppSession removes the specified application access session.
 func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string) error {
 	ctx, span := proxy.Tracer.Start(
@@ -1714,7 +1738,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	)
 	defer span.End()
 
-	env := make(map[string]string)
+	env := c.TC.newSessionEnv()
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
 	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
@@ -1724,9 +1748,6 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	}
 
 	env[teleport.EnvSSHSessionInvited] = string(encoded)
-	for key, value := range c.TC.Env {
-		env[key] = value
-	}
 
 	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
 	if err != nil {

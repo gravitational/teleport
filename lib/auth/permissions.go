@@ -273,6 +273,12 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// Adjust expiry based on locally mapped roles.
 	ttl := time.Until(u.Identity.Expires)
 	ttl = checker.AdjustSessionTTL(ttl)
+	var previousIdentityExpires time.Time
+	if u.Identity.MFAVerified != "" {
+		prevIdentityTTL := time.Until(u.Identity.PreviousIdentityExpires)
+		prevIdentityTTL = checker.AdjustSessionTTL(prevIdentityTTL)
+		previousIdentityExpires = time.Now().Add(prevIdentityTTL)
+	}
 
 	kubeUsers, kubeGroups, err := checker.CheckKubeGroupsAndUsers(ttl, false)
 	// IsNotFound means that the user has no k8s users or groups, which is fine
@@ -290,14 +296,15 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// This prevents downstream users from accidentally using the unmapped
 	// identity information and confusing who's accessing a resource.
 	identity := tlsca.Identity{
-		Username:         user.GetName(),
-		Groups:           user.GetRoles(),
-		Traits:           accessInfo.Traits,
-		Principals:       principals,
-		KubernetesGroups: kubeGroups,
-		KubernetesUsers:  kubeUsers,
-		TeleportCluster:  a.clusterName,
-		Expires:          time.Now().Add(ttl),
+		Username:                user.GetName(),
+		Groups:                  user.GetRoles(),
+		Traits:                  accessInfo.Traits,
+		Principals:              principals,
+		KubernetesGroups:        kubeGroups,
+		KubernetesUsers:         kubeUsers,
+		TeleportCluster:         a.clusterName,
+		Expires:                 time.Now().Add(ttl),
+		PreviousIdentityExpires: previousIdentityExpires,
 
 		// These fields are for routing and restrictions, safe to re-use from
 		// unmapped identity.
@@ -590,6 +597,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 					},
 				},
 			})
@@ -795,6 +803,11 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 type contextKey string
 
 const (
+	// contextUserCertificate is the X.509 certificate used by the ContextUser to
+	// establish the mTLS connection.
+	// Holds a *x509.Certificate.
+	contextUserCertificate contextKey = "teleport-user-cert"
+
 	// ContextUser is a user set in the context of the request
 	ContextUser contextKey = "teleport-user"
 	// ContextClientAddr is a client address set in the context of the request

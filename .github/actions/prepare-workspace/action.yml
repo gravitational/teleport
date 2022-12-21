@@ -15,26 +15,31 @@ runs:
         git config --global --add safe.directory ${GITHUB_WORKSPACE}
         git config --global --add safe.directory ${GITHUB_WORKSPACE}/webassets
 
-    - name: Fetch go cache paths
+    - name: Fetch Go cache paths
       id: go-cache-paths
       shell: bash
       run: |
         echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
         echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
+    - name: Get Go version
+      id: go-version
+      shell: bash
+      run: echo "go-version=$(go version | { read _ _ v _; echo ${v#go}; })" >> $GITHUB_OUTPUT
+
     - name: Go build cache
       uses: actions/cache@v3
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-build-${{ inputs.cache_key }}-
+        key: ${{ runner.os }}-go-build-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-build-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-
 
     - name: Go mod cache
       uses: actions/cache@v3
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-mod-${{ inputs.cache_key }}-
+        key: ${{ runner.os }}-go-mod-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-mod-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-
 
     - name: Rust cargo cache
       uses: actions/cache@v3

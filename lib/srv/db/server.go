@@ -16,7 +16,6 @@ limitations under the License.
 
 package db
 
-//nolint:goimports
 import (
 	"context"
 	"crypto/tls"
@@ -42,22 +41,30 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	// Import to register Cassandra engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	// Import to register Elasticsearch engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
-	// Import to register MongoDB engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	// Import to register Postgres engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
-	// Import to register Snowflake engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func init() {
+	common.RegisterEngine(cassandra.NewEngine, defaults.ProtocolCassandra)
+	common.RegisterEngine(elasticsearch.NewEngine, defaults.ProtocolElasticsearch)
+	common.RegisterEngine(mongodb.NewEngine, defaults.ProtocolMongoDB)
+	common.RegisterEngine(mysql.NewEngine, defaults.ProtocolMySQL)
+	common.RegisterEngine(postgres.NewEngine, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
+	common.RegisterEngine(redis.NewEngine, defaults.ProtocolRedis)
+	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
+	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
+}
 
 // Config is the configuration for a database proxy server.
 type Config struct {
@@ -290,6 +297,10 @@ func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
 
 // New returns a new database server.
 func New(ctx context.Context, config Config) (*Server, error) {
+	if err := common.CheckEngines(defaults.DatabaseProtocols...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err := config.CheckAndSetDefaults(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -811,6 +822,23 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
+		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
+		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
+			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
+				connectionDiagnosticID,
+				&types.ConnectionDiagnosticTrace{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "Access denied when accessing Database. Please check the Error message for more information.",
+					Error:   err.Error(),
+				},
+			)
+
+			if diagErr != nil {
+				return trace.Wrap(diagErr)
+			}
+		}
+
 		return trace.Wrap(err)
 	}
 	return nil
@@ -848,6 +876,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
+		DataDir:      s.cfg.DataDir,
 	})
 }
 

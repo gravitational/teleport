@@ -34,21 +34,23 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // UserCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type UserCommand struct {
-	config               *service.Config
-	login                string
-	allowedLogins        []string
-	allowedWindowsLogins []string
-	allowedKubeUsers     []string
-	allowedKubeGroups    []string
-	allowedDatabaseUsers []string
-	allowedDatabaseNames []string
-	allowedAWSRoleARNs   []string
-	allowedRoles         []string
+	config                 *service.Config
+	login                  string
+	allowedLogins          []string
+	allowedWindowsLogins   []string
+	allowedKubeUsers       []string
+	allowedKubeGroups      []string
+	allowedDatabaseUsers   []string
+	allowedDatabaseNames   []string
+	allowedAWSRoleARNs     []string
+	allowedAzureIdentities []string
+	allowedRoles           []string
 
 	ttl time.Duration
 
@@ -79,6 +81,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
 	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
+	u.userAdd.Flag("azure-identities", "List of allowed Azure identities for the new user").StringsVar(&u.allowedAzureIdentities)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -106,6 +109,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 		StringsVar(&u.allowedDatabaseNames)
 	u.userUpdate.Flag("set-aws-role-arns", "List of allowed AWS role ARNs for the user, replaces current AWS role ARNs").
 		StringsVar(&u.allowedAWSRoleARNs)
+	u.userUpdate.Flag("set-azure-identities", "List of allowed Azure identities for the user, replaces current Azure identities").
+		StringsVar(&u.allowedAzureIdentities)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -218,14 +223,25 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
+	azureIdentities := flattenSlice(u.allowedAzureIdentities)
+	for _, identity := range azureIdentities {
+		if !services.MatchValidAzureIdentity(identity) {
+			return trace.BadParameter("Azure identity %q has invalid format.", identity)
+		}
+		if identity == types.Wildcard {
+			return trace.BadParameter("Azure identity cannot be a wildcard.")
+		}
+	}
+
 	traits := map[string][]string{
-		constants.TraitLogins:        u.allowedLogins,
-		constants.TraitWindowsLogins: u.allowedWindowsLogins,
-		constants.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
-		constants.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
-		constants.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
-		constants.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
-		constants.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitLogins:          u.allowedLogins,
+		constants.TraitWindowsLogins:   u.allowedWindowsLogins,
+		constants.TraitKubeUsers:       flattenSlice(u.allowedKubeUsers),
+		constants.TraitKubeGroups:      flattenSlice(u.allowedKubeGroups),
+		constants.TraitDBUsers:         flattenSlice(u.allowedDatabaseUsers),
+		constants.TraitDBNames:         flattenSlice(u.allowedDatabaseNames),
+		constants.TraitAWSRoleARNs:     flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitAzureIdentities: azureIdentities,
 	}
 
 	user, err := types.NewUser(u.login)
@@ -340,6 +356,19 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		awsRoleARNs := flattenSlice(u.allowedAWSRoleARNs)
 		user.SetAWSRoleARNs(awsRoleARNs)
 		updateMessages["AWS role ARNs"] = awsRoleARNs
+	}
+	if len(u.allowedAzureIdentities) > 0 {
+		azureIdentities := flattenSlice(u.allowedAzureIdentities)
+		for _, identity := range azureIdentities {
+			if !services.MatchValidAzureIdentity(identity) {
+				return trace.BadParameter("Azure identity %q has invalid format.", identity)
+			}
+			if identity == types.Wildcard {
+				return trace.BadParameter("Azure identity cannot be a wildcard.")
+			}
+		}
+		user.SetAzureIdentities(azureIdentities)
+		updateMessages["Azure identities"] = azureIdentities
 	}
 
 	if len(updateMessages) == 0 {

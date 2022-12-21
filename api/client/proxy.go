@@ -104,7 +104,7 @@ func dialProxyWithHTTPDialer(
 	// and then hand off the underlying connection to the caller.
 	// resp.Body.Close() would drain conn and close it, we don't need to do it
 	// here. Disabling bodyclose linter for this edge case.
-	//nolint:bodyclose
+	//nolint:bodyclose // avoid draining the connection
 	resp, err := http.ReadResponse(br, connectReq)
 	if err != nil {
 		conn.Close()

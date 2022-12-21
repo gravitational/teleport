@@ -21,8 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -102,16 +99,6 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CreateUploaderDir creates directory for file uploader service
-func CreateUploaderDir(dir string) error {
-	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	return nil
-}
-
 // TestServer defines the set of server components for a test
 type TestServer struct {
 	TLS        *TestTLSServer
@@ -133,17 +120,35 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tlsServer *TestTLSServer
-	if cfg.TLS != nil {
-		tlsServer, err = NewTestTLSServer(*cfg.TLS)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		tlsServer, err = authServer.NewTestTLSServer()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Set the (test) auth server in cfg.TLS and set any defaults that
+	// are not set.
+	tlsCfg := cfg.TLS
+	if tlsCfg == nil {
+		tlsCfg = &TestTLSServerConfig{}
+	}
+	if tlsCfg.APIConfig == nil {
+		tlsCfg.APIConfig = &APIConfig{}
+	}
+
+	tlsCfg.AuthServer = authServer
+	tlsCfg.APIConfig.AuthServer = authServer.AuthServer
+
+	if tlsCfg.APIConfig.Authorizer == nil {
+		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
+	}
+	if tlsCfg.APIConfig.AuditLog == nil {
+		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
+	}
+	if tlsCfg.APIConfig.Emitter == nil {
+		tlsCfg.APIConfig.Emitter = authServer.AuthServer.emitter
+	}
+	if tlsCfg.AcceptedUsage == nil {
+		tlsCfg.AcceptedUsage = authServer.AcceptedUsage
+	}
+
+	tlsServer, err := NewTestTLSServer(*tlsCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &TestServer{
 		AuthServer: authServer,

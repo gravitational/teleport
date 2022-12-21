@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -51,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -437,7 +438,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 	clientConfig.Host = t.sessionData.ServerHostname
 	clientConfig.HostPort = t.sessionData.ServerHostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: t.sessionData.ID.String()}
+	clientConfig.SessionID = t.sessionData.ID.String()
 	clientConfig.ClientAddr = r.RemoteAddr
 	clientConfig.Tracer = t.tracer
 
@@ -481,15 +482,15 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 		stream.Recv()
 	}()
 
-	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	key := &client.Key{
 		PrivateKey: pk,
-		Cert:       t.ctx.session.GetPub(),
-		TLSCert:    t.ctx.session.GetTLSCert(),
+		Cert:       t.ctx.cfg.Session.GetPub(),
+		TLSCert:    t.ctx.cfg.Session.GetTLSCert(),
 	}
 
 	tlsCert, err := key.TeleportTLSCertificate()
@@ -627,9 +628,20 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return
 	}
 
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, nil)
+	agentGetter := func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(tc.LocalAgent()), nil
+	}
+
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
+
+		if errors.Is(err, trace.NotFound(teleport.NodeIsAmbiguous)) {
+			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
+			t.writeError(trace.NotFound(message), ws)
+			return
+		}
+
 		t.writeError(err, ws)
 		return
 	}
@@ -650,7 +662,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
-	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
 	switch {
 	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
 		t.log.WithError(connectErr).Warn("Unable to stream terminal - failed to create node client")
@@ -690,14 +702,14 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		sshConfig.Auth = tc.AuthMethods
 
 		// connect to the node again with the new certs
-		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, nil)
+		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
 			t.writeError(err, ws)
 			return
 		}
 
-		nc, err = client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+		nc, err = client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to create node client")
 			t.writeError(err, ws)
@@ -808,24 +820,30 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) {
 	}
 }
 
+// the defaultPort of 0 indicates that the port is
+// unknown or was not provided and should be guessed
+const defaultPort = 0
+
 // resolveServerHostPort parses server name and attempts to resolve hostname
 // and port.
 func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
-	// If port is 0, client wants us to figure out which port to use.
-	defaultPort := 0
-
 	if servername == "" {
 		return "", defaultPort, trace.BadParameter("empty server name")
 	}
 
 	// Check if servername is UUID.
-	for i := range existingServers {
-		node := existingServers[i]
+	for _, node := range existingServers {
 		if node.GetName() == servername {
 			return node.GetHostname(), defaultPort, nil
 		}
 	}
 
+	host, port, err := serverHostPort(servername)
+	return host, port, trace.Wrap(err)
+}
+
+// serverHostPort returns the host and port for [servername]
+func serverHostPort(servername string) (string, int, error) {
 	if !strings.Contains(servername, ":") {
 		return servername, defaultPort, nil
 	}
