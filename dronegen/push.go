@@ -134,7 +134,7 @@ func ghaPushBuild(b buildType) pipeline {
 			Name:  "Delegate build to GitHub",
 			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
 			Environment: map[string]value{
-				"GHA_APP_KEY": {fromSecret: "GITHUB_APP_PRIVATE_KEY"},
+				"GHA_APP_KEY": {fromSecret: "GITHUB_WORKFLOW_APP_PRIVATE_KEY"},
 			},
 			Commands: []string{
 				`cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"`,
