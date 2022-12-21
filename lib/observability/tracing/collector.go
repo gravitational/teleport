@@ -43,9 +43,9 @@ type Collector struct {
 	coltracepb.TraceServiceServer
 	tlsConfing *tls.Config
 
-	spanLock sync.RWMutex
-	spans    []*otlp.ScopeSpans
-	exported chan struct{}
+	spanLock  sync.RWMutex
+	spans     []*otlp.ScopeSpans
+	exportedC chan struct{}
 }
 
 // CollectorConfig configures how a Collector should be created.
@@ -77,7 +77,7 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 		httpLn:     httpLn,
 		grpcServer: grpc.NewServer(grpc.Creds(creds)),
 		tlsConfing: tlsConfig,
-		exported:   make(chan struct{}, 1),
+		exportedC:  make(chan struct{}, 1),
 	}
 
 	c.httpServer = &http.Server{Handler: c, TLSConfig: tlsConfig.Clone()}
@@ -189,7 +189,7 @@ func (c *Collector) Export(ctx context.Context, req *coltracepb.ExportTraceServi
 	}
 
 	select {
-	case c.exported <- struct{}{}:
+	case c.exportedC <- struct{}{}:
 	default:
 	}
 
@@ -197,7 +197,7 @@ func (c *Collector) Export(ctx context.Context, req *coltracepb.ExportTraceServi
 }
 
 func (c *Collector) WaitForExport() {
-	<-c.exported
+	<-c.exportedC
 }
 
 // Spans returns all collected spans and resets the collector
