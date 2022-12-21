@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2020 Gravitational, Inc.
+Copyright 2016-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -179,7 +179,7 @@ func TestClientStore(t *testing.T) {
 		// Getting the key from the key store should have no trusted certs.
 		retrievedKey, err := clientStore.KeyStore.GetKey(idx, WithAllCerts...)
 		require.NoError(t, err)
-		expectKey := key.Clone()
+		expectKey := key.Copy()
 		expectKey.TrustedCerts = nil
 		require.Equal(t, expectKey, retrievedKey)
 
@@ -220,12 +220,12 @@ func TestClientStore(t *testing.T) {
 
 		// FullProfileStatus should return the current profile status, and any
 		// other available profiles' statuses.
-		otherKey := key.Clone()
+		otherKey := key.Copy()
 		otherKey.ProxyHost = "other.example.com"
 		err = clientStore.AddKey(otherKey)
 		require.NoError(t, err)
 
-		otherProfile := profile.Clone()
+		otherProfile := profile.Copy()
 		otherProfile.WebProxyAddr = "other.example.com:3080"
 		err = clientStore.SaveProfile(otherProfile, false)
 		require.NoError(t, err)

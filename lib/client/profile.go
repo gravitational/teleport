@@ -83,7 +83,7 @@ func (ms *MemProfileStore) ListProfiles() ([]string, error) {
 // GetProfile returns the requested profile.
 func (ms *MemProfileStore) GetProfile(profileName string) (*profile.Profile, error) {
 	if profile, ok := ms.profiles[profileName]; ok {
-		return profile.Clone(), nil
+		return profile.Copy(), nil
 	}
 	return nil, trace.NotFound("profile for proxy host %q not found", profileName)
 }
@@ -91,7 +91,7 @@ func (ms *MemProfileStore) GetProfile(profileName string) (*profile.Profile, err
 // SaveProfile saves the given profile. If makeCurrent
 // is true, it makes this profile current.
 func (ms *MemProfileStore) SaveProfile(profile *profile.Profile, makecurrent bool) error {
-	ms.profiles[profile.Name()] = profile.Clone()
+	ms.profiles[profile.Name()] = profile.Copy()
 	if makecurrent {
 		ms.currentProfile = profile.Name()
 	}

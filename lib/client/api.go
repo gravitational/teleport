@@ -616,7 +616,7 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		return nil
 	}
 
-	profile := &profile.Profile{
+	p := &profile.Profile{
 		Username:          c.Username,
 		WebProxyAddr:      c.WebProxyAddr,
 		SSHProxyAddr:      c.SSHProxyAddr,
@@ -632,7 +632,7 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		LoadAllCAs:        c.LoadAllCAs,
 	}
 
-	if err := c.ClientStore.SaveProfile(profile, makeCurrent); err != nil {
+	if err := c.ClientStore.SaveProfile(p, makeCurrent); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -51,11 +51,11 @@ func Deduplicate(in []string) []string {
 		return in
 	}
 	out := make([]string, 0, len(in))
-	seen := make(map[string]bool, len(in))
+	seen := make(map[string]struct{}, len(in))
 	for _, val := range in {
 		if _, ok := seen[val]; !ok {
 			out = append(out, val)
-			seen[val] = true
+			seen[val] = struct{}{}
 		}
 	}
 	return out
@@ -67,11 +67,11 @@ func DeduplicateBytes(in [][]byte) [][]byte {
 		return in
 	}
 	out := make([][]byte, 0, len(in))
-	seen := make(map[string]bool, len(in))
+	seen := make(map[string]struct{}, len(in))
 	for _, val := range in {
 		if _, ok := seen[string(val)]; !ok {
 			out = append(out, val)
-			seen[string(val)] = true
+			seen[string(val)] = struct{}{}
 		}
 	}
 	return out

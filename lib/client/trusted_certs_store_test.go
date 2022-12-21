@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2020 Gravitational, Inc.
+Copyright 2016-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -227,6 +227,5 @@ func TestParallelKnownHostsFileWrite(t *testing.T) {
 
 	keys, err := clientStore.GetTrustedHostKeys()
 	require.NoError(t, err)
-	require.NotNil(t, keys)
-	require.True(t, len(keys) > 1)
+	require.Len(t, keys, 5)
 }

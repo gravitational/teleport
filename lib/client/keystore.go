@@ -543,13 +543,16 @@ func (o WithAppCerts) deleteFromKey(key *Key) {
 type MemKeyStore struct {
 	log *logrus.Entry
 	// keys is a three-dimensional map indexed by [proxyHost][username][clusterName]
-	keys map[string]map[string]map[string]*Key
+	keys keyMap
 }
+
+// keyMap is a three-dimensional map indexed by [proxyHost][username][clusterName]
+type keyMap map[string]map[string]map[string]*Key
 
 func NewMemKeyStore() *MemKeyStore {
 	return &MemKeyStore{
 		log:  logrus.WithField(trace.Component, teleport.ComponentKeyStore),
-		keys: map[string]map[string]map[string]*Key{},
+		keys: make(keyMap),
 	}
 }
 
@@ -566,7 +569,7 @@ func (ms *MemKeyStore) AddKey(key *Key) error {
 	if !ok {
 		ms.keys[key.ProxyHost][key.Username] = map[string]*Key{}
 	}
-	keyCopy := key.Clone()
+	keyCopy := key.Copy()
 
 	// TrustedCA is stored separately in the Memory store so we wipe out
 	// the keys' trusted CA to prevent inconsistencies.
@@ -610,7 +613,7 @@ func (ms *MemKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 		}
 	}
 
-	return key.Clone(), nil
+	return key.Copy(), nil
 }
 
 // DeleteKey deletes the user's key with all its certs.
@@ -621,7 +624,7 @@ func (ms *MemKeyStore) DeleteKey(idx KeyIndex) error {
 
 // DeleteKeys removes all session keys.
 func (ms *MemKeyStore) DeleteKeys() error {
-	ms.keys = make(map[string]map[string]map[string]*Key)
+	ms.keys = make(keyMap)
 	return nil
 }
 

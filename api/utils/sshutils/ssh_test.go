@@ -127,24 +127,23 @@ func TestSSHMarshalEd25519(t *testing.T) {
 }
 
 func TestMatchesWildcard(t *testing.T) {
-	// Not a wildcard pattern.
-	require.False(t, matchesWildcard("foo.example.com", "example.com"))
+	t.Run("Wildcard match", func(t *testing.T) {
+		require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
+		require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
+		require.True(t, matchesWildcard("bar.example.com.", "*.example.com"))
+		require.True(t, matchesWildcard("bar.foo", "*.foo"))
+	})
 
-	// Not a match.
-	require.False(t, matchesWildcard("foo.example.org", "*.example.com"))
+	t.Run("Wildcard mismatch", func(t *testing.T) {
+		require.False(t, matchesWildcard("foo.example.com", "example.com"), "Not a wildcard pattern")
+		require.False(t, matchesWildcard("foo.example.org", "*.example.com"), "Wildcard pattern shouldn't match different suffix")
+		require.False(t, matchesWildcard("a.b.example.com", "*.example.com"), "Wildcard pattern shouldn't match multiple prefixes")
 
-	// Too many levels deep.
-	require.False(t, matchesWildcard("a.b.example.com", "*.example.com"))
-
-	// Single-part hostnames never match.
-	require.False(t, matchesWildcard("example", "*.example.com"))
-	require.False(t, matchesWildcard("example", "*.example"))
-	require.False(t, matchesWildcard("example", "example"))
-	require.False(t, matchesWildcard("example", "*."))
-
-	// Valid wildcard matches.
-	require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
-	require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
-	require.True(t, matchesWildcard("bar.example.com.", "*.example.com"))
-	require.True(t, matchesWildcard("bar.foo", "*.foo"))
+		t.Run("Single part hostname", func(t *testing.T) {
+			require.False(t, matchesWildcard("example", "*.example.com"))
+			require.False(t, matchesWildcard("example", "*.example"))
+			require.False(t, matchesWildcard("example", "example"))
+			require.False(t, matchesWildcard("example", "*."))
+		})
+	})
 }

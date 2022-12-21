@@ -117,7 +117,7 @@ func matchesWildcard(hostname, pattern string) bool {
 	hostname = strings.TrimSuffix(hostname, ".")
 
 	// Don't allow non-wildcard patterns.
-	if !strings.HasPrefix(pattern, "*.") {
+	if !strings.HasPrefix(pattern, "*.") || len(pattern) < 2 {
 		return false
 	}
 

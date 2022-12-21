@@ -55,20 +55,25 @@ type TrustedCertsStore interface {
 	// Each returned byte slice contains an individual PEM block.
 	GetTrustedCertsPEM(proxyHost string) ([][]byte, error)
 
-	// GetTrustedHostKeys returns all trusted public host keys for the given host name.
+	// GetTrustedHostKeys returns all trusted public host keys. If hostNames are provided, only
+	// matching host keys will be returned. Host names should be a proxy host, cluster name, or
+	// wildcard cluster name like "*.cluster".
 	GetTrustedHostKeys(hostNames ...string) ([]ssh.PublicKey, error)
 }
 
 // MemTrustedCertsStore is an in-memory implementation of TrustedCertsStore.
 type MemTrustedCertsStore struct {
 	// memLocalCAStoreMap is a two-dimensinoal map indexed by [proxyHost][clusterName]
-	trustedCerts map[string]map[string]auth.TrustedCerts
+	trustedCerts trustedCertsMap
 }
+
+// trustedCertsMap is a two-dimensinoal map indexed by [proxyHost][clusterName]
+type trustedCertsMap map[string]map[string]auth.TrustedCerts
 
 // NewMemTrustedCertsStore creates a new instance of MemTrustedCertsStore.
 func NewMemTrustedCertsStore() *MemTrustedCertsStore {
 	return &MemTrustedCertsStore{
-		trustedCerts: make(map[string]map[string]auth.TrustedCerts),
+		trustedCerts: make(trustedCertsMap),
 	}
 }
 
@@ -126,8 +131,9 @@ func (ms *MemTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, 
 	return tlsHostCerts, nil
 }
 
-// GetTrustedHostKeys returns all trusted public host keys for the given host name.
-// Host names should be a proxy host, cluster name, or wildcard cluster name like "*.cluster".
+// GetTrustedHostKeys returns all trusted public host keys. If hostNames are provided, only
+// matching host keys will be returned. Host names should be a proxy host, cluster name, or
+// wildcard cluster name like "*.cluster".
 func (ms *MemTrustedCertsStore) GetTrustedHostKeys(hostNames ...string) ([]ssh.PublicKey, error) {
 	matchHost := func(proxyHost, clusterName string) (ret bool) {
 		if len(hostNames) == 0 {
@@ -221,7 +227,9 @@ func (fs *FSTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]auth.Trusted
 	return trustedCertsFromCACerts(tlsCA, [][]byte{knownHosts})
 }
 
-// GetTrustedHostKeys returns all trusted public host keys for the given host name from `known_hosts`.
+// GetTrustedHostKeys returns all trusted public host keys. If hostNames are provided, only
+// matching host keys will be returned. Host names should be a proxy host, cluster name, or
+// wildcard cluster name like "*.cluster".
 func (fs *FSTrustedCertsStore) GetTrustedHostKeys(hostNames ...string) (keys []ssh.PublicKey, retErr error) {
 	knownHosts, err := fs.getKnownHostsFile()
 	if err != nil {
@@ -256,7 +264,6 @@ func (fs *FSTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.Tru
 	}
 
 	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
-		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
 
@@ -286,7 +293,6 @@ func (fs *FSTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.Tru
 func (fs *FSTrustedCertsStore) saveTrustedCertsInCASDir(proxyHost string, cas []auth.TrustedCerts) error {
 	casDirPath := filepath.Join(fs.casDir(proxyHost))
 	if err := os.MkdirAll(casDirPath, os.ModeDir|profileDirPerms); err != nil {
-		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
 
@@ -294,19 +300,34 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInCASDir(proxyHost string, cas []
 		if len(ca.TLSCertificates) == 0 {
 			continue
 		}
-		if !isSafeClusterName(ca.ClusterName) {
+		// check if cluster name is safe and doesn't contain miscellaneous characters.
+		if !strings.Contains(ca.ClusterName, "..") {
 			fs.log.Warnf("Skipped unsafe cluster name: %q", ca.ClusterName)
 			continue
 		}
 		// Create CA files in cas dir for each cluster.
-		caFile, err := os.OpenFile(fs.clusterCAPath(proxyHost, ca.ClusterName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
-
-		if err := writeClusterCertificates(caFile, ca.TLSCertificates); err != nil {
+		if err := fs.writeClusterCertificates(proxyHost, ca.ClusterName, ca.TLSCertificates); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+func (fs *FSTrustedCertsStore) writeClusterCertificates(proxyHost, clusterName string, tlsCertificates [][]byte) (retErr error) {
+	caFile, err := os.OpenFile(fs.clusterCAPath(proxyHost, clusterName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer utils.StoreErrorOf(caFile.Close, &retErr)
+
+	defer caFile.Close()
+	for _, cert := range tlsCertificates {
+		if _, err := caFile.Write(cert); err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	}
+	if err := caFile.Sync(); err != nil {
+		return trace.ConvertSystemError(err)
 	}
 	return nil
 }
@@ -318,6 +339,7 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, 
 		return trace.ConvertSystemError(err)
 	}
 	defer utils.StoreErrorOf(fp.Close, &retErr)
+
 	for _, ca := range cas {
 		for _, cert := range ca.TLSCertificates {
 			if _, err := fp.Write(cert); err != nil {
@@ -328,22 +350,7 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, 
 			}
 		}
 	}
-	return fp.Sync()
-}
-
-// isSafeClusterName check if cluster name is safe and doesn't contain miscellaneous characters.
-func isSafeClusterName(name string) bool {
-	return !strings.Contains(name, "..")
-}
-
-func writeClusterCertificates(f *os.File, tlsCertificates [][]byte) error {
-	defer f.Close()
-	for _, cert := range tlsCertificates {
-		if _, err := f.Write(cert); err != nil {
-			return trace.ConvertSystemError(err)
-		}
-	}
-	if err := f.Sync(); err != nil {
+	if err := fp.Sync(); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil

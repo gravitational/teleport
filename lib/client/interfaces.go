@@ -108,8 +108,8 @@ type Key struct {
 	TrustedCerts []auth.TrustedCerts
 }
 
-// Clone returns a shallow copy of k, or nil if k is nil.
-func (k *Key) Clone() *Key {
+// Copy returns a shallow copy of k, or nil if k is nil.
+func (k *Key) Copy() *Key {
 	if k == nil {
 		return nil
 	}
