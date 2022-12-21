@@ -239,7 +239,8 @@ func TestHeartbeatEvents(t *testing.T) {
 
 			require.NotNil(t, server)
 			require.Eventually(t, func() bool {
-				return atomic.LoadInt64(&heartbeatEvents) == test.heartbeatCount
+				// DatabaseService will emit an heartbeat, so we must increase the expected hearbeats by 1
+				return atomic.LoadInt64(&heartbeatEvents) == test.heartbeatCount+1
 			}, 2*time.Second, 500*time.Millisecond)
 		})
 	}

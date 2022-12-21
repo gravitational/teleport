@@ -30,6 +30,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -1380,8 +1381,55 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	case types.KindDatabaseService:
+		dbServices, err := listDatabaseServices(ctx, client, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(dbServices) == 0 && rc.ref.Name != "" {
+			return nil, trace.NotFound("Database Service %q not found", rc.ref.Name)
+		}
+
+		return &databaseServiceCollection{databaseServices: dbServices}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+}
+
+func listDatabaseServices(ctx context.Context, client auth.ClientI, name string) ([]types.DatabaseService, error) {
+	out := make([]types.DatabaseService, 0)
+
+	listReq := proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	}
+
+	if name != "" {
+		listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, name)
+	}
+
+	nextKey := ""
+	for {
+		listReq.StartKey = nextKey
+		listResp, err := client.ListResources(ctx, listReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		databaseServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, databaseServices...)
+
+		nextKey = listResp.NextKey
+		if nextKey == "" || len(listResp.Resources) == 0 {
+			break
+		}
+	}
+
+	return out, nil
 }
 
 func getSAMLConnectors(ctx context.Context, client auth.ClientI, name string, withSecrets bool) ([]types.SAMLConnector, error) {
