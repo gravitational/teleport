@@ -324,7 +324,7 @@ func (tur *TeleportUsageReporter) Run(ctx context.Context) {
 	tur.usageReporter.Run(ctx)
 }
 
-func NewUsageReporterTeleport(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.SubmitFunc[prehogapi.SubmitEventRequest]) (*TeleportUsageReporter, error) {
+func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.SubmitFunc[prehogapi.SubmitEventRequest]) (*TeleportUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
