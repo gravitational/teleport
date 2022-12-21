@@ -1,0 +1,98 @@
+// Copyright 2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package prehog.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+message ConnectLoginEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  string arch = 3;
+  string os = 4;
+  string os_version = 5;
+  string connect_version = 6;
+}
+
+message ConnectProtocolRunEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  // one of ssh/db/kube
+  string protocol = 3;
+}
+
+message ConnectAccessRequestCreateEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  // one of role/resource
+  string kind = 3;
+}
+
+message ConnectAccessRequestReviewEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+}
+
+message ConnectAccessRequestAssumeRoleEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+}
+
+message ConnectFileTransferRunEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  // upload/download
+  string direction = 3;
+}
+
+message ConnectUserJobRoleUpdateEvent {
+  string job_role = 1;
+}
+
+message SubmitConnectEventRequest {
+  // "connect.{{uuid}}"
+  string distinct_id = 1;
+
+  google.protobuf.Timestamp timestamp = 2;
+
+  oneof event {
+    ConnectLoginEvent connect_login = 3;
+    ConnectProtocolRunEvent connect_protocol_run = 4;
+    ConnectAccessRequestCreateEvent connect_access_request_create = 5;
+    ConnectAccessRequestReviewEvent connect_access_request_review = 6;
+    ConnectAccessRequestAssumeRoleEvent connect_access_request_assume_role = 7;
+    ConnectFileTransferRunEvent connect_file_transfer_run_event = 8;
+    ConnectUserJobRoleUpdateEvent connect_user_job_role_update_event = 9;
+  }
+}
+
+message SubmitConnectEventResponse {}
+
+service ConnectReportingService {
+  rpc SubmitConnectEvent(SubmitConnectEventRequest) returns (SubmitConnectEventResponse) {}
+}

@@ -114,6 +114,8 @@ type TerminalServiceClient interface {
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (TerminalService_TransferFileClient, error)
+	// dsf
+	ReportEvent(ctx context.Context, in *ReportEventRequest, opts ...grpc.CallOption) (*EventReportedResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -457,6 +459,15 @@ func (x *terminalServiceTransferFileClient) Recv() (*FileTransferProgress, error
 	return m, nil
 }
 
+func (c *terminalServiceClient) ReportEvent(ctx context.Context, in *ReportEventRequest, opts ...grpc.CallOption) (*EventReportedResponse, error) {
+	out := new(EventReportedResponse)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ReportEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -553,6 +564,8 @@ type TerminalServiceServer interface {
 	Logout(context.Context, *LogoutRequest) (*EmptyResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error
+	// dsf
+	ReportEvent(context.Context, *ReportEventRequest) (*EventReportedResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -655,6 +668,9 @@ func (UnimplementedTerminalServiceServer) Logout(context.Context, *LogoutRequest
 }
 func (UnimplementedTerminalServiceServer) TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error {
 	return status.Errorf(codes.Unimplemented, "method TransferFile not implemented")
+}
+func (UnimplementedTerminalServiceServer) ReportEvent(context.Context, *ReportEventRequest) (*EventReportedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportEvent not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1256,6 +1272,24 @@ func (x *terminalServiceTransferFileServer) Send(m *FileTransferProgress) error 
 	return x.ServerStream.SendMsg(m)
 }
 
+func _TerminalService_ReportEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ReportEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.terminal.v1.TerminalService/ReportEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ReportEvent(ctx, req.(*ReportEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1382,6 +1416,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Logout",
 			Handler:    _TerminalService_Logout_Handler,
+		},
+		{
+			MethodName: "ReportEvent",
+			Handler:    _TerminalService_ReportEvent_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
