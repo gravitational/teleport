@@ -188,6 +188,7 @@ pub unsafe extern "C" fn connect_rdp(
     screen_height: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
+    show_desktop_wallpaper: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
     let addr = from_c_string(go_addr);
@@ -206,6 +207,7 @@ pub unsafe extern "C" fn connect_rdp(
             screen_height,
             allow_clipboard,
             allow_directory_sharing,
+            show_desktop_wallpaper,
         },
     )
     .into()
@@ -242,6 +244,7 @@ struct ConnectParams {
     screen_height: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
+    show_desktop_wallpaper: bool,
 }
 
 fn connect_rdp_inner(
@@ -291,6 +294,11 @@ fn connect_rdp_inner(
     // Generate a random 8-digit PIN for our smartcard.
     let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
     let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
+    let mut performance_flags = sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
+        | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32;
+    if !params.show_desktop_wallpaper {
+        performance_flags |= sec::ExtendedInfoFlag::PerfDisableWallpaper as u32;
+    }
     sec::connect(
         &mut mcs,
         &domain.to_string(),
@@ -300,12 +308,7 @@ fn connect_rdp_inner(
         // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
         // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
-        Some(
-            sec::ExtendedInfoFlag::PerfDisableWallpaper as u32
-                | sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
-                | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32
-                | sec::ExtendedInfoFlag::PerfDisableTheming as u32,
-        ),
+        Some(performance_flags),
     )?;
     // Client for the "global" channel - video output and user input.
     let global = global::Client::new(

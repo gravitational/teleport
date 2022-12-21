@@ -253,6 +253,7 @@ func (c *Client) connect(ctx context.Context) error {
 		C.uint16_t(c.clientHeight),
 		C.bool(c.cfg.AllowClipboard),
 		C.bool(c.cfg.AllowDirectorySharing),
+		C.bool(c.cfg.ShowDesktopWallpaper),
 	)
 	if res.err != C.ErrCodeSuccess {
 		return trace.ConnectionProblem(nil, "RDP connection failed")
