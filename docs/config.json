@@ -55,6 +55,10 @@
       "title": "Deploy a Cluster",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/deploy-a-cluster/introduction/"
+        },
+        {
           "title": "Open Source Teleport",
           "slug": "/deploy-a-cluster/open-source/",
           "forScopes": ["oss"]
@@ -112,6 +116,11 @@
               "forScopes": ["enterprise"]
             }
           ]
+        },
+        {
+          "title": "High Availability Deployments",
+          "slug": "/deploy-a-cluster/high-availability/",
+          "forScopes": ["oss", "enterprise"]
         },
         {
           "title": "Deploy with Helm",
@@ -473,16 +482,6 @@
               "slug": "/management/guides/docker/"
             },
             {
-              "title": "Fluentd",
-              "slug": "/management/guides/fluentd/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Monitor Audit Events with the Elastic Stack",
-              "slug": "/management/guides/elastic-stack/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
               "title": "EC2 Tags",
               "slug": "/management/guides/ec2-tags/"
             },
@@ -524,6 +523,27 @@
               "title": "Distributed Tracing",
               "slug": "/management/diagnostics/tracing/",
               "forScopes": ["oss", "enterprise", "cloud"]
+            }
+          ]
+        },
+        {
+          "title": "Exporting Audit Events",
+          "slug": "/management/export-audit-events/",
+          "entries": [
+            {
+              "title": "Exporting Audit Events to Fluentd",
+              "slug": "/management/export-audit-events/fluentd/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Monitoring Audit Events with the Elastic Stack",
+              "slug": "/management/export-audit-events/elastic-stack/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Monitoring Audit Events with Splunk",
+              "slug": "/management/export-audit-events/splunk/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         }
@@ -1866,7 +1886,7 @@
     },
     {
       "source": "/setup/guides/fluentd/",
-      "destination": "/management/guides/fluentd/",
+      "destination": "/management/export-audit-events/fluentd/",
       "permanent": true
     },
     {
