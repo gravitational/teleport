@@ -1,6 +1,9 @@
 import { RuntimeSettings, MainProcessClient } from 'teleterm/types';
 import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
-import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
+// createConfigService has to be imported directly from configService.ts.
+// teleterm/services/config/index.ts reexports the config service client which depends on electron.
+// Importing electron breaks the fixtures if that's done from within storybook.
+import { createConfigService } from 'teleterm/services/config/configService';
 
 const platform = 'darwin';
 
@@ -44,7 +47,7 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve({ canceled: false, filePath: '' });
   }
 
-  configService = createMockConfigService({});
+  configService = createConfigService(createMockFileStorage(), platform);
 
   fileStorage = createMockFileStorage();
 
