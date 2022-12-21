@@ -42,6 +42,7 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -410,6 +412,8 @@ type Server struct {
 	samlAuthService SAMLService
 	oidcAuthService OIDCService
 
+	releaseService release.Client
+
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -486,6 +490,9 @@ type Server struct {
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
+
+	// license is the Teleport Enterprise license used to star the auth server
+	license *liblicense.License
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -500,6 +507,14 @@ func (a *Server) SetSAMLService(svc SAMLService) {
 // will override the previous registration.
 func (a *Server) SetOIDCService(svc OIDCService) {
 	a.oidcAuthService = svc
+}
+
+func (a *Server) SetLicense(license *liblicense.License) {
+	a.license = license
+}
+
+func (a *Server) SetReleaseService(svc release.Client) {
+	a.releaseService = svc
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -4222,6 +4237,13 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 	}
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+}
+
+func (a *Server) GetLicense(ctx context.Context, req *proto.SubmitUsageEventRequest) (string, error) {
+	if a.license == nil {
+		return "", trace.NotFound("license not found")
+	}
+	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly
