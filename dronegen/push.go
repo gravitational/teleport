@@ -131,14 +131,23 @@ func ghaPushBuild(b buildType) pipeline {
 			},
 			Commands: pushCheckoutCommands(b),
 		}, {
+			Name:  "Determine teleport.e revision",
+			Image: "docker:git",
+			Commands: []string{
+				`cd "/go/src/github.com/gravitational/teleport"`,
+				`echo TELEPORT_E_REF=$(git rev-parse @:e) >> DRONE.ENV`,
+			},
+		}, {
 			Name:  "Delegate build to GitHub",
 			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
 			Environment: map[string]value{
 				"GHA_APP_KEY": {fromSecret: "GITHUB_WORKFLOW_APP_PRIVATE_KEY"},
 			},
 			Commands: []string{
+				`cd "/go/src/github.com/gravitational/teleport"`,
+				`source DRONE.ENV`,
 				`cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"`,
-				`go run ./cmd/gh-trigger-workflow -owner $DRONE_REPO_OWNER -repo $DRONE_REPO_NAME -workflow-ref tcsc/gha-arm-builds -workflow release-linux-arm64.yml -input oss-teleport-ref=$DRONE_COMMIT -input upload-artifacts=false`,
+				`go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo ${DRONE_REPO_NAME} -workflow-ref $TELEPORT_E_REF -workflow release-linux-arm64.yml -input oss-teleport-ref=${DRONE_COMMIT} -input upload-artifacts=false`,
 			},
 		},
 		sendErrorToSlackStep(),

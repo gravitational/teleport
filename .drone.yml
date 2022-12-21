@@ -1310,12 +1310,19 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Determine teleport.e revision
+  image: docker:git
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport"
+  - echo TELEPORT_E_REF=$(git rev-parse @:e) >> DRONE.ENV
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
+  - cd "/go/src/github.com/gravitational/teleport"
+  - source DRONE.ENV
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner $DRONE_REPO_OWNER -repo $DRONE_REPO_NAME
-    -workflow-ref tcsc/gha-arm-builds -workflow release-linux-arm64.yml -input oss-teleport-ref=$DRONE_COMMIT
+  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo ${DRONE_REPO_NAME}
+    -workflow-ref $TELEPORT_E_REF -workflow release-linux-arm64.yml -input oss-teleport-ref=${DRONE_COMMIT}
     -input upload-artifacts=false
   environment:
     GHA_APP_KEY:
@@ -18389,6 +18396,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 71d6fcad7ea2cdb9d7bb0d1118153ed89e18a91f79780fd406abae618a53370e
+hmac: 884ce91525f1bb74f8730c70a9353f014f2bf8652d2e87e49a3a3cc3f56e404e
 
 ...
