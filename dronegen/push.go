@@ -87,7 +87,7 @@ func pushBuildCommands(b buildType) []string {
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
-	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
+	for _, arch := range []string{"amd64", "386", "arm"} {
 		for _, fips := range []bool{false, true} {
 			if arch != "amd64" && fips {
 				// FIPS mode only supported on linux/amd64
@@ -97,12 +97,54 @@ func pushPipelines() []pipeline {
 		}
 	}
 
+	ps = append(ps, ghaPushBuild(buildType{os: "linux", arch: "arm64"}))
+
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
 
 	ps = append(ps, darwinPushPipeline())
 	ps = append(ps, windowsPushPipeline())
 	return ps
+}
+
+func ghaPushBuild(b buildType) pipeline {
+	p := newKubePipeline(fmt.Sprintf("push-build-%s-%s", b.os, b.arch))
+	p.Trigger = trigger{
+		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
+		Branch: triggerRef{Include: []string{"tcsc/gha-drone-updates"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
+	p.Workspace = workspace{Path: "/go"}
+	p.Environment = map[string]value{
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
+		"UID":              {raw: "1000"},
+		"GID":              {raw: "1000"},
+	}
+
+	p.Steps = []step{
+		{
+			Name:  "Check out code",
+			Image: "docker:git",
+			Environment: map[string]value{
+				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
+			},
+			Commands: pushCheckoutCommands(b),
+		}, {
+			Name:  "Delegate build to GitHub",
+			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
+			Environment: map[string]value{
+				"GHA_APP_KEY": {fromSecret: "GITHUB_APP_PRIVATE_KEY"},
+			},
+			Commands: []string{
+				`cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"`,
+				`go run ./cmd/gh-trigger-workflow -owner $DRONE_REPO_OWNER -repo $DRONE_REPO_NAME -workflow-ref tcsc/gha-arm-builds -workflow release-linux-arm64.yml -input oss-teleport-ref=$DRONE_COMMIT -input upload-artifacts=false`,
+			},
+		},
+		sendErrorToSlackStep(),
+	}
+
+	return p
 }
 
 // pushPipeline generates a push pipeline for a given combination of os/arch/FIPS
@@ -158,14 +200,20 @@ func pushPipeline(b buildType) pipeline {
 			Volumes:     []volumeRef{volumeRefDocker},
 			Commands:    pushBuildCommands(b),
 		},
-		{
-			Name:  "Send Slack notification",
-			Image: "plugins/slack",
-			Settings: map[string]value{
-				"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
-			},
-			Template: []string{
-				`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
+		sendErrorToSlackStep(),
+	}
+	return p
+}
+
+func sendErrorToSlackStep() step {
+	return step{
+		Name:  "Send Slack notification",
+		Image: "plugins/slack",
+		Settings: map[string]value{
+			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+		},
+		Template: []string{
+			`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
 ` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
 *Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
 Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
@@ -173,9 +221,7 @@ Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.br
 Author: <https://github.com/{{ build.author }}|{{ build.author }}>
 <{{ build.link }}|Visit Drone build page ↗>
 `,
-			},
-			When: &condition{Status: []string{"failure"}},
 		},
+		When: &condition{Status: []string{"failure"}},
 	}
-	return p
 }

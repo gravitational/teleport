@@ -1262,7 +1262,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go (main.pushPipeline)
+# Generated at dronegen/push.go (main.ghaPushBuild)
 ################################################
 
 kind: pipeline
@@ -1284,8 +1284,7 @@ trigger:
     - gravitational/*
   branch:
     include:
-    - master
-    - branch/*
+    - tcsc/gha-drone-updates
 workspace:
   path: /go
 clone:
@@ -1311,30 +1310,16 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Wait for docker
-  image: docker
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
   commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Build artifacts
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-arm64
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/gh-trigger-workflow -owner $DRONE_REPO_OWNER -repo $DRONE_REPO_NAME
+    -workflow-ref tcsc/gha-arm-builds -workflow release-linux-arm64.yml -input oss-teleport-ref=$DRONE_COMMIT
+    -input upload-artifacts=false
   environment:
-    ARCH: arm64
-    GID: "1000"
-    GOCACHE: /go/cache
-    GOPATH: /go
-    OS: linux
-    UID: "1000"
-  volumes:
-  - name: dockersock
-    path: /var/run
+    GHA_APP_KEY:
+      from_secret: GITHUB_APP_PRIVATE_KEY
 - name: Send Slack notification
   image: plugins/slack
   settings:
@@ -1352,16 +1337,6 @@ steps:
   when:
     status:
     - failure
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
 
 ---
 kind: pipeline
@@ -18414,6 +18389,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: f705a80b8c3c8bc959ec67db35756f7af0bb657498d2a2b141f9ee88c13f3d9a
+hmac: 57535c53eb837cb52358633ff26c114820f704b92f42c0123b4885652f79e8db
 
 ...
