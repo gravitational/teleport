@@ -380,10 +380,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Some protocols require the --tunnel flag, e.g. Snowflake, DynamoDB, Elasticsearch.
 	if requiresLocalProxyTunnel(routeToDatabase.Protocol) && !cf.LocalProxyTunnel {
 		return trace.BadParameter("%v proxy works only in the tunnel mode. Please add the --tunnel flag to enable it",
 			defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol))
+	// Some protocols require the --tunnel flag, e.g. Snowflake, DynamoDB.
 	}
 
 	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
@@ -870,7 +870,7 @@ func envVarCommand(format, key, value string) (string, error) {
 // requiresLocalProxyTunnel returns whether the given protocol requires a local proxy with the --tunnel flag.
 func requiresLocalProxyTunnel(protocol string) bool {
 	switch protocol {
-	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB, defaults.ProtocolElasticsearch:
+	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
 		return true
 	default:
 		return false

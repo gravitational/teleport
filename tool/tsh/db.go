@@ -566,9 +566,10 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportC
 		return []dbcmd.ConnectCommandFunc{}, nil
 	}
 
-	// Some protocols (Snowflake, Elasticsearch) only works in the local tunnel mode.
+	// Some protocols (Snowflake, DynamoDB) only works in the local tunnel mode.
+	// ElasticSearch can work without the --tunnel flag, but not via `tsh db connect`.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if requiresLocalProxyTunnel(db.Protocol) {
+	if requiresLocalProxyTunnel(db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
 		localProxyTunnel = true
 	}
 
