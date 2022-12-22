@@ -17,10 +17,12 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
-    name: Skipped
+    name: Integration Tests (Non-root)
     runs-on: ubuntu-latest
 
     permissions:

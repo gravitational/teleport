@@ -19,10 +19,12 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   build:
-    name: Skipped
+    name: Build on Windows
     runs-on: windows-latest
 
     permissions:
