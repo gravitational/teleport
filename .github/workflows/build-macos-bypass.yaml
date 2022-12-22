@@ -20,6 +20,7 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'build.assets/Makefile'
 
 jobs:
   build:
