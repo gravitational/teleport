@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -37,6 +38,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
@@ -2500,6 +2502,8 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 }
 
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+	t.Helper()
+
 	var options testServersOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -2537,6 +2541,9 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	}
 
 	auth, err = service.NewTeleport(cfg)
+	if err != nil {
+		logrus.WithError(err).Errorf("NewTeleport failed: %T, %v", err, reflect.TypeOf(err))
+	}
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
