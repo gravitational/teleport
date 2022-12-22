@@ -63,10 +63,10 @@ func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
 }
 
-// EnrichCluster will make a network request to the auth server and add details to the
+// EnrichWithDetails will make a network request to the auth server and add details to the
 // current Cluster that cannot be found on the disk only, including details about the LoggedInUser
 // and enabled enterprise features. This method requires a valid cert.
-func (c *Cluster) EnrichCluster(ctx context.Context) (*Cluster, error) {
+func (c *Cluster) EnrichWithDetails(ctx context.Context) (*Cluster, error) {
 	var (
 		pingResponse proto.PingResponse
 		caps         *types.AccessCapabilities
