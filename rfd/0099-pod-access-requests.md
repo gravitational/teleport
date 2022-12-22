@@ -360,13 +360,13 @@ the pod and if one of the roles allow access to the Pod. Since Kubernetes does n
 identify which Kubernetes Principal granted access to a resource, Teleport does
 not know if the rule is correctly applied. It means that if one Role allows access to
 `kind: pod, name: *, namespace:*` with a Kubernetes RBAC group that only allows access
-to pods in the `default` namespace, and a role that grants `system:master` access
+to pods in the `default` namespace, and a role that grants `system:masters` access
 to `kind: pod, name: some_pod, namespace:default`, Teleport will
 leak every Pod in the cluster because the `*/*` rule is always true against
 any pod. In order to avoid this issues, if your Kubernetes RBAC principal is
 namespaced, lock the `kubernetes_resources` to that namespace with `<namespace>/*`.
 
-Bellow we introduce a more indepth examples and combinations.
+Below we introduce a more indepth examples and combinations.
 
 ### Single Role
 
