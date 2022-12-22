@@ -174,7 +174,7 @@ type Server interface {
 	// temporary teleport users or not
 	GetCreateHostUser() bool
 
-	// GetHostUser returns the HostUsers instance being used to manage
+	// GetHostUsers returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
 
@@ -232,12 +232,22 @@ type IdentityContext struct {
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
 	AllowedResourceIDs []types.ResourceID
+
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
 // and other resources. SessionContext also holds a ServerContext which can be
 // used to access resources on the underlying server. SessionContext can also
 // be used to attach resources that should be closed once the session closes.
+//
+// Any events that need to be recorded should be emitted via session and not
+// ServerContext directly. Failure to use the session emitted will result in
+// incorrect event indexes that may ultimately cause events to be overwritten.
 type ServerContext struct {
 	// ConnectionContext is the parent context which manages connection-level
 	// resources.
@@ -418,10 +428,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
-		child.disconnectExpiredCert = identityContext.CertValidBefore
-	}
+
+	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
+		identityContext.AccessChecker, authPref, &identityContext,
+	)
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
@@ -435,13 +445,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.ComponentFields: fields,
 	})
 
-	lockTargets, err := ComputeLockTargets(srv, identityContext)
+	clusterName, err := srv.GetAccessPoint().GetClusterName()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
+
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
-		LockTargets:           lockTargets,
+		LockTargets:           ComputeLockTargets(clusterName.GetClusterName(), srv.HostUUID(), identityContext),
 		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
@@ -924,14 +936,6 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	}
 }
 
-// ProxyPublicAddress tries to get the public address from the first
-// available proxy. if public_address is not set, fall back to the hostname
-// of the first proxy we get back.
-func (c *ServerContext) ProxyPublicAddress() string {
-	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
-	return "<proxyhost>:3080"
-}
-
 func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
@@ -1098,9 +1102,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
-	// SSH_SESSION_WEBPROXY_ADDR, SSH_TELEPORT_HOST_UUID, and
-	// SSH_TELEPORT_CLUSTER_NAME.
-	env = append(env, teleport.SSHSessionWebproxyAddr+"="+ctx.ProxyPublicAddress())
+	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
 	env = append(env, teleport.SSHTeleportHostUUID+"="+ctx.srv.ID())
 	env = append(env, teleport.SSHTeleportClusterName+"="+ctx.ClusterName)
 	env = append(env, teleport.SSHTeleportUser+"="+ctx.Identity.TeleportUser)
@@ -1147,28 +1149,19 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	}, nil
 }
 
-// ComputeLockTargets computes lock targets inferred from a Server
-// and an IdentityContext.
-func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// ComputeLockTargets computes lock targets inferred from the clusterName, serverID and IdentityContext.
+func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []types.LockTarget {
 	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
-		{Node: s.HostUUID()},
-		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
+		{Node: serverID},
+		{Node: auth.HostFQDN(serverID, clusterName)},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
-	lockTargets = append(lockTargets,
-		services.RolesToLockTargets(roles)...,
-	)
-	lockTargets = append(lockTargets,
-		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
-	)
-	return lockTargets, nil
+	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
+	lockTargets = append(lockTargets, services.AccessRequestsToLockTargets(id.ActiveRequests)...)
+	return lockTargets
 }
 
 // SetRequest sets the ssh request that was issued by the client.

@@ -98,7 +98,15 @@ type SessionAccessContext struct {
 func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, error) {
 	if fields[0] == "user" {
 		if len(fields) == 2 || len(fields) == 3 {
-			switch fields[1] {
+			checkedFieldIdx := 1
+			// Unify the format. Moderated session originally skipped the spec field (user.roles was used instead of
+			// user.spec.roles) which was not aligned with how our roles filtering works.
+			// Here we try support both cases. We don't want to modify the original fields slice,
+			// as that would change the reported error message (see return below).
+			if len(fields) == 3 && fields[1] == "spec" {
+				checkedFieldIdx = 2
+			}
+			switch fields[checkedFieldIdx] {
 			case "name":
 				return ctx.Username, nil
 			case "roles":

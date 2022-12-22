@@ -3,6 +3,21 @@ title: Connect a Kubernetes Cluster to Teleport
 description: Connecting a Kubernetes cluster to Teleport
 ---
 
+In this guide, we will show you how to register a Kubernetes cluster with
+Teleport by deploying the Teleport Kubernetes Service on the Kubernetes cluster
+you want to register.
+
+In this setup, the Teleport Kubernetes Service pod detects that it is running on
+Kubernetes and registers the cluster automatically.
+
+<Notice type="tip">
+
+You can also run the Teleport Kubernetes Service on a Linux host in a separate
+network from your Kubernetes cluster. Learn how in [Kubernetes Access from a
+Standalone Teleport Cluster](./guides/standalone-teleport.mdx).
+
+</Notice>
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -62,9 +77,14 @@ Service.
 $ PROXY_ADDR=tele.example.com:443
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
-$ CLUSTER='cookie'
-$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+$ CLUSTER=cookie
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY_ADDR?} \
+  --set authToken=${TOKEN?} \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=teleport.version=) 
 ```
 
 </TabItem>
@@ -77,19 +97,21 @@ commands, assigning `PROXY_ADDR` to the address of your Teleport Cloud tenant.
 $ PROXY_ADDR=mytenant.teleport.sh:443
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
-$ CLUSTER='cookie'
+$ CLUSTER=cookie
 # Run the helm install specifying to match to the Teleport Cloud version of Teleport
-$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent \
-  --set teleportVersionOverride=(=cloud.version=)
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY_ADDR?} \
+  --set authToken=${TOKEN?} \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=cloud.version=)
 ```
 
 </TabItem>
 </Tabs>
 
 ## Step 3/3 Access your Kubernetes cluster
-
-### Grant access to your Teleport user
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
 

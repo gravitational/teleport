@@ -258,6 +258,9 @@ const (
 	// ComponentVersionControl is the component common to all version control operations.
 	ComponentVersionControl = "version-control"
 
+	// ComponentUsageReporting is the component responsible for reporting usage metrics.
+	ComponentUsageReporting = "usage-reporting"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -292,14 +295,6 @@ const (
 	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
 	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
-
-	// RecordingProxyReqType is the name of a global request which returns if
-	// the proxy is recording sessions or not.
-	//
-	// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
-	// cluster information.
-	// TODO(tross):DELETE IN 12.0
-	RecordingProxyReqType = "recording-proxy@teleport.com"
 
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like
 	// if the proxy is recording sessions or not and if FIPS is enabled.
@@ -337,14 +332,6 @@ const (
 	// Off means mode is off
 	Off = "off"
 
-	// SchemeS3 is S3 file scheme, means upload or download to S3 like object
-	// storage
-	SchemeS3 = "s3"
-
-	// SchemeGCS is GCS file scheme, means upload or download to GCS like object
-	// storage
-	SchemeGCS = "gs"
-
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
 
@@ -369,11 +356,17 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
-	// SchemeFile is a local disk file storage
+	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
+
+	// SchemeS3 is used for S3-like object storage
+	SchemeS3 = "s3"
+
+	// SchemeGCS is used for Google Cloud Storage
+	SchemeGCS = "gs"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
@@ -441,6 +434,12 @@ const (
 	// CertExtensionMFAVerified is used to mark certificates issued after an MFA
 	// check.
 	CertExtensionMFAVerified = "mfa-verified"
+	// CertExtensionPreviousIdentityExpires is the extension that stores an RFC3339
+	// timestamp representing the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
 	// CertExtensionClientIP is used to embed the IP of the client that created
 	// the certificate.
 	CertExtensionClientIP = "client-ip"
@@ -465,6 +464,13 @@ const (
 	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
 	// private key policy.
 	CertExtensionPrivateKeyPolicy = "private-key-policy"
+	// CertExtensionDeviceID is the trusted device identifier.
+	CertExtensionDeviceID = "teleport-device-id"
+	// CertExtensionDeviceAssetTag is the device inventory identifier.
+	CertExtensionDeviceAssetTag = "teleport-device-asset-tag"
+	// CertExtensionDeviceCredentialID is the identifier for the credential used
+	// by the device to authenticate itself.
+	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -564,6 +570,10 @@ const (
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
+
+	// TraitInternalAzureIdentities is the variable used to store allowed
+	// Azure identities for local accounts.
+	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
 
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.

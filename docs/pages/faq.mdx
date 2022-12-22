@@ -72,67 +72,7 @@ Teleport provides three editions:
 
 Here is a detailed breakdown of the differences between Teleport's editions.
 
-### Access controls
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[Access Requests](./access-controls/guides/dual-authz.mdx)|Limited|&#10004;|&#10004;|
-|[Single Sign-On](./access-controls/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML|GitHub, Google Workspace, OIDC, SAML|
-|[Role-Based Access Control](./access-controls/guides/role-templates.mdx)|&#10004;|&#10004;|&#10004;|
-|[Moderated Sessions](./access-controls/guides/moderated-sessions.mdx)|&#10006;|&#10004;|&#10004;|
-
-### Infrastructure access
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[Application Access](./application-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Server Access](./server-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Database Access](./database-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Desktop Access](./desktop-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Kubernetes Access](./kubernetes-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Machine ID](./machine-id/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|Agentless integration with [OpenSSH servers](./server-access/guides/openssh.mdx)|&#10004;|&#10004;|&#10004;|
-
-### Session recording
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[Recording Proxy Mode](./server-access/guides/recording-proxy-mode.mdx)|&#10004;|&#10004;|&#10006;|
-|[Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx)|&#10004;|&#10004;|&#10004;|
-
-### Compliance
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[FedRAMP Control](./access-controls/compliance-frameworks/fedramp.mdx)|&#10006;|&#10004;|&#10006;|
-|PCI DSS Features|Limited|&#10004;|&#10004;|
-|SOC 2 Features|Limited|&#10004;|&#10004;|
-|FIPS-compliant binaries available for FedRAMP High|&#10006;|&#10004;|&#10006;|
-
-### Operations
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|Auth and Proxy Service management|Self-hosted|Self-hosted|Fully managed|
-|Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|
-|Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
-|[Backend support](reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption|
-|Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends| Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access|
-|[Hardware Security Module support](./deploy-a-cluster/teleport-enterprise/hsm.mdx) for encryption at rest|&#10006;|&#10004;|&#10006;|
-
-### Support
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|Support|Best-effort, community|24x7 support with premium SLAs and account managers|24x7 support with premium SLAs and account managers|
-
-### Licensing and usage management
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|Annual or multi-year contracts, volume discounts|&#10006;|&#10004;|&#10004;|
-|License|Apache 2|Commercial|Commercial|
-|Usage tracking|&#10006;|&#10006;|Enables you to track the number of users per protocol.|
+(!docs/pages/includes/edition-comparison.mdx!)
 
 ## Which version of Teleport is supported?
 
@@ -142,13 +82,13 @@ supported for 9 months.
 
 ### Supported versions
 
-Here are the major versions of Teleport that we currently support:
+Here are the major versions of Teleport and their support windows:
 
-|Release|Release Date|Minimum `tsh` version|
-|---|---|---|
-|v11.0|October 24, 2022|v10.x.x|
-|v10.0|July 8, 2022|v9.x.x|
-|v9.0|March 11, 2022|v8.x.x|
+| Release | Release Date     | EOL          | Minimum `tsh` version|
+|---------|------------------|--------------|----------------------|
+| v11.0   | October 24, 2022 | July 2023    | v10.x.x              |
+| v10.0   | July 8, 2022     | April 2023   | v9.x.x               |
+| v9.0    | March 11, 2022   | January 2023 | v8.x.x               |
 
 See our [Upgrading](./management/operations/upgrading.mdx) guide for more
 information.
@@ -167,7 +107,7 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 
 ## Does Teleport support authentication via OAuth, SAML, or Active Directory?
 
-Teleport offers this feature for the [Enterprise versions of Teleport](deploy-a-cluster/teleport-enterprise/introduction.mdx).
+Teleport offers this feature for the [Enterprise versions of Teleport](choose-an-edition/teleport-enterprise/introduction.mdx).
 
 ## Does Teleport send any data back to the cloud?
 

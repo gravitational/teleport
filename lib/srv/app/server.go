@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// app package runs the application proxy process. It keeps dynamic labels
+// Package app runs the application proxy process. It keeps dynamic labels
 // updated, heart beats its presence, checks access controls, and forwards
 // connections between the tunnel and the target host.
 package app
@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
+	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -144,7 +145,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("tls config missing")
 	}
 	if len(c.CipherSuites) == 0 {
-		return trace.BadParameter("cipersuites missing")
+		return trace.BadParameter("ciphersuites missing")
 	}
 	if c.Hostname == "" {
 		return trace.BadParameter("hostname missing")
@@ -210,7 +211,8 @@ type Server struct {
 
 	cache *sessionChunkCache
 
-	awsSigner *appaws.SigningService
+	awsSigner    *appaws.SigningService
+	azureHandler *appazure.Forwarder
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
@@ -252,8 +254,23 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeContext, closeFunc := context.WithCancel(ctx)
+	// in case of errors cancel context to avoid context leak
+	callClose := true
+	defer func() {
+		if callClose {
+			closeFunc()
+		}
+	}()
+
 	awsSigner, err := appaws.NewSigningService(appaws.SigningServiceConfig{})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	azureHandler, err := appazure.NewForwarder(closeContext, appazure.ForwarderConfig{})
+	if err != nil {
+		closeFunc()
 		return nil, trace.Wrap(err)
 	}
 
@@ -267,13 +284,14 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		apps:          make(map[string]types.Application),
 		connAuth:      make(map[net.Conn]error),
 		awsSigner:     awsSigner,
+		azureHandler:  azureHandler,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
-		reconcileCh: make(chan struct{}),
+		reconcileCh:  make(chan struct{}),
+		closeFunc:    closeFunc,
+		closeContext: closeContext,
 	}
-
-	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -286,7 +304,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s.httpServer = s.newHTTPServer()
 
 	// TCP server will handle TCP applications.
-	s.tcpServer = s.newTCPServer()
+	tcpServer, err := s.newTCPServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.tcpServer = tcpServer
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -298,6 +320,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
 
+	callClose = false
 	return s, nil
 }
 
@@ -356,17 +379,6 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	defer s.mu.Unlock()
 	s.dynamicLabels[app.GetName()] = dynamic
 	return nil
-}
-
-// getDynamicLabels returns dynamic labels for the specified app.
-func (s *Server) getDynamicLabels(name string) *labels.Dynamic {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	dynamic, ok := s.dynamicLabels[name]
-	if !ok {
-		return nil
-	}
-	return dynamic
 }
 
 // stopDynamicLabels stops dynamic labels for the specified app.
@@ -430,16 +442,8 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := app.Copy()
+	copy := s.appWithUpdatedLabels(app)
 	s.mu.RUnlock()
-	// Update dynamic labels if the app has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.c.CloudLabels != nil {
-		s.c.CloudLabels.Apply(copy)
-	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -613,7 +617,7 @@ func (s *Server) deleteConnAuth(conn net.Conn) {
 	delete(s.connAuth, conn)
 }
 
-// HandleConnection takes a connection and wraps it in a listener so it can
+// HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
 	// Wrap conn in a CloserConn to detect when it is closed.
@@ -706,18 +710,13 @@ func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, auth
 	identity := authCtx.Identity.GetIdentity()
 	checker := authCtx.Checker
 
-	certExpires := identity.Expires
-	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		disconnectCertExpired = certExpires
-	}
 	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           s.c.LockWatcher,
 		LockTargets:           authCtx.LockTargets(),
-		DisconnectExpiredCert: disconnectCertExpired,
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity),
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  tc,
 		Tracker:               tc,
@@ -795,7 +794,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	identity := authCtx.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are singed by AWS Signature Version
+		//  Requests from AWS applications are signed by AWS Signature Version
 		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
@@ -806,6 +805,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		// Request for AWS console access originated from Teleport Proxy WebUI
 		// is not signed by SigV4.
 		return s.serveAWSWebConsole(w, r, &identity, app)
+
+	case app.IsAzureCloud():
+		return s.serveSession(w, r, &identity, app, s.withAzureForwarder)
 
 	default:
 		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
@@ -842,15 +844,8 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 	defer session.release()
 
-	// Create session context.
-	sessionCtx := &common.SessionContext{
-		Identity: identity,
-		App:      app,
-		Emitter:  session.streamWriter,
-	}
-
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	session.fwd.ServeHTTP(w, common.WithSessionContext(r, session.sessionCtx))
 	return nil
 }
 
@@ -915,6 +910,14 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 		})
 	}
 
+	// When accessing Azure API, check permissions to assume
+	// requested Azure identity as well.
+	if app.IsAzureCloud() {
+		matchers = append(matchers, &services.AzureIdentityMatcher{
+			Identity: identity.RouteToApp.AzureIdentity,
+		})
+	}
+
 	mfaParams := authContext.MFAParams(ap.GetRequireMFAType())
 	err = authContext.Checker.CheckAccess(
 		app,
@@ -959,10 +962,31 @@ func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Applicati
 
 	for _, a := range s.getApps() {
 		if publicAddr == a.GetPublicAddr() {
-			return a, nil
+			return s.appWithUpdatedLabels(a), nil
 		}
 	}
 	return nil, trace.NotFound("no application at %v found", publicAddr)
+}
+
+// appWithUpdatedLabels will inject updated dynamic and cloud labels into an application
+// object. The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
+	// Create a copy of the application to modify
+	copy := app.Copy()
+
+	// Update dynamic labels if the app has them.
+	labels := s.dynamicLabels[copy.GetName()]
+
+	if labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the app has them.
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Apply(copy)
+	}
+
+	return copy
 }
 
 // newHTTPServer creates an *http.Server that can authorize and forward
@@ -987,12 +1011,18 @@ func (s *Server) newHTTPServer() *http.Server {
 }
 
 // newTCPServer creates a server that proxies TCP applications.
-func (s *Server) newTCPServer() *tcpServer {
-	return &tcpServer{
-		authClient: s.c.AuthClient,
-		hostID:     s.c.HostID,
-		log:        s.log,
+func (s *Server) newTCPServer() (*tcpServer, error) {
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: s.c.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &tcpServer{
+		audit:  audit,
+		hostID: s.c.HostID,
+		log:    s.log,
+	}, nil
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.

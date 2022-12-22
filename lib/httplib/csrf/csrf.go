@@ -40,6 +40,11 @@ const (
 	defaultMaxAge = 0
 )
 
+// GenerateToken generates a random CSRF token.
+func GenerateToken() (string, error) {
+	return utils.CryptoRandomHex(tokenLenBytes)
+}
+
 // AddCSRFProtection adds CSRF token into the user session via secure cookie,
 // it implements "double submit cookie" approach to check against CSRF attacks
 // https://www.owasp.org/index.php/Cross-Site_Request_Forgery_%28CSRF%29_Prevention_Cheat_Sheet#Double_Submit_Cookie
@@ -47,7 +52,7 @@ func AddCSRFProtection(w http.ResponseWriter, r *http.Request) (string, error) {
 	token, err := ExtractTokenFromCookie(r)
 	// if there was an error retrieving the token, the token doesn't exist
 	if err != nil || len(token) == 0 {
-		token, err = utils.CryptoRandomHex(tokenLenBytes)
+		token, err = GenerateToken()
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

@@ -47,6 +47,14 @@ func IsRedshiftEndpoint(uri string) bool {
 	return isAWSServiceEndpoint(uri, RedshiftServiceName)
 }
 
+// IsRedshiftServerlessEndpoint returns true if the input URI is an Redshift
+// Serverless endpoint.
+//
+// https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-connecting.html
+func IsRedshiftServerlessEndpoint(uri string) bool {
+	return isAWSServiceEndpoint(uri, RedshiftServerlessServiceName)
+}
+
 // IsElastiCacheEndpoint returns true if the input URI is an ElastiCache
 // endpoint.
 func IsElastiCacheEndpoint(uri string) bool {
@@ -57,6 +65,13 @@ func IsElastiCacheEndpoint(uri string) bool {
 // endpoint.
 func IsMemoryDBEndpoint(uri string) bool {
 	return isAWSServiceEndpoint(uri, MemoryDBSServiceName)
+}
+
+// IsKeyspacesEndpoint returns true if input URI is an AWS Keyspaces endpoint.
+// https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
+func IsKeyspacesEndpoint(uri string) bool {
+	hasCassandraPrefix := strings.HasPrefix(uri, "cassandra.") || strings.HasPrefix(uri, "cassandra-fips.")
+	return hasCassandraPrefix && IsAWSEndpoint(uri)
 }
 
 // RDSEndpointDetails contains information about an RDS endpoint.
@@ -244,6 +259,64 @@ func parseRedshiftCNEndpoint(endpoint string) (clusterID, region string, err err
 		return "", "", trace.BadParameter("failed to parse %v as Redshift CN endpoint", endpoint)
 	}
 	return parts[0], parts[3], nil
+}
+
+// RedshiftServerlessEndpointDetails contains information about an Redshift
+// Serverless endpoint.
+type RedshiftServerlessEndpointDetails struct {
+	// WorkgroupName is the name of the workgroup.
+	WorkgroupName string
+	// EndpointName is the name of the VPC endpoint.
+	EndpointName string
+	// AccountID is the AWS Account ID.
+	AccountID string
+	// Region is the AWS region the database resides in.
+	Region string
+}
+
+// ParseRedshiftServerlessEndpoint extracts name, AWS Account ID, and region
+// from the provided Redshift Serverless endpoint.
+func ParseRedshiftServerlessEndpoint(endpoint string) (details *RedshiftServerlessEndpointDetails, err error) {
+	if strings.ContainsRune(endpoint, ':') {
+		endpoint, _, err = net.SplitHostPort(endpoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
+		// TODO(greedy52) add AWS China support when Redshift Serverless come to those regions.
+		return nil, trace.NotImplemented("failed to parse %v as Redshift Serverless endpoint: AWS China regions are not supported yet", endpoint)
+	}
+	return parseRedshiftServerlessEndpoint(endpoint)
+}
+
+// parseRedshiftServerlessEndpoint extracts name, AWS account ID, and region
+// from the provided Redshift Serverless endpoint for standard regions.
+//
+// Workgroup endpoint looks like this:
+// <workgroup-name>.<account-id>.<region>.redshift-serverless.amazonaws.com
+//
+// VPC endpoint looks like this:
+// <vpc-endpoint-name>-endpoint-<some-hash>.<account-id>.<region>.redshift-serverless.amazonaws.com
+func parseRedshiftServerlessEndpoint(endpoint string) (*RedshiftServerlessEndpointDetails, error) {
+	parts := strings.Split(endpoint, ".")
+	if !strings.HasSuffix(endpoint, AWSEndpointSuffix) || len(parts) != 6 || parts[3] != RedshiftServerlessServiceName {
+		return nil, trace.BadParameter("failed to parse %v as Redshift Serverless endpoint", endpoint)
+	}
+	if endpointName, _, found := strings.Cut(parts[0], "-endpoint-"); found {
+		return &RedshiftServerlessEndpointDetails{
+			EndpointName: endpointName,
+			AccountID:    parts[1],
+			Region:       parts[2],
+		}, nil
+	}
+
+	return &RedshiftServerlessEndpointDetails{
+		WorkgroupName: parts[0],
+		AccountID:     parts[1],
+		Region:        parts[2],
+	}, nil
 }
 
 // RedisEndpointInfo describes details extracted from a ElastiCache or MemoryDB
@@ -566,6 +639,9 @@ const (
 	// RedshiftServiceName is the service name for AWS Redshift.
 	RedshiftServiceName = "redshift"
 
+	// RedshiftServerlessServiceName is the service name for AWS Redshift Serverless.
+	RedshiftServerlessServiceName = "redshift-serverless"
+
 	// ElastiCacheServiceName is the service name for AWS ElastiCache.
 	ElastiCacheServiceName = "cache"
 
@@ -576,8 +652,7 @@ const (
 // CassandraEndpointURLForRegion returns a Cassandra endpoint based on the provided region.
 // https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
 func CassandraEndpointURLForRegion(region string) string {
-	switch strings.ToLower(region) {
-	case "cn-north-1", "cn-northwest-1":
+	if IsCNRegion(region) {
 		return fmt.Sprintf("cassandra.%s%s:9142", region, AWSCNEndpointSuffix)
 	}
 	return fmt.Sprintf("cassandra.%s%s:9142", region, AWSEndpointSuffix)

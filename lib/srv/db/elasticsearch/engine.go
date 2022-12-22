@@ -36,19 +36,14 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolElasticsearch)
-}
-
-// newEngine create new elasticsearch engine.
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new elasticsearch engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{EngineConfig: ec}
 }
 
@@ -75,8 +70,9 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
+	reason := err.Error()
 	cause := elastic.ErrorCause{
-		Reason: err.Error(),
+		Reason: &reason,
 		Type:   "internal_server_error_exception",
 	}
 

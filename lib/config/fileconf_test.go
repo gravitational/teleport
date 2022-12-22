@@ -343,6 +343,21 @@ func TestAuthenticationSection(t *testing.T) {
 				Passwordless:  types.NewBoolOption(true),
 				ConnectorName: "passwordless",
 			},
+		}, {
+			desc: "Device Trust config",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"mode": "required",
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				DeviceTrust: &DeviceTrust{
+					Mode: "required",
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -356,7 +371,7 @@ func TestAuthenticationSection(t *testing.T) {
 	}
 }
 
-func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T) {
+func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQuotes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		desc               string
@@ -476,7 +491,7 @@ func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 
 	_, u2fErr := cap.GetU2F()
 	require.Error(t, u2fErr, "U2F configuration present")
-	require.True(t, trace.IsNotFound(u2fErr), "uxpected U2F error")
+	require.True(t, trace.IsNotFound(u2fErr), "unexpected U2F error")
 
 	_, webErr := cap.GetWebauthn()
 	require.NoError(t, webErr, "unexpected webauthn error")

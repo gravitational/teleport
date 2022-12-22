@@ -78,6 +78,7 @@ spec:
   client_id: ""
   client_secret: ""
   display: ""
+  endpoint_url: ""
   redirect_url: ""
   teams_to_logins:
   - logins:

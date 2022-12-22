@@ -52,6 +52,7 @@ type TermManager struct {
 	mu           sync.Mutex
 	writers      map[string]io.Writer
 	readerState  map[string]bool
+	OnReadError  func(idString string, err error)
 	OnWriteError func(idString string, err error)
 	// buffer is used to buffer writes when turned off
 	buffer []byte
@@ -108,7 +109,6 @@ func (g *TermManager) writeToClients(p []byte) {
 			delete(g.writers, key)
 		}
 	}
-
 }
 
 func (g *TermManager) TerminateNotifier() <-chan struct{} {
@@ -220,6 +220,10 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			n, err := r.Read(buf)
 			if err != nil {
 				log.Warnf("Failed to read from remote terminal: %v", err)
+				// Let term manager decide how to handle broken party readers.
+				if g.OnReadError != nil {
+					g.OnReadError(name, err)
+				}
 				g.DeleteReader(name)
 				return
 			}

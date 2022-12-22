@@ -5,7 +5,7 @@
 # clusterName is a unique cluster name.
 # This value cannot be changed after your cluster starts without rebuilding it from scratch.
 # We recommend using the fully qualified domain name that you use to access your cluster,
-# for example: teleport.example.com
+# for example: teleport.example.com.
 clusterName: ""
 
 # Name for this kubernetes cluster to be used by teleport users.
@@ -30,7 +30,7 @@ authentication:
   connectorName: ""
 
   # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
-  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
+  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/.
   localAuth: true
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
@@ -351,6 +351,12 @@ serviceAccount:
   # If create is false, the name will be used to reference an existing service account.
   name: ""
   # To set annotations on the service account, use the annotations.serviceAccount value.
+
+# Set to true (default) to create Kubernetes ClusterRole and ClusterRoleBinding.
+rbac:
+  # Specifies whether a ClusterRole and ClusterRoleBinding should be created.
+  # Set to false if your cluster level resources are managed separately.
+  create: true
 
 # Options for the Teleport service
 service:

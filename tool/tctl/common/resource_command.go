@@ -26,13 +26,15 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -650,7 +652,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 	}
-	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
+	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
@@ -1380,6 +1382,30 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	case types.KindDatabaseService:
+		resourceName := rc.ref.Name
+		listReq := proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+		}
+		if resourceName != "" {
+			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+		}
+
+		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		databaseServices, err := types.ResourcesWithLabels(getResp).AsDatabaseServices()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(databaseServices) == 0 && resourceName != "" {
+			return nil, trace.NotFound("Database Service %q not found", resourceName)
+		}
+
+		return &databaseServiceCollection{databaseServices: databaseServices}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

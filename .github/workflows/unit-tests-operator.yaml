@@ -1,0 +1,37 @@
+name: Unit Tests (Operator)
+run-name: Unit Tests (Operator) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - /go.mod
+      - /go.sum
+      - operator/**
+      - api/types/**
+      - lib/tbot/**
+
+jobs:
+  test:
+    name: Unit Tests (Operator)
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: make test-operator

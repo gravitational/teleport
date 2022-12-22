@@ -71,7 +71,8 @@ The next step is to give your Teleport users permissions to assume IAM roles in
 your Teleport cluster.
 
 You can do this by creating a Teleport role with the `aws_role_arns` field
-listing the IAM role ARN created in the previous step:
+listing the IAM role ARN created in the previous step. Create a file called
+`aws-dynamodb-access.yaml` with the following content:
 
 ```yaml
 kind: role
@@ -92,8 +93,13 @@ dynamically based on your users' identity provider attributes. See [Role
 Templates](../../access-controls/guides/role-templates.mdx) for details.
 </Details>
 
-Now assign this role to the Teleport users you wish to grant access to
-DynamoDB.
+Create the new role:
+
+```code
+$ tctl create -f aws-dynamodb-access.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="aws-dynamodb-access"!)
 
 ## Step 3/5. Install the Teleport Application Service
 
@@ -248,8 +254,8 @@ or a local AWS Service Endpoint proxy.
   Started AWS proxy on http://127.0.0.1:23456.
 
   Use the following credentials and HTTPS proxy setting to connect to the proxy:
-    AWS_ACCESS_KEY_ID=<access-key-id>
-    AWS_SECRET_ACCESS_KEY=<secret-access-key>
+    AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+    AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
     AWS_CA_BUNDLE=<ca-bundle-path>
     HTTPS_PROXY=http://127.0.0.1:23456
   ```
@@ -259,9 +265,10 @@ or a local AWS Service Endpoint proxy.
 
   For example, you can assign the AWS credentials and the HTTPS proxy address
   to environment variables for Python AWS SDK:
+
   ```code
-  $ export AWS_ACCESS_KEY_ID=<access-key-id>
-  $ export AWS_SECRET_ACCESS_KEY=<secret-access-key>
+  $ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+  $ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
   $ export AWS_CA_BUNDLE=<ca-bundle-path>
   $ export HTTPS_PROXY=http://127.0.0.1:23456
   $ python3
@@ -282,16 +289,16 @@ or a local AWS Service Endpoint proxy.
   Started AWS proxy which serves as an AWS endpoint URL at https://localhost:23457
 
   In addition to the endpoint URL, use the following credentials to connect to the proxy:
-    AWS_ACCESS_KEY_ID=<access-key-id>
-    AWS_SECRET_ACCESS_KEY=<secret-access-key>
+    AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+    AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
     AWS_CA_BUNDLE=<ca-bundle-path>
   ```
 
   For example, to connect the GUI tool `dynamodb-admin` to the local AWS
   Service Endpoint proxy:
   ```code
-  $ export AWS_ACCESS_KEY_ID=<access-key-id>
-  $ export AWS_SECRET_ACCESS_KEY=<secret-access-key>
+  $ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+  $ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
   $ export NODE_EXTRA_CA_CERTS=<ca-bundle-path>
   $ export DYNAMO_ENDPOINT=https://127.0.0.1:23457
   $ dynamodb-admin

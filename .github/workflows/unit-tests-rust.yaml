@@ -1,0 +1,42 @@
+name: Unit Tests (Rust)
+run-name: Unit Tests (Rust) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+jobs:
+  test:
+    name: Unit Tests (Rust)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Rust cargo cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ github.workspace }}/target
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
+          key: ${{ runner.os }}-cargo-${{ github.workflow }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-${{ github.workflow }}-
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: make test-rust

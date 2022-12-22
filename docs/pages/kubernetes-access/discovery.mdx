@@ -8,7 +8,15 @@ Kubernetes Auto-Discovery allows Kubernetes clusters
 hosted on cloud providers to be discovered and enrolled automatically. 
 
 While discovering a new Kubernetes cluster, Teleport does not install any component 
-on the cluster. Instead, it requires direct access to the cluster's API and minimal access permissions.
+on the cluster. Instead, it requires direct access to the cluster's API and
+minimal access permissions.
+
+## Supported clouds
+
+- [AWS](./discovery/aws.mdx): Kubernetes Auto-Discovery for AWS EKS clusters.
+- [Azure](./discovery/azure.mdx): Kubernetes Auto-Discovery for Azure AKS clusters.
+- [Google Cloud](./discovery/google-cloud.mdx): Kubernetes Auto-Discovery for
+  Google Kubernetes Engine clusters.
 
 ## How Kubernetes Auto-Discovery works
 
@@ -109,9 +117,3 @@ kubernetes_service:
 
 Both services — Discovery and Kubernetes — can be configured in the same 
 Teleport process or separate processes. 
-
-## Supported clouds
-
-- [AWS](./discovery/aws.mdx): Kubernetes Auto-Discovery for AWS EKS clusters.
-- [Azure](./discovery/azure.mdx): Kubernetes Auto-Discovery for Azure AKS clusters.
-

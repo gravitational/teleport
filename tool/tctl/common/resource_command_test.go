@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 	"os"
@@ -25,10 +26,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -139,7 +142,7 @@ func TestDatabaseResource(t *testing.T) {
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbA",
+		Name:   "db-a",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -148,7 +151,7 @@ func TestDatabaseResource(t *testing.T) {
 	require.NoError(t, err)
 
 	dbB, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbB",
+		Name:   "db-b",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
@@ -179,7 +182,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Fetch specific database.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/dbB", types.KindDatabase), "--format=json"})
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
@@ -187,7 +190,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Remove a database.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/dbA", types.KindDatabase)})
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/db-a", types.KindDatabase)})
 	require.NoError(t, err)
 
 	// Fetch all databases again, should have 1.
@@ -197,6 +200,86 @@ func TestDatabaseResource(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
+}
+
+// TestDatabaseServiceResource tests tctl db_services get commands.
+func TestDatabaseServiceResource(t *testing.T) {
+	ctx := context.Background()
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+
+	var out []*types.DatabaseServiceV1
+
+	// Add a lot of DatabaseServices to test pagination
+	dbS, err := types.NewDatabaseServiceV1(
+		types.Metadata{Name: uuid.NewString()},
+		types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"env": []string{"prod"}}},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	randomDBServiceName := ""
+	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
+	for i := 0; i < totalDBServices; i++ {
+		dbS.SetName(uuid.NewString())
+		if i == apidefaults.DefaultChunkSize { // A "random" database service name
+			randomDBServiceName = dbS.GetName()
+		}
+		_, err = auth.GetAuthServer().UpsertDatabaseService(ctx, dbS)
+		require.NoError(t, err)
+	}
+
+	t.Run("test pagination of database services ", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseService, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, totalDBServices)
+	})
+
+	service := fmt.Sprintf("%v/%v", types.KindDatabaseService, randomDBServiceName)
+
+	t.Run("get specific database service", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+		require.Equal(t, randomDBServiceName, out[0].GetName())
+	})
+
+	t.Run("get unknown database service", func(t *testing.T) {
+		unknownService := fmt.Sprintf("%v/%v", types.KindDatabaseService, "unknown")
+		_, err := runResourceCommand(t, fileConfig, []string{"get", unknownService, "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+	})
+
+	t.Run("get specific database service with human output", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=text"})
+		require.NoError(t, err)
+		outputString := buff.String()
+		require.Contains(t, outputString, "env=[prod]")
+		require.Contains(t, outputString, randomDBServiceName)
+	})
 }
 
 // TestAppResource tests tctl commands that manage application resources.
@@ -331,7 +414,7 @@ const (
 	dbYAML = `kind: db
 version: v3
 metadata:
-  name: dbA
+  name: db-a
 spec:
   protocol: "postgres"
   uri: "localhost:5432"
@@ -339,7 +422,7 @@ spec:
 kind: db
 version: v3
 metadata:
-  name: dbB
+  name: db-b
 spec:
   protocol: "mysql"
   uri: "localhost:3306"`

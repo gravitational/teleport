@@ -19,12 +19,12 @@ package services
 import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	utils "github.com/gravitational/teleport/api/utils"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
@@ -70,8 +70,13 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
+					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
+					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+					types.NewRule(types.KindLicense, RO()),
+					types.NewRule(types.KindDownload, RO()),
+					types.NewRule(types.KindDatabaseService, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -126,6 +131,7 @@ func NewPresetAccessRole() types.Role {
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
+	role.SetAzureIdentities(types.Allow, []string{teleport.TraitInternalAzureIdentities})
 	return role
 }
 
@@ -173,6 +179,8 @@ func defaultAllowRules() map[string][]types.Rule {
 		},
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
+			types.NewRule(types.KindDatabase, RW()),
+			types.NewRule(types.KindDatabaseService, RO()),
 		},
 	}
 }
@@ -204,7 +212,7 @@ func AddDefaultAllowRules(role types.Role) types.Role {
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
 	for _, rule := range rules {
 		for _, ruleResource := range rule.Resources {
-			if utils.SliceContainsStr(resources, ruleResource) {
+			if slices.Contains(resources, ruleResource) {
 				return true
 			}
 		}
