@@ -28,6 +28,9 @@
     sudo apt-get update
     sudo apt-get install -y teleport jq
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
+	if [ "$ID" = "rhel" ]; then
+      VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
+    fi
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/{{ .MajorVersion }}/teleport.repo")"
     sudo yum install -y teleport jq
