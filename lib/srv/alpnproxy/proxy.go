@@ -617,7 +617,7 @@ func (w *ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn ne
 	return w.h(ctx, conn)
 }
 
-// isRemoteConnError checks if an error origin if for the client side like:
+// isConnRemoteError checks if an error origin is from the client side like:
 // TLS client side handshake error when the telepot proxy CA is not recognized by a client.
 func isConnRemoteError(err error) bool {
 	var opErr *net.OpError
