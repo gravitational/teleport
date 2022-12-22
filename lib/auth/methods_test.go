@@ -17,29 +17,16 @@ limitations under the License.
 package auth
 
 import (
-	"context"
 	"strings"
 	"testing"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/stretchr/testify/require"
 )
 
-type emitter struct {
-	count int
-}
-
-func (e *emitter) EmitAuditEvent(_ context.Context, event apievents.AuditEvent) error {
-	loginEvent, ok := event.(*apievents.UserLogin)
-	if ok && len(loginEvent.UserAgent) <= maxUserAgentLen {
-		e.count++
-	}
-	return nil
-}
-
 func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
-	emitter := &emitter{}
-
+	emitter := &eventstest.MockEmitter{}
 	r := AuthenticateUserRequest{
 		ClientMetadata: &ForwardedClientMetadata{
 			UserAgent: strings.Repeat("A", maxUserAgentLen+1),
@@ -47,6 +34,8 @@ func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 	}
 	// Ignoring the error here because we really just care that the event was logged.
 	(&Server{emitter: emitter}).AuthenticateUser(r)
-
-	require.Equal(t, 1, emitter.count)
+	event := emitter.LastEvent()
+	loginEvent, ok := event.(*apievents.UserLogin)
+	require.True(t, ok)
+	require.True(t, len(loginEvent.UserAgent) <= maxUserAgentLen)
 }
