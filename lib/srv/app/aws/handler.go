@@ -86,7 +86,9 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 	fwd, err := forward.New(
 		forward.RoundTripper(config.RoundTripper),
 		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(handler.formatForwardResponseError)),
-		forward.PassHostHeader(true),
+		// Explicitly passing false here to be clear that we always want the host
+		// header to be the same as the outbound request's URL host.
+		forward.PassHostHeader(false),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -168,20 +170,16 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// force https
-	u.Scheme = "https"
 
 	// clone the request for rewriting
 	outReq := r.Clone(ctx)
-	outReq.URL = u
-	outReq.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
-
-	for key := range outReq.Header {
-		// Remove Teleport app headers.
-		if common.IsReservedHeader(key) || http.CanonicalHeaderKey(key) == "Content-Length" {
-			outReq.Header.Del(key)
-		}
+	if outReq.URL == nil {
+		outReq.URL = u
+	} else {
+		outReq.URL.Scheme = "https"
+		outReq.URL.Host = u.Host
 	}
+	outReq.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
 	return outReq, nil
 }
 

@@ -112,7 +112,9 @@ func NewAzureHandler(ctx context.Context, config HandlerConfig) (http.Handler, e
 	fwd, err := forward.New(
 		forward.RoundTripper(config.RoundTripper),
 		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
-		forward.PassHostHeader(true),
+		// Explicitly passing false here to be clear that we always want the host
+		// header to be the same as the outbound request's URL host.
+		forward.PassHostHeader(false),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -178,8 +180,7 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = forwardedHost
-
-	copyHeaders(r, reqCopy)
+	reqCopy.Header = r.Header.Clone()
 
 	err = s.replaceAuthHeaders(r, sessionCtx, reqCopy)
 	if err != nil {

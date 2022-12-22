@@ -52,7 +52,9 @@ type makeRequest func(url string, provider client.ConfigProvider) error
 
 func s3Request(url string, provider client.ConfigProvider) error {
 	s3Client := s3.New(provider, &aws.Config{
-		Endpoint: &url,
+		Endpoint:   &url,
+		MaxRetries: aws.Int(0),
+		HTTPClient: &http.Client{Timeout: 5 * time.Second},
 	})
 	_, err := s3Client.ListBuckets(&s3.ListBucketsInput{})
 	return err
@@ -62,6 +64,7 @@ func dynamoRequest(url string, provider client.ConfigProvider) error {
 	dynamoClient := dynamodb.New(provider, &aws.Config{
 		Endpoint:   &url,
 		MaxRetries: aws.Int(0),
+		HTTPClient: &http.Client{Timeout: 5 * time.Second},
 	})
 	_, err := dynamoClient.Scan(&dynamodb.ScanInput{
 		TableName: aws.String("test-table"),
