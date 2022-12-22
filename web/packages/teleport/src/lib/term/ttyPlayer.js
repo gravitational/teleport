@@ -18,7 +18,7 @@ import BufferModule from 'buffer/';
 import Logger from 'shared/libs/logger';
 
 import Tty from './tty';
-import { TermEventEnum } from './enums';
+import { TermEvent } from './enums';
 import { onlyPrintEvents } from './ttyPlayerEventProvider';
 
 const logger = Logger.create('TtyPlayer');
@@ -114,7 +114,7 @@ export default class TtyPlayer extends Tty {
       // location.
       if (isRewind) {
         this._chunkQueue = [];
-        this.emit(TermEventEnum.RESET);
+        this.emit(TermEvent.RESET);
       }
 
       const from = isRewind ? 0 : this.currentEventIndex;
@@ -147,7 +147,7 @@ export default class TtyPlayer extends Tty {
     // start from the beginning if reached the end of the session
     if (this.current >= this.duration) {
       this.current = STREAM_START_INDEX;
-      this.emit(TermEventEnum.RESET);
+      this.emit(TermEvent.RESET);
     }
 
     this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
@@ -204,8 +204,8 @@ export default class TtyPlayer extends Tty {
     }
 
     const str = chunk.data.join('');
-    this.emit(TermEventEnum.RESIZE, { h: chunk.h, w: chunk.w });
-    this.emit(TermEventEnum.DATA, str);
+    this.emit(TermEvent.RESIZE, { h: chunk.h, w: chunk.w });
+    this.emit(TermEvent.DATA, str);
   }
 
   _render(events) {

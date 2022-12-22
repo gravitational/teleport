@@ -16,7 +16,7 @@ limitations under the License.
 import '@gravitational/shared/libs/polyfillFinally';
 import api from 'teleport/services/api';
 
-import { TermEventEnum } from 'teleport/lib/term/enums';
+import { TermEvent } from 'teleport/lib/term/enums';
 
 import TtyPlayer, { Buffer } from './ttyPlayer';
 import EventProvider, { MAX_SIZE } from './ttyPlayerEventProvider';
@@ -172,7 +172,7 @@ describe('lib/ttyPlayer', () => {
       await tty.connect();
 
       let renderedData = '';
-      tty.on(TermEventEnum.DATA, data => {
+      tty.on(TermEvent.DATA, data => {
         renderedData = data;
       });
 
@@ -186,11 +186,11 @@ describe('lib/ttyPlayer', () => {
       const renderedDataLength = [];
       const resizeEvents = [];
 
-      tty.on(TermEventEnum.RESIZE, event => {
+      tty.on(TermEvent.RESIZE, event => {
         resizeEvents.push(event);
       });
 
-      tty.on(TermEventEnum.DATA, data => {
+      tty.on(TermEvent.DATA, data => {
         renderedDataLength.push(data.length);
         tty.resumeFlow();
       });
@@ -239,7 +239,7 @@ describe('lib/ttyPlayer', () => {
 
       let renderedData = '';
       tty.current = 478;
-      tty.on(TermEventEnum.DATA, data => {
+      tty.on(TermEvent.DATA, data => {
         renderedData = data;
       });
 
