@@ -1029,7 +1029,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	}
 	for i, req := range reqs {
 		t.Run(fmt.Sprintf("tc %v", i), func(t *testing.T) {
-			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions"), req)
+			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions", "web"), req)
 			require.Error(t, err)
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -2131,7 +2131,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	clt := s.client()
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	ua := "test-ua"
 	req.Header.Set("User-Agent", ua)
@@ -2171,7 +2171,7 @@ func TestLogin(t *testing.T) {
 
 	clt := s.client()
 	ua := "test-ua"
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", ua)
 
@@ -6174,7 +6174,7 @@ func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken str
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
