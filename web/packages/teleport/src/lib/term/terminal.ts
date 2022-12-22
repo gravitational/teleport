@@ -19,7 +19,7 @@ import { FitAddon } from 'xterm-addon-fit';
 import { debounce, Cancelable, isInteger } from 'lodash';
 import Logger from 'shared/libs/logger';
 
-import { TermEventEnum } from './enums';
+import { TermEvent } from './enums';
 import Tty from './tty';
 
 const logger = Logger.create('lib/term/terminal');
@@ -72,12 +72,12 @@ export default class TtyTerminal {
       this.tty.send(data);
     });
 
-    this.tty.on(TermEventEnum.RESET, () => this.reset());
-    this.tty.on(TermEventEnum.CONN_CLOSE, e => this._processClose(e));
-    this.tty.on(TermEventEnum.DATA, data => this._processData(data));
+    this.tty.on(TermEvent.RESET, () => this.reset());
+    this.tty.on(TermEvent.CONN_CLOSE, e => this._processClose(e));
+    this.tty.on(TermEvent.DATA, data => this._processData(data));
 
     // subscribe tty resize event (used by session player)
-    this.tty.on(TermEventEnum.RESIZE, ({ h, w }) => this.resize(w, h));
+    this.tty.on(TermEvent.RESIZE, ({ h, w }) => this.resize(w, h));
 
     this.connect();
 

@@ -18,7 +18,7 @@ import BufferModule from 'buffer/';
 
 import api from 'teleport/services/api';
 
-import { EventTypeEnum } from './enums';
+import { EventType } from './enums';
 
 const URL_PREFIX_EVENTS = '/events';
 const Buffer = BufferModule.Buffer;
@@ -117,12 +117,12 @@ export default class EventProvider {
       const { ms, event, offset, time, bytes } = json[i];
 
       // grab new screen size for the next events
-      if (event === EventTypeEnum.RESIZE || event === EventTypeEnum.START) {
+      if (event === EventType.RESIZE || event === EventType.START) {
         [w, h] = json[i].size.split(':');
       }
 
       // session has ended, stop here
-      if (event === EventTypeEnum.END) {
+      if (event === EventType.END) {
         const start = new Date(events[0].time);
         const end = new Date(time);
         const duration = end.getTime() - start.getTime();
@@ -136,12 +136,12 @@ export default class EventProvider {
       }
 
       // process only PRINT events
-      if (event !== EventTypeEnum.PRINT) {
+      if (event !== EventType.PRINT) {
         continue;
       }
 
       events.push({
-        eventType: EventTypeEnum.PRINT,
+        eventType: EventType.PRINT,
         ms,
         bytes,
         offset,
@@ -224,5 +224,5 @@ function formatDisplayTime(ms) {
 }
 
 export function onlyPrintEvents(e) {
-  return e.eventType === EventTypeEnum.PRINT;
+  return e.eventType === EventType.PRINT;
 }

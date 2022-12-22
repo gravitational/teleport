@@ -17,7 +17,7 @@ limitations under the License.
 import { useState, useEffect } from 'react';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { TermEventEnum } from 'teleport/lib/term/enums';
+import { TermEvent } from 'teleport/lib/term/enums';
 import {
   makeMfaAuthenticateChallenge,
   makeWebauthnAssertionResponse,
@@ -76,13 +76,10 @@ export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
 
   useEffect(() => {
     if (emitterSender) {
-      emitterSender.on(TermEventEnum.WEBAUTHN_CHALLENGE, onChallenge);
+      emitterSender.on(TermEvent.WEBAUTHN_CHALLENGE, onChallenge);
 
       return () => {
-        emitterSender.removeListener(
-          TermEventEnum.WEBAUTHN_CHALLENGE,
-          onChallenge
-        );
+        emitterSender.removeListener(TermEvent.WEBAUTHN_CHALLENGE, onChallenge);
       };
     }
   }, [emitterSender]);

@@ -13,7 +13,7 @@
 // limitations under the License.
 import Logger from 'shared/libs/logger';
 
-import { TermEventEnum } from 'teleport/lib/term/enums.js';
+import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
 
@@ -57,7 +57,7 @@ export enum TdpClientEvent {
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and recieving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
-// For convenience, this can be done in one fell swoop by calling Client.nuke().
+// For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
   protected socket: WebSocket | undefined;
@@ -223,7 +223,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEventEnum.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -541,11 +541,12 @@ export default class Client extends EventEmitterWebAuthnSender {
   private handleError(
     err: Error,
     errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR,
-    isFatal = true
+    isFatal = true,
+    closeCode = WebsocketCloseCode.ABNORMAL
   ) {
     this.logger.error(err);
     this.emit(errType, { err, isFatal });
-    if (isFatal) this.socket?.close();
+    if (isFatal) this.socket?.close(closeCode);
   }
 
   // Ensures full cleanup of this object.
@@ -553,8 +554,8 @@ export default class Client extends EventEmitterWebAuthnSender {
   // so don't call this if your calling object is relying on listeners.
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
-  nuke() {
+  shutdown(closeCode = WebsocketCloseCode.NORMAL) {
     this.removeAllListeners();
-    this.socket?.close();
+    this.socket?.close(closeCode);
   }
 }

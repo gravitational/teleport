@@ -19,7 +19,7 @@ import Logger from 'shared/libs/logger';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
 
-import { EventTypeEnum, TermEventEnum, StatusCodeEnum } from './enums';
+import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
 
 const logger = Logger.create('Tty');
@@ -51,9 +51,9 @@ class Tty extends EventEmitterWebAuthnSender {
     this._onMessage = this._onMessage.bind(this);
   }
 
-  disconnect(reasonCode = StatusCodeEnum.NORMAL) {
+  disconnect(closeCode = WebsocketCloseCode.NORMAL) {
     if (this.socket !== null) {
-      this.socket.close(reasonCode);
+      this.socket.close(closeCode);
     }
   }
 
@@ -93,7 +93,7 @@ class Tty extends EventEmitterWebAuthnSender {
 
     logger.info('requesting new screen size', `w:${w} and h:${h}`);
     var data = JSON.stringify({
-      event: EventTypeEnum.RESIZE,
+      event: EventType.RESIZE,
       width: w,
       height: h,
       size: `${w}:${h}`,
@@ -105,7 +105,7 @@ class Tty extends EventEmitterWebAuthnSender {
   }
 
   _flushBuffer() {
-    this.emit(TermEventEnum.DATA, this._attachSocketBuffer);
+    this.emit(TermEvent.DATA, this._attachSocketBuffer);
     this._attachSocketBuffer = null;
     clearTimeout(this._attachSocketBufferTimer);
     this._attachSocketBufferTimer = null;
@@ -130,7 +130,7 @@ class Tty extends EventEmitterWebAuthnSender {
     this.socket.onmessage = null;
     this.socket.onclose = null;
     this.socket = null;
-    this.emit(TermEventEnum.CONN_CLOSE, e);
+    this.emit(TermEvent.CONN_CLOSE, e);
     logger.info('websocket is closed');
   }
 
@@ -140,19 +140,19 @@ class Tty extends EventEmitterWebAuthnSender {
       const msg = this._proto.decode(uintArray);
       switch (msg.type) {
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
-          this.emit(TermEventEnum.WEBAUTHN_CHALLENGE, msg.payload);
+          this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
           break;
         case MessageTypeEnum.AUDIT:
           this._processAuditPayload(msg.payload);
           break;
         case MessageTypeEnum.SESSION_END:
-          this.emit(TermEventEnum.CLOSE, msg.payload);
+          this.emit(TermEvent.CLOSE, msg.payload);
           break;
         case MessageTypeEnum.RAW:
           if (this._buffered) {
             this._pushToBuffer(msg.payload);
           } else {
-            this.emit(TermEventEnum.DATA, msg.payload);
+            this.emit(TermEvent.DATA, msg.payload);
           }
           break;
         default:
@@ -165,11 +165,11 @@ class Tty extends EventEmitterWebAuthnSender {
 
   _processAuditPayload(payload) {
     const event = JSON.parse(payload);
-    if (event.event === EventTypeEnum.RESIZE) {
+    if (event.event === EventType.RESIZE) {
       let [w, h] = event.size.split(':');
       w = Number(w);
       h = Number(h);
-      this.emit(TermEventEnum.RESIZE, { w, h });
+      this.emit(TermEvent.RESIZE, { w, h });
     }
   }
 }

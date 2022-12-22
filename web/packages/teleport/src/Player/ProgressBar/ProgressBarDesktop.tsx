@@ -128,7 +128,7 @@ export const ProgressBarDesktop = (props: {
       );
 
       return () => {
-        playerClient.nuke();
+        playerClient.shutdown();
         stopProgress();
       };
     }

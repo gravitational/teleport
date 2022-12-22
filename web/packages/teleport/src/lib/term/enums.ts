@@ -14,23 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export const EventTypeEnum = {
-  START: 'session.start',
-  JOIN: 'session.join',
-  END: 'session.end',
-  PRINT: 'print',
-  RESIZE: 'resize',
-};
+export enum EventType {
+  START = 'session.start',
+  JOIN = 'session.join',
+  END = 'session.end',
+  PRINT = 'print',
+  RESIZE = 'resize',
+}
 
-export const TermEventEnum = {
-  RESIZE: 'terminal.resize',
-  CLOSE: 'terminal.close',
-  RESET: 'terminal.reset',
-  DATA: 'terminal.data',
-  CONN_CLOSE: 'connection.close',
-  WEBAUTHN_CHALLENGE: 'terminal.webauthn',
-};
+export enum TermEvent {
+  RESIZE = 'terminal.resize',
+  CLOSE = 'terminal.close',
+  RESET = 'terminal.reset',
+  SESSION = 'terminal.new_session',
+  DATA = 'terminal.data',
+  CONN_CLOSE = 'connection.close',
+  WEBAUTHN_CHALLENGE = 'terminal.webauthn',
+}
 
-export const StatusCodeEnum = {
-  NORMAL: 1000,
-};
+// See https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
+export enum WebsocketCloseCode {
+  NORMAL = 1000,
+  ABNORMAL = 1006,
+}
