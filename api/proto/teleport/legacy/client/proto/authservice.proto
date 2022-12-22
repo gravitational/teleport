@@ -116,6 +116,8 @@ message Event {
     types.KubernetesClusterV3 KubernetesCluster = 33 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
     // Installer is an installer resource
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
+    // DatabaseService is a DatabaseService resource
+    types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
   }
 }
 

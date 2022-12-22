@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -186,6 +187,14 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &databaseServer{watch: watch, Cache: c}
+		case types.KindDatabaseService:
+			if c.DatabaseServices == nil {
+				return nil, trace.BadParameter("missing parameter DatabaseServices")
+			}
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[resourceKind] = &databaseService{watch: watch, Cache: c}
 		case types.KindApp:
 			if c.Apps == nil {
 				return nil, trace.BadParameter("missing parameter Apps")
@@ -1333,6 +1342,86 @@ func (s *databaseServer) processEvent(ctx context.Context, event types.Event) er
 }
 
 func (s *databaseServer) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type databaseService struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *databaseService) erase(ctx context.Context) error {
+	err := s.databaseServicesCache.DeleteAllDatabaseServices(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		nextKey := ""
+		for {
+			listResp, err := s.Presence.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseService,
+				Limit:        apidefaults.DefaultChunkSize,
+				StartKey:     nextKey,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			databaseServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			for _, resource := range databaseServices {
+				if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
+			nextKey = listResp.NextKey
+			if nextKey == "" || len(listResp.Resources) == 0 {
+				break
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *databaseService) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.databaseServicesCache.DeleteDatabaseService(ctx, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.DatabaseService)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *databaseService) watchKind() types.WatchKind {
 	return s.watch
 }
 
