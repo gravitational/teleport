@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -1090,31 +1091,45 @@ func isLocalProxyAlwaysRequired(protocol string) bool {
 	}
 }
 
-// formatDbCmdUnsupportedDBProtocol is a helper func that formats the unsupported DB protocol error message.
-func formatDbCmdUnsupportedDBProtocol(cf *CLIConf, database *tlsca.RouteToDatabase) string {
-	return fmt.Sprintf(dbCmdUnsupportedDBProtocol,
-		cf.CommandWithBinary(),
-		defaults.ReadableDatabaseProtocol(database.Protocol),
-		getDbCmdAlternatives(database))
+// formatDbCmdUnsupportedWithCondition is a helper func that formats a generic unsupported DB error message.
+// The condition argument is optional and can be "", but otherwise it should be a specific condition for which this DB subcommand
+// is not supported, e.g. "when TLS routing is enabled" or "without using the --tunnel flag".
+func formatDbCmdUnsupportedWithCondition(cf *CLIConf, database *tlsca.RouteToDatabase, condition string) string {
+	templateData := map[string]any{
+		"command":      cf.CommandWithBinary(),
+		"protocol":     defaults.ReadableDatabaseProtocol(database.Protocol),
+		"alternatives": getDbCmdAlternatives(cf.SiteName, database),
+		"condition":    condition,
+	}
+
+	buf := bytes.NewBuffer(nil)
+	_ = dbCmdUnsupportedTemplate.Execute(buf, templateData)
+	return buf.String()
 }
 
-// formatDbCmdUnsupportedTLSRouting is a helper func that formats the unsupported TLS routing error message.
+// formatDbCmdUnsupportedDBProtocol is a helper func that formats the unsupported DB protocol error message unconditionally.
+func formatDbCmdUnsupportedDBProtocol(cf *CLIConf, database *tlsca.RouteToDatabase) string {
+	return formatDbCmdUnsupportedWithCondition(cf, database, "")
+}
+
+// formatDbCmdUnsupportedTLSRouting is a helper func that formats an unsupported DB Protocol error with a TLS routing condition.
 func formatDbCmdUnsupportedTLSRouting(cf *CLIConf, database *tlsca.RouteToDatabase) string {
-	return fmt.Sprintf(dbCmdUnsupportedTLSRouting,
-		cf.CommandWithBinary(),
-		defaults.ReadableDatabaseProtocol(database.Protocol),
-		getDbCmdAlternatives(database))
+	return formatDbCmdUnsupportedWithCondition(cf, database, "when TLS routing is enabled on the Teleport Proxy Service")
 }
 
 // getDbCmdAlternatives is a helper func that returns alternative tsh commands for connecting to a database.
-func getDbCmdAlternatives(database *tlsca.RouteToDatabase) string {
+func getDbCmdAlternatives(clusterFlag string, database *tlsca.RouteToDatabase) []string {
+	var alts []string
 	switch database.Protocol {
 	case defaults.ProtocolDynamoDB:
 		// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
-		return `"tsh proxy db --tunnel"`
 	default:
-		return `"tsh db connect" or "tsh proxy db --tunnel"`
+		// prefer displaying the connect command as the first suggested command alternative.
+		alts = append(alts, formatDatabaseConnectCommand(clusterFlag, *database))
 	}
+	// all db protocols support this command.
+	alts = append(alts, formatDatabaseProxyCommand(clusterFlag, *database))
+	return alts
 }
 
 const (
@@ -1128,18 +1143,17 @@ const (
 	dbFormatYAML = "yaml"
 )
 
-const (
-	// dbCmdUnsupportedTLSRouting is the error message printed when some
-	// database subcommands are not supported because TLS routing is enabled.
-	dbCmdUnsupportedTLSRouting = `"%v" is not supported for %v databases when TLS routing is enabled on the Teleport Proxy Service.
-
-Please use %v to connect to the database.`
-
-	// dbCmdUnsupportedDBProtocol is the error message printed when some
-	// database subcommands are run against unsupported database protocols.
-	dbCmdUnsupportedDBProtocol = `"%v" is not supported for %v databases.
-
-Please use %v to connect to the database.`
+var (
+	// dbCmdUnsupportedTemplate is the error message printed when some
+	// database subcommands are not supported.
+	dbCmdUnsupportedTemplate = template.Must(template.New("").Parse(`"{{.command}}" is not supported for {{.protocol}} databases{{if .condition}} {{.condition}}{{end}}.
+{{if eq (len .alternatives) 1}}
+Please use the following command to connect to the database:
+    ` + "`{{index .alternatives 0 -}}`" + `{{else}}
+Please use one of the following commands to connect to the database:
+	{{- range .alternatives}}
+    ` + "`{{.}}`" + `{{end -}}
+{{- end}}`))
 )
 
 var (
@@ -1147,18 +1161,21 @@ var (
 	dbConnectTemplate = template.Must(template.New("").Parse(`Connection information for database "{{ .name }}" has been saved.
 
 {{if .connectCommand -}}
+
 You can now connect to it using the following command:
 
   {{.connectCommand}}
-{{end -}}
 
+{{end -}}
 {{if .configCommand -}}
+
 You can view the connect command for the native database CLI client:
 
   {{ .configCommand }}
 
 {{end -}}
 {{if .proxyCommand -}}
+
 You can start a local proxy for database GUI clients:
 
   {{ .proxyCommand }}

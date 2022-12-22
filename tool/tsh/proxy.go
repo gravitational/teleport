@@ -380,10 +380,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if requiresLocalProxyTunnel(routeToDatabase.Protocol) && !cf.LocalProxyTunnel {
-		return trace.BadParameter("%v proxy works only in the tunnel mode. Please add the --tunnel flag to enable it",
-			defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol))
 	// Some protocols require the --tunnel flag, e.g. Snowflake, DynamoDB.
+	if !cf.LocalProxyTunnel && requiresLocalProxyTunnel(routeToDatabase.Protocol) {
+		return trace.BadParameter(formatDbCmdUnsupportedWithCondition(cf, routeToDatabase, "without the --tunnel flag"))
 	}
 
 	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
