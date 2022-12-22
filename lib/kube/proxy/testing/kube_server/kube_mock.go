@@ -489,7 +489,7 @@ WaitForStreams:
 		case <-expired:
 			return nil, trace.BadParameter("timed out waiting for client to create streams")
 		case <-connContext.Done():
-			return nil, trace.BadParameter("onnectoin has dropped, exiting")
+			return nil, trace.BadParameter("connection has dropped, exiting")
 		}
 	}
 

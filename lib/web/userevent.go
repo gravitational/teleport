@@ -34,9 +34,9 @@ const (
 	getStartedClickEvent            = "tp.ui.onboard.getStarted.click"
 	setCredentialSubmitEvent        = "tp.ui.onboard.setCredential.submit"
 	registerChallengeSubmitEvent    = "tp.ui.onboard.registerChallenge.submit"
-	recoveryCodesContinueClickEvent = "tp.ui.onboard.recoveryCodesContinue.click"
 	addFirstResourceClickEvent      = "tp.ui.onboard.addFirstResource.click"
 	addFirstResourceLaterClickEvent = "tp.ui.onboard.addFirstResourceLater.click"
+	recoveryCodesContinueClickEvent = "tp.ui.recoveryCodesContinue.click"
 )
 
 // createPreUserEventRequest contains the event and properties associated with a user event
