@@ -702,7 +702,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos lint-container-versions
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-ci-scripts lint-backport
@@ -984,6 +984,28 @@ protos/lint: buf/installed
 
 .PHONY: lint-protos
 lint-protos: protos/lint
+
+#
+# Runs a check to make sure that the container versions for a target branch are up to date.
+# Useful when ensuring that container versions have been updated properly after cutting a new major version release.
+#
+.PHONY: lint-container-versions
+lint-container-versions:
+	@# We try using the target branch for Github Actions, then Google Cloud Build, and then simply the current git branch if those are empty.
+	@BASE_BRANCH="$${GITHUB_BASE_REF:-$${_BASE_BRANCH:-$$(git rev-parse --abbrev-ref HEAD)}}"; \
+	if echo $${BASE_BRANCH} | grep -qE ".*branch\/v[0-9]+$$"; then \
+		VERSION_NUMBER="$$(echo $${BASE_BRANCH} | sed "s/.*branch\/v//g")"; \
+		OUTPUT="$$(git grep "public.ecr.aws/gravitational/teleport[^:]*:" | grep -E "^[^\.].*?\.ya?ml:" | grep -v "/tests" | grep -v "\/teleport[^:]*:$${VERSION_NUMBER}.*\$$" )"; \
+		if [ -z "$${OUTPUT}" ]; then \
+			echo "All containers versions have been updated for base branch $${BASE_BRANCH}!"; \
+		else \
+			echo "The following files/lines need to be updated for base branch $${BASE_BRANCH}:"; \
+			echo "$${OUTPUT}"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "No need to check container versions for base branch $${BASE_BRANCH}, only branch/v.* branches are checked."; \
+        fi;
 
 .PHONY: buf/installed
 buf/installed:
