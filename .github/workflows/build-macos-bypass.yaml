@@ -23,7 +23,7 @@ on:
 
 jobs:
   build:
-    name: Skipped
+    name: Build on Mac OS
     runs-on: macos-12
 
     permissions:

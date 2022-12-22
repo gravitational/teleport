@@ -22,7 +22,7 @@ on:
 
 jobs:
   test:
-    name: Skipped
+    name: Unit Tests (Operator)
     runs-on: ubuntu-latest
 
     permissions:
