@@ -1135,6 +1135,48 @@ func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.De
 	return &emptypb.Empty{}, nil
 }
 
+// UpsertDatabaseService registers a new database service.
+func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*types.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keepAlive, err := auth.UpsertDatabaseService(ctx, req.Service)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteDatabaseService removes the specified DatabaseService.
+func (g *GRPCServer) DeleteDatabaseService(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeleteDatabaseService(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllDatabaseServices removes all registered DatabaseServices.
+func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *proto.DeleteAllDatabaseServicesRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeleteAllDatabaseServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
@@ -1239,6 +1281,8 @@ func (g *GRPCServer) GetAppSession(ctx context.Context, req *proto.GetAppSession
 }
 
 // GetAppSessions gets all application web sessions.
+// DEPRECATED: ListAppSessions should be used instead to avoid retrieving all sessions at once.
+// TODO(tross): DELETE IN 13.0
 func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *emptypb.Empty) (*proto.GetAppSessionsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1250,18 +1294,42 @@ func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *emptypb.Empty) (*pro
 		return nil, trace.Wrap(err)
 	}
 
-	var out []*types.WebSessionV2
-	for _, session := range sessions {
-		sess, ok := session.(*types.WebSessionV2)
+	out := make([]*types.WebSessionV2, 0, len(sessions))
+	for _, sess := range sessions {
+		s, ok := sess.(*types.WebSessionV2)
 		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", session)
+			return nil, trace.BadParameter("unexpected type %T", sess)
 		}
-		out = append(out, sess)
+		out = append(out, s)
 	}
 
 	return &proto.GetAppSessionsResponse{
 		Sessions: out,
 	}, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (g *GRPCServer) ListAppSessions(ctx context.Context, req *proto.ListAppSessionsRequest) (*proto.ListAppSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, token, err := auth.ListAppSessions(ctx, int(req.PageSize), req.PageToken, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*types.WebSessionV2, 0, len(sessions))
+	for _, sess := range sessions {
+		s, ok := sess.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", sess)
+		}
+		out = append(out, s)
+	}
+
+	return &proto.ListAppSessionsResponse{Sessions: out, NextPageToken: token}, nil
 }
 
 func (g *GRPCServer) GetSnowflakeSession(ctx context.Context, req *proto.GetSnowflakeSessionRequest) (*proto.GetSnowflakeSessionResponse, error) {
@@ -1346,10 +1414,11 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 	}
 
 	session, err := auth.CreateAppSession(ctx, types.CreateAppSessionRequest{
-		Username:    req.GetUsername(),
-		PublicAddr:  req.GetPublicAddr(),
-		ClusterName: req.GetClusterName(),
-		AWSRoleARN:  req.GetAWSRoleARN(),
+		Username:      req.GetUsername(),
+		PublicAddr:    req.GetPublicAddr(),
+		ClusterName:   req.GetClusterName(),
+		AWSRoleARN:    req.GetAWSRoleARN(),
+		AzureIdentity: req.GetAzureIdentity(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2226,7 +2295,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
-	// Generate the cert.
+	// Generate the cert
 	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev)
 	if err != nil {
 		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
@@ -2325,7 +2394,13 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
+	certs, err := actx.generateUserCerts(
+		ctx, req,
+		certRequestMFAVerified(mfaDev.Id),
+		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
+		certRequestClientIP(clientIP),
+		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3801,6 +3876,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindDatabaseService:
+			databaseService, ok := resource.(*types.DatabaseServiceV1)
+			if !ok {
+				return nil, trace.BadParameter("database service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
 		case types.KindAppServer:
 			app, ok := resource.(*types.AppServerV3)
 			if !ok {
@@ -4275,6 +4357,18 @@ func (g *GRPCServer) ChangePassword(ctx context.Context, req *proto.ChangePasswo
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.ChangePassword(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (g *GRPCServer) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SubmitUsageEvent(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

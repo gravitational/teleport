@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -153,7 +153,7 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			}
 		}
 	}()
-	keyGen := native.New(testCtx.ctx)
+	keyGen := keygen.New(testCtx.ctx)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters)+1)
@@ -360,7 +360,7 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 }
 
 func (c *testContext) newJoiningSession(cfg *rest.Config, sessionID string, mode types.SessionParticipantMode) (*streamproto.SessionStream, error) {
-	ws, err := newWebSocketExecutor(cfg, http.MethodPost, &url.URL{
+	ws, err := newWebSocketClient(cfg, http.MethodPost, &url.URL{
 		Scheme: "wss",
 		Host:   c.KubeServiceAddress(),
 		Path:   "/api/v1/teleport/join/" + sessionID,

@@ -42,6 +42,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -1254,7 +1255,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1337,6 +1338,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr.GetCluster(), mfaParams)
 	case types.DatabaseServer:
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
+	case types.DatabaseService:
+		return r.CheckAccess(rr, mfaParams)
 	case types.Database:
 		return r.CheckAccess(rr, mfaParams)
 	case types.Server:
@@ -1433,7 +1436,7 @@ func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -1923,11 +1926,7 @@ func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.Acc
 			return trace.Wrap(err)
 		}
 	}
-	// Ensure that an access request cannot outlive the identity that creates it.
-	if req.GetAccessExpiry().Before(a.authServer.GetClock().Now()) || req.GetAccessExpiry().After(a.context.Identity.GetIdentity().Expires) {
-		req.SetAccessExpiry(a.context.Identity.GetIdentity().Expires)
-	}
-	return a.authServer.CreateAccessRequest(ctx, req)
+	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity())
 }
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
@@ -2335,7 +2334,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 	for _, reqID := range finalRequestIDs {
 		// Fetch and validate the access request for this user.
-		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, req.Username, reqID)
+		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, currentIdentity, req.Username, reqID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2559,6 +2558,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
+		azureIdentity:     req.RouteToApp.AzureIdentity,
 		checker:           checker,
 		traits:            accessInfo.Traits,
 		activeRequests: services.RequestIDs{
@@ -3435,6 +3435,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		}
 	}
 
+	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetAuthPreference(ctx, newAuthPref)
 }
 
@@ -3864,6 +3868,30 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
 }
 
+// UpsertDatabaseService creates or updates a new DatabaseService resource.
+func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertDatabaseService(ctx, service)
+}
+
+// DeleteAllDatabaseServices removes all DatabaseService resources.
+func (a *ServerWithRoles) DeleteAllDatabaseServices(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllDatabaseServices(ctx)
+}
+
+// DeleteDatabaseService removes a specific DatabaseService resource.
+func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteDatabaseService(ctx, name)
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
@@ -4039,6 +4067,16 @@ func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]types.WebSessio
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	sessions, nextKey, err := a.authServer.ListAppSessions(ctx, pageSize, pageToken, user)
+	return sessions, nextKey, trace.Wrap(err)
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
@@ -5042,7 +5080,7 @@ func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) er
 	)
 }
 
-// GenerateWindowsDesktopCert generates a certificate for Windows RDP
+// GenerateWindowsDesktopCert generates a certificate for Windows RDP or SQL Server
 // authentication.
 func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	// Only windows_desktop_service should be requesting Windows certificates.
@@ -5177,6 +5215,19 @@ func (a *ServerWithRoles) UpdatePresence(ctx context.Context, sessionID, user st
 // since it's handled by the session presence task. This is never valid to call.
 func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (a *ServerWithRoles) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindUsageEvent, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.SubmitUsageEvent(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

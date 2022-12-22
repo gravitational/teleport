@@ -1274,15 +1274,11 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 }
 
 // ResumeAuditStream resumes existing audit stream.
-// This is a wrapper on the grpc endpoint and is deprecated.
-// DELETE IN 7.0.0
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
 }
 
 // CreateAuditStream creates new audit stream.
-// This is a wrapper on the grpc endpoint and is deprecated.
-// DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
@@ -1579,6 +1575,7 @@ type ClientI interface {
 	services.Restrictions
 	services.Apps
 	services.Databases
+	services.DatabaseServices
 	services.Kubernetes
 	services.WindowsDesktops
 	WebService
@@ -1677,4 +1674,7 @@ type ClientI interface {
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
+
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 }

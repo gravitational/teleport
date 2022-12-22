@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1017,26 +1020,6 @@ func TestAzureTagsToLabels(t *testing.T) {
 		"foo:bar": "some-id"}, labels)
 }
 
-func TestRDSTagsToLabels(t *testing.T) {
-	rdsTags := []*rds.Tag{
-		{
-			Key:   aws.String("Env"),
-			Value: aws.String("dev"),
-		},
-		{
-			Key:   aws.String("aws:cloudformation:stack-id"),
-			Value: aws.String("some-id"),
-		},
-		{
-			Key:   aws.String("Name"),
-			Value: aws.String("test"),
-		},
-	}
-	labels := rdsTagsToLabels(rdsTags)
-	require.Equal(t, map[string]string{"Name": "test", "Env": "dev",
-		"aws:cloudformation:stack-id": "some-id"}, labels)
-}
-
 // TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
 func TestDatabaseFromRedshiftCluster(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
@@ -1501,6 +1484,80 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	actual, err := NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
+	workgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
+	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-workgroup",
+		Description: "Redshift Serverless workgroup in eu-west-2",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "eu-west-2",
+			labelEndpointType: "workgroup",
+			labelNamespace:    "my-namespace",
+			labelVPCID:        "vpc-id",
+			"env":             "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "eu-west-2",
+			RedshiftServerless: types.RedshiftServerless{
+				WorkgroupName: "my-workgroup",
+				WorkgroupID:   "some-uuid-for-my-workgroup",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
+	workgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
+	endpoint := cloudtest.RedshiftServerlessEndpointAccess(workgroup, "my-endpoint", "eu-west-2")
+	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-workgroup-my-endpoint",
+		Description: "Redshift Serverless endpoint in eu-west-2",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "eu-west-2",
+			labelEndpointType: "vpc-endpoint",
+			labelWorkgroup:    "my-workgroup",
+			labelNamespace:    "my-namespace",
+			labelVPCID:        "vpc-id",
+			"env":             "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "my-endpoint-endpoint-xxxyyyzzz.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "eu-west-2",
+			RedshiftServerless: types.RedshiftServerless{
+				WorkgroupName: "my-workgroup",
+				EndpointName:  "my-endpoint",
+				WorkgroupID:   "some-uuid-for-my-workgroup",
+			},
+		},
+		TLS: types.DatabaseTLS{
+			ServerName: "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com",
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }

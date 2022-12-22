@@ -46,12 +46,12 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -141,7 +141,7 @@ type CLIConf struct {
 	// ExplicitUsername is true if Username was initially set by the end-user
 	// (for example, using command-line flags).
 	ExplicitUsername bool
-	// Proxy keeps the hostname:port of the SSH proxy to use
+	// Proxy keeps the hostname:port of the Teleport proxy to use
 	Proxy string
 	// TTL defines how long a session must be active (in minutes)
 	MinsToLive int32
@@ -295,6 +295,14 @@ type CLIConf struct {
 	// PreserveAttrs preserves access/modification times from the original file.
 	PreserveAttrs bool
 
+	// RequestTTL is the expiration time of the Access Request (how long it
+	// will await approval).
+	RequestTTL time.Duration
+
+	// SessionTTL is the expiration time for the elevated certificate that will
+	// be issued if the Access Request is approved.
+	SessionTTL time.Duration
+
 	// executablePath is the absolute path to the current executable.
 	executablePath string
 
@@ -334,6 +342,11 @@ type CLIConf struct {
 	// proxy instead of an HTTPS proxy.
 	AWSEndpointURLMode bool
 
+	// AzureIdentity is Azure identity that will be used for Azure CLI access.
+	AzureIdentity string
+	// AzureCommandArgs contains arguments that will be forwarded to Azure CLI binary.
+	AzureCommandArgs []string
+
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
 
@@ -351,8 +364,13 @@ type CLIConf struct {
 
 	// ListAll specifies if an ls command should return results from all clusters and proxies.
 	ListAll bool
+
 	// SampleTraces indicates whether traces should be sampled.
 	SampleTraces bool
+
+	// TraceExporter is a manually provided URI to send traces to instead of
+	// forwarding them to the Auth service.
+	TraceExporter string
 
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
@@ -529,20 +547,21 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
-	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
-	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
+	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
 
-	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
+	app.Flag("ttl", "Minutes to live for a session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
+	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -613,6 +632,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 
+	azure := app.Command("az", "Access Azure API.").Interspersed(false)
+	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
+	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
@@ -626,6 +649,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
@@ -661,11 +685,18 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+
+	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
+	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyAzure.Alias("az")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -707,7 +738,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
-	play := app.Command("play", "Replay the recorded SSH session")
+	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App)")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
@@ -811,6 +842,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
 	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
+	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -844,6 +877,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	tid := newTouchIDCommand(app)
 
 	webauthnwin := newWebauthnwinCommand(app)
+
+	// Device Trust commands.
+	deviceCmd := newDeviceCommand(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -923,7 +959,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// Connect to the span exporter and initialize the trace provider only if
 	// the --trace flag was set.
 	if cf.SampleTraces {
-		provider, err := newTraceProvider(&cf, command, []string{login.FullCommand()})
+		// login only needs to be ignored if forwarding to auth
+		var ignored []string
+		if cf.TraceExporter == "" {
+			ignored = []string{login.FullCommand()}
+		}
+		provider, err := newTraceProvider(&cf, command, ignored)
 		if err != nil {
 			log.WithError(err).Debug("failed to set up span forwarding.")
 		} else {
@@ -1042,6 +1083,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandApp(&cf)
 	case proxyAWS.FullCommand():
 		err = onProxyCommandAWS(&cf)
+	case proxyAzure.FullCommand():
+		err = onProxyCommandAzure(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1079,6 +1122,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case azure.FullCommand():
+		err = onAzure(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():
@@ -1087,6 +1132,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = tid.diag.run(&cf)
 	case webauthnwin.diag.FullCommand():
 		err = webauthnwin.diag.run(&cf)
+	case deviceCmd.enroll.FullCommand():
+		err = deviceCmd.enroll.run(&cf)
+	case deviceCmd.collect.FullCommand():
+		err = deviceCmd.collect.run(&cf)
+	case deviceCmd.keyget.FullCommand():
+		err = deviceCmd.keyget.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1107,45 +1158,68 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	return trace.Wrap(err)
 }
 
-// newTraceProvider initializes the tracing provider and exports all recorded spans
-// to the auth server to be forwarded to the telemetry backend. The whitelist allows
+// newTraceProvider initializes the tracing provider that will export spans for tsh.
+//
+// If an explicit exporter url was provided via --trace-exporter all spans will be
+// send to the provided exporter. Otherwise all recorded spans are exported to the
+// Auth server which then forwards to the telemetry backend. The ignored list contains
 // certain commands to have exporting spans be a no-op. Since the provider requires
-// connecting to the auth server, this means a user may have to log in first before
-// the provider can be created. By whitelisting the login command we can avoid having
+// connecting to the auth server, this means a user may have to login first before
+// the provider can be created. By ignoring the login command we can avoid having
 // users logging in twice at the expense of not exporting spans for the login command.
-func newTraceProvider(cf *CLIConf, command string, whitelist []string) (*tracing.Provider, error) {
-	// don't record any spans for commands that have been whitelisted
-	for _, c := range whitelist {
+func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.Provider, error) {
+	// don't record any spans for commands that have been allowed
+	for _, c := range ignored {
 		if strings.EqualFold(command, c) {
 			return tracing.NoopProvider(), nil
 		}
 	}
 
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var traceclt *apitracing.Client
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		traceclt, err = tc.NewTracingClient(cf.Context)
-		return err
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	provider, err := tracing.NewTraceProvider(cf.Context,
-		tracing.Config{
-			Service: teleport.ComponentTSH,
-			Client:  traceclt,
+	// an explicit exporter url was provided no need to forward to auth
+	if cf.TraceExporter != "" {
+		provider, err := tracing.NewTraceProvider(cf.Context, tracing.Config{
+			Service:     teleport.ComponentTSH,
+			ExporterURL: cf.TraceExporter,
 			// We are using 1 here to record all spans as a result of this tsh command. Teleport
 			// will respect the recording flag of remote spans even if the spans it generates
 			// wouldn't otherwise be recorded due to its configured sampling rate.
 			SamplingRate: 1.0,
 		})
+
+		return provider, trace.Wrap(err)
+	}
+
+	// create a TeleportClient and generate a provider that forwards
+	// spans to Auth
+	tc, err := makeClient(cf, true)
 	if err != nil {
-		return nil, trace.NewAggregate(err, traceclt.Close())
+		return nil, trace.Wrap(err)
+	}
+
+	var provider *tracing.Provider
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clt, err := tc.NewTracingClient(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		p, err := tracing.NewTraceProvider(cf.Context,
+			tracing.Config{
+				Service: teleport.ComponentTSH,
+				Client:  clt,
+				// We are using 1 here to record all spans as a result of this tsh command. Teleport
+				// will respect the recording flag of remote spans even if the spans it generates
+				// wouldn't otherwise be recorded due to its configured sampling rate.
+				SamplingRate: 1.0,
+			})
+		if err != nil {
+			return trace.NewAggregate(err, clt.Close())
+		}
+
+		provider = p
+		return nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return provider, nil
@@ -1501,7 +1575,13 @@ func onLogin(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
-
+		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+		kubeTLSServerName := ""
+		if tc.TLSRoutingEnabled {
+			log.Debug("Using Proxy SNI for kube TLS server name")
+			kubeHost, _ := tc.KubeProxyHostPort()
+			kubeTLSServerName = client.GetKubeTLSServerName(kubeHost)
+		}
 		filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 			OutputPath:           cf.IdentityFileOut,
 			Key:                  key,
@@ -1509,6 +1589,8 @@ func onLogin(cf *CLIConf) error {
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
 			KubeStoreAllCAs:      tc.LoadAllCAs,
+			KubeTLSServerName:    kubeTLSServerName,
+			KubeClusterName:      tc.KubernetesCluster,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1518,6 +1600,13 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if err := tc.ActivateKey(cf.Context, key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Attempt device login. This activates a fresh key if successful.
+	// We do not save the resulting in the identity file above on purpose, as this
+	// certificate is bound to the present device.
+	if err := tc.AttemptDeviceLogin(cf.Context, key); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1882,28 +1971,70 @@ func (l nodeListings) Swap(i, j int) {
 }
 
 func listNodesAllClusters(cf *CLIConf) error {
-	var listings nodeListings
+	// Fetch database listings for profiles in parallel. Set an arbitrary limit
+	// just in case.
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(4)
 
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for clusterName, nodes := range result {
-			for _, node := range nodes {
-				listings = append(listings, nodeListing{
-					Proxy:   profile.ProxyURL.Host,
-					Cluster: clusterName,
-					Node:    node,
-				})
+	nodeListingsResultChan := make(chan nodeListings)
+	nodeListingsCollectChan := make(chan nodeListings)
+	go func() {
+		var listings nodeListings
+		for {
+			select {
+			case items := <-nodeListingsResultChan:
+				listings = append(listings, items...)
+			case <-groupCtx.Done():
+				nodeListingsCollectChan <- listings
+				return
 			}
 		}
+	}()
+
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		group.Go(func() error {
+			proxy, err := tc.ConnectToProxy(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer proxy.Close()
+
+			sites, err := proxy.GetSites(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			var listings nodeListings
+			for _, site := range sites {
+				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				for _, node := range nodes {
+					listings = append(listings, nodeListing{
+						Proxy:   profile.ProxyURL.Host,
+						Cluster: site.Name,
+						Node:    node,
+					})
+				}
+			}
+
+			nodeListingsCollectChan <- listings
+			return nil
+		})
+
 		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if err := group.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	listings := <-nodeListingsResultChan
 	sort.Sort(listings)
 
 	format := strings.ToLower(cf.Format)
@@ -1989,12 +2120,29 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	}
 	req.SetRequestReason(cf.RequestReason)
 	req.SetSuggestedReviewers(reviewers)
+
+	// Only set RequestTTL and SessionTTL if values are greater than zero.
+	// Otherwise leave defaults and the server will take the zero values and
+	// transform them into default expirations accordingly.
+	if cf.RequestTTL > 0 {
+		req.SetExpiry(time.Now().UTC().Add(cf.RequestTTL))
+	}
+	if cf.SessionTTL > 0 {
+		req.SetAccessExpiry(time.Now().UTC().Add(cf.SessionTTL))
+	}
+
 	return req, nil
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
+	}
+	if cf.RequestTTL < 0 {
+		return trace.BadParameter("request TTL value must be greater than zero")
+	}
+	if cf.SessionTTL < 0 {
+		return trace.BadParameter("session TTL value must be greater than zero")
 	}
 	if cf.Username == "" {
 		cf.Username = tc.Username

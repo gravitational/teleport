@@ -114,15 +114,6 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	databaseMissingMetadata, err := types.NewDatabaseV3(types.Metadata{
-		Name: "redshift",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost",
-		AWS:      types.AWS{Redshift: types.Redshift{ClusterID: "missing metadata"}},
-	})
-	require.NoError(t, err)
-
 	// Make configurator.
 	taskChan := make(chan struct{})
 	waitForTaskProcessed := func(t *testing.T) {
@@ -216,15 +207,6 @@ func TestAWSIAM(t *testing.T) {
 		policy = iamClient.attachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 	})
-
-	// Database misssing metadata for generating IAM actions should NOT be
-	// added to the policy document.
-	t.Run("missing metadata", func(t *testing.T) {
-		err = configurator.Setup(ctx, databaseMissingMetadata)
-		waitForTaskProcessed(t)
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, databaseMissingMetadata.GetAWS().Redshift.ClusterID)
-	})
 }
 
 // TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
@@ -264,6 +246,17 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		{
 			name: "Aurora cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+			clients: &clients.TestCloudClients{
+				RDS: &RDSMockUnauth{},
+				IAM: &IAMErrorMock{
+					Error: trace.AccessDenied("unauthorized"),
+				},
+				STS: stsClient,
+			},
+		},
+		{
+			name: "RDS database missing metadata",
+			meta: types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
 			clients: &clients.TestCloudClients{
 				RDS: &RDSMockUnauth{},
 				IAM: &IAMErrorMock{

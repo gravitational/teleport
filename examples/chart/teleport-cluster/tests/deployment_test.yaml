@@ -4,6 +4,7 @@ templates:
   - config.yaml
 tests:
   - it: sets Deployment annotations when specified
+    template: deployment.yaml
     values:
       - ../.lint/annotations.yaml
     asserts:
@@ -17,6 +18,7 @@ tests:
           path: spec.template.spec
 
   - it: sets Pod annotations when specified
+    template: deployment.yaml
     values:
       - ../.lint/annotations.yaml
     asserts:
@@ -30,6 +32,7 @@ tests:
           path: spec.template.spec
 
   - it: should not have more than one replica in standalone mode
+    template: deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -41,6 +44,7 @@ tests:
           path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set
+    template: deployment.yaml
     set:
       chartMode: custom
       clusterName: helm-lint.example.com
@@ -54,6 +58,7 @@ tests:
           path: spec.template.spec
 
   - it: should set affinity when set in values
+    template: deployment.yaml
     set:
       chartMode: custom
       clusterName: helm-lint.example.com
@@ -75,6 +80,7 @@ tests:
           path: spec.template.spec
 
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
+    template: deployment.yaml
     values:
       - ../.lint/aws-ha-antiaffinity.yaml
     asserts:
@@ -88,6 +94,7 @@ tests:
           path: spec.template.spec
 
   - it: should set tolerations when set in values
+    template: deployment.yaml
     values:
       - ../.lint/tolerations.yaml
     asserts:
@@ -97,6 +104,7 @@ tests:
           path: spec.template.spec
 
   - it: should set resources when set in values
+    template: deployment.yaml
     values:
       - ../.lint/resources.yaml
     asserts:
@@ -116,6 +124,7 @@ tests:
           path: spec.template.spec
 
   - it: should set securityContext when set in values
+    template: deployment.yaml
     values:
       - ../.lint/security-context.yaml
     asserts:
@@ -141,6 +150,7 @@ tests:
           path: spec.template.spec
 
   - it: should not set securityContext when is empty object (default value)
+    template: deployment.yaml
     values:
       - ../.lint/security-context-empty.yaml
     asserts:
@@ -153,6 +163,7 @@ tests:
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
   - it: should do enterprise things when when enterprise is set in values
+    template: deployment.yaml
     set:
       clusterName: helm-lint.example.com
       enterprise: true
@@ -177,6 +188,7 @@ tests:
           path: spec.template.spec
 
   - it: should not do enterprise things when when enterprise is not set in values
+    template: deployment.yaml
     set:
       clusterName: helm-lint
       teleportVersionOverride: 8.3.4
@@ -200,6 +212,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount GCP credentials in GCP mode
+    template: deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
     asserts:
@@ -219,6 +232,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount GCP credentials for initContainer in GCP mode
+    template: deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
       - ../.lint/initcontainers.yaml
@@ -233,6 +247,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount TLS certs when cert-manager is enabled
+    template: deployment.yaml
     values:
       - ../.lint/gcp-ha-acme.yaml
     asserts:
@@ -252,6 +267,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount TLS certs for initContainer when cert-manager is enabled
+    template: deployment.yaml
     values:
       - ../.lint/gcp-ha-acme.yaml
       - ../.lint/initcontainers.yaml
@@ -266,6 +282,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount ConfigMap for config in AWS mode
+    template: deployment.yaml
     values:
       - ../.lint/aws-ha.yaml
     asserts:
@@ -285,6 +302,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount ConfigMap for config in GCP mode
+    template: deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
     asserts:
@@ -304,6 +322,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount ConfigMap for config in standalone mode
+    template: deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -324,6 +343,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount ConfigMap for config in custom mode
+    template: deployment.yaml
     set:
       chartMode: custom
       clusterName: helm-lint.example.com
@@ -344,6 +364,7 @@ tests:
           path: spec.template.spec
 
   - it: should have Recreate strategy in standalone mode
+    template: deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -355,6 +376,7 @@ tests:
           path: spec.template.spec
 
   - it: should not have strategy in AWS mode
+    template: deployment.yaml
     values:
       - ../.lint/aws-ha.yaml
     asserts:
@@ -364,6 +386,7 @@ tests:
           path: spec.template.spec
 
   - it: should not have strategy in GCP mode
+    template: deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
     asserts:
@@ -373,6 +396,7 @@ tests:
           path: spec.template.spec
 
   - it: should not have strategy in custom mode
+    template: deployment.yaml
     set:
       chartMode: custom
       clusterName: helm-lint.example.com
@@ -383,6 +407,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
+    template: deployment.yaml
     values:
       - ../.lint/volumes.yaml
     asserts:
@@ -401,6 +426,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
+    template: deployment.yaml
     values:
       - ../.lint/volumes.yaml
     asserts:
@@ -419,6 +445,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
+    template: deployment.yaml
     values:
       - ../.lint/volumes.yaml
     asserts:
@@ -437,6 +464,7 @@ tests:
           path: spec.template.spec
 
   - it: should set imagePullPolicy when set in values
+    template: deployment.yaml
     set:
       clusterName: helm-lint.example.com
       imagePullPolicy: Always
@@ -448,6 +476,7 @@ tests:
           path: spec.template.spec
 
   - it: should set environment when extraEnv set in values
+    template: deployment.yaml
     values:
       - ../.lint/extra-env.yaml
     asserts:
@@ -460,6 +489,7 @@ tests:
           path: spec.template.spec
 
   - it: should provision initContainer correctly when set in values
+    template: deployment.yaml
     values:
       - ../.lint/initcontainers.yaml
       - ../.lint/resources.yaml
@@ -490,6 +520,7 @@ tests:
           path: spec.template.spec
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values
+    template: deployment.yaml
     set:
       clusterName: helm-lint.example.com
       insecureSkipProxyTLSVerify: true
@@ -501,6 +532,7 @@ tests:
           path: spec.template.spec
 
   - it: should expose diag port
+    template: deployment.yaml
     set:
       clusterName: helm-lint.example.com
     asserts:
@@ -514,6 +546,7 @@ tests:
           path: spec.template.spec
 
   - it: should set postStart command if set in values
+    template: deployment.yaml
     set:
       clusterName: helm-lint.example.com
       postStart:
@@ -526,6 +559,7 @@ tests:
           path: spec.template.spec
 
   - it: should add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is true
+    template: deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -542,6 +576,7 @@ tests:
           path: spec.template.spec
 
   - it: should not add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is false
+    template: deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -558,6 +593,7 @@ tests:
           path: spec.template.spec
 
   - it: should add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is true
+    template: deployment.yaml
     set:
       chartMode: custom
       clusterName: helm-lint.example.com
@@ -574,6 +610,7 @@ tests:
           path: spec.template.spec
 
   - it: should not add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is false
+    template: deployment.yaml
     set:
       chartMode: custom
       clusterName: helm-lint.example.com
@@ -590,6 +627,7 @@ tests:
           path: spec.template.spec
 
   - it: should add an operator side-car when operator is enabled
+    template: deployment.yaml
     values:
       - ../.lint/operator.yaml
     asserts:
@@ -600,6 +638,7 @@ tests:
           path: spec.template.spec.containers[1]
 
   - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
+    template: deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     asserts:
@@ -613,6 +652,7 @@ tests:
           path: spec.template.spec
 
   - it: should not add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set but persistence.enabled is false
+    template: deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     set:
@@ -629,6 +669,7 @@ tests:
           path: spec.template.spec
 
   - it: should add named PersistentVolumeClaim as volume when in custom mode and persistence.existingClaimName is set
+    template: deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     asserts:
@@ -642,6 +683,7 @@ tests:
           path: spec.template.spec
 
   - it: should not add named PersistentVolumeClaim as volume when in custom mode, persistence.existingClaimName is set and persistence.enabled is false
+    template: deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     set:
@@ -658,6 +700,7 @@ tests:
           path: spec.template.spec
 
   - it: should add emptyDir for data in AWS mode
+    template: deployment.yaml
     values:
       - ../.lint/aws-ha.yaml
     asserts:
@@ -670,6 +713,7 @@ tests:
           path: spec.template.spec
 
   - it: should add emptyDir for data in GCP mode
+    template: deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
     asserts:
@@ -682,6 +726,7 @@ tests:
           path: spec.template.spec
 
   - it: should set priorityClassName when set in values
+    template: deployment.yaml
     values:
       - ../.lint/priority-class-name.yaml
     asserts:
@@ -692,6 +737,7 @@ tests:
           path: spec.template.spec
 
   - it: should set probeTimeoutSeconds when set in values
+    template: deployment.yaml
     values:
       - ../.lint/probe-timeout-seconds.yaml
     asserts:
@@ -705,6 +751,7 @@ tests:
           path: spec.template.spec
 
   - it: should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set
+    template: deployment.yaml
     set:
       clusterName: helm-lint-test-cluster
     asserts:
@@ -724,6 +771,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount cert-manager TLS secret when highAvailability.certManager.enabled is true
+    template: deployment.yaml
     values:
       - ../.lint/cert-manager.yaml
     asserts:
@@ -743,6 +791,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingSecretName when set in values
+    template: deployment.yaml
     values:
       - ../.lint/existing-tls-secret.yaml
     asserts:
@@ -762,6 +811,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set environment when set in values
+    template: deployment.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
     asserts:
@@ -798,6 +848,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set extra environment when set in values
+    template: deployment.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/extra-env.yaml
@@ -840,6 +891,7 @@ tests:
           path: spec.template.spec
 
   - it: should set minReadySeconds in non-standalone mode
+    template: deployment.yaml
     set:
       chartMode: custom
       highAvailability:

@@ -645,7 +645,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendError(message); err != nil {
+		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
 			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
@@ -812,26 +812,23 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	monitorCfg := srv.MonitorConfig{
-		Context:           ctx,
-		Conn:              tdpConn,
-		Clock:             s.cfg.Clock,
-		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		Entry:             log,
-		Emitter:           s.cfg.Emitter,
-		LockWatcher:       s.cfg.LockWatcher,
-		LockingMode:       authCtx.Checker.LockingMode(authPref.GetLockingMode()),
-		LockTargets:       append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
-		Tracker:           rdpc,
-		TeleportUser:      identity.Username,
-		ServerID:          s.cfg.Heartbeat.HostUUID,
+		Context:               ctx,
+		Conn:                  tdpConn,
+		Clock:                 s.cfg.Clock,
+		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(authCtx.Checker, authPref, &identity),
+		Entry:                 log,
+		Emitter:               s.cfg.Emitter,
+		LockWatcher:           s.cfg.LockWatcher,
+		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
+		Tracker:               rdpc,
+		TeleportUser:          identity.Username,
+		ServerID:              s.cfg.Heartbeat.HostUUID,
 		MessageWriter: &monitorErrorSender{
 			log:     log,
 			tdpConn: tdpConn,
 		},
-	}
-	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
-		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
 	// UpdateClientActivity before starting monitor to
@@ -858,7 +855,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError):
+		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -1105,7 +1102,7 @@ type monitorErrorSender struct {
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.SendError(s); err != nil {
+	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
 		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
 		m.log.Error(errMsg)
 		return 0, trace.Errorf(errMsg)
