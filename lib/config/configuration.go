@@ -1947,25 +1947,22 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 			// TODO: remove legacyAppFlags once `teleport start --app-name` is removed.
 			if legacyAppFlags {
 				return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
-			} else {
-				return trace.BadParameter("to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
 			}
+			return trace.BadParameter("to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
 		}
 
 		if clf.AppName == "" {
 			if legacyAppFlags {
 				return trace.BadParameter("application name (--app-name) is required to join application proxy to the cluster")
-			} else {
-				return trace.BadParameter("to join application proxy to the cluster provide application name (--name)")
 			}
+			return trace.BadParameter("to join application proxy to the cluster provide application name (--name)")
 		}
 
 		if clf.AppURI == "" && clf.AppCloud == "" {
 			if legacyAppFlags {
 				return trace.BadParameter("URI (--app-uri) flag is required to join application proxy to the cluster")
-			} else {
-				return trace.BadParameter("to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
 			}
+			return trace.BadParameter("to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
 		}
 	}
 
