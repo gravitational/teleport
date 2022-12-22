@@ -443,16 +443,18 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
+
 		certs, err := authServer.generateUserCert(certRequest{
-			publicKey:      pub,
-			user:           user,
-			ttl:            identity.TTL,
-			usage:          identity.AcceptedUsage,
-			routeToCluster: identity.RouteToCluster,
-			checker:        checker,
-			traits:         user.GetTraits(),
-			renewable:      identity.Renewable,
-			generation:     identity.Generation,
+			publicKey:        pub,
+			user:             user,
+			ttl:              identity.TTL,
+			usage:            identity.AcceptedUsage,
+			routeToCluster:   identity.RouteToCluster,
+			checker:          checker,
+			traits:           user.GetTraits(),
+			renewable:        identity.Renewable,
+			generation:       identity.Generation,
+			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
