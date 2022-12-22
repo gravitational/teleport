@@ -132,12 +132,6 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     })),
     suggestedReviewers: request.suggestedReviewersList,
     thresholdNames: request.thresholdNamesList,
-    // TODO (avatus): fetch detailed data to include hostname after implementing
-    // changes for Connect related to https://github.com/gravitational/webapps.e/pull/391
-    // for now, use legacy display of node id
-    resources: request.resourceIdsList.map(rid => ({
-      id: rid,
-      details: {},
-    })),
+    resources: request.resourcesList,
   });
 }
