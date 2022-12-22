@@ -21,11 +21,13 @@ package multiplexer
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/services"
 	"io"
 	"math"
 	"net"
@@ -455,7 +457,8 @@ func (p *ProxyLine) getSignatureAndSigningCert() (string, []byte, error) {
 }
 
 // VerifySignature checks that signature contained in the proxy line is securely signed.
-func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock) error {
+func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthoritiesGetter, trustedClustersNames []string, clock clockwork.Clock) error {
+
 	// If there's no TLVs it can't be verified
 	if len(p.TLVs) == 0 {
 		return trace.Wrap(ErrNoSignature)
@@ -474,6 +477,32 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 		return trace.Wrap(err)
 	}
 
+	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName := identity.TeleportCluster
+	found := false
+	for _, name := range trustedClustersNames {
+		if name == clusterName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return trace.Wrap(trace.Errorf("received signed PROXY header from not trusted cluster %q, list of trusted clusters: %+q",
+			clusterName, trustedClustersNames))
+	}
+
+	hostCA, err := caGetter.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	hostCACerts := services.GetTLSCerts(hostCA)
+
 	roots := x509.NewCertPool()
 	for _, cert := range hostCACerts {
 		ok := roots.AppendCertsFromPEM(cert)
@@ -482,17 +511,11 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 		}
 	}
 
-	// Make sure that transmitted proxy cert is signed by one of the provided HostCAs
+	// Make sure that transmitted proxy cert is signed by appropriate host CA
 	_, err = signingCert.Verify(x509.VerifyOptions{Roots: roots})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterName := identity.TeleportCluster
 
 	foundRole := checkForSystemRole(identity, types.RoleProxy)
 	if !foundRole {

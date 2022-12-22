@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"io"
 	"net"
 	"testing"
@@ -443,9 +444,12 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	cas, err := casGetter.GetCertAuthorities(context.Background(), types.HostCA, false)
+	ca, err := casGetter.GetCertAuthority(context.Background(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName,
+	}, false)
 	require.NoError(t, err)
-	hostCA := cas[0].GetTrustedTLSKeyPairs()[0].Cert
+	hostCACert := ca.GetTrustedTLSKeyPairs()[0].Cert
 
 	_, wrongCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "wrong-cluster", Organization: []string{"wrong-cluster"}}, []string{"wrong-cluster"}, time.Hour)
@@ -454,76 +458,94 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	testCases := []struct {
 		desc string
 
-		sAddr       net.TCPAddr
-		dAddr       net.TCPAddr
-		hostCACerts [][]byte
-		signature   string
-		cert        []byte
+		sAddr           net.TCPAddr
+		dAddr           net.TCPAddr
+		hostCACert      []byte
+		signature       string
+		cert            []byte
+		trustedClusters []string
 
 		wantErr string
 	}{
 		{
-			desc:        "no host CA certificate",
-			sAddr:       sAddr,
-			dAddr:       dAddr,
-			hostCACerts: [][]byte{},
-			signature:   signature,
-			cert:        tlsProxyCert,
-			wantErr:     "certificate signed by unknown authority",
+			desc:            "wrong CA certificate",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      []byte(fixtures.TLSCACertPEM),
+			signature:       signature,
+			cert:            tlsProxyCert,
+			trustedClusters: []string{clusterName},
+			wantErr:         "certificate signed by unknown authority",
 		},
 		{
-			desc:        "mangled signing certificate",
-			sAddr:       sAddr,
-			dAddr:       dAddr,
-			hostCACerts: [][]byte{hostCA},
-			signature:   signature,
-			cert:        []byte{0x01},
-			wantErr:     "expected PEM-encoded block",
+			desc:            "mangled signing certificate",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      hostCACert,
+			signature:       signature,
+			cert:            []byte{0x01},
+			trustedClusters: []string{clusterName},
+			wantErr:         "expected PEM-encoded block",
 		},
 		{
-			desc:        "mangled signature",
-			sAddr:       sAddr,
-			dAddr:       dAddr,
-			hostCACerts: [][]byte{hostCA},
-			signature:   "42",
-			cert:        tlsProxyCert,
-			wantErr:     "compact JWS format must have three parts",
+			desc:            "mangled signature",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      hostCACert,
+			signature:       "42",
+			cert:            tlsProxyCert,
+			trustedClusters: []string{clusterName},
+			wantErr:         "compact JWS format must have three parts",
 		},
 		{
-			desc:        "wrong signature (source address)",
-			sAddr:       sAddr,
-			dAddr:       dAddr,
-			hostCACerts: [][]byte{hostCA},
-			signature:   wrongSourceSignature,
-			cert:        tlsProxyCert,
-			wantErr:     "validation failed, invalid subject claim (sub)",
+			desc:            "wrong signature (source address)",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      hostCACert,
+			signature:       wrongSourceSignature,
+			cert:            tlsProxyCert,
+			trustedClusters: []string{clusterName},
+			wantErr:         "validation failed, invalid subject claim (sub)",
 		},
 		{
-			desc:        "wrong signature (cluster)",
-			sAddr:       sAddr,
-			dAddr:       dAddr,
-			hostCACerts: [][]byte{hostCA},
-			signature:   wrongClusterSignature,
-			cert:        tlsProxyCert,
-			wantErr:     "validation failed, invalid issuer claim (iss)",
+			desc:            "wrong signature (cluster)",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      hostCACert,
+			signature:       wrongClusterSignature,
+			cert:            tlsProxyCert,
+			trustedClusters: []string{clusterName},
+			wantErr:         "validation failed, invalid issuer claim (iss)",
 		},
 		{
-			desc:        "wrong CA cert",
-			sAddr:       sAddr,
-			dAddr:       dAddr,
-			hostCACerts: [][]byte{wrongCACert},
-			signature:   signature,
-			cert:        tlsProxyCert,
-			wantErr:     "certificate signed by unknown authority",
+			desc:            "wrong CA cert",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      wrongCACert,
+			signature:       signature,
+			cert:            tlsProxyCert,
+			trustedClusters: []string{clusterName},
+			wantErr:         "certificate signed by unknown authority",
 		},
 		{
-			desc:        "success",
-			sAddr:       sAddr,
-			dAddr:       dAddr,
-			hostCACerts: [][]byte{hostCA},
-			signature:   signature,
-			cert:        tlsProxyCert,
-			wantErr:     "",
+			desc:            "not trusted cluster",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      hostCACert,
+			signature:       signature,
+			cert:            tlsProxyCert,
+			trustedClusters: []string{"different cluster"},
+			wantErr:         "received signed PROXY header from not trusted cluster",
+		},
+		{
+			desc:            "success",
+			sAddr:           sAddr,
+			dAddr:           dAddr,
+			hostCACert:      hostCACert,
+			signature:       signature,
+			cert:            tlsProxyCert,
+			trustedClusters: []string{clusterName},
+			wantErr:         "",
 		},
 	}
 
@@ -536,7 +558,21 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 			err := pl.AddSignature([]byte(tt.signature), tt.cert)
 			require.NoError(t, err)
 
-			err = pl.VerifySignature(tt.hostCACerts, clock)
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					TLS: []*types.TLSKeyPair{
+						{
+							Cert: tt.hostCACert,
+							Key:  nil,
+						},
+					},
+				},
+			})
+			mockCAGetter := &mockCAsGetter{CA: ca}
+
+			err = pl.VerifySignature(context.Background(), mockCAGetter, tt.trustedClusters, clock)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {

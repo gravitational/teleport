@@ -45,7 +45,7 @@ import (
 )
 
 type CertAuthoritiesGetter interface {
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 }
 
 // Config is a multiplexer config
@@ -64,8 +64,10 @@ type Config struct {
 	EnableExternalProxyProtocol bool
 	// ID is an identifier used for debugging purposes
 	ID string
-	// CertAuthoritiesGetter is used to get CAs to verify singed PROXY headers sent internally by teleport
-	CertAuthoritiesGetter CertAuthoritiesGetter
+	// CertAuthorityGetter is used to get CA to verify singed PROXY headers sent internally by teleport
+	CertAuthorityGetter CertAuthoritiesGetter
+	// TrustedClustersNames is a list of cluster names from which signed PROXY headers are accepted
+	TrustedClustersNames []string
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -348,18 +350,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
-			if m.CertAuthoritiesGetter != nil && len(newProxyLine.TLVs) > 0 {
-				hostCACerts := [][]byte{}
-				certAuthorities, err := m.CertAuthoritiesGetter.GetCertAuthorities(m.context, types.HostCA, false)
-				if err != nil {
-					return nil, trace.Wrap(err, "could not get certificate authorities")
-				}
-
-				for _, ca := range certAuthorities {
-					caCerts := services.GetTLSCerts(ca)
-					hostCACerts = append(hostCACerts, caCerts...)
-				}
-				err = newProxyLine.VerifySignature(hostCACerts, m.Clock)
+			if m.CertAuthorityGetter != nil && len(newProxyLine.TLVs) > 0 {
+				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.TrustedClustersNames, m.Clock)
 				if err != nil {
 					return nil, trace.Wrap(err, "could not verify PROXY signature")
 				}
