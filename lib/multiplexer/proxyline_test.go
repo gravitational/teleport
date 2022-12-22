@@ -571,6 +571,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 				},
 			})
 			mockCAGetter := &mockCAsGetter{CA: ca}
+			require.NoError(t, err)
 
 			err = pl.VerifySignature(context.Background(), mockCAGetter, tt.trustedClusters, clock)
 			if tt.wantErr != "" {

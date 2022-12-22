@@ -310,7 +310,9 @@ func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterNam
 	return b, nil
 }
 
-const maxPROXYPasses = 10 // Arbitrary amount that is larger than what realistically we can get
+// maxDetectionPasses sets Maximum amount of passes to detect final protocol to account
+// for 1 unsigned header, 1 signed header and the final protocol itself
+const maxDetectionPasses = 3
 
 // detect finds out a type of the connection and returns wrapper that support PROXY protocol
 // We pass `casGetter` as function instead of certs themselves, so it could be called only if it's needed.
@@ -320,10 +322,10 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	// Before actual protocol traffic flows, we try to parse optional PROXY protocol headers,
 	// that can be injected by load balancers or our own proxies. There can be multiple PROXY
 	// headers. After they are parsed, last pass does the actual protocol detection itself.
-	// We allow only one unsigned PROXY header from external sources, if it's enabled, and unlimited
-	// amount (within maxPROXYPasses) of signed headers from our own proxies, which take precedence.
+	// We allow only one unsigned PROXY header from external sources, if it's enabled, and one
+	// signed header from our own proxies, which take precedence.
 	var proxyLine *ProxyLine
-	for i := 0; i < maxPROXYPasses; i++ {
+	for i := 0; i < maxDetectionPasses; i++ {
 		proto, err := detectProto(reader)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -357,14 +359,19 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				}
 			}
 
-			// If proxy line is signed and successfully verified, it's always accepted as current proxy line
+			// If proxy line is signed and successfully verified and there's no already signed proxy header,
+			// we accept, otherwise reject
 			if newProxyLine.IsVerified {
+				if proxyLine != nil && proxyLine.IsVerified {
+					return nil, trace.BadParameter("duplicate signed proxy line")
+				}
+
 				proxyLine = newProxyLine
 				continue
 			}
 
 			// If proxy line was signed but was not successfully verified we fail
-			if m.CertAuthoritiesGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
+			if m.CertAuthorityGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
 				return nil, trace.AccessDenied(
 					"rejected signed PROXY header, incoming connection remote/local: %q, PROXY source/destination: %q",
 					conn.RemoteAddr().String()+"->"+conn.LocalAddr().String(),
@@ -383,7 +390,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			// We allow only one unsigned proxy line
 			if proxyLine != nil {
-				return nil, trace.BadParameter("duplicate proxy line")
+				return nil, trace.BadParameter("duplicate unsigned proxy line")
 			}
 
 			proxyLine = newProxyLine

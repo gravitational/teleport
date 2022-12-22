@@ -815,8 +815,9 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:                    listener,
 			EnableExternalProxyProtocol: true,
-			CertAuthoritiesGetter:       casGetter,
+			CertAuthorityGetter:         casGetter,
 			Clock:                       clockwork.NewFakeClockAt(time.Now()),
+			TrustedClustersNames:        []string{clusterName},
 		})
 		require.NoError(t, err)
 
@@ -856,7 +857,7 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, addr1.String(), out)
 		})
-		t.Run("two signed PROXY headers with same info", func(t *testing.T) {
+		t.Run("two signed PROXY headers", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener.Addr().String())
 			require.NoError(t, err)
 			defer conn.Close()
@@ -871,30 +872,8 @@ func TestMux(t *testing.T) {
 
 			clt := tls.Client(conn, clientConfig(backend))
 
-			out, err := utils.RoundtripWithConn(clt)
-			require.NoError(t, err)
-			require.Equal(t, addr1.String(), out)
-		})
-		t.Run("two signed PROXY headers with different info", func(t *testing.T) {
-			conn, err := net.Dial("tcp", listener.Addr().String())
-			require.NoError(t, err)
-			defer conn.Close()
-
-			signedHeader, err := GetSignedPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
-			require.NoError(t, err)
-			signedHeader2, err := GetSignedPROXYHeader(&addr2, &addr1, clusterName, tlsProxyCert, jwtSigner)
-			require.NoError(t, err)
-
-			_, err = conn.Write(signedHeader)
-			require.NoError(t, err)
-			_, err = conn.Write(signedHeader2)
-			require.NoError(t, err)
-
-			clt := tls.Client(conn, clientConfig(backend))
-
-			out, err := utils.RoundtripWithConn(clt)
-			require.NoError(t, err)
-			require.Equal(t, addr2.String(), out)
+			_, err = utils.RoundtripWithConn(clt)
+			require.Error(t, err)
 		})
 		t.Run("two signed PROXY headers, one signed for wrong cluster", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener.Addr().String())
@@ -915,27 +894,6 @@ func TestMux(t *testing.T) {
 
 			_, err = utils.RoundtripWithConn(clt)
 			require.Error(t, err)
-		})
-		t.Run("three signed PROXY headers with same info", func(t *testing.T) {
-			conn, err := net.Dial("tcp", listener.Addr().String())
-			require.NoError(t, err)
-			defer conn.Close()
-
-			signedHeader, err := GetSignedPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
-			require.NoError(t, err)
-
-			_, err = conn.Write(signedHeader)
-			require.NoError(t, err)
-			_, err = conn.Write(signedHeader)
-			require.NoError(t, err)
-			_, err = conn.Write(signedHeader)
-			require.NoError(t, err)
-
-			clt := tls.Client(conn, clientConfig(backend))
-
-			out, err := utils.RoundtripWithConn(clt)
-			require.NoError(t, err)
-			require.Equal(t, addr1.String(), out)
 		})
 		t.Run("first unsigned then signed PROXY headers", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener.Addr().String())
@@ -1032,7 +990,8 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:                    listener,
 			EnableExternalProxyProtocol: true,
-			CertAuthoritiesGetter:       wrongCAsGetter,
+			CertAuthorityGetter:         wrongCAsGetter,
+			TrustedClustersNames:        []string{clusterName},
 		})
 		require.NoError(t, err)
 
@@ -1074,11 +1033,15 @@ func TestMux(t *testing.T) {
 }
 
 type mockCAsGetter struct {
-	CAs []types.CertAuthority
+	CA types.CertAuthority
 }
 
 func (m *mockCAsGetter) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	return m.CAs, nil
+	return []types.CertAuthority{m.CA}, nil
+}
+
+func (m *mockCAsGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	return m.CA, nil
 }
 
 func TestProtocolString(t *testing.T) {
@@ -1196,7 +1159,7 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 		},
 	})
 	require.NoError(t, err)
-	mockCAsGetter := &mockCAsGetter{CAs: []types.CertAuthority{ca}}
+	mockCAsGetter := &mockCAsGetter{CA: ca}
 
 	proxyPriv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
@@ -1232,11 +1195,14 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	tlsProxyCert, casGetter, jwtSigner := getTestCertCAsGetterAndSigner(b, clusterName)
 
-	ca, err := casGetter.GetCertAuthorities(context.Background(), types.HostCA, false)
+	ca, err := casGetter.GetCertAuthority(context.Background(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName,
+	}, false)
 	require.NoError(b, err)
 
 	roots := x509.NewCertPool()
-	ok := roots.AppendCertsFromPEM(ca[0].GetTrustedTLSKeyPairs()[0].Cert)
+	ok := roots.AppendCertsFromPEM(ca.GetTrustedTLSKeyPairs()[0].Cert)
 	require.True(b, ok)
 
 	ip := "1.2.3.4"
