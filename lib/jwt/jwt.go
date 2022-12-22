@@ -226,15 +226,12 @@ type PROXYSignParams struct {
 
 const expirationPROXY = time.Second * 60
 
-func getPROXYSubjectClaim(sourceAddress, destinationAddress string) string {
-	return fmt.Sprintf("%s/%s", sourceAddress, destinationAddress)
-}
-
 // SignPROXY will create short lived signed JWT that is used in signed PROXY header
 func (k *Key) SignPROXY(p PROXYSignParams) (string, error) {
 	claims := Claims{
 		Claims: jwt.Claims{
-			Subject:   getPROXYSubjectClaim(p.SourceAddress, p.DestinationAddress),
+			Subject:   p.SourceAddress,
+			Audience:  []string{p.DestinationAddress},
 			Issuer:    p.ClusterName,
 			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 			Expiry:    jwt.NewNumericDate(k.config.Clock.Now().Add(expirationPROXY)),
@@ -359,9 +356,10 @@ func (k *Key) VerifyPROXY(p PROXYVerifyParams) (*Claims, error) {
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:  p.ClusterName,
-		Subject: getPROXYSubjectClaim(p.SourceAddress, p.DestinationAddress),
-		Time:    k.config.Clock.Now(),
+		Issuer:   p.ClusterName,
+		Subject:  p.SourceAddress,
+		Audience: []string{p.DestinationAddress},
+		Time:     k.config.Clock.Now(),
 	}
 
 	return k.verify(p.RawToken, expectedClaims)
