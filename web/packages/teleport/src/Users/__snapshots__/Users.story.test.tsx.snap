@@ -1,0 +1,751 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`success state 1`] = `
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-left: auto;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c19 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c19:active {
+  opacity: 0.56;
+}
+
+.c19:hover,
+.c19:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c19:active {
+  opacity: 0.24;
+}
+
+.c19:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c16 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c20 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
+.c18 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
+.c8 {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c11 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c17 {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c15 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.c15 > thead > tr > th,
+.c15 > tbody > tr > th,
+.c15 > tfoot > tr > th,
+.c15 > thead > tr > td,
+.c15 > tbody > tr > td,
+.c15 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c15 > thead > tr > th:first-child,
+.c15 > tbody > tr > th:first-child,
+.c15 > tfoot > tr > th:first-child,
+.c15 > thead > tr > td:first-child,
+.c15 > tbody > tr > td:first-child,
+.c15 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c15 > thead > tr > th:last-child,
+.c15 > tbody > tr > th:last-child,
+.c15 > tfoot > tr > th:last-child,
+.c15 > thead > tr > td:last-child,
+.c15 > tbody > tr > td:last-child,
+.c15 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c15 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c15 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c15 > thead > tr > th .c13 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c15 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c15 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c15 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c4 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c12 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c12 .c13 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c12:hover .c13,
+.c12:focus .c13 {
+  opacity: 1;
+}
+
+.c12:disabled {
+  cursor: default;
+}
+
+.c12:disabled .c13 {
+  opacity: 0.1;
+}
+
+.c7 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
+  border-radius: 200px;
+}
+
+.c5 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c6 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c6:hover,
+.c6:focus,
+.c6:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c6::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Users
+      </div>
+      <button
+        class="c3"
+        kind="primary"
+        width="240px"
+      >
+        Create New User
+      </button>
+    </div>
+    <nav
+      class="c4"
+    >
+      <div
+        class="c5"
+      >
+        <input
+          class="c6"
+          placeholder="SEARCH..."
+          value=""
+        />
+        <div
+          class="c7"
+        />
+      </div>
+      <div
+        class="c8"
+        width="100%"
+      >
+        <div
+          class="c9"
+        >
+          <div
+            class="c10"
+            color="primary.contrastText"
+          >
+            SHOWING 
+            <strong>
+              1
+            </strong>
+             - 
+            <strong>
+              6
+            </strong>
+             of
+             
+            <strong>
+              6
+            </strong>
+          </div>
+        </div>
+        <div
+          class="c11"
+        >
+          <button
+            class="c12"
+            disabled=""
+            title="Previous page"
+          >
+            <span
+              class="c13 c14 icon icon-arrow-left-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+          <button
+            class="c12"
+            disabled=""
+            title="Next page"
+          >
+            <span
+              class="c13 c14 icon icon-arrow-right-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+        </div>
+      </div>
+    </nav>
+    <table
+      class="c15"
+    >
+      <thead>
+        <tr>
+          <th>
+            <a>
+              Name
+              <span
+                class="c13 c16 icon icon-chevron-up "
+                color="light"
+                title="sort items asc"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Roles
+              <span
+                class="c13 c16 icon icon-chevrons-expand-vertical "
+                color="light"
+                title="sort items"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Type
+              <span
+                class="c13 c16 icon icon-chevrons-expand-vertical "
+                color="light"
+                title="sort items"
+              />
+            </a>
+          </th>
+          <th
+            style="cursor: default;"
+          />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            azesotil@jevig.org
+          </td>
+          <td>
+            <div
+              class="c17"
+            >
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                tugu
+              </div>
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            teleport local user
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c13 c20 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
+              />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            cikar@egaposci.me
+          </td>
+          <td>
+            <div
+              class="c17"
+            >
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                admin
+              </div>
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            teleport local user
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c13 c20 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
+              />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            hi@nen.pa
+          </td>
+          <td>
+            <div
+              class="c17"
+            >
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                ruhh
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                admin
+              </div>
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            teleport local user
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c13 c20 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
+              />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            jap@kosusfaw.mp
+          </td>
+          <td>
+            <div
+              class="c17"
+            >
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                ubip
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                duzjadj
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                dupiwuzocafe
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                abc
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                anavebikilonim
+              </div>
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            oidc
+          </td>
+          <td
+            align="right"
+          />
+        </tr>
+        <tr>
+          <td>
+            pamkad@ukgir.ki
+          </td>
+          <td>
+            <div
+              class="c17"
+            >
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                vuit
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                vedkonm
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                valvapel
+              </div>
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            saml
+          </td>
+          <td
+            align="right"
+          />
+        </tr>
+        <tr>
+          <td>
+            ziat@uthatebo.sl
+          </td>
+          <td>
+            <div
+              class="c17"
+            >
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                kaco
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                ziuzzow
+              </div>
+              <div
+                class="c18"
+                kind="secondary"
+              >
+                admin
+              </div>
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            github
+          </td>
+          <td
+            align="right"
+          />
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;

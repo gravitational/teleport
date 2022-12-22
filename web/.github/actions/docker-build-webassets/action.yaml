@@ -1,0 +1,11 @@
+name: docker-build-webassets
+author: Zac Bergquist <zac@goteleport.com>
+description: Build Teleport webassets in Docker
+
+runs:
+  using: docker
+  image: ../../../Dockerfile
+  entrypoint: sh
+  args:
+    - -c
+    - yarn install && yarn run build-teleport
