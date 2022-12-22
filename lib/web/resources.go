@@ -306,7 +306,7 @@ func CheckResourceUpsertableByError(err error, httpMethod, resourceName string) 
 	}
 
 	if !exists && httpMethod == http.MethodPut {
-		return trace.NotFound("cannot find resource with name %q", resourceName)
+		return trace.NotFound("resource renaming is not supported, please create a different resource and then delete this one")
 	}
 
 	return nil
