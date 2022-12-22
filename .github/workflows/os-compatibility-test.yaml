@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build Artifacts
+    name: OS Compatibility Build
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Run make
         run: |
-          make build/tctl build/tsh build/tbot build/teleport
+          make binaries
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
@@ -38,7 +38,7 @@ jobs:
 
   test-compat:
     needs: build
-    name: Run Compatibility Test
+    name: OS Compatibility Test
     runs-on: ubuntu-latest
 
     permissions:
