@@ -19,6 +19,7 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
 
 jobs:
   build:
