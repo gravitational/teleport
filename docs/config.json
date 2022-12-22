@@ -1416,11 +1416,6 @@
       "permanent": true
     },
     {
-      "source": "/server-access/guides/ansible/",
-      "destination": "/machine-id/guides/ansible/",
-      "permanent": true
-    },
-    {
       "source": "/server-access/guides/tsh/",
       "destination": "/connect-your-client/tsh/",
       "permanent": true
