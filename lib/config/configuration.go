@@ -1887,7 +1887,7 @@ func applyConfigVersion(fc *FileConfig, cfg *service.Config) {
 
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func Configure(clf *CommandLineFlags, cfg *service.Config) error {
+func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) error {
 	// pass the value of --insecure flag to the runtime
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
@@ -1943,12 +1943,29 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	// If this process is trying to join a cluster as an application service,
 	// make sure application name and URI are provided.
 	if slices.Contains(splitRoles(clf.Roles), defaults.RoleApp) {
+		if (clf.AppName == "") && (clf.AppURI == "" && clf.AppCloud == "") {
+			// TODO: remove legacyAppFlags once `teleport start --app-name` is removed.
+			if legacyAppFlags {
+				return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+			} else {
+				return trace.BadParameter("to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
+			}
+		}
+
 		if clf.AppName == "" {
-			return trace.BadParameter("to join application proxy to the cluster application name is required, provide it with --app-name or --name")
+			if legacyAppFlags {
+				return trace.BadParameter("application name (--app-name) is required to join application proxy to the cluster")
+			} else {
+				return trace.BadParameter("to join application proxy to the cluster provide application name (--name)")
+			}
 		}
 
 		if clf.AppURI == "" && clf.AppCloud == "" {
-			return trace.BadParameter("to join application proxy to the cluster application URI or Cloud identifier is required, provide it with --app-uri, --uri or --cloud")
+			if legacyAppFlags {
+				return trace.BadParameter("URI (--app-uri) flag is required to join application proxy to the cluster")
+			} else {
+				return trace.BadParameter("to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
+			}
 		}
 	}
 

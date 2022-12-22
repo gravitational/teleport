@@ -404,7 +404,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 			ccf.Roles = defaults.RoleDatabase
 		}
 		// configuration merge: defaults -> file-based conf -> CLI conf
-		if err = config.Configure(&ccf, conf); err != nil {
+		if err = config.Configure(&ccf, conf, command != appStartCmd.FullCommand()); err != nil {
 			utils.FatalError(err)
 		}
 		if !options.InitOnly {

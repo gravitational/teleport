@@ -1704,7 +1704,7 @@ ssh_service:
 		}
 		cfg := service.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		require.NoError(t, err, comment)
 		require.Equal(t, tt.outPermitUserEnvironment, cfg.SSH.PermitUserEnvironment, comment)
 	}
@@ -1771,7 +1771,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 			cfg := service.MakeDefaultConfig()
 
 			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
-			require.NoError(t, Configure(&CommandLineFlags{}, cfg))
+			require.NoError(t, Configure(&CommandLineFlags{}, cfg, false))
 
 			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
 		})
@@ -1785,7 +1785,7 @@ func TestDebugFlag(t *testing.T) {
 	}
 	cfg := service.MakeDefaultConfig()
 	require.False(t, cfg.Debug)
-	err := Configure(&clf, cfg)
+	err := Configure(&clf, cfg, false)
 	require.NoError(t, err)
 	require.True(t, cfg.Debug)
 }
@@ -1834,7 +1834,7 @@ func TestMergingCAPinConfig(t *testing.T) {
 			}
 			cfg := service.MakeDefaultConfig()
 			require.Empty(t, cfg.CAPins)
-			err := Configure(&clf, cfg)
+			err := Configure(&clf, cfg, false)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.want, cfg.CAPins)
 		})
@@ -1918,7 +1918,7 @@ func TestFIPS(t *testing.T) {
 		service.ApplyDefaults(cfg)
 		service.ApplyFIPSDefaults(cfg)
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		if tt.outError {
 			require.Error(t, err, comment)
 		} else {
@@ -2229,7 +2229,7 @@ app_service:
 		}
 		cfg := service.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		require.Equal(t, err != nil, tt.outError, tt.inComment)
 	}
 }
@@ -2238,13 +2238,14 @@ app_service:
 // in on the command line.
 func TestAppsCLF(t *testing.T) {
 	tests := []struct {
-		desc         string
-		inRoles      string
-		inAppName    string
-		inAppURI     string
-		inAppCloud   string
-		outApps      []service.App
-		requireError require.ErrorAssertionFunc
+		desc             string
+		inRoles          string
+		inAppName        string
+		inAppURI         string
+		inAppCloud       string
+		inLegacyAppFlags bool
+		outApps          []service.App
+		requireError     require.ErrorAssertionFunc
 	}{
 		{
 			desc:      "role provided, valid name and uri",
@@ -2262,25 +2263,72 @@ func TestAppsCLF(t *testing.T) {
 			requireError: require.NoError,
 		},
 		{
-			desc:      "role provided, name not provided",
+			desc:             "role provided, name not provided, uri not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "",
+			inAppURI:         "",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, name not provided, uri not provided, regular flags",
+			inRoles:   defaults.RoleApp,
+			inAppName: "",
+			inAppURI:  "",
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
+			},
+		},
+		{
+			desc:             "role provided, name not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "",
+			inAppURI:         "http://localhost:8080",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name (--app-name) is required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, name not provided, regular flags",
 			inRoles:   defaults.RoleApp,
 			inAppName: "",
 			inAppURI:  "http://localhost:8080",
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "to join application proxy to the cluster application name is required, provide it with --app-name or --name")
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name)")
 			},
 		},
 		{
-			desc:      "role provided, uri not provided",
+			desc:             "role provided, uri not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "foo",
+			inAppURI:         "",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "URI (--app-uri) flag is required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, uri not provided, regular flags",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "",
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "to join application proxy to the cluster application URI or Cloud identifier is required, provide it with --app-uri, --uri or --cloud")
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
 			},
 		},
 		{
@@ -2342,7 +2390,7 @@ func TestAppsCLF(t *testing.T) {
 				AppCloud: tt.inAppCloud,
 			}
 			cfg := service.MakeDefaultConfig()
-			err := Configure(&clf, cfg)
+			err := Configure(&clf, cfg, tt.inLegacyAppFlags)
 			tt.requireError(t, err)
 			require.Equal(t, tt.outApps, cfg.Apps.Apps)
 		})
@@ -2439,7 +2487,7 @@ db_service:
 			clf := CommandLineFlags{
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
-			err := Configure(&clf, service.MakeDefaultConfig())
+			err := Configure(&clf, service.MakeDefaultConfig(), false)
 			if tt.outError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.outError)
@@ -2682,7 +2730,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			t.Parallel()
 
 			config := service.MakeDefaultConfig()
-			err := Configure(&tt.inFlags, config)
+			err := Configure(&tt.inFlags, config, false)
 			if tt.outError != "" {
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
