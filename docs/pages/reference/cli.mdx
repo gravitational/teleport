@@ -421,7 +421,7 @@ Proxy a DB connection to a named database
 $ tsh proxy db <db>
 ```
 
-Proxy a connection to mysql db on local port 10700
+Proxy a connection to mysql db on local port 10700:
 ```code
 $ tsh proxy db --port 10700  mysql-db
 # Started DB proxy on 127.0.0.1:10700
@@ -432,7 +432,7 @@ $ tsh proxy db --port 10700  mysql-db
 #  key_file=/Users/jeff/.tsh/keys/teleport.example.com/jeff
 ```
 
-Proxy a connection to mysql db with no credentials required
+Proxy a connection to mysql db with no credentials required:
 ```code
 $ tsh proxy db --tunnel mysql-db
 Started authenticated tunnel for the MySQL database "mysql-db" in cluster "teleport.example.com" on 127.0.0.1:49415.
