@@ -20,6 +20,7 @@ on:
       - 'api/types/**'
       - 'lib/tbot/**'
       - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
