@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
@@ -737,7 +738,7 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		GenerateRequestsCount:          Counter{Count: getCounterValue(metrics[teleport.MetricGenerateRequests])},
 		GenerateRequestsThrottledCount: Counter{Count: getCounterValue(metrics[teleport.MetricGenerateRequestsThrottled])},
 		GenerateRequestsHistogram:      getHistogram(metrics[teleport.MetricGenerateRequestsHistogram], atIndex(0)),
-		ActiveMigrations:               getActiveMigrations(metrics[teleport.MetricMigrations]),
+		ActiveMigrations:               getActiveMigrations(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", teleport.MetricMigrations)]),
 	}
 
 	if prev != nil {
