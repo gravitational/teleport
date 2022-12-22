@@ -36,8 +36,10 @@ message AccessRequest {
   repeated string suggested_reviewers = 10;
   // thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
   repeated string threshold_names = 11;
+  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
   // a list of resourceIDs requested in the AccessRequest
   repeated ResourceID resource_ids = 12;
+  repeated Resource resources = 13;
 }
 
 message AccessRequestReview {
@@ -56,4 +58,13 @@ message ResourceID {
   string kind = 1;
   string name = 2;
   string cluster_name = 3;
+}
+
+message ResourceDetails {
+  string hostname = 1;
+}
+
+message Resource {
+  ResourceID id = 1;
+  ResourceDetails details = 2;
 }

@@ -172,9 +172,6 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(placeholders) > 0 {
-		return trace.CompareFailed("expect no placeholders but got %v", placeholders)
-	}
 
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
@@ -196,17 +193,19 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(placeholders) > 0 {
+		r.log.Warnf("Please make sure the database agent has the IAM permissions to fetch cloud metadata, or make sure these values are set in the static config. Placeholders %q are found when configuring the IAM policy for database %v.",
+			placeholders, r.cfg.database.GetName())
+	}
 	return nil
 }
 
 // deleteIAMPolicy deletes IAM access policy from the identity this agent is running as.
 func (r *awsClient) deleteIAMPolicy(ctx context.Context) error {
-	dbIAM, placeholders, err := dbiam.GetAWSPolicyDocument(r.cfg.database)
+	dbIAM, _, err := dbiam.GetAWSPolicyDocument(r.cfg.database)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if len(placeholders) > 0 {
-		return trace.CompareFailed("expect no placeholders but got %v", placeholders)
 	}
 
 	policy, err := r.getIAMPolicy(ctx)

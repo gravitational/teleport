@@ -531,7 +531,6 @@ ProcessReviews:
 
 		// If we hit any denial thresholds, short-circuit immediately
 		for i, t := range thresholds {
-
 			if counts[i].denial >= t.Deny && t.Deny != 0 {
 				denied = true
 				break ProcessReviews
@@ -851,7 +850,6 @@ func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGett
 }
 
 func (c *ReviewPermissionChecker) push(role types.Role) error {
-
 	allow, deny := role.GetAccessReviewConditions(types.Allow), role.GetAccessReviewConditions(types.Deny)
 
 	var err error
@@ -1590,6 +1588,57 @@ func roleAllowsResource(
 }
 
 type ListResourcesRequestOption func(*proto.ListResourcesRequest)
+
+func GetResourceDetails(ctx context.Context, clusterName string, lister ResourceLister, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
+	var nodeIDs []types.ResourceID
+	for _, resourceID := range ids {
+		if resourceID.Kind != types.KindNode {
+			// The only detail we want, for now, is the server hostname, so we
+			// can skip all other resource kinds as a minor optimization.
+			continue
+		}
+		nodeIDs = append(nodeIDs, resourceID)
+	}
+
+	withExtraRoles := func(req *proto.ListResourcesRequest) {
+		req.UseSearchAsRoles = true
+		req.UsePreviewAsRoles = true
+	}
+
+	resources, err := GetResourcesByResourceIDs(ctx, lister, nodeIDs, withExtraRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result := make(map[string]types.ResourceDetails)
+	for _, resource := range resources {
+		hn, ok := resource.(interface{ GetHostname() string })
+		if !ok {
+			continue
+		}
+		id := types.ResourceID{
+			ClusterName: clusterName,
+			Kind:        resource.GetKind(),
+			Name:        resource.GetName(),
+		}
+		result[types.ResourceIDToString(id)] = types.ResourceDetails{
+			Hostname: hn.GetHostname(),
+		}
+	}
+
+	return result, nil
+}
+
+func GetNodeResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
+	resourceIDsByCluster := make(map[string][]types.ResourceID)
+	for _, resourceID := range r.GetRequestedResourceIDs() {
+		if resourceID.Kind != types.KindNode {
+			continue
+		}
+		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
+	}
+	return resourceIDsByCluster
+}
 
 func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)

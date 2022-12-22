@@ -22,8 +22,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/flynn/u2f/u2ftoken"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"

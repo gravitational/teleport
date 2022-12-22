@@ -1059,6 +1059,15 @@ message ProvisionTokenSpecV2GitHub {
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // EnterpriseServerHost allows joining from runners associated with a
+  // GitHub Enterprise Server instance. When unconfigured, tokens will be
+  // validated against github.com, but when configured to the host of a GHES
+  // instance, then the tokens will be validated against host.
+  //
+  // This value should be the hostname of the GHES instance, and should not
+  // include the scheme or a path. The instance must be accessible over HTTPS
+  // at this hostname and the certificate must be trusted by the Auth Server.
+  string EnterpriseServerHost = 2 [(gogoproto.jsontag) = "enterprise_server_host,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
@@ -1468,6 +1477,10 @@ message AuthPreferenceSpecV2 {
 
   // RequireMFAType is the type of MFA requirement enforced for this cluster.
   RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+
+  // DeviceTrust holds settings related to trusted device verification.
+  // Requires Teleport Enterprise.
+  DeviceTrust DeviceTrust = 13 [(gogoproto.jsontag) = "device_trust,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -1518,6 +1531,25 @@ message Webauthn {
   // By default no devices are denied.
   repeated string AttestationDeniedCAs = 3 [(gogoproto.jsontag) = "attestation_denied_cas,omitempty"];
   reserved 4; // bool Disabled
+}
+
+// DeviceTrust holds settings related to trusted device verification.
+// Requires Teleport Enterprise.
+message DeviceTrust {
+  // Mode of verification for trusted devices.
+  //
+  // The following modes are supported:
+  //
+  // - "off": disables both device authentication and authorization.
+  // - "optional": allows both device authentication and authorization, but
+  //   doesn't enforce the presence of device extensions for sensitive
+  //   endpoints.
+  // - "required": enforces the presence of device extensions for sensitive
+  //   endpoints.
+  //
+  // Mode is always "off" for OSS.
+  // Defaults to "optional" for Enterprise.
+  string Mode = 1 [(gogoproto.jsontag) = "mode,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -4410,6 +4442,34 @@ message ConnectionDiagnosticTrace {
   string Details = 3 [(gogoproto.jsontag) = "details"];
   // Error contains the low level error message in case of a failure.
   string Error = 4 [(gogoproto.jsontag) = "error"];
+}
+
+// DatabaseServiceV1 is the representation of a DatabaseService (agent) process.
+message DatabaseServiceV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  DatabaseServiceSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DatabaseServiceSpecV1 is the DatabaseService Spec.
+message DatabaseServiceSpecV1 {
+  // ResourceMatchers is the configured match for Database resources.
+  repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+}
+
+// DatabaseResourceMatcher is a set of properties that is used to match on resources.
+message DatabaseResourceMatcher {
+  wrappers.LabelValues Labels = 1 [
+    (gogoproto.jsontag) = "labels",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
