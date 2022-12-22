@@ -289,16 +289,3 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 		return s.getAccessToken(ctx, managedIdentity, scope)
 	})
 }
-
-func copyHeaders(r *http.Request, reqCopy *http.Request) {
-	for key, values := range r.Header {
-		// Remove Teleport app headers.
-		if common.IsReservedHeader(key) {
-			continue
-		}
-
-		for _, v := range values {
-			reqCopy.Header.Add(key, v)
-		}
-	}
-}
