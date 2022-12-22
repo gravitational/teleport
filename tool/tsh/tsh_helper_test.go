@@ -24,9 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -123,7 +122,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		options.rootConfigFunc(cfg)
 	}
 
-	s.root = runTeleport(t, cfg, options.newTeleportOptions...)
+	s.root = runTeleport(t, cfg)
 	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
@@ -195,18 +194,17 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	if options.leafConfigFunc != nil {
 		options.leafConfigFunc(cfg)
 	}
-	s.leaf = runTeleport(t, cfg, options.newTeleportOptions...)
+	s.leaf = runTeleport(t, cfg)
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc     func(cfg *service.Config)
-	leafConfigFunc     func(cfg *service.Config)
-	leafCluster        bool
-	validationFunc     func(*suite) bool
-	newTeleportOptions []service.NewTeleportOption
+	rootConfigFunc func(cfg *service.Config)
+	leafConfigFunc func(cfg *service.Config)
+	leafCluster    bool
+	validationFunc func(*suite) bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -232,12 +230,6 @@ func withLeafCluster() testSuiteOptionFunc {
 func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.validationFunc = f
-	}
-}
-
-func withNewTeleportOption(opt service.NewTeleportOption) testSuiteOptionFunc {
-	return func(o *testSuiteOptions) {
-		o.newTeleportOptions = append(o.newTeleportOptions, opt)
 	}
 }
 
