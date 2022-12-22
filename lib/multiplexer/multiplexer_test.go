@@ -35,6 +35,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -817,7 +818,6 @@ func TestMux(t *testing.T) {
 			EnableExternalProxyProtocol: true,
 			CertAuthorityGetter:         casGetter,
 			Clock:                       clockwork.NewFakeClockAt(time.Now()),
-			TrustedClustersNames:        []string{clusterName},
 		})
 		require.NoError(t, err)
 
@@ -991,7 +991,6 @@ func TestMux(t *testing.T) {
 			Listener:                    listener,
 			EnableExternalProxyProtocol: true,
 			CertAuthorityGetter:         wrongCAsGetter,
-			TrustedClustersNames:        []string{clusterName},
 		})
 		require.NoError(t, err)
 
@@ -1033,15 +1032,18 @@ func TestMux(t *testing.T) {
 }
 
 type mockCAsGetter struct {
-	CA types.CertAuthority
-}
-
-func (m *mockCAsGetter) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	return []types.CertAuthority{m.CA}, nil
+	HostCA types.CertAuthority
+	UserCA types.CertAuthority
 }
 
 func (m *mockCAsGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	return m.CA, nil
+	if id.Type == types.UserCA {
+		if m.UserCA == nil {
+			return nil, trace.NotFound("UserCA not found")
+		}
+		return m.UserCA, nil
+	}
+	return m.HostCA, nil
 }
 
 func TestProtocolString(t *testing.T) {
@@ -1137,7 +1139,7 @@ func TestIsHTTP(t *testing.T) {
 	}
 }
 
-func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, CertAuthoritiesGetter, PROXYSigner) {
+func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, CertAuthorityGetter, PROXYSigner) {
 	t.Helper()
 	caPriv, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: clusterName, Organization: []string{clusterName}}, []string{clusterName}, time.Hour)
@@ -1159,7 +1161,7 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 		},
 	})
 	require.NoError(t, err)
-	mockCAsGetter := &mockCAsGetter{CA: ca}
+	mockCAsGetter := &mockCAsGetter{HostCA: ca, UserCA: ca}
 
 	proxyPriv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)

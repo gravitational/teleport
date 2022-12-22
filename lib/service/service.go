@@ -1673,23 +1673,12 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Infof("Starting Auth service with PROXY protocol support.")
 	}
 
-	trustedClusters, err := authServer.GetTrustedClusters(process.ExitContext())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	trustedClustersNames := []string{}
-	for _, cluster := range trustedClusters {
-		trustedClustersNames = append(trustedClustersNames, cluster.GetName())
-	}
-	trustedClustersNames = append(trustedClustersNames, clusterName)
-
 	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
 		EnableExternalProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:                    listener,
 		ID:                          teleport.Component(process.id),
 		CertAuthorityGetter:         authServer,
-		TrustedClustersNames:        trustedClustersNames,
 	})
 	if err != nil {
 		listener.Close()

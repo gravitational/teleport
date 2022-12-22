@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type CertAuthoritiesGetter interface {
+type CertAuthorityGetter interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 }
 
@@ -65,9 +65,7 @@ type Config struct {
 	// ID is an identifier used for debugging purposes
 	ID string
 	// CertAuthorityGetter is used to get CA to verify singed PROXY headers sent internally by teleport
-	CertAuthorityGetter CertAuthoritiesGetter
-	// TrustedClustersNames is a list of cluster names from which signed PROXY headers are accepted
-	TrustedClustersNames []string
+	CertAuthorityGetter CertAuthorityGetter
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -353,7 +351,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
 			if m.CertAuthorityGetter != nil && len(newProxyLine.TLVs) > 0 {
-				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.TrustedClustersNames, m.Clock)
+				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.Clock)
 				if err != nil {
 					return nil, trace.Wrap(err, "could not verify PROXY signature")
 				}

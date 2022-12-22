@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"io"
 	"net"
 	"testing"
@@ -33,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -458,94 +458,87 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	testCases := []struct {
 		desc string
 
-		sAddr           net.TCPAddr
-		dAddr           net.TCPAddr
-		hostCACert      []byte
-		signature       string
-		cert            []byte
-		trustedClusters []string
+		sAddr               net.TCPAddr
+		dAddr               net.TCPAddr
+		hostCACert          []byte
+		isNotTrustedCluster bool
+		signature           string
+		cert                []byte
 
 		wantErr string
 	}{
 		{
-			desc:            "wrong CA certificate",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      []byte(fixtures.TLSCACertPEM),
-			signature:       signature,
-			cert:            tlsProxyCert,
-			trustedClusters: []string{clusterName},
-			wantErr:         "certificate signed by unknown authority",
+			desc:       "wrong CA certificate",
+			sAddr:      sAddr,
+			dAddr:      dAddr,
+			hostCACert: []byte(fixtures.TLSCACertPEM),
+			signature:  signature,
+			cert:       tlsProxyCert,
+			wantErr:    "certificate signed by unknown authority",
 		},
 		{
-			desc:            "mangled signing certificate",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      hostCACert,
-			signature:       signature,
-			cert:            []byte{0x01},
-			trustedClusters: []string{clusterName},
-			wantErr:         "expected PEM-encoded block",
+			desc:       "mangled signing certificate",
+			sAddr:      sAddr,
+			dAddr:      dAddr,
+			hostCACert: hostCACert,
+			signature:  signature,
+			cert:       []byte{0x01},
+			wantErr:    "expected PEM-encoded block",
 		},
 		{
-			desc:            "mangled signature",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      hostCACert,
-			signature:       "42",
-			cert:            tlsProxyCert,
-			trustedClusters: []string{clusterName},
-			wantErr:         "compact JWS format must have three parts",
+			desc:       "mangled signature",
+			sAddr:      sAddr,
+			dAddr:      dAddr,
+			hostCACert: hostCACert,
+			signature:  "42",
+			cert:       tlsProxyCert,
+			wantErr:    "compact JWS format must have three parts",
 		},
 		{
-			desc:            "wrong signature (source address)",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      hostCACert,
-			signature:       wrongSourceSignature,
-			cert:            tlsProxyCert,
-			trustedClusters: []string{clusterName},
-			wantErr:         "validation failed, invalid subject claim (sub)",
+			desc:       "wrong signature (source address)",
+			sAddr:      sAddr,
+			dAddr:      dAddr,
+			hostCACert: hostCACert,
+			signature:  wrongSourceSignature,
+			cert:       tlsProxyCert,
+			wantErr:    "validation failed, invalid subject claim (sub)",
 		},
 		{
-			desc:            "wrong signature (cluster)",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      hostCACert,
-			signature:       wrongClusterSignature,
-			cert:            tlsProxyCert,
-			trustedClusters: []string{clusterName},
-			wantErr:         "validation failed, invalid issuer claim (iss)",
+			desc:       "wrong signature (cluster)",
+			sAddr:      sAddr,
+			dAddr:      dAddr,
+			hostCACert: hostCACert,
+			signature:  wrongClusterSignature,
+			cert:       tlsProxyCert,
+			wantErr:    "validation failed, invalid issuer claim (iss)",
 		},
 		{
-			desc:            "wrong CA cert",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      wrongCACert,
-			signature:       signature,
-			cert:            tlsProxyCert,
-			trustedClusters: []string{clusterName},
-			wantErr:         "certificate signed by unknown authority",
+			desc:       "wrong CA cert",
+			sAddr:      sAddr,
+			dAddr:      dAddr,
+			hostCACert: wrongCACert,
+			signature:  signature,
+			cert:       tlsProxyCert,
+			wantErr:    "certificate signed by unknown authority",
 		},
 		{
-			desc:            "not trusted cluster",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      hostCACert,
-			signature:       signature,
-			cert:            tlsProxyCert,
-			trustedClusters: []string{"different cluster"},
-			wantErr:         "received signed PROXY header from not trusted cluster",
+			desc:                "not trusted cluster",
+			sAddr:               sAddr,
+			dAddr:               dAddr,
+			hostCACert:          hostCACert,
+			isNotTrustedCluster: true,
+			signature:           signature,
+			cert:                tlsProxyCert,
+			wantErr:             "received signed PROXY header from not trusted cluster",
 		},
 		{
-			desc:            "success",
-			sAddr:           sAddr,
-			dAddr:           dAddr,
-			hostCACert:      hostCACert,
-			signature:       signature,
-			cert:            tlsProxyCert,
-			trustedClusters: []string{clusterName},
-			wantErr:         "",
+			desc:       "success",
+			sAddr:      sAddr,
+			dAddr:      dAddr,
+			hostCACert: hostCACert,
+			signature:  signature,
+			cert:       tlsProxyCert,
+			wantErr:    "",
 		},
 	}
 
@@ -570,10 +563,14 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 					},
 				},
 			})
-			mockCAGetter := &mockCAsGetter{CA: ca}
+			mockCAGetter := &mockCAsGetter{HostCA: ca, UserCA: ca}
+			if tt.isNotTrustedCluster {
+				mockCAGetter = &mockCAsGetter{HostCA: ca, UserCA: nil}
+			}
+
 			require.NoError(t, err)
 
-			err = pl.VerifySignature(context.Background(), mockCAGetter, tt.trustedClusters, clock)
+			err = pl.VerifySignature(context.Background(), mockCAGetter, clock)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {

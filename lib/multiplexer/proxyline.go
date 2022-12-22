@@ -27,7 +27,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/gravitational/teleport/lib/services"
 	"io"
 	"math"
 	"net"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -457,8 +457,7 @@ func (p *ProxyLine) getSignatureAndSigningCert() (string, []byte, error) {
 }
 
 // VerifySignature checks that signature contained in the proxy line is securely signed.
-func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthoritiesGetter, trustedClustersNames []string, clock clockwork.Clock) error {
-
+func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityGetter, clock clockwork.Clock) error {
 	// If there's no TLVs it can't be verified
 	if len(p.TLVs) == 0 {
 		return trace.Wrap(ErrNoSignature)
@@ -482,16 +481,18 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthoritie
 		return trace.Wrap(err)
 	}
 	clusterName := identity.TeleportCluster
-	found := false
-	for _, name := range trustedClustersNames {
-		if name == clusterName {
-			found = true
-			break
+
+	// We're trying to get UserCA for this cluster name to see if we can trust this cluster
+	// because if we can get it, it means it's either trusted cluster or local cluster
+	_, err = caGetter.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: clusterName,
+	}, false)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.Wrap(trace.Errorf("received signed PROXY header from not trusted cluster %q", clusterName))
 		}
-	}
-	if !found {
-		return trace.Wrap(trace.Errorf("received signed PROXY header from not trusted cluster %q, list of trusted clusters: %+q",
-			clusterName, trustedClustersNames))
+		return trace.Wrap(err)
 	}
 
 	hostCA, err := caGetter.GetCertAuthority(ctx, types.CertAuthID{
