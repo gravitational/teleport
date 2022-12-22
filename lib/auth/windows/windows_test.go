@@ -63,42 +63,99 @@ func TestGenerateCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	certb, keyb, err := GenerateCredentials(ctx, user, domain, CertTTL, clusterName, ldapConfig, client)
-	require.NoError(t, err)
-	require.NotNil(t, certb)
-	require.NotNil(t, keyb)
+	testSid := "S-1-5-21-1329593140-2634913955-1900852804-500"
 
-	cert, err := x509.ParseCertificate(certb)
-	require.NoError(t, err)
-	require.NotNil(t, cert)
-
-	require.Equal(t, user, cert.Subject.CommonName)
-	require.Contains(t, cert.CRLDistributionPoints,
-		`ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
-
-	foundKeyUsage := false
-	foundAltName := false
-	for _, extension := range cert.Extensions {
-		switch {
-		case extension.Id.Equal(EnhancedKeyUsageExtensionOID):
-			foundKeyUsage = true
-			var oids []asn1.ObjectIdentifier
-			_, err = asn1.Unmarshal(extension.Value, &oids)
+	for _, test := range []struct {
+		name               string
+		activeDirectorySID string
+	}{
+		{
+			name:               "no ad sid",
+			activeDirectorySID: "",
+		},
+		{
+			name:               "with ad sid",
+			activeDirectorySID: testSid,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			certb, keyb, err := GenerateWindowsDesktopCredentials(ctx, &GenerateCredentialsRequest{
+				Username:           user,
+				Domain:             domain,
+				TTL:                CertTTL,
+				ClusterName:        clusterName,
+				ActiveDirectorySID: test.activeDirectorySID,
+				LDAPConfig:         ldapConfig,
+				AuthClient:         client,
+			})
 			require.NoError(t, err)
-			require.Len(t, oids, 2)
-			require.Contains(t, oids, ClientAuthenticationOID)
-			require.Contains(t, oids, SmartcardLogonOID)
+			require.NotNil(t, certb)
+			require.NotNil(t, keyb)
 
-		case extension.Id.Equal(SubjectAltNameExtensionOID):
-			foundAltName = true
-			var san SubjectAltName
-			_, err = asn1.Unmarshal(extension.Value, &san)
+			cert, err := x509.ParseCertificate(certb)
 			require.NoError(t, err)
+			require.NotNil(t, cert)
 
-			require.Equal(t, san.OtherName.OID, UPNOtherNameOID)
-			require.Equal(t, san.OtherName.Value.Value, user+"@"+domain)
-		}
+			require.Equal(t, user, cert.Subject.CommonName)
+			require.Contains(t, cert.CRLDistributionPoints,
+				`ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+
+			foundKeyUsage := false
+			foundAltName := false
+			foundAdUserMapping := false
+			for _, extension := range cert.Extensions {
+				switch {
+				case extension.Id.Equal(EnhancedKeyUsageExtensionOID):
+					foundKeyUsage = true
+					var oids []asn1.ObjectIdentifier
+					_, err = asn1.Unmarshal(extension.Value, &oids)
+					require.NoError(t, err)
+					require.Len(t, oids, 2)
+					require.Contains(t, oids, ClientAuthenticationOID)
+					require.Contains(t, oids, SmartcardLogonOID)
+				case extension.Id.Equal(SubjectAltNameExtensionOID):
+					foundAltName = true
+					var san SubjectAltName[upn]
+					_, err = asn1.Unmarshal(extension.Value, &san)
+					require.NoError(t, err)
+					require.Equal(t, san.OtherName.OID, UPNOtherNameOID)
+					require.Equal(t, san.OtherName.Value.Value, user+"@"+domain)
+				case extension.Id.Equal(ADUserMappingExtensionOID):
+					foundAdUserMapping = true
+					var adUserMapping SubjectAltName[adSid]
+					_, err = asn1.Unmarshal(extension.Value, &adUserMapping)
+					require.NoError(t, err)
+					require.Equal(t, adUserMapping.OtherName.OID, ADUserMappingInternalOID)
+					require.Equal(t, adUserMapping.OtherName.Value.Value, []byte(testSid))
+
+				}
+			}
+			require.True(t, foundKeyUsage)
+			require.True(t, foundAltName)
+			require.Equal(t, test.activeDirectorySID != "", foundAdUserMapping)
+		})
 	}
-	require.True(t, foundKeyUsage)
-	require.True(t, foundAltName)
+}
+
+func TestCRLDN(t *testing.T) {
+	for _, test := range []struct {
+		clusterName string
+		crlDN       string
+	}{
+		{
+			clusterName: "test",
+			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
+		},
+		{
+			clusterName: "cluster.goteleport.com",
+			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
+		},
+	} {
+		t.Run(test.clusterName, func(t *testing.T) {
+			cfg := LDAPConfig{
+				Domain: "test.goteleport.com",
+			}
+			require.Equal(t, test.crlDN, crlDN(test.clusterName, cfg))
+		})
+	}
 }
