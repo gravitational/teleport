@@ -415,10 +415,14 @@ These flags are available for all commands `--login, --proxy, --user, --ttl, --i
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
+
+Proxy a DB connection to a named database
 ```code
 $ tsh proxy db <db>
+```
 
-# Proxy a connection to mysql db on local port 10700
+Proxy a connection to mysql db on local port 10700
+```code
 $ tsh proxy db --port 10700  mysql-db
 # Started DB proxy on 127.0.0.1:10700
 
@@ -426,8 +430,10 @@ $ tsh proxy db --port 10700  mysql-db
 #  ca_file=/Users/jeff/.tsh/keys/teleport.example.com/cas/teleport.example.com.pem
 #  cert_file=/Users/jeff/.tsh/keys/teleport.example.com/jeff-db/tele1c/mysql-db-x509.pem
 #  key_file=/Users/jeff/.tsh/keys/teleport.example.com/jeff
+```
 
-# Proxy a connection to mysql db with no credentials required
+Proxy a connection to mysql db with no credentials required
+```code
 $ tsh proxy db --tunnel mysql-db
 Started authenticated tunnel for the MySQL database "mysql-db" in cluster "teleport.example.com" on 127.0.0.1:49415.
 
@@ -485,6 +491,9 @@ Host *.example.com !example.com
     Port 3022
     ProxyCommand "/usr/local/bin/tsh" proxy ssh --cluster=example.com --proxy=example.com %r@%h:%p
 ```
+
+This output should be placed into the default SSH Config for environment, `~/.ssh/config` for Mac/Linux or
+`.ssh\config` in the Windows User home directory. You can use this as a standalone SSH config file too.
 
 When you run an `ssh` command against a host with a subdomain of your Proxy
 Service's domain, this SSH configuration will use the `ProxyCommand` to run `tsh
