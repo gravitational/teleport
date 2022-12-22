@@ -3655,9 +3655,7 @@ func TestForwardingTraces(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			tmpHomePath := t.TempDir()
 
 			connector := mockConnector(t)
@@ -3776,9 +3774,7 @@ func TestExportingTraces(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			connector := mockConnector(t)
 			alice, err := types.NewUser("alice@example.com")
