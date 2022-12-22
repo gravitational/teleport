@@ -3076,11 +3076,11 @@ func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // should be used when you need to nest this inside another HandlerFunc.
 func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		remote, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = h.limiter.RegisterRequest(host, nil /* customRate */)
+		err = h.limiter.RegisterRequest(remote, nil /* customRate */)
 		// MaxRateError doesn't play well with errors.Is, hence the cast.
 		if _, ok := err.(*ratelimit.MaxRateError); ok {
 			return nil, trace.LimitExceeded(err.Error())
