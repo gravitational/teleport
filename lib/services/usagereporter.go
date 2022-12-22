@@ -251,6 +251,32 @@ func (u *UsageUIRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) prehog
 	}
 }
 
+// UsageUIRecoveryCodesCopyClick is a UI event sent when a user copies recovery codes.
+type UsageUIRecoveryCodesCopyClick prehogv1.UIRecoveryCodesCopyClickEvent
+
+func (u *UsageUIRecoveryCodesCopyClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiRecoveryCodesCopyClick{
+			UiRecoveryCodesCopyClick: &prehogv1.UIRecoveryCodesCopyClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageUIRecoveryCodesPrintClick is a UI event sent when a user prints recovery codes.
+type UsageUIRecoveryCodesPrintClick prehogv1.UIRecoveryCodesPrintClickEvent
+
+func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiRecoveryCodesPrintClick{
+			UiRecoveryCodesPrintClick: &prehogv1.UIRecoveryCodesPrintClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -288,11 +314,21 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
 		return &UsageUIOnboardRegisterChallengeSubmit{
-			UserName: e.UiOnboardRegisterChallengeSubmit.Username,
+			UserName:  e.UiOnboardRegisterChallengeSubmit.Username,
+			MfaType:   e.UiOnboardRegisterChallengeSubmit.MfaType,
+			LoginFlow: e.UiOnboardRegisterChallengeSubmit.LoginFlow,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiRecoveryCodesContinueClick:
 		return &UsageUIRecoveryCodesContinueClick{
 			UserName: e.UiRecoveryCodesContinueClick.Username,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiRecoveryCodesCopyClick:
+		return &UsageUIRecoveryCodesCopyClick{
+			UserName: e.UiRecoveryCodesCopyClick.Username,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiRecoveryCodesPrintClick:
+		return &UsageUIRecoveryCodesPrintClick{
+			UserName: e.UiRecoveryCodesPrintClick.Username,
 		}, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())

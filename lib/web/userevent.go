@@ -37,6 +37,8 @@ const (
 	addFirstResourceClickEvent      = "tp.ui.onboard.addFirstResource.click"
 	addFirstResourceLaterClickEvent = "tp.ui.onboard.addFirstResourceLater.click"
 	recoveryCodesContinueClickEvent = "tp.ui.recoveryCodesContinue.click"
+	recoveryCodesCopyClickEvent     = "tp.ui.recoveryCodesCopy.click"
+	recoveryCodesPrintClickEvent    = "tp.ui.recoveryCodesPrint.click"
 )
 
 // createPreUserEventRequest contains the event and properties associated with a user event
@@ -46,10 +48,15 @@ const (
 type createPreUserEventRequest struct {
 	// Event describes the event being capture
 	Event string `json:"event"`
-	// Alert is a banner click event property
-	Alert string `json:"alert"`
 	// Username token is set for unauthenticated event requests
 	Username string `json:"username"`
+
+	// Alert is a banner click event property
+	Alert string `json:"alert"`
+	// MfaType is a register challenge submit event property
+	MfaType string `json:"mfa_type"`
+	// LoginFlow is a register challenge submit event property
+	LoginFlow string `json:"login_flow"`
 }
 
 // createUserEventRequest contains the event and properties associated with a user event
@@ -115,10 +122,24 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 	case registerChallengeSubmitEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardRegisterChallengeSubmit{
 			UiOnboardRegisterChallengeSubmit: &v1.UIOnboardRegisterChallengeSubmitEvent{
-				Username: req.Username,
+				Username:  req.Username,
+				MfaType:   req.MfaType,
+				LoginFlow: req.LoginFlow,
 			},
 		}
 	case recoveryCodesContinueClickEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
+			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
+				Username: req.Username,
+			},
+		}
+	case recoveryCodesCopyClickEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
+			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
+				Username: req.Username,
+			},
+		}
+	case recoveryCodesPrintClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
 			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
 				Username: req.Username,

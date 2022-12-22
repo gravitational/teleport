@@ -23,10 +23,8 @@ option go_package = "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1a
 message UserLoginEvent {
   // anonymized
   string user_name = 1;
-  // empty for local or github/saml/oidc
+  // local/github/saml/oidc
   string connector_type = 2;
-
-  // TODO(espadolini): should passwordless be a flag?
 }
 
 message SSOCreateEvent {
@@ -84,9 +82,21 @@ message UIOnboardSetCredentialSubmitEvent {
 message UIOnboardRegisterChallengeSubmitEvent {
   // anonymized
   string user_name = 1;
+  string mfa_type = 2;
+  string login_flow = 3;
 }
 
 message UIRecoveryCodesContinueClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIRecoveryCodesCopyClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIRecoveryCodesPrintClickEvent {
   // anonymized
   string user_name = 1;
 }
@@ -112,10 +122,16 @@ message SubmitEventRequest {
     UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 12;
     UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 13;
     UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 14;
+    UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 15;
+    UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 16;
   }
 }
 message SubmitEventResponse {}
 
+message HelloTeleportRequest {}
+message HelloTeleportResponse {}
+
 service TeleportReportingService {
   rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+  rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }

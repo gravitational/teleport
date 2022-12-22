@@ -56,11 +56,29 @@ message UIOnboardSetCredentialSubmitEvent {
 message UIOnboardRegisterChallengeSubmitEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
+  // The type of MFA used.
+  string mfa_type = 2;
+  // The type of login used.
+  string login_flow = 3;
 }
 
 // UIRecoveryCodesContinueClickEvent is a UI event sent during
 // registration when the user configures cluster recovery codes.
 message UIRecoveryCodesContinueClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIRecoveryCodesCopyClickEvent is a UI event sent during
+// registration when the user copies recovery codes.
+message UIRecoveryCodesCopyClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIRecoveryCodesPrintClickEvent is a UI event sent during
+// registration when the user prints recovery codes.
+message UIRecoveryCodesPrintClickEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
 }
@@ -77,5 +95,7 @@ message UsageEventOneOf {
     UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 6;
     UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 7;
     UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 8;
+    UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 9;
+    UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 10;
   }
 }
