@@ -134,7 +134,7 @@ func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err = cluster.EnrichCluster(ctx)
+	cluster, err = cluster.EnrichWithDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
