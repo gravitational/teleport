@@ -43,6 +43,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -2403,6 +2404,18 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+	authPref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity := a.context.Identity.GetIdentity()
+
+	// Device trust: authorize device before issuing certificates, if applicable.
+	// This gives a better UX by failing earlier in the access attempt.
+	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.generateUserCerts(
 		ctx, req,
 		certRequestDeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
