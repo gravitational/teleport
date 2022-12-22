@@ -1,4 +1,9 @@
-# AWS CloudFormation based provisioning example.
+
+## Important Notice
+
+**This AWS CloudFormation example is not actively maintained and tested for version releases of Teleport.  This may be removed in a future release.**
+
+# AWS CloudFormation based provisioning example (Deprecated).
 
 **Prerequisites** 
 
