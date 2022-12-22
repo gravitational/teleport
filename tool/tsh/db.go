@@ -276,7 +276,7 @@ func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 	// user to authenticate the connection as.
 	if r.Username == "" {
 		switch r.Protocol {
-		case defaults.ProtocolMongoDB, defaults.ProtocolDynamoDB:
+		case defaults.ProtocolMongoDB:
 			return trace.BadParameter("please provide the database user name using the --db-user flag")
 		case defaults.ProtocolRedis:
 			// Default to "default" in the same way as Redis does. We need the username to check access on our side.
