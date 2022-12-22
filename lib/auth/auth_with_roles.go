@@ -2403,7 +2403,10 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	return a.generateUserCerts(ctx, req)
+	return a.generateUserCerts(
+		ctx, req,
+		certRequestDeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+	)
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {

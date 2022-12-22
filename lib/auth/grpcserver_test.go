@@ -745,6 +745,79 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	}
 }
 
+func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+
+	// Create an user for testing.
+	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"})
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err, "GenerateKeyPair failed")
+
+	wantExtensions := &tlsca.DeviceExtensions{
+		DeviceID:     "device1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	tests := []struct {
+		name       string
+		modifyUser func(u *TestIdentity)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "no device extensions",
+			// Absence of errors is enough here, this is mostly to make sure the base
+			// scenario works.
+		},
+		{
+			name: "user with device extensions",
+			modifyUser: func(u *TestIdentity) {
+				lu := u.I.(LocalUser)
+				lu.Identity.DeviceExtensions = *wantExtensions
+				u.I = lu
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err, "FromSubject failed")
+
+				if diff := cmp.Diff(*wantExtensions, gotIdentity.DeviceExtensions, protocmp.Transform()); diff != "" {
+					t.Errorf("DeviceExtensions mismatch (-want +got)\n%s", diff)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			u := TestUser(user.GetName())
+			if test.modifyUser != nil {
+				test.modifyUser(&u)
+			}
+
+			userClient, err := testServer.NewClient(u)
+			require.NoError(t, err, "NewClient failed")
+
+			resp, err := userClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				PublicKey: pub,
+				Username:  user.GetName(),
+				Expires:   testServer.Clock().Now().Add(1 * time.Hour),
+			})
+			require.NoError(t, err, "GenerateUserCerts failed")
+
+			block, _ := pem.Decode(resp.TLS)
+			require.NotNil(t, block, "Decode failed")
+			gotCert, err := x509.ParseCertificate(block.Bytes)
+			require.NoError(t, err, "ParserCertificate failed")
+
+			if test.assertCert != nil {
+				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
