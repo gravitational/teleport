@@ -340,7 +340,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
-	auth, err = service.NewTeleport(cfg)
+	auth, err = service.NewTeleport(cfg, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
@@ -377,7 +377,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
 
-	proxy, err = service.NewTeleport(cfg)
+	proxy, err = service.NewTeleport(cfg, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
 
@@ -412,7 +412,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.ResourceMatchers = resMatchers
 	cfg.Log = utils.NewLoggerForTests()
 
-	db, err := service.NewTeleport(cfg)
+	db, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, db.Start())
 

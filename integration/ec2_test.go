@@ -174,7 +174,7 @@ func TestEC2NodeJoin(t *testing.T) {
 
 	// create and start the auth server
 	authConfig := newAuthConfig(t, clock)
-	authSvc, err := service.NewTeleport(authConfig)
+	authSvc, err := service.NewTeleport(authConfig, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, authSvc.Start())
 	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
@@ -192,7 +192,7 @@ func TestEC2NodeJoin(t *testing.T) {
 
 	// create and start the node
 	nodeConfig := newNodeConfig(t, authConfig.Auth.ListenAddr, tokenName, types.JoinMethodEC2)
-	nodeSvc, err := service.NewTeleport(nodeConfig)
+	nodeSvc, err := service.NewTeleport(nodeConfig, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
@@ -219,7 +219,7 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	// create and start the auth server
 	authConfig := newAuthConfig(t, nil /*clock*/)
-	authSvc, err := service.NewTeleport(authConfig)
+	authSvc, err := service.NewTeleport(authConfig, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, authSvc.Start())
 	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
@@ -255,7 +255,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	// create and start the proxy, will use the IAM method to join by connecting
 	// directly to the auth server
 	proxyConfig := newProxyConfig(t, authConfig.Auth.ListenAddr, tokenName, types.JoinMethodIAM)
-	proxySvc, err := service.NewTeleport(proxyConfig)
+	proxySvc, err := service.NewTeleport(proxyConfig, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, proxySvc.Start())
 	t.Cleanup(func() { require.NoError(t, proxySvc.Close()) })
@@ -280,7 +280,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	// create and start a node, with use the IAM method to join in IoT mode by
 	// connecting to the proxy
 	nodeConfig := newNodeConfig(t, proxyConfig.Proxy.WebAddr, tokenName, types.JoinMethodIAM)
-	nodeSvc, err := service.NewTeleport(nodeConfig)
+	nodeSvc, err := service.NewTeleport(nodeConfig, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })

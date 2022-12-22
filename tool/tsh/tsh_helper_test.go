@@ -26,6 +26,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -275,8 +277,21 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 }
 
 func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportOption) *service.TeleportProcess {
+	opts = append(opts,
+		// Disables cloud auto-imported labels when running tests in cloud envs
+		// such as Github Actions.
+		//
+		// This is required otherwise Teleport will import cloud instance
+		// labels, and use them for example as labels in Kubernetes Service and
+		// cause some tests to fail because the output includes unexpected
+		// labels.
+		//
+		// It is also found that Azure metadata client can throw "Too many
+		// requests" during CI which fails services.NewTeleport.
+		service.WithDisabledIMDSClient(),
+	)
 	process, err := service.NewTeleport(cfg, opts...)
-	require.NoError(t, err)
+	require.NoError(t, err, trace.DebugReport(err))
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -293,9 +308,15 @@ func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportO
 	if cfg.Databases.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
 	}
+	if cfg.Apps.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.AppsReady)
+	}
+	if cfg.Auth.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.AuthTLSReady)
+	}
 	waitForEvents(t, process, serviceReadyEvents...)
 
-	if cfg.Databases.Enabled {
+	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, process, cfg.Databases.Databases)
 	}
 	return process

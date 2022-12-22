@@ -92,7 +92,7 @@ func (t *teleportService) start(ctx context.Context) {
 	go func() {
 		t.errorChannel <- service.Run(ctx, *t.config, func(cfg *service.Config) (service.Process, error) {
 			t.log.Debugf("(Re)starting %s", t.name)
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
 			if err == nil {
 				t.log.Debugf("started %s, writing to serviceChannel", t.name)
 				t.serviceChannel <- svc

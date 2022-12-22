@@ -406,6 +406,12 @@ func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
 	}
 }
 
+// WithDisabledIMDSClient provides NewTeleport with a instance metadata client
+// that is always disabled.
+func WithDisabledIMDSClient() NewTeleportOption {
+	return WithIMDSClient(&cloud.DisabledIMDSClient{})
+}
+
 // processIndex is an internal process index
 // to help differentiate between two different teleport processes
 // during in-process reload.
@@ -886,7 +892,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	if imClient != nil {
+	if imClient != nil && imClient.GetType() != types.InstanceMetadataTypeDisabled {
 		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
 			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")

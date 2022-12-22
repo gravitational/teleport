@@ -76,7 +76,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 	go func() {
 		defer wg.Done()
 		err := service.Run(ctx, *cfg, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
 			if err == nil {
 				svcC <- svc
 			}

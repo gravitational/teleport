@@ -625,7 +625,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 }
 
 func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.TeleportProcess {
-	instance, err := service.NewTeleport(cfg)
+	instance, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())
 

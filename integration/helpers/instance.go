@@ -543,7 +543,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		return trace.Wrap(err)
 	}
 	i.Config = tconf
-	i.Process, err = service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	i.Process, err = service.NewTeleport(tconf, service.WithDisabledIMDSClient())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -656,7 +656,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf, service.WithDisabledIMDSClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -698,7 +698,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(conf, service.WithDisabledIMDSClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -748,7 +748,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
-			process, err := service.NewTeleport(cfg, service.WithIMDSClient(&DisabledIMDSClient{}))
+			process, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
 			if err != nil {
 				results <- result{err: err, tmpDir: dataDir}
 			}
@@ -812,7 +812,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(conf, service.WithDisabledIMDSClient())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -878,7 +878,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName
 	}
 	conf.Kube.ListenAddr = nil
 
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithDisabledIMDSClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -948,7 +948,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf, service.WithDisabledIMDSClient())
 	require.NoError(t, err)
 	i.Nodes = append(i.Nodes, process)
 
@@ -1037,7 +1037,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf, service.WithDisabledIMDSClient())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1089,7 +1089,7 @@ func (i *TeleInstance) Reset() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	i.Process, err = service.NewTeleport(i.Config, service.WithIMDSClient(&DisabledIMDSClient{}))
+	i.Process, err = service.NewTeleport(i.Config, service.WithDisabledIMDSClient())
 	if err != nil {
 		return trace.Wrap(err)
 	}
