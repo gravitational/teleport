@@ -1646,12 +1646,10 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// Auth initialization is done (including creation/updating of all singleton
 	// configuration resources) so now we can start the cache.
-	var authCache *cache.Cache
 	if c, ok := authServer.Cache.(*cache.Cache); ok {
 		if err := c.Start(); err != nil {
 			return trace.Wrap(err)
 		}
-		authCache = c
 	}
 
 	// Register TLS endpoint of the auth service
@@ -1680,7 +1678,7 @@ func (process *TeleportProcess) initAuthService() error {
 		EnableExternalProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:                    listener,
 		ID:                          teleport.Component(process.id),
-		CertAuthoritiesGetter:       authCache,
+		CertAuthoritiesGetter:       authServer,
 	})
 	if err != nil {
 		listener.Close()
