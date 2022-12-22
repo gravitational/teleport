@@ -237,3 +237,31 @@ const (
 	// TagClient is a prometheus label to indicate what client the metric is tied to
 	TagClient = "client"
 )
+
+const (
+	// MetricUsageEventsSubmitted is a count of usage events that have been generated.
+	MetricUsageEventsSubmitted = "usage_events_submitted_total"
+
+	// MetricUsageBatches is a count of batches enqueued for submission.
+	MetricUsageBatches = "usage_batches_total"
+
+	// MetricUsageEventsRequeued is a count of events that were requeued after a
+	// submission failed.
+	MetricUsageEventsRequeued = "usage_events_requeued_total"
+
+	// MetricUsageBatchSubmissionDuration is a histogram of durations it took to
+	// submit a batch.
+	MetricUsageBatchSubmissionDuration = "usage_batch_submission_duration_seconds"
+
+	// MetricUsageBatchesSubmitted is a count of event batches successfully
+	// submitted.
+	MetricUsageBatchesSubmitted = "usage_batch_submitted_total"
+
+	// MetricUsageBatchesFailed is a count of event batches that failed to
+	// submit.
+	MetricUsageBatchesFailed = "usage_batch_failed_total"
+
+	// MetricUsageEventsDropped is a count of events dropped due to the
+	// submission buffer reaching a length limit.
+	MetricUsageEventsDropped = "usage_events_dropped_total"
+)

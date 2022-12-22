@@ -30,7 +30,7 @@ RUN apt-get update -y --fix-missing && \
 
 RUN mkdir -p /opt && cd /opt && \
     curl -sLO https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz && \
-    echo "61bad4c025a0c5dfcfb1638854f16258343bd7a19da3149cab78a4248fd367be" "clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz" | sha256sum --check && \
+    echo "e74ce06d99ed9ce42898e22d2a966f71ae785bdf4edbded93e628d696858921a" "clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz" | sha256sum --check && \
     tar xJf clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz && \
     rm -f clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz
 ENV PATH="/opt/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04/bin:$PATH"

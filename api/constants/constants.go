@@ -237,6 +237,23 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// DeviceTrustMode is the mode of verification for trusted devices.
+// DeviceTrustMode is always "off" for OSS.
+// Defaults to "optional" for Enterprise.
+type DeviceTrustMode = string
+
+const (
+	// DeviceTrustModeOff disables both device authentication and authorization.
+	DeviceTrustModeOff DeviceTrustMode = "off"
+	// DeviceTrustModeOptional allows both device authentication and
+	// authorization, but doesn't enforce the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeOptional DeviceTrustMode = "optional"
+	// DeviceTrustModeRequired enforces the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeRequired DeviceTrustMode = "required"
+)
+
 const (
 	// ChanTransport is a channel type that can be used to open a net.Conn
 	// through the reverse tunnel server. Used for trusted clusters and dial back
@@ -317,6 +334,10 @@ const (
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
+
+	// TraitAzureIdentities is the name of the role variable used to store
+	// allowed Azure identity names.
+	TraitAzureIdentities = "azure_identities"
 )
 
 // Constants for AWS discovery

@@ -70,9 +70,10 @@ You will deploy the Auth Service and Proxy Service by installing the
 # This is the DNS name Kubernetes will assign to the Proxy Service
 $ CLUSTER_NAME="teleport-cluster.teleport-cluster.svc.cluster.local"
 $ helm install teleport-cluster teleport/teleport-cluster \
---create-namespace \
---namespace=teleport-cluster \
---set clusterName=${CLUSTER_NAME?}
+  --create-namespace \
+  --namespace=teleport-cluster \
+  --set clusterName=${CLUSTER_NAME?} \
+  --version (=teleport.version=)
 $ kubectl config set-context --current --namespace teleport-cluster
 ```
 
@@ -316,7 +317,8 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set authToken=${INVITE_TOKEN?} \
   --set "apps[0].name"="kube-dash" \
   --set "apps[0].uri"=https://${DASH_ADDR?} \
-  --set insecureSkipProxyTLSVerify=true
+  --set insecureSkipProxyTLSVerify=true \
+  --version (=teleport.version=)
 ```
 
 <Details title="Why do we skip certificate verification here?">
@@ -370,6 +372,10 @@ Terminate the `minikube tunnel` process you started earlier and run
 
 ## Next steps
 
+To see all of the options you can set in the values file for the
+`teleport-cluster` and `teleport-kube-agent` Helm charts, consult our [reference
+guide](../reference/helm-reference.mdx).
+
 Now that you have used Teleport to securely access resources in your local
 Kubernetes cluster, read our guides to setting up Teleport for Kubernetes in
 production.
@@ -382,5 +388,4 @@ production.
   [Single Sign-On and Kubernetes RBAC](../kubernetes-access/controls.mdx)
 - Have a Kubernetes cluster but don't want to run Teleport there?
   [Kubernetes Access from Standalone Teleport](../kubernetes-access/guides/standalone-teleport.mdx)
-
 

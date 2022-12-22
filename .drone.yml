@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport12
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -152,7 +152,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport12
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -257,7 +257,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport12
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -366,7 +366,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport12
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -535,7 +535,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.2
+    RUNTIME: go1.19.4
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -593,7 +593,6 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - export DEBUG="electron-*"
   - export CONNECT_TSH_BIN_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build/tsh
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
@@ -1167,7 +1166,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport12
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -1272,7 +1271,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport12
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -1714,7 +1713,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -1903,7 +1902,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -2091,7 +2090,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -2292,7 +2291,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -3506,7 +3505,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -4266,7 +4265,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.2
+    RUNTIME: go1.19.4
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -4837,7 +4836,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -5023,7 +5022,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -6237,7 +6236,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -8043,7 +8042,6 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - export DEBUG="electron-*"
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational
   - pkgutil --expand-full tsh-$${VERSION}.pkg tsh
   - export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app
@@ -8287,11 +8285,16 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8609,11 +8612,16 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8932,11 +8940,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -9307,6 +9320,22 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Record if tag ($DRONE_TAG) is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - mkdir -pv $(dirname "/go/vars/release-is-prerelease")
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null || echo 'Version
+    is a prerelease' > "/go/vars/release-is-prerelease"
+  - printf 'Version is '; [ ! -f "/go/vars/release-is-prerelease" ] && printf 'not
+    '; echo 'a prerelease'
 - name: Wait for docker
   image: docker
   commands:
@@ -9316,6 +9345,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -9324,6 +9354,7 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -9335,6 +9366,7 @@ steps:
   - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -9349,6 +9381,7 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -9375,6 +9408,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -9402,6 +9436,7 @@ steps:
   depends_on:
   - Assume ECR - staging AWS Role
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -9423,6 +9458,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9450,6 +9486,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9477,6 +9514,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9570,6 +9608,10 @@ steps:
 - name: Create manifest and push "teleport:major" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport:$(cat "/go/var/major-version")
     --amend quay.io/gravitational/teleport:$(cat "/go/var/major-version")-amd64 --amend
@@ -9594,6 +9636,10 @@ steps:
 - name: Create manifest and push "teleport:minor" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport:$(cat "/go/var/minor-version")
     --amend quay.io/gravitational/teleport:$(cat "/go/var/minor-version")-amd64 --amend
@@ -9724,6 +9770,10 @@ steps:
 - name: Create manifest and push "teleport:major" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9747,6 +9797,10 @@ steps:
 - name: Create manifest and push "teleport:minor" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9813,6 +9867,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9840,6 +9895,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9867,6 +9923,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9960,6 +10017,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")-amd64
@@ -9984,6 +10045,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")-amd64
@@ -10117,6 +10182,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10140,6 +10209,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10207,6 +10280,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10244,6 +10318,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")-fips
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
@@ -10264,6 +10342,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")-fips
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
@@ -10334,6 +10416,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10353,6 +10439,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10412,6 +10502,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10440,6 +10531,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10468,6 +10560,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10561,6 +10654,10 @@ steps:
 - name: Create manifest and push "teleport-operator:major" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-operator:$(cat "/go/var/major-version")
     --amend quay.io/gravitational/teleport-operator:$(cat "/go/var/major-version")-amd64
@@ -10585,6 +10682,10 @@ steps:
 - name: Create manifest and push "teleport-operator:minor" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-operator:$(cat "/go/var/minor-version")
     --amend quay.io/gravitational/teleport-operator:$(cat "/go/var/minor-version")-amd64
@@ -10719,6 +10820,10 @@ steps:
 - name: Create manifest and push "teleport-operator:major" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10742,6 +10847,10 @@ steps:
 - name: Create manifest and push "teleport-operator:minor" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10999,12 +11108,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11729,12 +11842,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -12463,12 +12580,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -13653,12 +13774,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14383,12 +14508,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -15117,12 +15246,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -16305,12 +16438,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17035,12 +17172,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17769,12 +17910,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -18269,6 +18414,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c50cecb03e9ca4c1a58759cd017fb8555b386f1f45938ae84b56bbb396b36ad3
+hmac: f705a80b8c3c8bc959ec67db35756f7af0bb657498d2a2b141f9ee88c13f3d9a
 
 ...

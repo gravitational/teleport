@@ -1047,8 +1047,6 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
-	case teleport.RecordingProxyReqType:
-		s.handleRecordingProxy(ctx, r)
 	case teleport.ClusterDetailsReqType:
 		s.handleClusterDetails(ctx, r)
 	case teleport.VersionRequest:
@@ -1817,39 +1815,6 @@ func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
 	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, details)
 }
 
-// handleRecordingProxy responds to global out-of-band with a bool which
-// indicates if it is in recording mode or not.
-//
-// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
-// cluster information.
-// TODO(tross):DELETE IN 12.0
-func (s *Server) handleRecordingProxy(ctx context.Context, req *ssh.Request) {
-	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
-
-	if !req.WantReply {
-		return
-	}
-
-	// get the cluster config, if we can't get it, reply false
-	recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		if err := req.Reply(false, nil); err != nil {
-			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
-		}
-		return
-	}
-
-	// reply true that we were able to process the message and reply with a
-	// bool if we are in recording mode or not
-	recordingProxy := services.IsRecordAtProxy(recConfig.GetMode())
-	if err := req.Reply(true, []byte(strconv.FormatBool(recordingProxy))); err != nil {
-		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
-		return
-	}
-
-	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
-}
-
 // handleVersionRequest replies with the Teleport version of the server.
 func (s *Server) handleVersionRequest(req *ssh.Request) {
 	err := req.Reply(true, []byte(teleport.Version))
@@ -1976,7 +1941,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 // 'ssh: subsystem request failed' will be the only error displayed when
 // access is denied.
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
-	s.Logger.Error(err)
+	s.Logger.WithError(err).Errorf("failure handling SSH %q request", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
 	// stderr so the output does not mix with the rest of the output if the remote
 	// side is not doing additional formatting for extended data.

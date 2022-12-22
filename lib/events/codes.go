@@ -186,6 +186,9 @@ const (
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
 
+	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
+	DynamoDBRequestCode = "TDY01I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
@@ -354,6 +357,11 @@ const (
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+
+	// BotJoinCode is the 'bot.join' event code.
+	BotJoinCode = "TJ001I"
+	// InstanceJoinCode is the 'node.join' event code.
+	InstanceJoinCode = "TJ002I"
 
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"

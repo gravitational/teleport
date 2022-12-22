@@ -399,6 +399,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ElasticsearchRequest{
 			ElasticsearchRequest: e,
 		}
+	case *DynamoDBRequest:
+		out.Event = &OneOf_DynamoDBRequest{
+			DynamoDBRequest: e,
+		}
 	case *DatabaseSessionMalformedPacket:
 		out.Event = &OneOf_DatabaseSessionMalformedPacket{
 			DatabaseSessionMalformedPacket: e,
@@ -467,6 +471,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DesktopSharedDirectoryWrite{
 			DesktopSharedDirectoryWrite: e,
 		}
+	case *BotJoin:
+		out.Event = &OneOf_BotJoin{
+			BotJoin: e,
+		}
+	case *InstanceJoin:
+		out.Event = &OneOf_InstanceJoin{
+			InstanceJoin: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}
@@ -502,7 +514,7 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	// OneOfs only have one inner field, verify and then read it.
 	if elem.NumField() != 1 {
 		// This should never happen for proto one-ofs.
-		return nil, trace.BadParameter("unexpect number in value %v: %v != 1", elem.Kind(), elem.NumField())
+		return nil, trace.BadParameter("unexpected number in value %v: %v != 1", elem.Kind(), elem.NumField())
 	}
 
 	auditEvent, ok := elem.Field(0).Interface().(AuditEvent)

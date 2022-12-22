@@ -29,6 +29,9 @@ import (
 type Anonymizer interface {
 	// Anonymize returns anonymized string from the provided data
 	Anonymize(data []byte) string
+
+	// AnonymizeString anonymizes the given string data using HMAC
+	AnonymizeString(s string) string
 }
 
 // hmacAnonymizer implements anonymization using HMAC
@@ -52,4 +55,9 @@ func (a *HMACAnonymizer) Anonymize(data []byte) string {
 	h := hmac.New(sha256.New, []byte(a.key))
 	h.Write(data)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+// AnonymizeString anonymizes the given string data using HMAC
+func (a *HMACAnonymizer) AnonymizeString(s string) string {
+	return a.Anonymize([]byte(s))
 }

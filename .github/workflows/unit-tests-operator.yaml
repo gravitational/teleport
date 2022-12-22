@@ -16,13 +16,13 @@ on:
 jobs:
   test:
     name: Unit Tests (Operator)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
 
     container:
-      image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:
