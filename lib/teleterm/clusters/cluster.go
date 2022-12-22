@@ -68,21 +68,18 @@ func (c *Cluster) Connected() bool {
 // and enabled enterprise features. This method requires a valid cert.
 func (c *Cluster) EnrichCluster(ctx context.Context) (*Cluster, error) {
 	var (
-		authClient   auth.ClientI
-		proxyClient  *client.ProxyClient
-		err          error
 		pingResponse proto.PingResponse
 		caps         *types.AccessCapabilities
 	)
 
-	err = addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
