@@ -56,6 +56,11 @@ type Resource interface {
 	CheckAndSetDefaults() error
 }
 
+// ResourceDetails includes details about the resource
+type ResourceDetails struct {
+	Hostname string
+}
+
 // ResourceWithSecrets includes additional properties which must
 // be provided by resources which *may* contain secrets.
 type ResourceWithSecrets interface {
