@@ -346,10 +346,33 @@ RBAC principals otherwise Teleport can let the request through and Kubernetes RB
 will deny it. The user's permissions are the intersection of the
 permissions allowed by Kubernetes RBAC and the list of Pods defined in `kubernetes_resources`.
 
-When accessing a pod, Teleport evaluates if any Role allow the access to the Pod,
-and collects every Kubernetes RBAC principals that satisfy the cluster labels and
-target resource name and namespace. After that, Teleport forwards the request to
-the Kubernetes Cluster with the appropriate impersonation headers.
+When accessing a pod in a Kube cluster, Teleport evaluates if any Role matches
+this Kube cluster labels and if it allows the access to the Pod - pod's name and
+namespace. If everything matches, Teleport collects the
+Kubernetes RBAC principals associated with those roles and forwards the request to
+the Kubernetes Cluster with the collected principals. If no match is found, Teleport
+rejects the request with an access denied message.
+Given a user with the following roles:
+
+| Name | `kubernetes_labels` | `kubernetes_groups` | `kubernetes_resources` |
+|---|---| --- |  --- |
+| `role1` | `env`:`prod` | `kube_group1` | name: `*`, namespace: `*`, kind: `pod` |
+| `role2` | `env`:`dev` | `kube_group2`  | name: `*`, namespace: `*`, kind: `pod` |
+| `role3` | `env`:`prod` | `kube_group3` | name: `special_pod`, namespace: `default`, kind: `pod` |
+
+If the user executes `kubectl logs pod_name_1 -n default` targeted to a cluster with labels
+`env`:`prod`, Teleport matches the cluster's labels against the role's `kubernetes_labels`.
+Only `role1` and `role3` match - `role2` misses because the cluster has `env`:`prod`.
+At the same time, Teleport matches the pod name
+and namespace {`name`:`pod_name_1`, `namespace`:`default`} against `kubernetes_resources`
+for the roles that also match the cluster labels. For this request,
+`role3` does not match the pod's name and Teleport collects the
+`kubernetes_groups`: [ `kube_group1` ]. If the user tries to execute
+`kubectl logs special_pod -n default` into the same cluster, Teleport collects
+`kubernetes_groups`: [`kube_group1`, `kube_group3`] because the `role3` now matches the pod
+name. When forwarding the request to the Kubernertes Cluster, the user will
+impersonate `kube_group1` and `kube_group2` instead of `kube_group1` for the previous
+request. 
 
 When listing pods - `kubect get pods [--all-namespaces,-n=<namespace>]`, Teleport
 will collect all `kubernetes_groups` that are apllicable to the cluster based on
