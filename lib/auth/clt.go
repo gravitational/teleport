@@ -1575,6 +1575,7 @@ type ClientI interface {
 	services.Restrictions
 	services.Apps
 	services.Databases
+	services.DatabaseServices
 	services.Kubernetes
 	services.WindowsDesktops
 	WebService

@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1702,7 +1704,7 @@ ssh_service:
 		}
 		cfg := service.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		require.NoError(t, err, comment)
 		require.Equal(t, tt.outPermitUserEnvironment, cfg.SSH.PermitUserEnvironment, comment)
 	}
@@ -1769,7 +1771,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 			cfg := service.MakeDefaultConfig()
 
 			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
-			require.NoError(t, Configure(&CommandLineFlags{}, cfg))
+			require.NoError(t, Configure(&CommandLineFlags{}, cfg, false))
 
 			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
 		})
@@ -1783,7 +1785,7 @@ func TestDebugFlag(t *testing.T) {
 	}
 	cfg := service.MakeDefaultConfig()
 	require.False(t, cfg.Debug)
-	err := Configure(&clf, cfg)
+	err := Configure(&clf, cfg, false)
 	require.NoError(t, err)
 	require.True(t, cfg.Debug)
 }
@@ -1832,7 +1834,7 @@ func TestMergingCAPinConfig(t *testing.T) {
 			}
 			cfg := service.MakeDefaultConfig()
 			require.Empty(t, cfg.CAPins)
-			err := Configure(&clf, cfg)
+			err := Configure(&clf, cfg, false)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.want, cfg.CAPins)
 		})
@@ -1916,7 +1918,7 @@ func TestFIPS(t *testing.T) {
 		service.ApplyDefaults(cfg)
 		service.ApplyFIPSDefaults(cfg)
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		if tt.outError {
 			require.Error(t, err, comment)
 		} else {
@@ -2227,7 +2229,7 @@ app_service:
 		}
 		cfg := service.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		require.Equal(t, err != nil, tt.outError, tt.inComment)
 	}
 }
@@ -2236,71 +2238,161 @@ app_service:
 // in on the command line.
 func TestAppsCLF(t *testing.T) {
 	tests := []struct {
-		desc      string
-		inRoles   string
-		inAppName string
-		inAppURI  string
-		outError  error
+		desc             string
+		inRoles          string
+		inAppName        string
+		inAppURI         string
+		inAppCloud       string
+		inLegacyAppFlags bool
+		outApps          []service.App
+		requireError     require.ErrorAssertionFunc
 	}{
 		{
 			desc:      "role provided, valid name and uri",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  nil,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "http://localhost:8080",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
 		},
 		{
-			desc:      "role provided, name not provided",
+			desc:             "role provided, name not provided, uri not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "",
+			inAppURI:         "",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, name not provided, uri not provided, regular flags",
+			inRoles:   defaults.RoleApp,
+			inAppName: "",
+			inAppURI:  "",
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
+			},
+		},
+		{
+			desc:             "role provided, name not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "",
+			inAppURI:         "http://localhost:8080",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name (--app-name) is required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, name not provided, regular flags",
 			inRoles:   defaults.RoleApp,
 			inAppName: "",
 			inAppURI:  "http://localhost:8080",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name)")
+			},
 		},
 		{
-			desc:      "role provided, uri not provided",
+			desc:             "role provided, uri not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "foo",
+			inAppURI:         "",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "URI (--app-uri) flag is required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, uri not provided, regular flags",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
+			},
 		},
 		{
 			desc:      "valid name and uri",
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  nil,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "http://localhost:8080",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
+		},
+		{
+			desc:       "valid name and cloud",
+			inAppName:  "foo",
+			inAppCloud: types.CloudGCP,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "cloud://GCP",
+					Cloud:         "GCP",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
 		},
 		{
 			desc:      "invalid name",
 			inAppName: "-foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name")
+			},
 		},
 		{
 			desc:      "missing uri",
 			inAppName: "foo",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "missing application \"foo\" URI")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			clf := CommandLineFlags{
-				Roles:   tt.inRoles,
-				AppName: tt.inAppName,
-				AppURI:  tt.inAppURI,
+				Roles:    tt.inRoles,
+				AppName:  tt.inAppName,
+				AppURI:   tt.inAppURI,
+				AppCloud: tt.inAppCloud,
 			}
 			cfg := service.MakeDefaultConfig()
-			err := Configure(&clf, cfg)
-			if err != nil {
-				require.IsType(t, err, tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
-			if tt.outError != nil {
-				return
-			}
-			require.True(t, cfg.Apps.Enabled)
-			require.Len(t, cfg.Apps.Apps, 1)
+			err := Configure(&clf, cfg, tt.inLegacyAppFlags)
+			tt.requireError(t, err)
+			require.Equal(t, tt.outApps, cfg.Apps.Apps)
 		})
 	}
 }
@@ -2395,7 +2487,7 @@ db_service:
 			clf := CommandLineFlags{
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
-			err := Configure(&clf, service.MakeDefaultConfig())
+			err := Configure(&clf, service.MakeDefaultConfig(), false)
 			if tt.outError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.outError)
@@ -2638,7 +2730,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			t.Parallel()
 
 			config := service.MakeDefaultConfig()
-			err := Configure(&tt.inFlags, config)
+			err := Configure(&tt.inFlags, config, false)
 			if tt.outError != "" {
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
@@ -3104,6 +3196,62 @@ teleport:
 			require.NoError(t, err)
 			require.Equal(t, tc.expectToken, token)
 			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
+		})
+	}
+}
+
+func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
+	tests := []struct {
+		name        string
+		buildType   string
+		deviceTrust *DeviceTrust
+		wantErr     bool
+	}{
+		{
+			name:      "ok: OSS Mode=off",
+			buildType: modules.BuildOSS,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeOff,
+			},
+		},
+		{
+			name:      "nok: OSS Mode=required",
+			buildType: modules.BuildOSS,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+			wantErr: true,
+		},
+		{
+			name:      "ok: Enterprise Mode=required",
+			buildType: modules.BuildEnterprise,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: test.buildType,
+			})
+
+			defaultCfg := service.MakeDefaultConfig()
+			err := ApplyFileConfig(&FileConfig{
+				Auth: Auth{
+					Service: Service{
+						EnabledFlag: "yes",
+					},
+					Authentication: &AuthenticationConfig{
+						DeviceTrust: test.deviceTrust,
+					},
+				},
+			}, defaultCfg)
+			if test.wantErr {
+				assert.Error(t, err, "ApplyFileConfig mismatch")
+			} else {
+				assert.NoError(t, err, "ApplyFileConfig mismatch")
+			}
 		})
 	}
 }
