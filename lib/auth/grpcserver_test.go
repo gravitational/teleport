@@ -1995,6 +1995,133 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Len(t, out, 0)
 }
 
+// TestDatabaseServicesCRUD tests DatabaseService resource operations.
+func TestDatabaseServicesCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create two DatabaseServices.
+	db1, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name:   "db1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	db2, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name:   "db2",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"stg"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Initially we expect no DatabaseServices.
+	listServicesResp, err := clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create both DatabaseServices.
+	_, err = clt.UpsertDatabaseService(ctx, db1)
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseService(ctx, db2)
+	require.NoError(t, err)
+
+	// Fetch all DatabaseServices.
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Update a DatabaseService.
+	db1.Spec.ResourceMatchers[0] = &types.DatabaseResourceMatcher{
+		Labels: &types.Labels{
+			"env": []string{"notprod"},
+		},
+	}
+
+	_, err = clt.UpsertDatabaseService(ctx, db1)
+	require.NoError(t, err)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete a DatabaseService.
+	err = clt.DeleteDatabaseService(ctx, db1.GetName())
+	require.NoError(t, err)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to delete a DatabaseService that doesn't exist.
+	err = clt.DeleteDatabaseService(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Delete all DatabaseServices.
+	err = clt.DeleteAllDatabaseServices(ctx)
+	require.NoError(t, err)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, out)
+}
+
 func TestListResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
