@@ -389,10 +389,19 @@ var (
 		[]string{teleport.TagVersion},
 	)
 
+	migrations = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricMigrations,
+			Help:      "Migrations tracks for each migration if it is active (1) or not (0).",
+		},
+		[]string{teleport.TagMigration},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
-		registeredAgents,
+		registeredAgents, migrations,
 	}
 )
 
