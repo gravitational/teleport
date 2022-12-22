@@ -5558,7 +5558,7 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
