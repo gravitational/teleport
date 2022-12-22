@@ -118,6 +118,15 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] Host key checking enabled rejects connection
       - [ ] Host key checking disabled allows connection
 
+- [ ] Enhanced Session Recording
+  - [ ] `disk`, `command` and `network` events are being logged.
+  - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
+  - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
+
+- [ ] Restricted Session 
+  - [ ] Network request are allowed when a policy allow them.
+  - [ ] Network request are blocked when a policy deny them.
+
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID

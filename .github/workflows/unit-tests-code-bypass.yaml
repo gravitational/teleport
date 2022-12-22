@@ -18,7 +18,7 @@ on:
 
 jobs:
   test:
-    name: Skipped
+    name: Unit Tests (Go)
     runs-on: ubuntu-latest
 
     permissions:

@@ -149,3 +149,34 @@ func WaitForRun(ctx context.Context, actions WorkflowRuns, owner, repo, path, re
 		}
 	}
 }
+
+// InstallationLister defines the minimal interface for listing GitHub App Installations
+// via the GitHub API.
+type InstallationLister interface {
+	ListInstallations(ctx context.Context, opts *github.ListOptions) ([]*github.Installation, *github.Response, error)
+}
+
+// FindAppInstallID finds the ID of an app installation on a given GitHub account.
+// The App ID is inferred by the credentials used by the `lister` to authenticate
+// with the GitHub API
+func FindAppInstallID(ctx context.Context, lister InstallationLister, owner string) (int64, error) {
+	listOptions := github.ListOptions{PerPage: 100}
+	for {
+		installations, response, err := lister.ListInstallations(ctx, &listOptions)
+		if err != nil {
+			return 0, trace.Wrap(err, "Failed to list installations")
+		}
+
+		for _, inst := range installations {
+			if inst.GetAccount().GetLogin() == owner {
+				return inst.GetID(), nil
+			}
+		}
+
+		if response.NextPage == 0 {
+			return 0, trace.NotFound("No such installation found")
+		}
+
+		listOptions.Page = response.NextPage
+	}
+}
