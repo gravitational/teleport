@@ -1,29 +1,9 @@
 <Admonition type="tip">
 
-<<<<<<< HEAD
-        $ sudo apt-get update
-        $ sudo apt-get install teleport
-        ```
-    </TabItem>
-    <TabItem label="Amazon Linux 2/RHEL (RPM)">
-        ```code
-        # Source variables about OS version
-        $ source /etc/os-release
-        # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
-        # file for each major release of Teleport.
-        # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-        # and the codename your distro was forked from instead of '$ID'
-        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
-        $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
-        $ sudo yum install teleport
-        ```
-    </TabItem>
-=======
 In the example commands below, update `$SYSTEM-ARCH` with the appropriate
 value (`amd64`, `arm64`, or `arm`). All example commands using this variable
 will update after one is filled out. This variable may not be present, depending
 on your installation type.
->>>>>>> 1d19c1cb5f (refactor Linux Install partial)
 
 Be sure to select the apporpriate scope at the top of this page (OSS,
 Enterprise, Cloud) to see the correct example commands for your installation
@@ -40,16 +20,17 @@ Next, use the appropriate commands for your environment to install your package.
 
 </ScopedBlock>
 
-<ScopedBlock scope={["oss"]}>
-<Tabs>
-  <TabItem label="Debian/Ubuntu (DEB)">
+<Tabs dropdownView dropdownCaption="Teleport Edition">
+  <TabItem label="Open Source" scope="oss">
+  <Tabs>
+  <TabItem label="Debian/Ubuntu (DEB)" scope="oss">
 
   Add the Teleport repository to your repository list:
 
   ```code
   # Download Teleport's PGP public key
   $ sudo curl https://apt.releases.teleport.dev/gpg \
-   -o /usr/share/keyrings/teleport-archive-keyring.asc
+  -o /usr/share/keyrings/teleport-archive-keyring.asc
   # Source variables about OS version
   $ source /etc/os-release
   # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
@@ -58,15 +39,15 @@ Next, use the appropriate commands for your environment to install your package.
   # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
   # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
   $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-   https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
-   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
+  | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
   $ sudo apt-get update
   $ sudo apt-get install teleport
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
+  <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="oss">
 
   ```code
   # Source variables about OS version
@@ -88,7 +69,7 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Tarball">
+  <TabItem label="Tarball" scope="oss">
 
   ```code
   $ curl https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH" description="The CPU architecture of the system Teleport will be installed on"/>-bin.tar.gz.sha256
@@ -102,11 +83,16 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-</Tabs>
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
-<Tabs>
-  <TabItem label="Debian/Ubuntu (DEB)">
+  </Tabs>
+  </TabItem>
+  <TabItem label="Enterprise" scope="enterprise">
+
+  In the example commands below, update `$SYSTEM-ARCH` with the appropriate
+  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
+  will update after one is filled out.
+
+  <Tabs>
+  <TabItem label="Debian/Ubuntu (DEB)" scope="enterprise">
 
   Aftter Downloading the `.deb` file for your system architecture, install it with
   `dpkg`. The example below assumes the `root` user:
@@ -121,7 +107,7 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
+  <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="enterprise">
 
   After Downloading the `.rpm` file for your system architecture, install it with `rpm`:
 
@@ -131,7 +117,7 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Tarball">
+  <TabItem label="Tarball" scope="enterprise">
 
   ```code
   $ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
@@ -159,11 +145,16 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-</Tabs>
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-<Tabs>
-  <TabItem label="Debian/Ubuntu (DEB)">
+  </Tabs>
+  </TabItem>
+  <TabItem label="Cloud" scope="cloud">
+
+  In the example commands below, update `$SYSTEM-ARCH` with the appropriate
+  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
+  will update after one is filled out.
+
+  <Tabs>
+  <TabItem label="Debian/Ubuntu (DEB)" scope="cloud">
 
   Aftter Downloading the `.deb` file for your system architecture, install it with
   `dpkg`. The example below assumes the `root` user:
@@ -178,7 +169,7 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
+  <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="cloud">
 
   After Downloading the `.rpm` file for your system architecture, install it with `rpm`:
 
@@ -188,7 +179,7 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Tarball">
+  <TabItem label="Tarball" scope="cloud">
 
   ```code
   $ curl https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
@@ -202,5 +193,6 @@ Next, use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
+  </Tabs>
+  </TabItem>
 </Tabs>
-</ScopedBlock>
