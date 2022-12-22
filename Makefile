@@ -239,8 +239,8 @@ CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 else ifeq ("$(ARCH)","arm64")
-# ARM64 builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
+CGOFLAG = CGO_ENABLED=1
 endif
 endif
 
@@ -441,11 +441,19 @@ build-archive:
 	@echo "---> Created $(RELEASE).tar.gz."
 	
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-unix - Produces binary release tarballs for both OSS and 
+# Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+#
+# make release-unix - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #

@@ -411,10 +411,9 @@ release-386:
 release-arm: buildbox-arm
 	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
 
-.PHONY: release-arm64
-release-arm64: buildbox-arm
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
-
+#
+# Spawns a buildbox container and executes the makefile inside it.
+#
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7
 	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
@@ -422,6 +421,29 @@ release-amd64-centos7: buildbox-centos7
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: buildbox-centos7-fips
 	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+
+
+# #############################################################################
+# GHA release build targets
+# #############################################################################
+
+# NOTE:
+#
+# The `release-oss` and `release-enterprise` make targets are for building OSS 
+# and Enterprise releases from GitHub actions. These make targets assume that 
+# we are already running in the build environment (either natively, or in a 
+# container) and will make no attempt to either construct a buildbox or create
+# a container to run inside.
+
+.PHONY: release-oss
+release-oss:
+	make -C .. full build-archive -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+
+.PHONY: release-enterprise
+release-enterprise:
+	make -C .. release-unix-only -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+
+# #############################################################################
 
 #
 # Create a Teleport FIPS package using the build container.
