@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 // GenerateAppTokenRequest are the parameters used to generate an application token.
@@ -29,6 +31,9 @@ type GenerateAppTokenRequest struct {
 
 	// Roles are the roles assigned to the user within Teleport.
 	Roles []string
+
+	// Traits are the traits assigned to the user within Teleport.
+	Traits wrappers.Traits
 
 	// Expiry is time to live for the token.
 	Expires time.Time
@@ -50,6 +55,25 @@ func (p *GenerateAppTokenRequest) Check() error {
 	}
 	if p.URI == "" {
 		return trace.BadParameter("uri missing")
+	}
+	return nil
+}
+
+// GenerateSnowflakeJWT are the parameters used to generate a Snowflake JWT.
+type GenerateSnowflakeJWT struct {
+	// Username is the Teleport identity.
+	Username string
+	// Account is the Snowflake account name.
+	Account string
+}
+
+// Check validates the request.
+func (p *GenerateSnowflakeJWT) Check() error {
+	if p.Username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if p.Account == "" {
+		return trace.BadParameter("missing account")
 	}
 	return nil
 }

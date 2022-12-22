@@ -1,0 +1,59 @@
+If you are running Teleport on the internet, we recommend using Let's Encrypt to
+receive your key and certificate automatically. For private networks or custom
+deployments, use your own private key and certificate.
+<Tabs>
+
+  <TabItem label="Public internet deployment with Let's Encrypt">
+    Let's Encrypt verifies that you control the domain name of your Teleport cluster
+    by communicating with the HTTPS server listening on port 443 of your Teleport
+    Proxy Service.
+
+    You can configure the Teleport Proxy Service to complete the Let's Encrypt
+    verification process when it starts up.
+
+    On the host where you will start the Teleport Auth Service and Proxy Service,
+    run the following `teleport configure` command, where `tele.example.com` is the
+    domain name of your Teleport cluster and `user@example.com` is an email address
+    used for notifications (you can use any domain):
+
+    ```code
+    $ DOMAIN=tele.example.com
+    $ EMAIL=user@example.com
+    $ teleport configure --acme --acme-email=${EMAIL?} --cluster-name=${DOMAIN?} | \
+    sudo tee /etc/teleport.yaml > /dev/null
+    ```
+
+    The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following
+    settings to your Teleport configuration file:
+
+    ```yaml
+    proxy_service:
+      enabled: "yes"
+      web_listen_addr: 0.0.0.0:443
+      public_addr: tele.example.com:443
+      acme:
+        enabled: "yes"
+        email: user@example.com
+    ```
+
+    Port 443 on your Teleport Proxy Service host must allow traffic from all sources.
+  </TabItem>
+
+  <TabItem label="Private network deployment">
+  On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
+  and `/var/lib/teleport/fullchain.pem` respectively.
+
+  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
+
+  Configure Teleport, changing the values of the `--cluster-name` and `--public-addr` flags to match the domain name of your Teleport host.
+
+  ```code
+  $ sudo teleport configure -o file \
+      --cluster-name=tele.example.com \
+      --public-addr=tele.example.com:443 \
+      --cert-file=/var/lib/teleport/fullchain.pem \
+      --key-file=/var/lib/teleport/privkey.pem
+  ```
+  </TabItem>
+
+</Tabs>

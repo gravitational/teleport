@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // Interval functions similarly to time.Ticker, with the added benefit of being
@@ -34,6 +34,8 @@ import (
 type Interval struct {
 	cfg       Config
 	ch        chan time.Time
+	reset     chan struct{}
+	fire      chan struct{}
 	closeOnce sync.Once
 	done      chan struct{}
 }
@@ -53,7 +55,15 @@ type Config struct {
 	// It is usually preferable to use a smaller jitter (e.g. NewSeventhJitter())
 	// for this parameter, since periodic operations are typically costly and the
 	// effect of the jitter is cumulative.
-	Jitter utils.Jitter
+	Jitter retryutils.Jitter
+}
+
+// NewNoop creates a new interval that will never fire.
+func NewNoop() *Interval {
+	return &Interval{
+		ch:   make(chan time.Time, 1),
+		done: make(chan struct{}),
+	}
 }
 
 // New creates a new interval instance.  This function panics on non-positive
@@ -64,9 +74,11 @@ func New(cfg Config) *Interval {
 	}
 
 	interval := &Interval{
-		ch:   make(chan time.Time, 1),
-		cfg:  cfg,
-		done: make(chan struct{}),
+		ch:    make(chan time.Time, 1),
+		cfg:   cfg,
+		reset: make(chan struct{}),
+		fire:  make(chan struct{}),
+		done:  make(chan struct{}),
 	}
 
 	firstDuration := cfg.FirstDuration
@@ -91,6 +103,24 @@ func (i *Interval) Stop() {
 	i.closeOnce.Do(func() {
 		close(i.done)
 	})
+}
+
+// Reset resets the interval without pausing it (i.e. it will now fire in
+// jitter(duration) regardless of current timer progress).
+func (i *Interval) Reset() {
+	select {
+	case i.reset <- struct{}{}:
+	case <-i.done:
+	}
+}
+
+// FireNow forces the interval to fire immediately regardless of how much time is left on
+// the current interval. This also effectively resets the interval.
+func (i *Interval) FireNow() {
+	select {
+	case i.fire <- struct{}{}:
+	case <-i.done:
+	}
 }
 
 // Next is the channel over which the intervals are delivered.
@@ -120,6 +150,25 @@ func (i *Interval) run(timer *time.Timer) {
 			// timer has fired, reset to next duration and ensure that
 			// output channel is set.
 			timer.Reset(i.duration())
+			ch = i.ch
+		case <-i.reset:
+			// stop and drain timer
+			if !timer.Stop() {
+				<-timer.C
+			}
+			// re-set the timer
+			timer.Reset(i.duration())
+			// ensure we don't send any pending ticks
+			ch = nil
+		case <-i.fire:
+			// stop and drain timer
+			if !timer.Stop() {
+				<-timer.C
+			}
+			// re-set the timer
+			timer.Reset(i.duration())
+			// simulate firing of the timer
+			tick = time.Now()
 			ch = i.ch
 		case ch <- tick:
 			// tick has been sent, set ch back to nil to prevent

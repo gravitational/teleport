@@ -18,16 +18,19 @@ package db
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/jackc/pgconn"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-
-	"github.com/jackc/pgconn"
-	"github.com/siddontang/go-mysql/client"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -176,4 +179,71 @@ func TestDatabaseServerLimiting(t *testing.T) {
 
 		require.FailNow(t, "we should exceed the connection limit by now")
 	})
+}
+
+func TestHeartbeatEvents(t *testing.T) {
+	ctx := context.Background()
+
+	dbOne, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbOne",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	dbTwo, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbOne",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+	require.NoError(t, err)
+
+	// The expected heartbeat count is equal to the sum of:
+	// - the number of static Databases
+	// - plus 1 because the DatabaseService heartbeats itself to the cluster
+	expectedHeartbeatCount := func(dbs types.Databases) int64 {
+		return int64(dbs.Len() + 1)
+	}
+
+	tests := map[string]struct {
+		staticDatabases types.Databases
+	}{
+		"SingleStaticDatabase": {
+			staticDatabases: types.Databases{dbOne},
+		},
+		"MultipleStaticDatabases": {
+			staticDatabases: types.Databases{dbOne, dbTwo},
+		},
+		"EmptyStaticDatabases": {
+			staticDatabases: types.Databases{},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			var heartbeatEvents int64
+			heartbeatRecorder := func(err error) {
+				require.NoError(t, err)
+				atomic.AddInt64(&heartbeatEvents, 1)
+			}
+
+			testCtx := setupTestContext(ctx, t)
+			server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+				NoStart:     true,
+				OnHeartbeat: heartbeatRecorder,
+				Databases:   test.staticDatabases,
+			})
+			require.NoError(t, server.Start(ctx))
+			t.Cleanup(func() {
+				server.Close()
+			})
+
+			require.NotNil(t, server)
+			require.Eventually(t, func() bool {
+				return atomic.LoadInt64(&heartbeatEvents) == expectedHeartbeatCount(test.staticDatabases)
+			}, 2*time.Second, 500*time.Millisecond)
+		})
+	}
 }

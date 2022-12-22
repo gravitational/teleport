@@ -1,0 +1,129 @@
+{{ role="myrole" }}
+Assign the `{{ role }}` role to your Teleport user by running the following
+commands, depending on whether you authenticate as a local Teleport user or via
+the `github`, `saml`, or `oidc` authentication connectors: 
+
+<Tabs>
+<TabItem label="Local User">
+
+Retrieve your local user's configuration resource:
+
+```code
+$ tctl get users/$(tsh status -f json | jq -r '.active.username') > out.yaml
+```
+
+Edit `out.yaml`, adding `{{ role }}` to the list of existing roles:
+
+```diff
+  roles:
+   - access
+   - auditor
+   - editor
++  - {{ role }}
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f out.yaml
+```
+
+</TabItem>
+<TabItem label="GitHub">
+
+Retrieve your `github`  configuration resource:
+
+```code
+$ tctl get github/github > github.yaml
+```
+
+Edit `github.yaml`, adding `{{ role }}` to the
+`teams_to_roles` section. The team you will map to this role will depend on how
+you have designed your organization's RBAC, but it should be the smallest team
+possible within your organization. This team must also include your user.
+
+Here is an example:
+
+```diff
+  teams_to_roles:
+    - organization: octocats 
+      team: admins 
+      roles:
+        - access
++       - {{ role }}
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f github.yaml
+```
+
+</TabItem>
+<TabItem label="SAML">
+
+Retrieve your `saml`  configuration resource:
+
+```code
+$ tctl get saml/mysaml > saml.yaml
+```
+
+Edit `saml.yaml`, adding `{{ role }}` to the
+`attributes_to_roles` section. The attribute you will map to this role will
+depend on how you have designed your organization's RBAC, but it should be the
+smallest group possible within your organization. This group must also include
+your user.
+
+Here is an example:
+
+```diff
+  attributes_to_roles:
+    - name: "groups" 
+      value: "my-group" 
+      roles:
+        - access
++       - {{ role }}
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f saml.yaml
+```
+
+</TabItem>
+<TabItem label="OIDC">
+
+Retrieve your `oidc`  configuration resource:
+
+```code
+$ tctl get oidc/myoidc > oidc.yaml
+```
+
+Edit `oidc.yaml`, adding `{{ role }}` to the
+`claims_to_roles` section. The claim you will map to this role will depend on
+how you have designed your organization's RBAC, but it should be the smallest
+group possible within your organization. This group must also include your
+user.
+
+Here is an example:
+
+```diff
+  claims_to_roles:
+    - name: "groups" 
+      value: "my-group" 
+      roles:
+        - access
++       - {{ role }}
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f saml.yaml
+```
+
+</TabItem>
+</Tabs>
+
+Log out of your Teleport cluster and log in again to assume the new role.

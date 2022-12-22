@@ -20,9 +20,10 @@ import (
 	"flag"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
-	"github.com/gravitational/trace"
 )
 
 type commandlineArgs struct {
@@ -33,6 +34,8 @@ type commandlineArgs struct {
 	buildID                string
 	artifactSearchPatterns customflag.StringArray
 	bucket                 string
+	githubKeySrc           string
+	skipUnshallow          bool
 }
 
 // validate ensures the suplied arguments are valid & internally consistent.
@@ -66,13 +69,15 @@ func (args *commandlineArgs) validate() error {
 
 		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
 		if err != nil {
-			return trace.Wrap(err, "Bad artefact search path")
+			return trace.Wrap(err, "Bad artifact search path")
 		}
 	}
 
 	return nil
 }
 
+// NOTE: changing the interface to this build script may require follow-up
+// changes in the cloudbuild yaml for both `teleport` and `teleport.e`
 func parseCommandLine() (*commandlineArgs, error) {
 	args := &commandlineArgs{}
 
@@ -83,6 +88,8 @@ func parseCommandLine() (*commandlineArgs, error) {
 	flag.StringVar(&args.buildID, "build", "", "The build ID")
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
 	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be shell-globbed, and have multiple entries.")
+	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
+	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
 
 	flag.Parse()
 

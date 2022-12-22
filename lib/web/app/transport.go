@@ -22,7 +22,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -33,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -60,7 +60,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("access point missing")
 	}
 	if len(c.cipherSuites) == 0 {
-		return trace.BadParameter("cipe suites misings")
+		return trace.BadParameter("cipe suites missing")
 	}
 	if c.identity == nil {
 		return trace.BadParameter("identity missing")
@@ -150,13 +150,6 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = "https"
 	r.URL.Host = constants.APIDomain
 
-	// Don't trust any "X-Forward-*" headers the client sends, instead set own and then
-	// forward request.
-	headers := &forward.HeaderRewriter{
-		TrustForwardHeader: false,
-	}
-	headers.Rewrite(r)
-
 	// Remove the application session cookie from the header. This is done by
 	// first wiping out the "Cookie" header then adding back all cookies
 	// except the application session cookie. This appears to be the safest way
@@ -189,8 +182,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (net.Conn, err
 		var dialErr error
 		conn, dialErr = dialAppServer(t.c.proxyClient, t.c.identity, appServer)
 		if dialErr != nil {
-			// Connection problem with the server.
-			if trace.IsConnectionProblem(dialErr) {
+			if isReverseTunnelDownError(dialErr) {
 				t.c.log.Warnf("Failed to connect to application server %q: %v.", serverID, dialErr)
 				t.servers.Delete(serverID)
 				// Only goes for the next server if the error returned is a
@@ -240,6 +232,7 @@ func dialAppServer(proxyClient reversetunnel.Tunnel, identity *tlsca.Identity, s
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 		ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), identity.RouteToApp.ClusterName),
 		ConnType: types.AppTunnel,
+		ProxyIDs: server.GetProxyIDs(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -256,7 +249,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Configure the pool of certificates that will be used to verify the
 	// identity of the server. This allows the client to verify the identity of
 	// the server it is connecting to.
-	ca, err := c.accessPoint.GetCertAuthority(types.CertAuthID{
+	ca, err := c.accessPoint.GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: c.identity.RouteToApp.ClusterName,
 	}, false)
@@ -282,4 +275,11 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.clusterName)
 
 	return tlsConfig, nil
+}
+
+// isReverseTunnelDownError returns true if the provided error indicates that
+// the reverse tunnel connection is down e.g. because the agent is down.
+func isReverseTunnelDownError(err error) bool {
+	return trace.IsConnectionProblem(err) ||
+		strings.Contains(err.Error(), reversetunnel.NoApplicationTunnel)
 }

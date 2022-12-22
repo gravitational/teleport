@@ -13,7 +13,7 @@ RuntimeDirectory=teleport
 ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport/teleport.pid
-LimitNOFILE=65536
+LimitNOFILE=524288
 
 [Install]
 WantedBy=multi-user.target

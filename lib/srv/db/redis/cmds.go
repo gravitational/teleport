@@ -24,53 +24,57 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 )
 
-// List of all commands that Teleport handles in a special way.
+// List of commands that Teleport handles in a special way by Redis standalone and cluster.
 const (
-	helloCmd        = "hello"
-	authCmd         = "auth"
-	subscribeCmd    = "subscribe"
-	psubscribeCmd   = "psubscribe"
+	helloCmd      = "hello"
+	authCmd       = "auth"
+	subscribeCmd  = "subscribe"
+	psubscribeCmd = "psubscribe"
+	// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
 	punsubscribeCmd = "punsubscribe"
+	// go-redis doesn't support Redis 7+ commands yet.
 	ssubscribeCmd   = "ssubscribe"
 	sunsubscribeCmd = "sunsubscribe"
 )
 
 // processCmd processes commands received from connected client. Most commands are just passed to Redis instance,
 // but some require special actions:
-//  * Redis 7.0+ commands are rejected as at the moment of writing Redis 7.0 hasn't been released and go-redis doesn't support it.
-//  * RESP3 commands are rejected as Teleport/go-redis currently doesn't support this version of protocol.
-//  * Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
-func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
+//   - Redis 7.0+ commands are rejected as at the moment of writing Redis 7.0 hasn't been released and go-redis doesn't support it.
+//   - RESP3 commands are rejected as Teleport/go-redis currently doesn't support this version of protocol.
+//   - Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
+func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
 	case helloCmd:
-		return trace.NotImplemented("RESP3 is not supported")
+		// HELLO command is still not supported yet by Teleport. However, some
+		// Redis clients (e.g. go-redis) may explicitly look for the original
+		// Redis unknown command error so it can fallback to RESP2.
+		return protocol.MakeUnknownCommandErrorForCmd(cmd)
+	case punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:
+		return protocol.ErrCmdNotSupported
 	case authCmd:
-		return e.processAuth(ctx, redisClient, cmd)
+		return e.processAuth(ctx, cmd)
 	case subscribeCmd:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-		return e.subscribeCmd(ctx, redisClient.Subscribe, cmd)
+		return e.subscribeCmd(ctx, e.redisClient.Subscribe, cmd)
 	case psubscribeCmd:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-		return e.subscribeCmd(ctx, redisClient.PSubscribe, cmd)
-	case punsubscribeCmd:
-		// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
-		return trace.NotImplemented("PUNSUBSCRIBE is not supported by Teleport")
-	case ssubscribeCmd, sunsubscribeCmd:
-		// go-redis doesn't support Redis 7+ commands yet.
-		return trace.NotImplemented("Redis 7.0+ is not yet supported")
+		return e.subscribeCmd(ctx, e.redisClient.PSubscribe, cmd)
 	default:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
 
 		// Here the command is sent to the DB.
-		return redisClient.Process(ctx, cmd)
+		return e.redisClient.Process(ctx, cmd)
 	}
 }
 
@@ -148,7 +152,7 @@ func (e *Engine) processPubSub(ctx context.Context, pubSub *redis.PubSub) error 
 
 // processAuth runs RBAC check on Redis AUTH command if command contains username. Command containing only password
 // is passed to Redis. Commands with incorrect number of arguments are rejected and an error is returned.
-func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
+func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 	// AUTH command may contain only password or login and password. Depends on the version we need to make sure
 	// that the user has permission to connect as the provided db user.
 	// ref: https://redis.io/commands/auth
@@ -180,13 +184,33 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 			return trace.Wrap(err)
 		}
 
-		return redisClient.Process(ctx, cmd)
+		password, ok := cmd.Args()[1].(string)
+		if !ok {
+			return trace.BadParameter("password has a wrong type, expected string got %T", cmd.Args()[1])
+		}
+
+		// Pass empty username to login using AUTH <password> command.
+		e.redisClient, err = e.reconnect("", password)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return e.redisClient.Process(ctx, cmd)
 	case 3:
 		// Redis 6 version that contains username and password. Check the username against our RBAC before sending to Redis.
 		// ex. AUTH bob my-secret-password
 		dbUser, ok := cmd.Args()[1].(string)
 		if !ok {
-			return trace.BadParameter("username has a wrong type, expected string")
+			return trace.BadParameter("username has a wrong type, expected string got %T", cmd.Args()[1])
+		}
+
+		// For Teleport managed users, bypass the passwords sent here.
+		if slices.Contains(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
+			return trace.Wrap(e.sendToClient([]string{
+				"OK",
+				fmt.Sprintf("Please note that AUTH commands are ignored for Teleport managed user '%s'.", e.sessionCtx.DatabaseUser),
+				"Teleport service automatically authenticates managed users with the Redis server.",
+			}))
 		}
 
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
@@ -207,7 +231,19 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 			return trace.Wrap(err)
 		}
 
-		return redisClient.Process(ctx, cmd)
+		password, ok := cmd.Args()[2].(string)
+		if !ok {
+			return trace.BadParameter("password has a wrong type, expected string got %T", cmd.Args()[2])
+		}
+
+		// reconnect with new username and password. go-redis manages those internally and sends AUTH commands
+		// at the beginning of every new connection.
+		e.redisClient, err = e.reconnect(dbUser, password)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return e.redisClient.Process(ctx, cmd)
 	default:
 		// Redis returns "syntax error" if AUTH has more than 2 arguments.
 		return trace.BadParameter("syntax error")

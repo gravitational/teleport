@@ -26,17 +26,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 )
 
 const (
-	gomodcacheDir = ".gomodcache-ci"
-	nonrootUID    = 1000
-	nonrootGID    = 1000
+	goCachesRootName = "gocache"
+	nonrootUID       = 1000
+	nonrootGID       = 1000
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
@@ -55,23 +58,42 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
-	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
+	// If a github deploy key location was supplied...
+	var deployKey []byte
+	if args.githubKeySrc != "" {
+		// fetch the deployment key from the GCB secret manager
+		log.Infof("Fetching deploy key from %s", args.githubKeySrc)
+		deployKey, err = secrets.Fetch(context.Background(), args.githubKeySrc)
+		if err != nil {
+			return trace.Wrap(err, "failed fetching deploy key")
+		}
+	}
 
-	log.Println("Analysing code changes")
+	if !args.skipUnshallow {
+		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer unshallowCancel()
+		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+		if err != nil {
+			return trace.Wrap(err, "unshallow failed")
+		}
+	}
+
+	goCacheRoot := filepath.Join(os.TempDir(), goCachesRootName)
+	env := map[string]string{
+		"GOCACHE":    filepath.Join(goCacheRoot, "go-build"),
+		"GOMODCACHE": filepath.Join(goCacheRoot, "pkg"),
+	}
+
+	log.Println("Analyzing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
 
-	hasOnlyDocChanges := ch.Docs && (!ch.Code)
-	if hasOnlyDocChanges {
+	if !ch.Code {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
-
-	cancelCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
@@ -83,7 +105,7 @@ func innerMain() error {
 	}()
 
 	log.Printf("Running root-only integration tests...")
-	err = runRootIntegrationTests(args.workspace, gomodcache)
+	err = runRootIntegrationTests(args.workspace, env)
 	if err != nil {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
@@ -102,7 +124,7 @@ func innerMain() error {
 		}
 
 		log.Printf("Reconfiguring module cache for nonroot user")
-		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
+		err = chownR(goCacheRoot, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring module cache")
 		}
@@ -114,13 +136,16 @@ func innerMain() error {
 	// diagnostic warnings that would pollute the build log and just confuse
 	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+	defer etcdSvc.Stop()
 
 	log.Printf("Running nonroot integration tests...")
-	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)
+	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, env)
 	if err != nil {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
@@ -130,12 +155,13 @@ func innerMain() error {
 	return nil
 }
 
-func runRootIntegrationTests(workspace string, env ...string) error {
+func runRootIntegrationTests(workspace string, env map[string]string) error {
 	// Run root integration tests
 	cmd := exec.Command("make", "rdpclient", "integration-root")
 	cmd.Dir = workspace
-	if len(env) > 0 {
-		cmd.Env = append(os.Environ(), env...)
+	cmd.Env = os.Environ()
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%v=%v", k, v))
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -143,10 +169,13 @@ func runRootIntegrationTests(workspace string, env ...string) error {
 	return cmd.Run()
 }
 
-func runNonrootIntegrationTests(workspace string, uid, gid int, env ...string) error {
+func runNonrootIntegrationTests(workspace string, uid, gid int, env map[string]string) error {
 	cmd := exec.Command("make", "integration")
 	cmd.Dir = workspace
-	cmd.Env = append(append(os.Environ(), "TELEPORT_ETCD_TEST=yes"), env...)
+	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%v=%v", k, v))
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

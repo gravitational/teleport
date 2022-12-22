@@ -28,8 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var cachedConfig *Config
-var cacheMutex sync.Mutex
+var (
+	cachedConfig *Config
+	cacheMutex   sync.Mutex
+)
 
 // SetupSoftHSMToken is for use in tests only and creates a test SOFTHSM2
 // token.  This should be used for all tests which need to use SoftHSM because
@@ -73,7 +75,7 @@ func SetupSoftHSMTest(t *testing.T) Config {
 		require.NoError(t, configFile.Close())
 
 		// set env
-		t.Setenv("SOFTHSM2_CONF", configFile.Name())
+		os.Setenv("SOFTHSM2_CONF", configFile.Name())
 	}
 
 	// create test token (max length is 32 chars)
@@ -88,9 +90,11 @@ func SetupSoftHSMTest(t *testing.T) Config {
 	}
 
 	cachedConfig = &Config{
-		Path:       path,
-		TokenLabel: tokenLabel,
-		Pin:        "password",
+		PKCS11: PKCS11Config{
+			Path:       path,
+			TokenLabel: tokenLabel,
+			Pin:        "password",
+		},
 	}
 	return *cachedConfig
 }

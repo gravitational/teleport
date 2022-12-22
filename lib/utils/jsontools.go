@@ -18,14 +18,14 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"reflect"
 	"unicode"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/ghodss/yaml"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -79,7 +79,7 @@ var SafeConfig = jsoniter.Config{
 	SortMapKeys:                   true,
 }.Froze()
 
-// FastMarshal uses the json-iterator library for fast JSON marshalling.
+// FastMarshal uses the json-iterator library for fast JSON marshaling.
 // Note, this function unmarshals floats with 6 digits precision.
 func FastMarshal(v interface{}) ([]byte, error) {
 	data, err := SafeConfig.Marshal(v)
@@ -88,6 +88,25 @@ func FastMarshal(v interface{}) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// FastMarshal uses the json-iterator library for fast JSON marshaling
+// with indentation. Note, this function unmarshals floats with 6 digits precision.
+func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
+	data, err := SafeConfig.MarshalIndent(v, prefix, indent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return data, nil
+}
+
+// WriteJSON marshals multiple documents as a JSON list with indentation.
+func WriteJSON(w io.Writer, values interface{}) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "    ")
+	err := encoder.Encode(values)
+	return trace.Wrap(err)
 }
 
 const yamlDocDelimiter = "---"

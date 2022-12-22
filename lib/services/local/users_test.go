@@ -22,35 +22,35 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
-func newIdentityService(t *testing.T) (*local.IdentityService, clockwork.Clock) {
+func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityService {
 	t.Helper()
-	clock := clockwork.NewFakeClock()
-	backend, err := lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            clock,
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
-	return local.NewIdentityService(backend), clock
+	return local.NewIdentityService(backend)
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	identity, clock := newIdentityService(t)
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
 
 	// Create a recovery codes resource.
 	mockedCodes := []types.RecoveryCode{
@@ -60,7 +60,6 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 	}
 
 	t.Run("upsert, get, delete recovery codes", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser"
 
 		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username)
@@ -100,8 +99,82 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 	})
 
 	t.Run("deleting user deletes recovery codes", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser2"
+
+		// Create a user.
+		userResource := &types.UserV2{}
+		userResource.SetName(username)
+		err := identity.CreateUser(userResource)
+		require.NoError(t, err)
+
+		// Test codes exist for user.
+		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username, rc1)
+		require.NoError(t, err)
+		codes, err := identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test deletion of recovery code along with user.
+		err = identity.DeleteUser(ctx, username)
+		require.NoError(t, err)
+		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("deleting user with common prefix", func(t *testing.T) {
+		username1 := "test"
+		username2 := "test1"
+
+		// Create a user.
+		userResource1 := &types.UserV2{}
+		userResource1.SetName(username1)
+		err := identity.CreateUser(userResource1)
+		require.NoError(t, err)
+
+		// Create another user whose username which is prefixed with
+		// the previous username.
+		userResource2 := &types.UserV2{}
+		userResource2.SetName(username2)
+		err = identity.CreateUser(userResource2)
+		require.NoError(t, err)
+
+		// Test codes exist for the first user.
+		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username1)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username1, rc1)
+		require.NoError(t, err)
+		codes, err := identity.GetRecoveryCodes(ctx, username1, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test codes exist for the second user.
+		rc2, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username2)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username2, rc2)
+		require.NoError(t, err)
+		codes, err = identity.GetRecoveryCodes(ctx, username2, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test deletion of recovery code along with the first user.
+		err = identity.DeleteUser(ctx, username1)
+		require.NoError(t, err)
+		_, err = identity.GetRecoveryCodes(ctx, username1, true /* withSecrets */)
+		require.True(t, trace.IsNotFound(err))
+
+		// Test recovery code and user of the second user still exist.
+		_, err = identity.GetRecoveryCodes(ctx, username2, true /* withSecrets */)
+		require.NoError(t, err)
+	})
+
+	t.Run("deleting user ending with 'z'", func(t *testing.T) {
+		// enable the sanitizer, and use a key ending with z,
+		// which will produce an invalid backend key when we
+		// compute the end range
+		username := "xyz"
+		identity.Backend = backend.NewSanitizer(identity.Backend)
 
 		// Create a user.
 		userResource := &types.UserV2{}
@@ -129,7 +202,8 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 func TestRecoveryAttemptsCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	identity, clock := newIdentityService(t)
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
 
 	// Predefine times for equality check.
 	time1 := clock.Now()
@@ -137,7 +211,6 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 	time3 := time1.Add(4 * time.Minute)
 
 	t.Run("create, get, and delete recovery attempts", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser"
 
 		// Test creation of recovery attempt.
@@ -165,7 +238,6 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 	})
 
 	t.Run("deleting user deletes recovery attempts", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser2"
 
 		// Create a user, to test deletion of recovery attempts with user.
@@ -190,7 +262,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 
 func TestIdentityService_UpsertMFADevice(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	tests := []struct {
 		name string
@@ -261,7 +333,7 @@ func TestIdentityService_UpsertMFADevice(t *testing.T) {
 
 func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	totpDev := &types.MFADevice{
 		Metadata: types.Metadata{
@@ -392,7 +464,7 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	updateViaUser := func(ctx context.Context, user string, wal *types.WebauthnLocalAuth) error {
 		u, err := types.NewUser(user)
@@ -481,19 +553,54 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 			err := test.update(ctx, test.name, test.wal)
 			require.NoError(t, err)
 
-			want := test.wal
-			got, err := test.get(ctx, test.name)
+			wantWLA := test.wal
+			gotWLA, err := test.get(ctx, test.name)
 			require.NoError(t, err)
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := cmp.Diff(wantWLA, gotWLA); diff != "" {
 				t.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
 			}
+
+			gotUser, err := identity.GetTeleportUserByWebauthnID(ctx, gotWLA.UserID)
+			require.NoError(t, err)
+			require.Equal(t, test.name, gotUser)
+		})
+	}
+}
+
+func TestIdentityService_GetTeleportUserByWebauthnID(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	tests := []struct {
+		name      string
+		webID     []byte
+		assertErr func(error) bool
+	}{
+		{
+			name:      "NOK empty web ID",
+			webID:     nil,
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "NOK unknown web ID",
+			webID:     []byte{1, 2, 3, 4, 5},
+			assertErr: trace.IsNotFound,
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := identity.GetTeleportUserByWebauthnID(ctx, test.webID)
+			require.Error(t, err)
+			require.True(t, test.assertErr(err))
 		})
 	}
 }
 
 func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	const user1 = "llama"
 	const user2 = "alpaca"
@@ -568,7 +675,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 
 func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	user1Login1 := &wantypes.SessionData{
 		Challenge:        []byte("challenge1"),
@@ -641,4 +748,100 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 		_, err := identity.GetGlobalWebauthnSessionData(ctx, p.scope, p.id)
 		require.NoError(t, err) // Other keys preserved
 	}
+}
+
+func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {
+	// Don't t.Parallel()!
+
+	sdMax := local.GlobalSessionDataMaxEntries
+	sdClock := local.SessionDataLimiter.Clock
+	sdReset := local.SessionDataLimiter.ResetPeriod
+	defer func() {
+		local.GlobalSessionDataMaxEntries = sdMax
+		local.SessionDataLimiter.Clock = sdClock
+		local.SessionDataLimiter.ResetPeriod = sdReset
+	}()
+	fakeClock := clockwork.NewFakeClock()
+	period := 1 * time.Minute // arbitrary, applied to fakeClock
+	local.GlobalSessionDataMaxEntries = 2
+	local.SessionDataLimiter.Clock = fakeClock
+	local.SessionDataLimiter.ResetPeriod = period
+
+	const scopeLogin = "login"
+	const scopeOther = "other"
+	const id1 = "challenge1"
+	const id2 = "challenge2"
+	const id3 = "challenge3"
+	const id4 = "challenge4"
+	sd := &wantypes.SessionData{
+		Challenge:        []byte("supersecretchallenge"), // typically matches the key
+		UserVerification: "required",
+	}
+
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	// OK: below limit.
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id1, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id2, sd))
+	// NOK: limit reached.
+	err := identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd)
+	require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+
+	// OK: different scope.
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id1, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id2, sd))
+	// NOK: limit reached.
+	err = identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd)
+	require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+
+	// OK: keys removed.
+	require.NoError(t, identity.DeleteGlobalWebauthnSessionData(ctx, scopeLogin, id1))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id4, sd))
+
+	// NOK: reach and double-check limits.
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+	// OK: passage of time resets limits.
+	fakeClock.Advance(period)
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+}
+
+func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	nilInfo, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "BAD_ID")
+	require.Nil(t, nilInfo)
+	require.Error(t, err)
+
+	info := types.SSODiagnosticInfo{
+		TestFlow: true,
+		Error:    "foo bar baz",
+		Success:  false,
+		CreateUserParams: &types.CreateUserParams{
+			ConnectorName: "bar",
+			Username:      "baz",
+		},
+		SAMLAttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "foo",
+				Value: "bar",
+				Roles: []string{"baz"},
+			},
+		},
+		SAMLAttributesToRolesWarnings: nil,
+		SAMLAttributeStatements:       nil,
+		SAMLAssertionInfo:             nil,
+		SAMLTraitsFromAssertions:      nil,
+		SAMLConnectorTraitMapping:     nil,
+	}
+
+	err = identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID", info)
+	require.NoError(t, err)
+
+	infoGet, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID")
+	require.NoError(t, err)
+	require.Equal(t, &info, infoGet)
 }

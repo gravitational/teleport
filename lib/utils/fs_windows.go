@@ -21,26 +21,26 @@ limitations under the License.
 
 import (
 	"os"
-
-	"github.com/gravitational/trace"
 )
 
-// FSWriteLock not supported on Windows.
-func FSWriteLock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
+// On Windows we use auxiliary .lock files to acquire locks, so we can still read/write target files
+// themselves. On unlock we delete the .lock file.
+const lockPostfix = ".lock"
+
+func getPlatformLockFilePath(path string) string {
+	return path + lockPostfix
 }
 
-// FSTryWriteLock not supported on Windows.
-func FSTryWriteLock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
-}
+func unlockWrapper(unlockFn func() error, path string) func() error {
+	return func() error {
+		if unlockFn == nil {
+			return nil
+		}
+		err := unlockFn()
 
-// FSReadLock not supported on Windows.
-func FSReadLock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
-}
-
-// FSUnlock not supported on Windows.
-func FSUnlock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
+		// At this point file can be locked again, and we can get an error, so we do our best effort
+		// to remove .lock file, but can't guarantee it. Last locker should be able to successfully clean it.
+		_ = os.Remove(path)
+		return err
+	}
 }

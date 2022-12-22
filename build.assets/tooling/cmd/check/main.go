@@ -27,10 +27,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
-	"github.com/gravitational/trace"
 )
 
 func main() {
@@ -88,6 +88,12 @@ func checkLatest(ctx context.Context, tag string, gh github.GitHub) error {
 	var tags []string
 	for _, r := range releases {
 		if r.GetDraft() {
+			continue
+		}
+		// Because pre-releases are not published to apt, we do not want to
+		// consider them when making apt publishing decisions.
+		// see: https://github.com/gravitational/teleport/issues/10800
+		if semver.Prerelease(r.GetTagName()) != "" {
 			continue
 		}
 		tags = append(tags, r.GetTagName())

@@ -2,8 +2,9 @@
 
 # This script is called hourly to check if the certificate
 # has been renewed on S3 and if it has been renewed, restart teleport proxies
-
-set -x
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
 
 # Source variables from user-data
 . /etc/teleport.d/conf

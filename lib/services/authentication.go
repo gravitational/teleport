@@ -22,13 +22,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ValidateLocalAuthSecrets validates local auth secret members.
@@ -40,7 +39,7 @@ func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 	}
 	mfaNames := make(map[string]struct{}, len(l.MFA))
 	for _, d := range l.MFA {
-		if err := ValidateMFADevice(d); err != nil {
+		if err := validateMFADevice(d); err != nil {
 			return trace.BadParameter("MFA device named %q is invalid: %v", d.Metadata.Name, err)
 		}
 		if _, ok := mfaNames[d.Metadata.Name]; ok {
@@ -62,17 +61,16 @@ func NewTOTPDevice(name, key string, addedAt time.Time) (*types.MFADevice, error
 	d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{
 		Key: key,
 	}}
-	if err := ValidateMFADevice(d); err != nil {
+	if err := validateMFADevice(d); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return d, nil
 }
 
-// ValidateMFADevice validates the MFA device. It's a more in-depth version of
-// MFADevice.CheckAndSetDefaults.
-//
-// TODO(awly): refactor to keep basic and deep validation on one place.
-func ValidateMFADevice(d *types.MFADevice) error {
+// validateMFADevice runs additional validations for OTP devices.
+// Prefer adding new validation logic to types.MFADevice.CheckAndSetDefaults
+// instead.
+func validateMFADevice(d *types.MFADevice) error {
 	if err := d.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -82,12 +80,7 @@ func ValidateMFADevice(d *types.MFADevice) error {
 			return trace.Wrap(err)
 		}
 	case *types.MFADevice_U2F:
-		if err := u2f.ValidateDevice(dd.U2F); err != nil {
-			return trace.Wrap(err)
-		}
 	case *types.MFADevice_Webauthn:
-		// TODO(codingllama): Refactor Webauthn device validation so it runs here as
-		//  well?
 	default:
 		return trace.BadParameter("MFADevice has Device field of unknown type %T", d.Device)
 	}

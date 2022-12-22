@@ -45,14 +45,14 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := s.GetCertAuthority(types.CertAuthID{
+	userCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

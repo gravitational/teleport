@@ -19,12 +19,12 @@ package db
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/watchers"
-
-	"github.com/gravitational/trace"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -103,8 +103,9 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
 	watcher, err := watchers.NewWatcher(ctx, watchers.WatcherConfig{
-		AWSMatchers: s.cfg.AWSMatchers,
-		Clients:     s.cfg.CloudClients,
+		AWSMatchers:   s.cfg.AWSMatchers,
+		AzureMatchers: s.cfg.AzureMatchers,
+		Clients:       s.cfg.CloudClients,
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -134,11 +135,8 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 }
 
 // getResources returns proxied databases as resources.
-func (s *Server) getResources() (resources types.ResourcesWithLabels) {
-	for _, database := range s.getProxiedDatabases() {
-		resources = append(resources, database)
-	}
-	return resources
+func (s *Server) getResources() types.ResourcesWithLabelsMap {
+	return s.getProxiedDatabases().AsResources().ToMap()
 }
 
 // onCreate is called by reconciler when a new database is created.
@@ -174,8 +172,14 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 	if !ok {
 		return false
 	}
-	if database.IsRDS() || database.IsRedshift() {
+
+	// In the case of CloudOrigin CloudHosted resources the matchers should be skipped.
+	if cloudOrigin(resource) && database.IsCloudHosted() {
 		return true // Cloud fetchers return only matching databases.
 	}
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
+}
+
+func cloudOrigin(r types.ResourceWithLabels) bool {
+	return r.Origin() == types.OriginCloud
 }

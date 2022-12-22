@@ -21,9 +21,10 @@ import (
 	"io"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // forwardIO forwards io between two XServer connections until
@@ -137,11 +138,11 @@ func ServeChannelRequests(ctx context.Context, clt *ssh.Client, handler x11Chann
 // ServerConfig is a server configuration for X11 forwarding
 type ServerConfig struct {
 	// Enabled controls whether X11 forwarding requests can be granted by the server.
-	Enabled bool `yaml:"enabled"`
+	Enabled bool
 	// DisplayOffset tells the server what X11 display number to start from when
 	// searching for an open X11 unix socket for XServer proxies.
-	DisplayOffset int `yaml:"display_offset,omitempty"`
+	DisplayOffset int
 	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
-	MaxDisplay int `yaml:"max_displays,omitempty"`
+	MaxDisplay int
 }

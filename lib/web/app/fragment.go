@@ -23,13 +23,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/julienschmidt/httprouter"
 )
 
 type fragmentRequest struct {
@@ -57,6 +57,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 				clusterName: q.Get("cluster"),
 				publicAddr:  q.Get("addr"),
 				awsRole:     q.Get("awsrole"),
+				path:        q.Get("path"),
 				stateToken:  stateToken,
 			}
 			return h.redirectToLauncher(w, r, urlParams)

@@ -24,12 +24,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"golang.org/x/net/websocket"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/desktop"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/net/websocket"
 )
 
 func TestStreamsDesktopEvents(t *testing.T) {
@@ -65,7 +66,7 @@ func TestStreamsDesktopEvents(t *testing.T) {
 	b := make([]byte, 4096)
 	n, err := ws.Read(b)
 	require.NoError(t, err)
-	require.Equal(t, []byte(`{"message":"end"}`), b[:n])
+	require.JSONEq(t, `{"message":"end"}`, string(b[:n]))
 }
 
 func newServer(t *testing.T, streamInterval time.Duration, events []apievents.AuditEvent) *httptest.Server {

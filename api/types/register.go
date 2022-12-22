@@ -20,7 +20,7 @@ import "github.com/gravitational/trace"
 
 // CheckAndSetDefaults checks for errors and sets defaults
 func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
-	if r.HostID == "" {
+	if r.HostID == "" && r.Role != RoleBot {
 		return trace.BadParameter("missing parameter HostID")
 	}
 	if r.Token == "" {

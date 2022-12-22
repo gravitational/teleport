@@ -3,23 +3,21 @@ title: Database Access
 description: Teleport Database Access introduction, demo and resources.
 ---
 
-# Database Access
-
-Teleport can provide secure access to PostgreSQL, MySQL, MariaDB and MongoDB databases,
-while improving both access control and visibility.
+Teleport can provide secure connections to your databases while improving both
+access control and visibility.
 
 Some of the things you can do with Database Access:
 
-- Users can retrieve short-lived database certificates using single sign-on
-  flow thus maintaining their organization-wide identity.
+- Enable users to retrieve short-lived database certificates using a Single Sign-On
+  flow, thus maintaining their organization-wide identity.
 - Configure role-based access controls for databases and implement custom
-  [access request](../enterprise/workflow/index.mdx) workflows.
-- Capture database access events as well as query activity in the audit log.
+  [Access Request](../access-controls/access-requests.mdx) workflows.
+- Capture database activity in the Teleport audit log.
 
 ## Demo
 
 Let's connect to a PostgreSQL server with `psql` and pgAdmin 4 after authenticating
-with Github, execute a few SQL queries and observe them in the audit log:
+with GitHub, execute a few SQL queries and observe them in the audit log:
 
 <video
   autoPlay
@@ -29,12 +27,12 @@ with Github, execute a few SQL queries and observe them in the audit log:
   controls
 >
   <source
-    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4"
+    src="../../img/database-access/dbaccessdemo.mp4"
     type="video/mp4"
   />
 
   <source
-    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm"
+    src="../../img/database-access/dbaccessdemo.webm"
     type="video/webm"
   />
 
@@ -43,76 +41,24 @@ with Github, execute a few SQL queries and observe them in the audit log:
 
 ## Getting started
 
-<TileSet>
-  <Tile icon="database" title="Getting started" href="./getting-started.mdx">
-    Connect Aurora PostgreSQL in a 10 minute guide.
-  </Tile>
-</TileSet>
+- [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10
+  minute guide.
 
-## Cloud-hosted guides
-
-<TileSet>
-  <Tile icon="cloud" title="AWS RDS & Aurora" href="./guides/rds.mdx">
-    Connect AWS RDS or Aurora PostgreSQL or MySQL database.
-  </Tile>
-  <Tile icon="cloud" title="AWS Redshift" href="./guides/postgres-redshift.mdx">
-    Connect AWS Redshift database.
-  </Tile>
-  <Tile icon="cloud" title="GCP Cloud SQL PostgreSQL" href="./guides/postgres-cloudsql.mdx">
-    Connect GCP Cloud SQL PostgreSQL database.
-  </Tile>
-  <Tile icon="cloud" title="GCP Cloud SQL MySQL" href="./guides/mysql-cloudsql.mdx">
-    Connect GCP Cloud SQL MySQL database.
-  </Tile>
-  <Tile icon="cloud" title="Azure PostgreSQL & MySQL" href="./guides/azure-postgres-mysql.mdx">
-    Connect Azure PostgreSQL or MySQL.
-  </Tile>
-  <Tile icon="cloud" title="MongoDB Atlas" href="./guides/mongodb-atlas.mdx">
-    Connect MongoDB Atlas cluster.
-  </Tile>
-</TileSet>
-
-## Self-hosted guides
-
-<TileSet>
-  <Tile icon="database" title="Self-hosted PostgreSQL" href="./guides/postgres-self-hosted.mdx">
-    Connect self-hosted PostgreSQL database.
-  </Tile>
-  <Tile icon="database" title="Self-hosted MySQL/MariaDB" href="./guides/mysql-self-hosted.mdx">
-    Connect self-hosted MySQL/MariaDB database.
-  </Tile>
-  <Tile icon="database" title="Self-hosted MongoDB" href="./guides/mongodb-self-hosted.mdx">
-    Connect self-hosted MongoDB database.
-  </Tile>
-  <Tile icon="database" title="Self-hosted CockroachDB" href="./guides/cockroachdb-self-hosted.mdx">
-    Connect self-hosted CockroachDB database.
-  </Tile>
-</TileSet>
-
-## General guides
-
-<TileSet>
-  <Tile icon="window" title="GUI clients" href="./guides/gui-clients.mdx">
-    Configure database graphical clients.
-  </Tile>
-  <Tile icon="wrench" title="Dynamic Registration" href="./guides/dynamic-registration.mdx">
-    Register/unregister databases without restarting Teleport.
-  </Tile>
-  <Tile icon="integrations" title="High Availability" href="./guides/ha.mdx">
-    Deploy database access in HA configuration.
-  </Tile>
-</TileSet>
+(!docs/pages/includes/database-access/guides.mdx!)
 
 ## Resources
 
 To learn more about configuring role-based access control for Database Access,
-check out [RBAC](./rbac.mdx) section.
+check out the [RBAC](./rbac.mdx) section.
 
-[Architecture](./architecture.mdx) provides a more in-depth
-look at Database Access internals such as networking and security.
+The [Architecture](./architecture.mdx) section provides a more in-depth look at
+Database Access internals such as networking and security.
 
 See [Reference](./reference.mdx) for an overview of
-Database Access related configuration and CLI commands.
+Database Access-related configuration and CLI commands.
+
+If you hit any issues, check out the [Troubleshooting
+documentation](./troubleshooting.mdx) for common problems and solutions.
 
 ## FAQ
 

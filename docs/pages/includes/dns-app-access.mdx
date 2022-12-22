@@ -1,0 +1,4 @@
+Teleport assigns a subdomain to each application you have configured for Application
+Access (e.g., `grafana.teleport.example.com`), so you will need to ensure that a DNS A record exists for each application-specific subdomain so clients can access your applications via Teleport. 
+
+You should create either a separate DNS A record for each subdomain or a single record with a wildcard subdomain such as `*.teleport.example.com`. This way, your certificate authority (e.g., Let's Encrypt) can issue a certificate for each subdomain, enabling clients to verify your Teleport hosts regardless of the application they are accessing.

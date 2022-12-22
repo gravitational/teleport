@@ -20,15 +20,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/u2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 // TestDevice is a test MFA device.
@@ -37,8 +37,9 @@ type TestDevice struct {
 	TOTPSecret string
 	Key        *mocku2f.Key
 
-	clock  clockwork.Clock
-	origin string
+	clock        clockwork.Clock
+	origin       string
+	passwordless bool
 }
 
 // TestDeviceOpt is a creation option for TestDevice.
@@ -50,9 +51,9 @@ func WithTestDeviceClock(clock clockwork.Clock) TestDeviceOpt {
 	}
 }
 
-func WithTestDeviceOrigin(origin string) TestDeviceOpt {
+func WithPasswordless() TestDeviceOpt {
 	return func(d *TestDevice) {
-		d.origin = origin
+		d.passwordless = true
 	}
 }
 
@@ -162,7 +163,7 @@ func (d *TestDevice) registerStream(
 
 func (d *TestDevice) SolveAuthn(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	switch {
-	case c.TOTP == nil && len(c.U2F) == 0 && c.WebauthnChallenge == nil:
+	case c.TOTP == nil && c.WebauthnChallenge == nil:
 		return &proto.MFAAuthenticateResponse{}, nil // no challenge
 	case d.Key != nil:
 		return d.solveAuthnKey(c)
@@ -174,39 +175,18 @@ func (d *TestDevice) SolveAuthn(c *proto.MFAAuthenticateChallenge) (*proto.MFAAu
 }
 
 func (d *TestDevice) solveAuthnKey(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	switch {
-	case c.WebauthnChallenge != nil:
-		resp, err := d.Key.SignAssertion(d.Origin(), wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
-			},
-		}, nil
-	case len(c.U2F) > 0:
-		// TODO(codingllama): Find correct challenge according to Key Handle.
-		resp, err := d.Key.SignResponse(&u2f.AuthenticateChallenge{
-			Version:   c.U2F[0].Version,
-			Challenge: c.U2F[0].Challenge,
-			KeyHandle: c.U2F[0].KeyHandle,
-			AppID:     c.U2F[0].AppID,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_U2F{
-				U2F: &proto.U2FResponse{
-					KeyHandle:  resp.KeyHandle,
-					ClientData: resp.ClientData,
-					Signature:  resp.SignatureData,
-				},
-			},
-		}, nil
+	if c.WebauthnChallenge == nil {
+		return nil, trace.BadParameter("key-based challenge not present")
 	}
-	return nil, trace.BadParameter("key-based challenge not present")
+	resp, err := d.Key.SignAssertion(d.Origin(), wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+		},
+	}, nil
 }
 
 func (d *TestDevice) solveAuthnTOTP(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -237,8 +217,6 @@ func (d *TestDevice) solveRegister(c *proto.MFARegisterChallenge) (*proto.MFAReg
 	switch {
 	case c.GetWebauthn() != nil:
 		return d.solveRegisterWebauthn(c)
-	case c.GetU2F() != nil:
-		return d.solveRegisterU2F(c)
 	case c.GetTOTP() != nil:
 		return d.solveRegisterTOTP(c)
 	default:
@@ -255,6 +233,11 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 	}
 	d.Key.PreferRPID = true
 
+	if d.passwordless {
+		d.Key.AllowResidentKey = true
+		d.Key.SetUV = true
+	}
+
 	resp, err := d.Key.SignCredentialCreation(d.Origin(), wanlib.CredentialCreationFromProto(c.GetWebauthn()))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -262,30 +245,6 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
 			Webauthn: wanlib.CredentialCreationResponseToProto(resp),
-		},
-	}, nil
-}
-
-func (d *TestDevice) solveRegisterU2F(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
-	var err error
-	d.Key, err = mocku2f.Create()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := d.Key.RegisterResponse(&u2f.RegisterChallenge{
-		Version:   c.GetU2F().Version,
-		Challenge: c.GetU2F().Challenge,
-		AppID:     c.GetU2F().AppID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &proto.MFARegisterResponse{
-		Response: &proto.MFARegisterResponse_U2F{
-			U2F: &proto.U2FRegisterResponse{
-				RegistrationData: resp.RegistrationData,
-				ClientData:       resp.ClientData,
-			},
 		},
 	}, nil
 }

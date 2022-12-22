@@ -20,11 +20,18 @@
 package protocol
 
 import (
+	"bufio"
+	"fmt"
+	"reflect"
 	"strconv"
+	"strings"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
 )
+
+// ErrCmdNotSupported is returned when an unsupported Redis command is sent to Teleport proxy.
+var ErrCmdNotSupported = trace.NotImplemented("command not supported")
 
 // WriteCmd writes Redis commands passed as vals to Redis wire form.
 // Most types are covered by go-redis implemented WriteArg() function. Types override by this function are:
@@ -95,16 +102,20 @@ func WriteCmd(wr *redis.Writer, vals interface{}) error {
 		if err := writeUinteger(wr, val); err != nil {
 			return trace.Wrap(err)
 		}
-	case []string:
-		if err := writeStringSlice(wr, val); err != nil {
-			return trace.Wrap(err)
-		}
-	case []interface{}:
-		if err := writeSlice(wr, val); err != nil {
-			return trace.Wrap(err)
-		}
 	case interface{}:
-		err := wr.WriteArg(val)
+		var err error
+		v := reflect.ValueOf(val)
+
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+
+		if v.Kind() == reflect.Slice {
+			err = writeSlice(wr, val)
+		} else {
+			err = wr.WriteArg(val)
+		}
+
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -121,7 +132,29 @@ func writeError(wr *redis.Writer, prefix string, val error) error {
 		return trace.Wrap(err)
 	}
 
-	if _, err := wr.WriteString(val.Error()); err != nil {
+	// If the error message contains "\r" or "\n", redis-cli will have trouble
+	// parsing the message and show "Bad simple string value" instead. So if
+	// newlines are detected in the original error message, merge them to one
+	// line.
+	errString := val.Error()
+	if strings.ContainsAny(errString, "\r\n") {
+		scanner := bufio.NewScanner(strings.NewReader(errString))
+		errString = ""
+
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+
+			if errString != "" {
+				errString += " "
+			}
+			errString += line
+		}
+	}
+
+	if _, err := wr.WriteString(errString); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -132,18 +165,25 @@ func writeError(wr *redis.Writer, prefix string, val error) error {
 	return nil
 }
 
-// writeSlice converts []interface{} to Redis wire form.
-func writeSlice(wr *redis.Writer, vals []interface{}) error {
-	if err := wr.WriteByte(redis.ArrayReply); err != nil {
+// writeSlice converts a slice to Redis wire form.
+func writeSlice(wr *redis.Writer, vals interface{}) error {
+	v := reflect.ValueOf(vals)
+
+	if v.Kind() != reflect.Slice {
+		return trace.BadParameter("expected slice, passed %T", vals)
+	}
+
+	if err := wr.WriteByte(redis.RespArray); err != nil {
 		return trace.Wrap(err)
 	}
-	n := len(vals)
+
+	n := v.Len()
 	if err := wr.WriteLen(n); err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, v0 := range vals {
-		if err := WriteCmd(wr, v0); err != nil {
+	for i := 0; i < n; i++ {
+		if err := WriteCmd(wr, v.Index(i).Interface()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -151,28 +191,41 @@ func writeSlice(wr *redis.Writer, vals []interface{}) error {
 	return nil
 }
 
-// writeStringSlice converts a string slice to Redis wire form.
-func writeStringSlice(wr *redis.Writer, vals []string) error {
-	if err := wr.WriteByte(redis.ArrayReply); err != nil {
-		return trace.Wrap(err)
-	}
-	n := len(vals)
-	if err := wr.WriteLen(n); err != nil {
-		return trace.Wrap(err)
+// MakeUnknownCommandErrorForCmd creates an unknown command error for the
+// provided command in the original Redis format.
+func MakeUnknownCommandErrorForCmd(cmd *redis.Cmd) redis.RedisError {
+	args := cmd.Args()
+
+	if len(args) == 0 {
+		// Should never happen.
+		return redis.RedisError("ERR unknown command ''")
 	}
 
-	for _, v0 := range vals {
-		if err := WriteCmd(wr, v0); err != nil {
-			return trace.Wrap(err)
+	switch strings.ToLower(cmd.Name()) {
+	case "cluster", "command":
+		var subCmd string
+		if len(args) > 1 {
+			subCmd = fmt.Sprintf("%v", args[1])
 		}
-	}
+		// Example: ERR unknown subcommand 'aaa'. Try CLUSTER HELP.
+		return redis.RedisError(fmt.Sprintf("ERR unknown subcommand '%s'. Try %s HELP.", subCmd, strings.ToUpper(cmd.Name())))
 
-	return nil
+	default:
+		// cmd.Name() may be lower cased. Use args[0] to get the original command.
+		cmdName := fmt.Sprintf("%v", args[0])
+		args = args[1:]
+		argsInStrings := make([]string, 0, len(args))
+		for _, arg := range args {
+			argsInStrings = append(argsInStrings, fmt.Sprintf("'%v'", arg))
+		}
+		// Example: ERR unknown command 'cmd', with args beginning with: 'arg1' 'arg2' 'arg3' ...
+		return redis.RedisError(fmt.Sprintf("ERR unknown command '%s', with args beginning with: %s", cmdName, strings.Join(argsInStrings, " ")))
+	}
 }
 
 // writeInteger converts integer to Redis wire form.
 func writeInteger(wr *redis.Writer, val int64) error {
-	if err := wr.WriteByte(redis.IntReply); err != nil {
+	if err := wr.WriteByte(redis.RespInt); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -189,7 +242,7 @@ func writeInteger(wr *redis.Writer, val int64) error {
 
 // writeUinteger converts unsigned integer to Redis wire form.
 func writeUinteger(wr *redis.Writer, val uint64) error {
-	if err := wr.WriteByte(redis.IntReply); err != nil {
+	if err := wr.WriteByte(redis.RespInt); err != nil {
 		return trace.Wrap(err)
 	}
 

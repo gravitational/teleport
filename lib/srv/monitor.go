@@ -24,16 +24,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // ActivityTracker is a connection activity tracker,
@@ -93,6 +94,9 @@ type MonitorConfig struct {
 	// MessageWriter wraps a channel to send text messages to the client. Use
 	// for disconnection messages, etc.
 	MessageWriter io.StringWriter
+	// MonitorCloseChannel will be signaled when the monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // CheckAndSetDefaults checks values and sets defaults
@@ -141,7 +145,16 @@ func StartMonitor(cfg MonitorConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go w.start(lockWatch)
+	go func() {
+		w.start(lockWatch)
+		if w.MonitorCloseChannel != nil {
+			// Non blocking send to the close channel.
+			select {
+			case w.MonitorCloseChannel <- struct{}{}:
+			default:
+			}
+		}
+	}()
 	return nil
 }
 
@@ -198,9 +211,6 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 					reason = fmt.Sprintf("client is idle for %v, exceeded idle timeout of %v",
 						since, w.ClientIdleTimeout)
 				}
-				if err := w.emitDisconnectEvent(reason); err != nil {
-					w.Entry.WithError(err).Warn("Failed to emit audit event.")
-				}
 				if w.MessageWriter != nil && w.IdleTimeoutMessage != "" {
 					if _, err := w.MessageWriter.WriteString(w.IdleTimeoutMessage); err != nil {
 						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
@@ -209,6 +219,9 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 				w.Entry.Debugf("Disconnecting client: %v", reason)
 				if err := w.Conn.Close(); err != nil {
 					w.Entry.WithError(err).Error("Failed to close connection.")
+				}
+				if err := w.emitDisconnectEvent(reason); err != nil {
+					w.Entry.WithError(err).Warn("Failed to emit audit event.")
 				}
 				return
 			}
@@ -293,9 +306,6 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 
 func (w *Monitor) handleLockInForce(lockErr error) {
 	reason := lockErr.Error()
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
 	if w.MessageWriter != nil {
 		if _, err := w.MessageWriter.WriteString(reason); err != nil {
 			w.Entry.WithError(err).Warn("Failed to send lock-in-force message.")
@@ -304,6 +314,9 @@ func (w *Monitor) handleLockInForce(lockErr error) {
 	w.Entry.Debugf("Disconnecting client: %v.", reason)
 	if err := w.Conn.Close(); err != nil {
 		w.Entry.WithError(err).Error("Failed to close connection.")
+	}
+	if err := w.emitDisconnectEvent(reason); err != nil {
+		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
 }
 
@@ -387,7 +400,11 @@ type TrackingReadConn struct {
 func (t *TrackingReadConn) Read(b []byte) (int, error) {
 	n, err := t.Conn.Read(b)
 	t.UpdateClientActivity()
-	return n, trace.Wrap(err)
+
+	// This has to use the original error type or else utilities using the connection
+	// (like io.Copy, which is used by the oxy forwarder) may incorrectly categorize
+	// the error produced by this and terminate the connection unnecessarily.
+	return n, err
 }
 
 func (t *TrackingReadConn) Close() error {
@@ -407,4 +424,61 @@ func (t *TrackingReadConn) UpdateClientActivity() {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	t.lastActive = t.cfg.Clock.Now().UTC()
+}
+
+// GetDisconnectExpiredCertFromIdentity calculates the proper value for DisconnectExpiredCert
+// based on whether a connection is set to disconnect on cert expiry, and whether
+// the cert is a short lived (<1m) one issued for an MFA verified session. If the session
+// doesn't need to be disconnected on cert expiry it will return the default value for time.Time.
+func GetDisconnectExpiredCertFromIdentity(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity *tlsca.Identity,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		return time.Time{}
+	}
+
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.Expires
+}
+
+// See GetDisconnectExpiredCertFromIdentity
+func getDisconnectExpiredCertFromIdentityContext(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity *IdentityContext,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		return time.Time{}
+	}
+
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.CertValidBefore
 }

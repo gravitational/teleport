@@ -33,6 +33,8 @@ type WindowsDesktops interface {
 	UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error
 	DeleteWindowsDesktop(ctx context.Context, hostID, name string) error
 	DeleteAllWindowsDesktops(context.Context) error
+	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 }
 
 // MarshalWindowsDesktop marshals the WindowsDesktop resource to JSON.

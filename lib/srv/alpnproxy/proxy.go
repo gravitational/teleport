@@ -20,23 +20,23 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"io"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -62,6 +62,8 @@ type ProxyConfig struct {
 	AccessPoint auth.ReadProxyAccessPoint
 	// ClusterName is the name of the teleport cluster.
 	ClusterName string
+	// PingInterval defines the ping interval for ping-wrapped connections.
+	PingInterval time.Duration
 }
 
 // NewRouter creates a ALPN new router.
@@ -94,10 +96,49 @@ func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
 	}
 }
 
+// MatchByProtocolWithPing creates match function based on client TLS APLN
+// protocol matching also their ping protocol variations.
+func MatchByProtocolWithPing(protocols ...common.Protocol) MatchFunc {
+	return MatchByProtocol(append(protocols, common.ProtocolsWithPing(protocols...)...)...)
+}
+
 // MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.
 func MatchByALPNPrefix(prefix string) MatchFunc {
 	return func(sni, alpn string) bool {
 		return strings.HasPrefix(alpn, prefix)
+	}
+}
+
+// ExtractMySQLEngineVersion returns a pre-process function for MySQL connections that tries to extract MySQL server version
+// from incoming connection.
+func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error) HandlerFuncWithInfo {
+	return func(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
+		const mysqlVerStart = len(common.ProtocolMySQLWithVerPrefix)
+
+		for _, alpn := range info.ALPN {
+			if strings.HasSuffix(alpn, string(common.ProtocolPingSuffix)) ||
+				!strings.HasPrefix(alpn, string(common.ProtocolMySQLWithVerPrefix)) ||
+				len(alpn) == mysqlVerStart {
+				continue
+			}
+			// The version should never be longer than 255 characters including
+			// the prefix, but better to be safe.
+			var versionEnd = 255
+			if len(alpn) < versionEnd {
+				versionEnd = len(alpn)
+			}
+
+			mysqlVersionBase64 := alpn[mysqlVerStart:versionEnd]
+			mysqlVersionBytes, err := base64.StdEncoding.DecodeString(mysqlVersionBase64)
+			if err != nil {
+				continue
+			}
+
+			ctx = context.WithValue(ctx, dbutils.ContextMySQLServerVersion, string(mysqlVersionBytes))
+			break
+		}
+
+		return fn(ctx, conn)
 	}
 }
 
@@ -176,6 +217,9 @@ func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info Connection
 	if h.HandlerWithConnInfo != nil {
 		return h.HandlerWithConnInfo(ctx, conn, info)
 	}
+	if h.Handler == nil {
+		return trace.BadParameter("failed to find ALPN handler for ALPN: %v, SNI %v", info.ALPN, info.SNI)
+	}
 	return h.Handler(ctx, conn)
 }
 
@@ -223,6 +267,9 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing cluster name")
+	}
+	if c.PingInterval == 0 {
+		c.PingInterval = defaults.ProxyPingInterval
 	}
 
 	if c.IdentityTLSConfig == nil {
@@ -276,7 +323,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// For example in ReverseTunnel handles connection asynchronously and closing conn after
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
-			if err := p.handleConn(ctx, clientConn); err != nil {
+			if err := p.handleConn(ctx, clientConn, nil); err != nil {
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
 					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
@@ -305,15 +352,15 @@ type ConnectionInfo struct {
 type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info ConnectionInfo) error
 
 // handleConn routes incoming connection based on SNI TLS information to the proper Handler by following steps:
-// 1) Read TLS hello message without TLS termination and returns conn that will be used for further operations.
-// 2) Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
-// 3) If the selected handler was configured with the ForwardTLS
-//    forwards the connection to the handler without TLS termination.
-// 4) Trigger TLS handshake and terminates the TLS connection.
-// 5) For backward compatibility check RouteToDatabase identity field
-//    was set if yes forward to the generic TLS DB handler.
-// 6) Forward connection to the handler obtained in step 2.
-func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
+//  1. Read TLS hello message without TLS termination and returns conn that will be used for further operations.
+//  2. Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
+//  3. If the selected handler was configured with the ForwardTLS
+//     forwards the connection to the handler without TLS termination.
+//  4. Trigger TLS handshake and terminates the TLS connection.
+//  5. For backward compatibility check RouteToDatabase identity field
+//     was set if yes forward to the generic TLS DB handler.
+//  6. Forward connection to the handler obtained in step 2.
+func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config) error {
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -333,7 +380,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
-	tlsConn := tls.Server(conn, p.getTLSConfig(handlerDesc))
+	tlsConn := tls.Server(conn, p.getTLSConfig(handlerDesc, defaultOverride))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -344,21 +391,61 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(tlsConn.ConnectionState())
+	var handlerConn net.Conn = tlsConn
+	// Check if ping is supported/required by the client.
+	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		handlerConn = p.handlePingConnection(ctx, tlsConn)
+	}
+
+	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
-		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
+		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
 	}
-	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
+	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
-// getTLSConfig returns HandlerDecs.TLSConfig if custom TLS configuration was set for the handler
-// otherwise the ProxyConfig.WebTLSConfig is used.
-func (p *Proxy) getTLSConfig(desc *HandlerDecs) *tls.Config {
+// handlePingConnection starts the server ping routine and returns `pingConn`.
+func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) net.Conn {
+	pingConn := NewPingConn(conn)
+
+	// Start ping routine. It will continuously send pings in a defined
+	// interval.
+	go func() {
+		ticker := time.NewTicker(p.cfg.PingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := pingConn.WritePing()
+				if err != nil {
+					if !utils.IsOKNetworkError(err) {
+						p.log.WithError(err).Warn("Failed to write ping message")
+					}
+
+					return
+				}
+			}
+		}
+	}()
+
+	return pingConn
+}
+
+// getTLSConfig picks the TLS config with the following priority:
+//   - TLS config found in the provided handler.
+//   - A default override.
+//   - The default TLS config (cfg.WebTLSConfig).
+func (p *Proxy) getTLSConfig(desc *HandlerDecs, defaultOverride *tls.Config) *tls.Config {
 	if desc.TLSConfig != nil {
 		return desc.TLSConfig
+	}
+	if defaultOverride != nil {
+		return defaultOverride
 	}
 	return p.cfg.WebTLSConfig
 }
@@ -424,7 +511,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 
-	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(tlsConn.ConnectionState())
+	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
@@ -432,15 +519,6 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 		return trace.BadParameter("not database connection")
 	}
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
-}
-
-func isDBTLSProtocol(protocol common.Protocol) bool {
-	switch protocol {
-	case common.ProtocolMongoDB, common.ProtocolRedisDB:
-		return true
-	default:
-		return false
-	}
 }
 
 func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
@@ -464,7 +542,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 
 	for _, v := range clientProtocols {
 		protocol := common.Protocol(v)
-		if isDBTLSProtocol(protocol) {
+		if common.IsDBTLSProtocol(protocol) {
 			return &HandlerDecs{
 				MatchFunc:           MatchByProtocol(protocol),
 				HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
@@ -483,7 +561,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
 		return true
 	}
@@ -503,4 +581,34 @@ func (p *Proxy) Close() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// MakeConnectionHandler creates a ConnectionHandler which provides a callback
+// to handle incoming connections by this ALPN proxy server.
+func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config) ConnectionHandler {
+	return func(ctx context.Context, conn net.Conn) error {
+		return p.handleConn(ctx, conn, defaultOverride)
+	}
+}
+
+// ConnectionHandler defines a function for serving incoming connections.
+type ConnectionHandler func(ctx context.Context, conn net.Conn) error
+
+// ConnectionHandlerWrapper is a wrapper of ConnectionHandler. This wrapper is
+// mainly used as a placeholder to resolve circular dependencies.
+type ConnectionHandlerWrapper struct {
+	h ConnectionHandler
+}
+
+// Set updates inner ConnectionHandler to use.
+func (w *ConnectionHandlerWrapper) Set(h ConnectionHandler) {
+	w.h = h
+}
+
+// HandleConnection implements ConnectionHandler.
+func (w *ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
+	if w.h == nil {
+		return trace.NotFound("missing ConnectionHandler")
+	}
+	return w.h(ctx, conn)
 }

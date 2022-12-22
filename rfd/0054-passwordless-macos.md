@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 54 - Passwordless for macOS CLI
@@ -10,6 +10,8 @@ state: draft
 Passwordless features for native macOS CLIs, aka Touch ID support for CLI/`tsh`.
 
 This is a part of the [Passwordless RFD][passwordless rfd].
+
+Passwordless is available as a preview in Teleport 10.
 
 ## Why
 
@@ -32,14 +34,19 @@ In order to make use of the Keychain Sharing services, required for Secure
 Enclave protection, the `tsh` macOS binary needs to be:
 
 1. Code signed,
-2. Contain the necessary entitlements to use the Keychain; and
+2. Contain the necessary entitlements to use the Keychain,
 3. Embed a matching [provisioning profile](
-   https://developer.apple.com/forums/thread/685723).
+   https://developer.apple.com/forums/thread/685723); and
+4. Notarized
+
+<!--
+TODO(codingllama): Add more details about notarization.
+-->
 
 The requirements above mean that `tsh` needs to be [packaged in a macOS .app](
 https://developer.apple.com/documentation/xcode/signing-a-daemon-with-a-restricted-entitlement)
-for distribution, mainly so the provisioning profile is embedded within the
-binary. An account enrolled in the Apple Developer Program is also necessary.
+for distribution. An account enrolled in the Apple Developer Program is also
+necessary.
 
 See below for an example of the necessary entitlements:
 
@@ -151,7 +158,7 @@ hidden [`tsh` support commands](#tsh-support-commands) for a manual cleanup.
 
 ### Authentication
 
-Authentication offers a plethora of options, depending on both server settings
+Authentication offers a plethora of options, depending both on server settings
 (otp, webauthn, passwordless) and client state (FIDO2 keys present, Touch ID
 keys registered). In order to decide which flow to follow, `tsh` must first
 assess what is possible, preferably without asking for unnecessary user
@@ -162,28 +169,14 @@ registered in the Enclave _without_ user interaction. Because all Touch ID keys
 are functionally resident keys, as long as the server supports passwordless,
 then `tsh` is free to use it.
 
-If Touch ID passwordless authentication is possible, then it is the preferred
-authentication mode and is used by default.
-
-If passwordless is not possible, but Touch ID is present, then Touch ID MFA is
-also preferred and used by default.
+If Touch ID keys are present, then it's the preferred method of authentication,
+both for passwordless and MFA.
 
 To allow users agency over the eager behaviors of Touch ID, `tsh` is augmented
-with the following flags:
+with the global `--mfa-mode` flag:
 
-* `tsh --pwdless-mode={auto,on,off}` - activate/deactivate passwordless
-  authentication
-
-    `auto` is the default behavior described above (passwordless is preferred
-    if we are certain it may be used)
-
-    `on` enables passwordless logins (`tsh login --pwdless`, described in the
-    [Passwordless FIDO2 RFD][passwordless fido2], is a shortcut to it)
-
-    `off` disables passwordless logins
-
-* `tsh --mfa-mode={auto,platform,cross-platform}` - choose whether to use
-  platform or cross-platform MFA
+`tsh --mfa-mode={auto,platform,cross-platform}` - choose whether to use platform
+or cross-platform MFA
 
     `auto` is the default behavior described above, which favors Touch ID
 
@@ -191,11 +184,6 @@ with the following flags:
     portable FIDO2 keys
 
     `cross-platform` prefers FIDO2 or OTP (aka `tsh` behavior prior to this RFD)
-
-Both `--pwdless-mode` and `--mfa-mode` may be specified for fine-grained control
-over `tsh` authentication logic. Note that those flags apply not only to
-`tsh login`, but also for any commands that require re-authentication (such as
-`tsh mfa add`).
 
 Finally, if there are Touch ID credentials for multiple users and the login user
 is not known, `tsh login` may prompt the user to specify the `--user` flag.
@@ -220,8 +208,8 @@ $ tsh login --proxy=example.com
 Detecting Touch ID support is important so `tsh` may enable/disable related
 features as appropriate.
 
-Apart from Go build tags, which are a rather coarse "detection" mechanism, we
-can take inspiration from [Chromium's implementation](
+Apart from Go build tags, which are a rather coarse detection mechanism, we can
+take inspiration from [Chromium's implementation](
 https://github.com/chromium/chromium/blob/c4d3c31083a2e1481253ff2d24298a1dfe19c754/device/fido/mac/touch_id_context.mm#L126)
 and do the following checks:
 
@@ -247,9 +235,9 @@ The commands are only available on macOS builds.
 `tsh touchid diag` - prints diagnostics about Touch ID support (for example, if
 the binary is signed, entitlements, macOS version and Touch ID availability)
 
-`tsh touchid list` - lists currently stored credentials
+`tsh touchid ls` - lists currently stored credentials
 
-`tsh touchid delete` - deletes a stored credential
+`tsh touchid rm` - deletes a stored credential
 
 ```shell
 $ tsh touchid diag  # diag output subject to change
@@ -264,14 +252,14 @@ $ tsh touchid diag  # diag output subject to change
 > LAContext check passed: yes
 > Secure Enclave check passed: yes
 
-$ tsh touchid list
+$ tsh touchid ls
 <system shows Touch ID prompt>
-> RPID        User    Key Handle
+> RPID        User    Credential ID
 > ----------- ------- ------------------------------------
 > example.com llama   6ed2d2e4-7933-4988-9eeb-428e8531f122
 > example.com alpaca  cbf251a3-0e44-4068-87cb-91a1eb241eaf
 
-$ tsh touchid delete 6ed2d2e4-7933-4988-9eeb-428e8531f122
+$ tsh touchid rm 6ed2d2e4-7933-4988-9eeb-428e8531f122
 <system shows Touch ID prompt>
 > Credential 6ed2d2e4-7933-4988-9eeb-428e8531f122 / llama@example.com deleted.
 ```
@@ -295,13 +283,13 @@ and [Passwordless RFDs][passwordless rfd].
 UX is discussed throughout the design, but here is a summary of changes:
 
 `tsh login --proxy=example.com` will automatically do passwordless Touch ID
-login, if possible (server allows passwordless, appropriate hardware exists, one
-credential registered for "example.com")
+login, if appropriate (server allows passwordless, hardware present, credential
+registered for "example.com")
 
 `tsh login --proxy=example.com --user=llama` behaves as above, but using a
 specific user
 
-`tsh login --pwdless-mode=on --mfa-mode=platform --proxy=example.com
+`tsh login --auth=passwordless --mfa-mode=platform --proxy=example.com
 --user=llama` is the zero ambiguity, (needlessly) long form of the above.
 
 `tsh mfa add` adds support for Touch ID, both for authentication and registering
@@ -310,8 +298,8 @@ new credentials.
 The following hidden maintenance commands are added:
 
 * `tsh touchid diag`
-* `tsh touchid list`
-* `tsh touchid delete`
+* `tsh touchid ls`
+* `tsh touchid rm`
 
 Regular users shouldn't need to touch those commands, but they are available for
 troubleshooting and credential management.

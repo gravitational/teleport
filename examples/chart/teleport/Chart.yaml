@@ -1,9 +1,0 @@
-name: teleport
-apiVersion: v2
-version: 0.0.13
-appVersion: "6"
-description: "[This chart is deprecated, use teleport-cluster instead]"
-icon: https://goteleport.com/images/logos/logo-teleport-square.svg
-keywords:
-  - Teleport
-deprecated: true

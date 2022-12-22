@@ -18,19 +18,21 @@ package tdp
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"net"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv"
 )
 
 // Conn is a desktop protocol connection.
 // It converts between a stream of bytes (io.ReadWriter) and a stream of
 // Teleport Desktop Protocol (TDP) messages.
 type Conn struct {
-	rw        io.ReadWriter
+	rwc       io.ReadWriteCloser
 	bufr      *bufio.Reader
 	closeOnce sync.Once
 
@@ -52,9 +54,9 @@ type Conn struct {
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rw io.ReadWriter) *Conn {
+func NewConn(rw io.ReadWriteCloser) *Conn {
 	c := &Conn{
-		rw:   rw,
+		rwc:  rw,
 		bufr: bufio.NewReader(rw),
 	}
 
@@ -70,15 +72,17 @@ func NewConn(rw io.ReadWriter) *Conn {
 func (c *Conn) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
-		if closer, ok := c.rw.(io.Closer); ok {
-			err = closer.Close()
-		}
+		err = c.rwc.Close()
 	})
 	return err
 }
 
-// InputMessage reads the next incoming message from the connection.
-func (c *Conn) InputMessage() (Message, error) {
+func (c *Conn) ReadRaw() ([]byte, error) {
+	return readRaw(c.bufr)
+}
+
+// ReadMessage reads the next incoming message from the connection.
+func (c *Conn) ReadMessage() (Message, error) {
 	m, err := decode(c.bufr)
 	if c.OnRecv != nil {
 		c.OnRecv(m)
@@ -86,23 +90,23 @@ func (c *Conn) InputMessage() (Message, error) {
 	return m, trace.Wrap(err)
 }
 
-// OutputMessage sends a message to the connection.
-func (c *Conn) OutputMessage(m Message) error {
+// WriteMessage sends a message to the connection.
+func (c *Conn) WriteMessage(m Message) error {
 	buf, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = c.rw.Write(buf)
+	_, err = c.rwc.Write(buf)
 	if c.OnSend != nil {
 		c.OnSend(m, buf)
 	}
 	return trace.Wrap(err)
 }
 
-// SendError is a convenience function for sending an error message.
-func (c *Conn) SendError(message string) error {
-	return c.OutputMessage(Error{Message: message})
+// SendNotification is a convenience function for sending a Notification message.
+func (c *Conn) SendNotification(message string, severity Severity) error {
+	return c.WriteMessage(Notification{Message: message, Severity: severity})
 }
 
 // LocalAddr returns local address
@@ -113,4 +117,28 @@ func (c *Conn) LocalAddr() net.Addr {
 // RemoteAddr returns remote address
 func (c *Conn) RemoteAddr() net.Addr {
 	return c.remoteAddr
+}
+
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, clipDataMaxLenErr) ||
+		errors.Is(err, stringMaxLenErr) ||
+		errors.Is(err, fileReadWriteMaxLenErr) ||
+		errors.Is(err, mfaDataMaxLenErr)
+}
+
+// IsFatalErr returns the inverse of IsNonFatalErr
+// (except for if err == nil, for which both functions return false)
+func IsFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !IsNonFatalErr(err)
 }

@@ -21,22 +21,21 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"google.golang.org/grpc/credentials/insecure"
-
 	"cloud.google.com/go/storage"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 var (
@@ -159,7 +158,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 // afterObjectDelete is a passthrough function to delete an object
 func afterObjectDelete(ctx context.Context, object *storage.ObjectHandle, err error) error {
-	return nil
+	return err
 }
 
 // ComposerRun is a passthrough function that runs composer
@@ -188,7 +187,7 @@ func DefaultNewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 // NewHandler returns a new handler with specific context, cancelFunc, and client
 func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, client *storage.Client) (*Handler, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -296,7 +295,7 @@ func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
-	return strings.TrimPrefix(filepath.Join(h.Path, string(sessionID)+".tar"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

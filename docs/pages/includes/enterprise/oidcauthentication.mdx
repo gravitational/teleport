@@ -1,0 +1,43 @@
+Configure Teleport to use OIDC authentication as the default instead of the local
+user database. 
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+You can either edit your Teleport configuration file or create a dynamic
+resource.
+
+</ScopedBlock> 
+
+<Tabs>
+  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+
+ Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+
+  ```yaml
+  auth_service:
+    authentication:
+      type: oidc
+
+  ```
+
+  </TabItem>
+  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+
+  Create a file called `cap.yaml`:
+  
+  ```yaml
+  kind: cluster_auth_preference
+  metadata:
+    name: cluster-auth-preference
+  spec:    
+    type: oidc
+  version: v2
+  ```
+
+  Create a resource:
+
+  ```code
+  $ tctl create -f cap.yaml
+  ```
+  </TabItem>
+</Tabs>

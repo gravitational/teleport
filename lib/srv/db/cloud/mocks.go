@@ -19,20 +19,27 @@ package cloud
 import (
 	"context"
 	"crypto/tls"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // STSMock mocks AWS STS API.
@@ -50,17 +57,28 @@ func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdenti
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	DBInstances []*rds.DBInstance
-	DBClusters  []*rds.DBCluster
+	DBInstances       []*rds.DBInstance
+	DBClusters        []*rds.DBCluster
+	DBProxies         []*rds.DBProxy
+	DBProxyEndpoints  []*rds.DBProxyEndpoint
+	DBEngineVersions  []*rds.DBEngineVersion
+	DBProxyTargetPort int64
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	instances, err := applyInstanceFilters(m.DBInstances, input.Filters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if aws.StringValue(input.DBInstanceIdentifier) == "" {
 		return &rds.DescribeDBInstancesOutput{
-			DBInstances: m.DBInstances,
+			DBInstances: instances,
 		}, nil
 	}
-	for _, instance := range m.DBInstances {
+	for _, instance := range instances {
 		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
 			return &rds.DescribeDBInstancesOutput{
 				DBInstances: []*rds.DBInstance{instance},
@@ -71,19 +89,33 @@ func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.Des
 }
 
 func (m *RDSMock) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return trace.Wrap(err)
+	}
+	instances, err := applyInstanceFilters(m.DBInstances, input.Filters)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	fn(&rds.DescribeDBInstancesOutput{
-		DBInstances: m.DBInstances,
+		DBInstances: instances,
 	}, true)
 	return nil
 }
 
 func (m *RDSMock) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters, err := applyClusterFilters(m.DBClusters, input.Filters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if aws.StringValue(input.DBClusterIdentifier) == "" {
 		return &rds.DescribeDBClustersOutput{
-			DBClusters: m.DBClusters,
+			DBClusters: clusters,
 		}, nil
 	}
-	for _, cluster := range m.DBClusters {
+	for _, cluster := range clusters {
 		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
 			return &rds.DescribeDBClustersOutput{
 				DBClusters: []*rds.DBCluster{cluster},
@@ -94,8 +126,15 @@ func (m *RDSMock) DescribeDBClustersWithContext(ctx aws.Context, input *rds.Desc
 }
 
 func (m *RDSMock) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return trace.Wrap(err)
+	}
+	clusters, err := applyClusterFilters(m.DBClusters, input.Filters)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	fn(&rds.DescribeDBClustersOutput{
-		DBClusters: m.DBClusters,
+		DBClusters: clusters,
 	}, true)
 	return nil
 }
@@ -127,10 +166,78 @@ func (m *RDSMock) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyD
 	}
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
 }
+func (m *RDSMock) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	if aws.StringValue(input.DBProxyName) == "" {
+		return &rds.DescribeDBProxiesOutput{
+			DBProxies: m.DBProxies,
+		}, nil
+	}
+	for _, dbProxy := range m.DBProxies {
+		if aws.StringValue(dbProxy.DBProxyName) == aws.StringValue(input.DBProxyName) {
+			return &rds.DescribeDBProxiesOutput{
+				DBProxies: []*rds.DBProxy{dbProxy},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("proxy %v not found", aws.StringValue(input.DBProxyName))
+}
+func (m *RDSMock) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	inputProxyName := aws.StringValue(input.DBProxyName)
+	inputProxyEndpointName := aws.StringValue(input.DBProxyEndpointName)
+
+	if inputProxyName == "" && inputProxyEndpointName == "" {
+		return &rds.DescribeDBProxyEndpointsOutput{
+			DBProxyEndpoints: m.DBProxyEndpoints,
+		}, nil
+	}
+
+	var endpoints []*rds.DBProxyEndpoint
+	for _, dbProxyEndpoiont := range m.DBProxyEndpoints {
+		if inputProxyEndpointName != "" &&
+			inputProxyEndpointName != aws.StringValue(dbProxyEndpoiont.DBProxyEndpointName) {
+			continue
+		}
+
+		if inputProxyName != "" &&
+			inputProxyName != aws.StringValue(dbProxyEndpoiont.DBProxyName) {
+			continue
+		}
+
+		endpoints = append(endpoints, dbProxyEndpoiont)
+	}
+	if len(endpoints) == 0 {
+		return nil, trace.NotFound("proxy endpoint %v not found", aws.StringValue(input.DBProxyEndpointName))
+	}
+	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
+}
+func (m *RDSMock) DescribeDBProxyTargetsWithContext(ctx aws.Context, input *rds.DescribeDBProxyTargetsInput, options ...request.Option) (*rds.DescribeDBProxyTargetsOutput, error) {
+	// only mocking to return a port here
+	return &rds.DescribeDBProxyTargetsOutput{
+		Targets: []*rds.DBProxyTarget{{
+			Port: aws.Int64(m.DBProxyTargetPort),
+		}},
+	}, nil
+}
+func (m *RDSMock) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBProxiesOutput{
+		DBProxies: m.DBProxies,
+	}, true)
+	return nil
+}
+func (m *RDSMock) DescribeDBProxyEndpointsPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, fn func(*rds.DescribeDBProxyEndpointsOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBProxyEndpointsOutput{
+		DBProxyEndpoints: m.DBProxyEndpoints,
+	}, true)
+	return nil
+}
+func (m *RDSMock) ListTagsForResourceWithContext(ctx aws.Context, input *rds.ListTagsForResourceInput, options ...request.Option) (*rds.ListTagsForResourceOutput, error) {
+	return &rds.ListTagsForResourceOutput{}, nil
+}
 
 // IAMMock mocks AWS IAM API.
 type IAMMock struct {
 	iamiface.IAMAPI
+	mu sync.RWMutex
 	// attachedRolePolicies maps roleName -> policyName -> policyDocument
 	attachedRolePolicies map[string]map[string]string
 	// attachedUserPolicies maps userName -> policyName -> policyDocument
@@ -138,6 +245,8 @@ type IAMMock struct {
 }
 
 func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	policy, ok := m.attachedRolePolicies[*input.RoleName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
@@ -154,6 +263,8 @@ func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePo
 }
 
 func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.attachedRolePolicies == nil {
 		m.attachedRolePolicies = make(map[string]map[string]string)
 	}
@@ -165,6 +276,8 @@ func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePo
 }
 
 func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if _, ok := m.attachedRolePolicies[*input.RoleName]; ok {
 		delete(m.attachedRolePolicies[*input.RoleName], *input.PolicyName)
 	}
@@ -172,6 +285,8 @@ func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.Delete
 }
 
 func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	policy, ok := m.attachedUserPolicies[*input.UserName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
@@ -188,6 +303,8 @@ func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPo
 }
 
 func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.attachedUserPolicies == nil {
 		m.attachedUserPolicies = make(map[string]map[string]string)
 	}
@@ -199,6 +316,8 @@ func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPo
 }
 
 func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.DeleteUserPolicyInput, options ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if _, ok := m.attachedUserPolicies[*input.UserName]; ok {
 		delete(m.attachedUserPolicies[*input.UserName], *input.PolicyName)
 	}
@@ -262,12 +381,22 @@ func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, inp
 func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
 	return trace.AccessDenied("unauthorized")
 }
+func (m *RDSMockUnauth) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockUnauth) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockUnauth) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
 
 // RDSMockByDBType is a mock RDS client that mocks API calls by DB type
 type RDSMockByDBType struct {
 	rdsiface.RDSAPI
 	DBInstances rdsiface.RDSAPI
 	DBClusters  rdsiface.RDSAPI
+	DBProxies   rdsiface.RDSAPI
 }
 
 func (m *RDSMockByDBType) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -289,6 +418,15 @@ func (m *RDSMockByDBType) ModifyDBClusterWithContext(ctx aws.Context, input *rds
 func (m *RDSMockByDBType) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
 	return m.DBClusters.DescribeDBClustersPagesWithContext(aws, input, fn, options...)
 }
+func (m *RDSMockByDBType) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	return m.DBProxies.DescribeDBProxiesWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	return m.DBProxies.DescribeDBProxyEndpointsWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
+	return m.DBProxies.DescribeDBProxiesPagesWithContext(ctx, input, fn, options...)
+}
 
 // RedshiftMockUnauth is a mock Redshift client that returns access denied to each call.
 type RedshiftMockUnauth struct {
@@ -299,24 +437,39 @@ func (m *RedshiftMockUnauth) DescribeClustersWithContext(ctx aws.Context, input 
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-// IAMMockUnauth is a mock IAM client that returns access denied to each call.
-type IAMMockUnauth struct {
+// IAMErrorMock is a mock IAM client that returns the provided Error to all
+// APIs. If Error is not provided, all APIs returns trace.AccessDenied by
+// default.
+type IAMErrorMock struct {
 	iamiface.IAMAPI
+	Error error
 }
 
-func (m *IAMMockUnauth) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+func (m *IAMErrorMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+func (m *IAMErrorMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+func (m *IAMErrorMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+func (m *IAMErrorMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
@@ -328,14 +481,247 @@ type GCPSQLAdminClientMock struct {
 	EphemeralCert *tls.Certificate
 }
 
-func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, sessionCtx *common.Session, user *sqladmin.User) error {
+func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error {
 	return nil
 }
 
-func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, sessionCtx *common.Session) (*sqladmin.DatabaseInstance, error) {
+func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error) {
 	return g.DatabaseInstance, nil
 }
 
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *common.Session) (*tls.Certificate, error) {
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, identity tlsca.Identity) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
+}
+
+// ElastiCache mocks AWS ElastiCache API.
+type ElastiCacheMock struct {
+	elasticacheiface.ElastiCacheAPI
+
+	ReplicationGroups []*elasticache.ReplicationGroup
+	Users             []*elasticache.User
+	TagsByARN         map[string][]*elasticache.Tag
+}
+
+func (m *ElastiCacheMock) AddMockUser(user *elasticache.User, tagsMap map[string]string) {
+	m.Users = append(m.Users, user)
+	m.addTags(aws.StringValue(user.ARN), tagsMap)
+}
+func (m *ElastiCacheMock) addTags(arn string, tagsMap map[string]string) {
+	if m.TagsByARN == nil {
+		m.TagsByARN = make(map[string][]*elasticache.Tag)
+	}
+
+	var tags []*elasticache.Tag
+	for key, value := range tagsMap {
+		tags = append(tags, &elasticache.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(value),
+		})
+	}
+	m.TagsByARN[arn] = tags
+}
+
+func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error) {
+	for _, replicationGroup := range m.ReplicationGroups {
+		if aws.StringValue(replicationGroup.ReplicationGroupId) == aws.StringValue(input.ReplicationGroupId) {
+			return &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{replicationGroup},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("ElastiCache %v not found", aws.StringValue(input.ReplicationGroupId))
+}
+func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ aws.Context, _ *elasticache.DescribeReplicationGroupsInput, fn func(*elasticache.DescribeReplicationGroupsOutput, bool) bool, _ ...request.Option) error {
+	fn(&elasticache.DescribeReplicationGroupsOutput{
+		ReplicationGroups: m.ReplicationGroups,
+	}, true)
+	return nil
+}
+func (m *ElastiCacheMock) DescribeUsersPagesWithContext(_ aws.Context, _ *elasticache.DescribeUsersInput, fn func(*elasticache.DescribeUsersOutput, bool) bool, _ ...request.Option) error {
+	fn(&elasticache.DescribeUsersOutput{
+		Users: m.Users,
+	}, true)
+	return nil
+}
+
+func (m *ElastiCacheMock) DescribeCacheClustersPagesWithContext(aws.Context, *elasticache.DescribeCacheClustersInput, func(*elasticache.DescribeCacheClustersOutput, bool) bool, ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+func (m *ElastiCacheMock) DescribeCacheSubnetGroupsPagesWithContext(aws.Context, *elasticache.DescribeCacheSubnetGroupsInput, func(*elasticache.DescribeCacheSubnetGroupsOutput, bool) bool, ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *elasticache.ListTagsForResourceInput, _ ...request.Option) (*elasticache.TagListMessage, error) {
+	if m.TagsByARN == nil {
+		return nil, trace.NotFound("no tags")
+	}
+
+	tags, ok := m.TagsByARN[aws.StringValue(input.ResourceName)]
+	if !ok {
+		return nil, trace.NotFound("no tags")
+	}
+
+	return &elasticache.TagListMessage{
+		TagList: tags,
+	}, nil
+}
+func (m *ElastiCacheMock) ModifyUserWithContext(_ aws.Context, input *elasticache.ModifyUserInput, opts ...request.Option) (*elasticache.ModifyUserOutput, error) {
+	for _, user := range m.Users {
+		if aws.StringValue(user.UserId) == aws.StringValue(input.UserId) {
+			return &elasticache.ModifyUserOutput{}, nil
+		}
+	}
+	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserId))
+}
+
+// MemoryDBMock mocks AWS MemoryDB API.
+type MemoryDBMock struct {
+	memorydbiface.MemoryDBAPI
+
+	Clusters  []*memorydb.Cluster
+	Users     []*memorydb.User
+	TagsByARN map[string][]*memorydb.Tag
+}
+
+func (m *MemoryDBMock) AddMockUser(user *memorydb.User, tagsMap map[string]string) {
+	m.Users = append(m.Users, user)
+	m.addTags(aws.StringValue(user.ARN), tagsMap)
+}
+func (m *MemoryDBMock) addTags(arn string, tagsMap map[string]string) {
+	if m.TagsByARN == nil {
+		m.TagsByARN = make(map[string][]*memorydb.Tag)
+	}
+
+	var tags []*memorydb.Tag
+	for key, value := range tagsMap {
+		tags = append(tags, &memorydb.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(value),
+		})
+	}
+	m.TagsByARN[arn] = tags
+}
+func (m *MemoryDBMock) DescribeSubnetGroupsWithContext(aws.Context, *memorydb.DescribeSubnetGroupsInput, ...request.Option) (*memorydb.DescribeSubnetGroupsOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *MemoryDBMock) DescribeClustersWithContext(_ aws.Context, input *memorydb.DescribeClustersInput, _ ...request.Option) (*memorydb.DescribeClustersOutput, error) {
+
+	if aws.StringValue(input.ClusterName) == "" {
+		return &memorydb.DescribeClustersOutput{
+			Clusters: m.Clusters,
+		}, nil
+	}
+
+	for _, cluster := range m.Clusters {
+		if aws.StringValue(input.ClusterName) == aws.StringValue(cluster.Name) {
+			return &memorydb.DescribeClustersOutput{
+				Clusters: []*memorydb.Cluster{cluster},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterName))
+}
+func (m *MemoryDBMock) ListTagsWithContext(_ aws.Context, input *memorydb.ListTagsInput, _ ...request.Option) (*memorydb.ListTagsOutput, error) {
+	if m.TagsByARN == nil {
+		return nil, trace.NotFound("no tags")
+	}
+
+	tags, ok := m.TagsByARN[aws.StringValue(input.ResourceArn)]
+	if !ok {
+		return nil, trace.NotFound("no tags")
+	}
+
+	return &memorydb.ListTagsOutput{
+		TagList: tags,
+	}, nil
+}
+func (m *MemoryDBMock) DescribeUsersWithContext(aws.Context, *memorydb.DescribeUsersInput, ...request.Option) (*memorydb.DescribeUsersOutput, error) {
+	return &memorydb.DescribeUsersOutput{
+		Users: m.Users,
+	}, nil
+}
+func (m *MemoryDBMock) UpdateUserWithContext(_ aws.Context, input *memorydb.UpdateUserInput, opts ...request.Option) (*memorydb.UpdateUserOutput, error) {
+	for _, user := range m.Users {
+		if aws.StringValue(user.Name) == aws.StringValue(input.UserName) {
+			return &memorydb.UpdateUserOutput{}, nil
+		}
+	}
+	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserName))
+}
+
+// checkEngineFilters checks RDS filters to detect unrecognized engine filters.
+func checkEngineFilters(filters []*rds.Filter, engineVersions []*rds.DBEngineVersion) error {
+	if len(filters) == 0 {
+		return nil
+	}
+	recognizedEngines := make(map[string]struct{})
+	for _, e := range engineVersions {
+		recognizedEngines[aws.StringValue(e.Engine)] = struct{}{}
+	}
+	for _, f := range filters {
+		if aws.StringValue(f.Name) != "engine" {
+			continue
+		}
+		for _, v := range f.Values {
+			if _, ok := recognizedEngines[aws.StringValue(v)]; !ok {
+				return trace.Errorf("unrecognized engine name %q", aws.StringValue(v))
+			}
+		}
+	}
+	return nil
+}
+
+// applyInstanceFilters filters RDS DBInstances using the provided RDS filters.
+func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.DBInstance, error) {
+	if len(filters) == 0 {
+		return in, nil
+	}
+	var out []*rds.DBInstance
+	efs := engineFilterSet(filters)
+	for _, instance := range in {
+		if instanceEngineMatches(instance, efs) {
+			out = append(out, instance)
+		}
+	}
+	return out, nil
+}
+
+// applyClusterFilters filters RDS DBClusters using the provided RDS filters.
+func applyClusterFilters(in []*rds.DBCluster, filters []*rds.Filter) ([]*rds.DBCluster, error) {
+	if len(filters) == 0 {
+		return in, nil
+	}
+	var out []*rds.DBCluster
+	efs := engineFilterSet(filters)
+	for _, cluster := range in {
+		if clusterEngineMatches(cluster, efs) {
+			out = append(out, cluster)
+		}
+	}
+	return out, nil
+}
+
+// engineFilterSet builds a string set of engine names from a list of RDS filters.
+func engineFilterSet(filters []*rds.Filter) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, f := range filters {
+		if aws.StringValue(f.Name) != "engine" {
+			continue
+		}
+		for _, v := range f.Values {
+			out[aws.StringValue(v)] = struct{}{}
+		}
+	}
+	return out
+}
+
+// instanceEngineMatches returns whether an RDS DBInstance engine matches any engine name in a filter set.
+func instanceEngineMatches(instance *rds.DBInstance, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.StringValue(instance.Engine)]
+	return ok
+}
+
+// clusterEngineMatches returns whether an RDS DBCluster engine matches any engine name in a filter set.
+func clusterEngineMatches(cluster *rds.DBCluster, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.StringValue(cluster.Engine)]
+	return ok
 }

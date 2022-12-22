@@ -35,17 +35,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestCreateResetPasswordToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	// Configure cluster and user for MFA, registering various devices.
@@ -70,7 +69,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
 	require.Empty(t, devs)
 
@@ -245,7 +244,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	secrets, err := srv.Auth().Identity.GetUserTokenSecrets(ctx, token.GetName())
+	secrets, err := srv.Auth().GetUserTokenSecrets(ctx, token.GetName())
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -276,83 +275,13 @@ func TestUserTokenCreationSettings(t *testing.T) {
 	require.Equal(t, token.GetURL(), "https://<proxyhost>:3080/web/invite/"+token.GetName())
 	require.NotEmpty(t, token.GetCreated())
 	require.NotEmpty(t, token.GetMetadata().Expires)
-
-}
-
-// DELETE IN 9.0: remove legacy prefix and fallbacks.
-func TestBackwardsCompForUserTokenWithLegacyPrefix(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-
-	username := "joe@example.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
-	require.NoError(t, err)
-
-	ctx := context.Background()
-
-	req := CreateUserTokenRequest{
-		Name: username,
-		TTL:  time.Hour,
-	}
-
-	// Create a reset password user token.
-	legacyToken, err := srv.Auth().newUserToken(req)
-	require.NoError(t, err)
-
-	marshalledToken, err := services.MarshalUserToken(legacyToken)
-	require.NoError(t, err)
-
-	// Insert the token in backend using legacy prefix.
-	_, err = srv.AuthServer.Backend.Create(ctx, backend.Item{
-		Key:   backend.Key(local.LegacyPasswordTokensPrefix, legacyToken.GetName(), "params"),
-		Value: marshalledToken,
-	})
-	require.NoError(t, err)
-
-	// Test fallback get token.
-	retrievedToken, err := srv.Auth().GetUserToken(ctx, legacyToken.GetName())
-	require.NoError(t, err)
-	require.Equal(t, legacyToken.GetName(), retrievedToken.GetName())
-
-	// Create a user token secrets.
-	legacySecrets, err := types.NewUserTokenSecrets(legacyToken.GetName())
-	legacySecrets.SetOTPKey("test")
-	require.NoError(t, err)
-
-	marshalledSecrets, err := services.MarshalUserTokenSecrets(legacySecrets)
-	require.NoError(t, err)
-
-	// Insert the secret in backend using legacy prefix.
-	_, err = srv.AuthServer.Backend.Create(ctx, backend.Item{
-		Key:   backend.Key(local.LegacyPasswordTokensPrefix, legacySecrets.GetName(), "secrets"),
-		Value: marshalledSecrets,
-	})
-	require.NoError(t, err)
-
-	// Test fallback get secrets.
-	retrievedSecrets, err := srv.Auth().GetUserTokenSecrets(ctx, legacySecrets.GetName())
-	require.NoError(t, err)
-	require.Equal(t, legacyToken.GetName(), retrievedSecrets.GetName())
-	require.Equal(t, legacySecrets.GetOTPKey(), retrievedSecrets.GetOTPKey())
-
-	// Test deletion of token stored with legacy prefix.
-	// Helper method deleteUserTokens hits both GetUserTokens and DeleteUserToken path.
-	err = srv.Auth().deleteUserTokens(ctx, req.Name)
-	require.NoError(t, err)
-
-	// Test for deletion of token and secrets.
-	_, err = srv.Auth().GetUserToken(ctx, legacyToken.GetName())
-	require.True(t, trace.IsNotFound(err))
-
-	_, err = srv.Auth().GetUserTokenSecrets(ctx, legacySecrets.GetName())
-	require.True(t, trace.IsNotFound(err))
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	fakeClock := srv.Clock().(clockwork.FakeClock)
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 	ctx := context.Background()
 
@@ -443,9 +372,8 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)
@@ -462,16 +390,6 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 				return &proto.CreatePrivilegeTokenRequest{
 					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 						TOTP: &proto.TOTPResponse{Code: "wrong-otp-token-value"},
-					}},
-				}
-			},
-		},
-		{
-			name: "locked from u2f attempts",
-			getReq: func() *proto.CreatePrivilegeTokenRequest {
-				return &proto.CreatePrivilegeTokenRequest{
-					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
-						U2F: &proto.U2FResponse{},
 					}},
 				}
 			},

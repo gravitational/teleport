@@ -19,12 +19,12 @@ package services
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 // TestMatchResourceLabels tests matching a resource against a selector.
@@ -375,9 +375,13 @@ func TestMatchResourceByFilters(t *testing.T) {
 		resource       func() types.ResourceWithLabels
 	}{
 		{
-			name:     "empty filter",
-			resource: func() types.ResourceWithLabels { return nil },
-			filters:  MatchResourceFilter{},
+			name: "no filter should return true",
+			resource: func() types.ResourceWithLabels {
+				server, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{})
+				require.NoError(t, err)
+				return server
+			},
+			filters: MatchResourceFilter{ResourceKind: types.KindNode},
 		},
 		{
 			name:     "unsupported resource kind",
@@ -452,6 +456,20 @@ func TestMatchResourceByFilters(t *testing.T) {
 			},
 		},
 		{
+			name: "kube cluster",
+			resource: func() types.ResourceWithLabels {
+				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster("_", &types.KubernetesCluster{
+					Name: "foo",
+				})
+				require.NoError(t, err)
+				return cluster
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindKubernetesCluster,
+				PredicateExpression: filterExpression,
+			},
+		},
+		{
 			name: "node",
 			resource: func() types.ResourceWithLabels {
 				server, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{})
@@ -463,6 +481,18 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+		{
+			name: "windows desktop",
+			resource: func() types.ResourceWithLabels {
+				desktop, err := types.NewWindowsDesktopV3("foo", nil, types.WindowsDesktopSpecV3{Addr: "_"})
+				require.NoError(t, err)
+				return desktop
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindWindowsDesktop,
+				PredicateExpression: filterExpression,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -471,7 +501,7 @@ func TestMatchResourceByFilters(t *testing.T) {
 			t.Parallel()
 
 			resource := tc.resource()
-			match, err := MatchResourceByFilters(resource, tc.filters)
+			match, err := MatchResourceByFilters(resource, tc.filters, nil)
 
 			switch tc.wantNotImplErr {
 			case true:
@@ -489,6 +519,55 @@ func TestMatchResourceByFilters(t *testing.T) {
 				require.Equal(t, server.GetKubernetesClusters()[0].Name, "foo")
 				require.Equal(t, server.GetKubernetesClusters()[1].Name, "foo")
 			}
+		})
+	}
+}
+
+func TestResourceMatchersToTypes(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   []ResourceMatcher
+		out  []*types.DatabaseResourceMatcher
+	}{
+		{
+			name: "empty",
+			in:   []ResourceMatcher{},
+			out:  []*types.DatabaseResourceMatcher{},
+		},
+		{
+			name: "sinlge element with single label",
+			in: []ResourceMatcher{
+				{Labels: types.Labels{"elem1": []string{"elem1"}}},
+			},
+			out: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"elem1": []string{"elem1"}}},
+			},
+		},
+		{
+			name: "sinlge element with multiple labels",
+			in: []ResourceMatcher{
+				{Labels: types.Labels{"elem2": []string{"elem1", "elem2"}}},
+			},
+			out: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"elem2": []string{"elem1", "elem2"}}},
+			},
+		},
+		{
+			name: "multiple elements",
+			in: []ResourceMatcher{
+				{Labels: types.Labels{"elem1": []string{"elem1"}}},
+				{Labels: types.Labels{"elem2": []string{"elem1", "elem2"}}},
+				{Labels: types.Labels{"elem3": []string{"elem1", "elem2", "elem3"}}},
+			},
+			out: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"elem1": []string{"elem1"}}},
+				{Labels: &types.Labels{"elem2": []string{"elem1", "elem2"}}},
+				{Labels: &types.Labels{"elem3": []string{"elem1", "elem2", "elem3"}}},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.out, ResourceMatchersToTypes(tt.in))
 		})
 	}
 }

@@ -1,0 +1,19 @@
+### No credential providers error
+
+If you see the error `DefaultAzureCredential: failed to acquire a token.` in Database Service logs then Teleport
+is not detecting the required credentials to connect to the Azure SDK. Check whether
+the credentials have been applied in the machine running the Teleport Database Service and restart
+the Teleport Database Service.
+Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
+for more information.
+
+### Timeout errors
+
+The Teleport Database Service needs connectivity to your database endpoints. That may require
+enabling inbound traffic on the database from the Database Service on the same VPC or routing rules from another VPC. Using the `nc`
+program you can verify connections to databases:
+
+```code
+$ nc -zv server-name.postgres.database.azure.com 5432
+# Connection to server-name.postgres.database.azure.com 5432 port [tcp/postgresql] succeeded!
+```

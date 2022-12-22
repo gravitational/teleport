@@ -17,6 +17,13 @@ limitations under the License.
 // Package constants defines Teleport-specific constants
 package constants
 
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/gravitational/trace"
+)
+
 const (
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
@@ -41,6 +48,13 @@ const (
 	// EnhancedRecordingNetwork is a role option that implies network events
 	// are captured.
 	EnhancedRecordingNetwork = "network"
+
+	// LocalConnector is the authenticator connector for local logins.
+	LocalConnector = "local"
+
+	// PasswordlessConnector is the authenticator connector for
+	// local/passwordless logins.
+	PasswordlessConnector = "passwordless"
 
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
@@ -113,12 +127,34 @@ const (
 
 	// AWSConsoleURL is the URL of AWS management console.
 	AWSConsoleURL = "https://console.aws.amazon.com"
+	// AWSUSGovConsoleURL is the URL of AWS management console for AWS GovCloud
+	// (US) Partition.
+	AWSUSGovConsoleURL = "https://console.amazonaws-us-gov.com"
+	// AWSCNConsoleURL is the URL of AWS management console for AWS China
+	// Partition.
+	AWSCNConsoleURL = "https://console.amazonaws.cn"
+
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
 
 	// RSAKeySize is the size of the RSA key.
 	RSAKeySize = 2048
+
+	// NoLoginPrefix is the prefix used for nologin certificate principals.
+	NoLoginPrefix = "-teleport-nologin-"
+
+	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
+	DatabaseCAMinVersion = "10.0.0"
+
+	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
+	SSHRSAType = "ssh-rsa"
 )
+
+// SystemConnectors lists the names of the system-reserved connectors.
+var SystemConnectors = []string{
+	LocalConnector,
+	PasswordlessConnector,
+}
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -129,11 +165,13 @@ const (
 	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorOTP = SecondFactorType("otp")
-	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
-	// required for all users.
+	// SecondFactorU2F means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
+	// Deprecated: "u2f" is aliased to "webauthn". Prefer using
+	// SecondFactorWebauthn instead.
 	SecondFactorU2F = SecondFactorType("u2f")
-	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA is
-	// required for all users.
+	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
 	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.
@@ -142,6 +180,48 @@ const (
 	// is required only for users that have MFA devices registered.
 	SecondFactorOptional = SecondFactorType("optional")
 )
+
+// UnmarshalYAML supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var tmp interface{}
+	if err := unmarshal(&tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
+
+// UnmarshalJSON supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
+	var tmp interface{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
 
 // LockingMode determines how a (possibly stale) set of locks should be applied
 // to an interaction.
@@ -155,6 +235,23 @@ const (
 	// LockingModeBestEffort applies the most recently known locks under all
 	// circumstances.
 	LockingModeBestEffort = LockingMode("best_effort")
+)
+
+// DeviceTrustMode is the mode of verification for trusted devices.
+// DeviceTrustMode is always "off" for OSS.
+// Defaults to "optional" for Enterprise.
+type DeviceTrustMode = string
+
+const (
+	// DeviceTrustModeOff disables both device authentication and authorization.
+	DeviceTrustModeOff DeviceTrustMode = "off"
+	// DeviceTrustModeOptional allows both device authentication and
+	// authorization, but doesn't enforce the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeOptional DeviceTrustMode = "optional"
+	// DeviceTrustModeRequired enforces the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeRequired DeviceTrustMode = "required"
 )
 
 const (
@@ -180,8 +277,99 @@ const (
 
 const (
 	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
+)
+
+// SessionRecordingService is used to differentiate session recording services.
+type SessionRecordingService int
+
+const (
+	// SessionRecordingServiceSSH represents the SSH service session.
+	SessionRecordingServiceSSH SessionRecordingService = iota
+)
+
+// SessionRecordingMode determines how session recording will behave in failure
+// scenarios.
+type SessionRecordingMode string
+
+const (
+	// SessionRecordingModeStrict causes any failure session recording to
+	// terminate the session or prevent a new session from starting.
+	SessionRecordingModeStrict = SessionRecordingMode("strict")
+
+	// SessionRecordingModeBestEffort allows the session to keep going even when
+	// session recording fails.
+	SessionRecordingModeBestEffort = SessionRecordingMode("best_effort")
+)
+
+// Constants for Traits
+const (
+	// TraitLogins is the name of the role variable used to store
+	// allowed logins.
+	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
+
+	// TraitKubeGroups is the name the role variable used to store
+	// allowed kubernetes groups
+	TraitKubeGroups = "kubernetes_groups"
+
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
+
+	// TraitDBNames is the name of the role variable used to store
+	// allowed database names.
+	TraitDBNames = "db_names"
+
+	// TraitDBUsers is the name of the role variable used to store
+	// allowed database users.
+	TraitDBUsers = "db_users"
+
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+
+	// TraitAzureIdentities is the name of the role variable used to store
+	// allowed Azure identity names.
+	TraitAzureIdentities = "azure_identities"
+)
+
+// Constants for AWS discovery
+const (
+	AWSServiceTypeEC2 = "ec2"
+	AWSServiceTypeEKS = "eks"
+)
+
+// SupportedAWSDiscoveryServices is list of AWS services currently
+// supported by the Teleport discovery service
+var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEKS}
+
+// Constants for Azure discovery.
+const (
+	AzureServiceTypeKubernetes = "aks"
+	AzureServiceTypeVM         = "vm"
+)
+
+// SupportedAzureDiscoveryServices is list of Azure services currently
+// supported by the Teleport discovery service.
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
+
+// Constants for GCP discovery.
+const (
+	GCPServiceTypeKubernetes = "gke"
+)
+
+// SupportedGCPDiscoveryServices is list of GCP services currently
+// supported by the Teleport discovery service.
+var SupportedGCPDiscoveryServices = []string{GCPServiceTypeKubernetes}
+
+const (
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 500
 )

@@ -22,28 +22,20 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgproto3/v2"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgproto3/v2"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
-func init() {
-	common.RegisterEngine(newEngine,
-		defaults.ProtocolPostgres,
-		defaults.ProtocolCockroachDB)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new Postgres engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
@@ -191,11 +183,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
 
+	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		sessionCtx.Database.GetProtocol(),
 		sessionCtx.DatabaseUser,
@@ -227,19 +216,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	// messages b/w server and client e.g. to get client's password.
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
-			return nil, nil, trace.AccessDenied(`Could not connect to database:
-
-  %v
-
-Make sure that Postgres user %q has "rds_iam" role and Teleport database
-agent's IAM policy has "rds-connect" permissions (note that IAM changes may
-take a few minutes to propagate):
-
-%v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
-		}
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, common.ConvertConnectError(err, sessionCtx)
 	}
 	// Hijacked connection exposes some internal connection data, such as
 	// parameters we'll need to relay back to the client (e.g. database
@@ -432,13 +409,18 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an
 	// auth token and use it as a password.
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
 		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeRedshift:
 		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.DatabaseTypeRedshiftServerless:
+		config.User, config.Password, err = e.Auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -22,11 +22,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils/workpool"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/workpool"
 )
 
 type Lease = workpool.Lease
+
+const (
+	// DefaultProxyExpiry is the default amount of time a tracker will attempt
+	// to successfully connect to a proxy before giving up
+	DefaultProxyExpiry = 3 * time.Minute
+)
 
 // Config configures basic Tracker parameters.
 type Config struct {
@@ -43,7 +50,7 @@ type Config struct {
 // CheckAndSetDefaults set default values for Config.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ProxyExpiry < 1 {
-		c.ProxyExpiry = 3 * time.Minute
+		c.ProxyExpiry = DefaultProxyExpiry
 	}
 	if c.TickRate < 1 {
 		c.TickRate = 30 * time.Second
@@ -175,16 +182,13 @@ func (t *Tracker) getOrCreate() *proxySet {
 	return t.sets
 }
 
-// WithProxy runs the supplied closure if and only if
-// no other work is currently being done with the proxy
-// identified by principals.
-func (t *Tracker) WithProxy(work func(), principals ...string) (didWork bool) {
+// Claim attempts to claim a lease based on the given principals returning a
+// function to unclaim and if the claim was successful.
+func (t *Tracker) Claim(principals ...string) (unclaim func(), ok bool) {
 	if ok := t.claim(principals...); !ok {
-		return false
+		return nil, false
 	}
-	defer t.release(principals...)
-	work()
-	return true
+	return func() { t.release(principals...) }, true
 }
 
 func (t *Tracker) claim(principals ...string) (ok bool) {

@@ -20,10 +20,10 @@ import (
 	"io"
 	"net"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting
@@ -33,11 +33,12 @@ type TestProxy struct {
 	target   string
 	closeCh  chan (struct{})
 	log      logrus.FieldLogger
+	v2       bool
 }
 
 // NewTestProxy creates a new test proxy that sends a proxy-line when
 // proxying connections to the provided target address.
-func NewTestProxy(target string) (*TestProxy, error) {
+func NewTestProxy(target string, v2 bool) (*TestProxy, error) {
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -47,6 +48,7 @@ func NewTestProxy(target string) (*TestProxy, error) {
 		target:   target,
 		closeCh:  make(chan struct{}),
 		log:      logrus.WithField(trace.Component, "test:proxy"),
+		v2:       v2,
 	}, nil
 }
 
@@ -128,7 +130,15 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 		Destination: net.TCPAddr{IP: net.ParseIP(serverAddr.Host()), Port: serverAddr.Port(0)},
 	}
 	p.log.Debugf("Sending %v to %v.", proxyLine.String(), serverConn.RemoteAddr().String())
-	_, err = serverConn.Write([]byte(proxyLine.String()))
+	if p.v2 {
+		b, bErr := proxyLine.Bytes()
+		if bErr != nil {
+			return trace.Wrap(err)
+		}
+		_, err = serverConn.Write(b)
+	} else {
+		_, err = serverConn.Write([]byte(proxyLine.String()))
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}

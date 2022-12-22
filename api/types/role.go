@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 const (
@@ -46,6 +47,9 @@ type Role interface {
 	// Resource provides common resource methods.
 	Resource
 
+	// SetMetadata sets role metadata
+	SetMetadata(meta Metadata)
+
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
 	// SetOptions sets role options
@@ -58,7 +62,7 @@ type Role interface {
 
 	// GetNamespaces gets a list of namespaces this role is allowed or denied access to.
 	GetNamespaces(RoleConditionType) []string
-	// GetNamespaces sets a list of namespaces this role is allowed or denied access to.
+	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
 
 	// GetNodeLabels gets the map of node labels this role is allowed or denied access to.
@@ -115,7 +119,7 @@ type Role interface {
 
 	// GetDatabaseNames gets a list of database names this role is allowed or denied access to.
 	GetDatabaseNames(RoleConditionType) []string
-	// SetDatabasenames sets a list of database names this role is allowed or denied access to.
+	// SetDatabaseNames sets a list of database names this role is allowed or denied access to.
 	SetDatabaseNames(RoleConditionType, []string)
 
 	// GetDatabaseUsers gets a list of database users this role is allowed or denied access to.
@@ -125,13 +129,18 @@ type Role interface {
 
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
-	// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+	// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
 	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
 
 	// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
 	GetAWSRoleARNs(RoleConditionType) []string
-	// SetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	// SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to assume.
 	SetAWSRoleARNs(RoleConditionType, []string)
+
+	// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+	GetAzureIdentities(RoleConditionType) []string
+	// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+	SetAzureIdentities(RoleConditionType, []string)
 
 	// GetWindowsDesktopLabels gets the Windows desktop labels this role
 	// is allowed or denied access to.
@@ -154,13 +163,48 @@ type Role interface {
 	SetSessionJoinPolicies([]*SessionJoinPolicy)
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
+
+	// GetSearchAsRoles returns the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	GetSearchAsRoles(RoleConditionType) []string
+	// SetSearchAsRoles sets the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	SetSearchAsRoles(RoleConditionType, []string)
+
+	// GetPreviewAsRoles returns the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	GetPreviewAsRoles(RoleConditionType) []string
+	// SetPreviewAsRoles sets the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	SetPreviewAsRoles(RoleConditionType, []string)
+
+	// GetHostGroups gets the list of groups this role is put in when users are provisioned
+	GetHostGroups(RoleConditionType) []string
+	// SetHostGroups sets the list of groups this role is put in when users are provisioned
+	SetHostGroups(RoleConditionType, []string)
+
+	// GetHostSudoers gets the list of sudoers entries for the role
+	GetHostSudoers(RoleConditionType) []string
+	// SetHostSudoers sets the list of sudoers entries for the role
+	SetHostSudoers(RoleConditionType, []string)
+
+	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 }
 
-// NewRole constructs new standard V3 role.
-// This is mostly a legacy function and will create a role with V3 RBAC semantics.
+// NewRole constructs new standard V5 role.
+// This creates a V5 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V3,
+		Version: V5,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -172,11 +216,11 @@ func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	return &role, nil
 }
 
-// NewRoleV5 constructs new standard V5 role.
-// This creates a V5 role with V4+ RBAC semantics. This should be preferred over `NewRole`.
-func NewRoleV5(name string, spec RoleSpecV5) (Role, error) {
+// NewRoleV3 constructs new standard V3 role.
+// This is mostly a legacy function and will create a role with V3 RBAC semantics.
+func NewRoleV3(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V5,
+		Version: V3,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -251,6 +295,11 @@ func (r *RoleV5) GetName() string {
 // GetMetadata returns role metadata.
 func (r *RoleV5) GetMetadata() Metadata {
 	return r.Metadata
+}
+
+// SetMetadata sets role metadata
+func (r *RoleV5) SetMetadata(meta Metadata) {
+	r.Metadata = meta
 }
 
 // GetOptions gets role options.
@@ -512,7 +561,7 @@ func (r *RoleV5) GetImpersonateConditions(rct RoleConditionType) ImpersonateCond
 	return *cond
 }
 
-// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
 func (r *RoleV5) SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions) {
 	if rct == Allow {
 		r.Spec.Allow.Impersonate = &cond
@@ -535,6 +584,23 @@ func (r *RoleV5) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
 		r.Spec.Allow.AWSRoleARNs = arns
 	} else {
 		r.Spec.Deny.AWSRoleARNs = arns
+	}
+}
+
+// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+func (r *RoleV5) GetAzureIdentities(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AzureIdentities
+	}
+	return r.Spec.Deny.AzureIdentities
+}
+
+// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+func (r *RoleV5) SetAzureIdentities(rct RoleConditionType, identities []string) {
+	if rct == Allow {
+		r.Spec.Allow.AzureIdentities = identities
+	} else {
+		r.Spec.Deny.AzureIdentities = identities
 	}
 }
 
@@ -593,14 +659,61 @@ func (r *RoleV5) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
+// GetGroups gets all groups for provisioned user
+func (r *RoleV5) GetHostGroups(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.HostGroups
+	}
+	return r.Spec.Deny.HostGroups
+
+}
+
+// SetHostGroups sets all groups for provisioned user
+func (r *RoleV5) SetHostGroups(rct RoleConditionType, groups []string) {
+	ncopy := utils.CopyStrings(groups)
+	if rct == Allow {
+		r.Spec.Allow.HostGroups = ncopy
+	} else {
+		r.Spec.Deny.HostGroups = ncopy
+	}
+}
+
+// GetHostSudoers gets the list of sudoers entries for the role
+func (r *RoleV5) GetHostSudoers(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.HostSudoers
+	}
+	return r.Spec.Deny.HostSudoers
+
+}
+
+// GetHostSudoers sets the list of sudoers entries for the role
+func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
+	ncopy := utils.CopyStrings(sudoers)
+	if rct == Allow {
+		r.Spec.Allow.HostSudoers = ncopy
+	} else {
+		r.Spec.Deny.HostSudoers = ncopy
+	}
+}
+
+// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	switch r.Spec.Options.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return keys.PrivateKeyPolicyHardwareKey
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
-	// TODO(Joerger/nklaassen) Role should default to V4
-	// but shouldn't overwrite V3. For now, this does the
-	// opposite due to an internal reliance on V3 defaults.
-	if r.Version != V4 && r.Version != V5 {
-		r.Version = V3
+	if r.Version != V3 && r.Version != V4 {
+		r.Version = V5
 	}
 }
 
@@ -610,6 +723,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// DELETE IN 13.0.0
+	r.CheckSetRequireSessionMFA()
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
@@ -630,10 +746,20 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if r.Spec.Options.RecordSession == nil {
 		r.Spec.Options.RecordSession = &RecordSession{
 			Desktop: NewBoolOption(true),
+			Default: constants.SessionRecordingModeBestEffort,
 		}
 	}
 	if r.Spec.Options.DesktopClipboard == nil {
 		r.Spec.Options.DesktopClipboard = NewBoolOption(true)
+	}
+	if r.Spec.Options.DesktopDirectorySharing == nil {
+		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(true)
+	}
+	if r.Spec.Options.CreateHostUser == nil {
+		r.Spec.Options.CreateHostUser = NewBoolOption(false)
+	}
+	if r.Spec.Options.SSHFileCopy == nil {
+		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
 
 	switch r.Version {
@@ -703,6 +829,11 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
 		}
 	}
+	for _, identity := range r.Spec.Allow.AzureIdentities {
+		if identity == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in allow.azure_identities")
+		}
+	}
 	checkWildcardSelector := func(labels Labels) error {
 		for key, val := range labels {
 			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
@@ -749,6 +880,16 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// RequireSessionMFA must be checked/set when communicating with an old server or client.
+// DELETE IN 13.0.0
+func (r *RoleV5) CheckSetRequireSessionMFA() {
+	if r.Spec.Options.RequireMFAType != RequireMFAType_OFF {
+		r.Spec.Options.RequireSessionMFA = r.Spec.Options.RequireMFAType.IsSessionMFARequired()
+	} else if r.Spec.Options.RequireSessionMFA {
+		r.Spec.Options.RequireMFAType = RequireMFAType_SESSION
+	}
 }
 
 // String returns the human readable representation of a role.
@@ -1134,4 +1275,64 @@ func (r *RoleV5) GetSessionJoinPolicies() []*SessionJoinPolicy {
 // SetSessionJoinPolicies sets the RBAC join policies for a role.
 func (r *RoleV5) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
+}
+
+// GetSearchAsRoles returns the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV5) GetSearchAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.Request == nil {
+		return nil
+	}
+	return roleConditions.Request.SearchAsRoles
+}
+
+// SetSearchAsRoles sets the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV5) SetSearchAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.Request == nil {
+		roleConditions.Request = &AccessRequestConditions{}
+	}
+	roleConditions.Request.SearchAsRoles = roles
+}
+
+// GetPreviewAsRoles returns the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV5) GetPreviewAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		return nil
+	}
+	return roleConditions.ReviewRequests.PreviewAsRoles
+}
+
+// SetPreviewAsRoles sets the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV5) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		roleConditions.ReviewRequests = &AccessReviewConditions{}
+	}
+	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }

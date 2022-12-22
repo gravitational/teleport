@@ -20,9 +20,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestReconciler makes sure appropriate callbacks are called during reconciliation.
@@ -156,11 +156,11 @@ func TestReconciler(t *testing.T) {
 				Matcher: func(rwl types.ResourceWithLabels) bool {
 					return MatchResourceLabels(test.selectors, rwl)
 				},
-				GetCurrentResources: func() types.ResourcesWithLabels {
-					return test.registeredResources
+				GetCurrentResources: func() types.ResourcesWithLabelsMap {
+					return test.registeredResources.ToMap()
 				},
-				GetNewResources: func() types.ResourcesWithLabels {
-					return test.newResources
+				GetNewResources: func() types.ResourcesWithLabelsMap {
+					return test.newResources.ToMap()
 				},
 				OnCreate: func(ctx context.Context, r types.ResourceWithLabels) error {
 					onCreateCalls = append(onCreateCalls, r)

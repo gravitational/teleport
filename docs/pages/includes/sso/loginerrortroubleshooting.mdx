@@ -1,0 +1,60 @@
+Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
+must be able to:
+
+<ScopedBlock scope={["oss","enterprise"]}>
+- Ensure that HTTP/TLS certificates are configured properly for both Teleport
+  proxy and the SSO provider.
+</ScopedBlock>
+- Be able to see what SAML/OIDC claims and values are getting exported and passed
+  by the SSO provider to Teleport.
+- Be able to see how Teleport maps the received claims to role mappings as defined
+  in the connector.
+
+If something is not working, we recommend to:
+
+- Double-check the host names, tokens and TCP ports in a connector definition.
+
+### Using the Web UI
+
+If you get "access denied" or other login errors, the number one place to check is the Audit
+Log. You can access it in the **Activity** tab of the Teleport Web UI.
+
+![Audit Log Entry for SSO Login error](../../../img/sso/teleportauditlogssofailed.png)
+
+Example of a user being denied because the role `clusteradmin` wasn't set up:
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+
+### Teleport does not show the expected Nodes
+
+(!docs/pages/includes/node-logins.mdx!)
+
+When configuring SSO, ensure that the identity provider is populating each user's 
+traits correctly. For a user to see a Node in Teleport, the result of populating a
+ template variable in a role's `allow.logins` must match at least one of a user's
+ `traits.logins`.
+
+
+In this example a user will have usernames `ubuntu`, `debian` and usernames from the SSO trait `logins` for Nodes that have a `env: dev` label.  If the SSO trait username is `bob` then the usernames would include `ubuntu`, `debian`, and `bob`.
+
+```yaml
+kind: role
+metadata:
+  name: example-role
+spec:
+  allow:
+    logins: ['{{external.logins}}', ubuntu, debian]
+    node_labels:
+      'env': 'dev'
+version: v5
+```

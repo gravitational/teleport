@@ -20,10 +20,17 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+
+	oxyutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -31,13 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	oxyutils "github.com/gravitational/oxy/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 )
 
 // HandlerConfig is the configuration for an application handler.
@@ -122,6 +122,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 	// Create the application routes.
 	h.router = httprouter.New()
+	h.router.UseRawPath = true
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.handleFragment))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleFragment))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
@@ -133,6 +134,51 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
+}
+
+// HandleConnection handles connections from plain TCP applications.
+func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) error {
+	tlsConn, ok := clientConn.(*tls.Conn)
+	if !ok {
+		return trace.BadParameter("expected *tls.Conn, got: %T", clientConn)
+	}
+
+	certs := tlsConn.ConnectionState().PeerCertificates
+	if len(certs) != 1 {
+		return trace.BadParameter("expected 1 client certificate: %+v", tlsConn.ConnectionState())
+	}
+
+	identity, err := tlsca.FromSubject(certs[0].Subject, certs[0].NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: identity.RouteToApp.SessionID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := h.getSession(ctx, ws)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serverConn, err := session.tr.DialContext(ctx, "", "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer serverConn.Close()
+
+	serverConn = tls.Client(serverConn, session.tr.clientTLSConfig)
+
+	err = utils.ProxyConn(ctx, clientConn, serverConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // handleForward forwards the request to the application service.
@@ -334,9 +380,10 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
 	u := url.URL{
-		Scheme: "https",
-		Host:   proxyPublicAddrs[0].String(),
-		Path:   fmt.Sprintf("/web/launch/%v", raddr.Host()),
+		Scheme:   "https",
+		Host:     proxyPublicAddrs[0].String(),
+		Path:     fmt.Sprintf("/web/launch/%s", raddr.Host()),
+		RawQuery: fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path)),
 	}
 	return u.String(), true
 }

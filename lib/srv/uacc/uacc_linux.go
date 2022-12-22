@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 /*
 Copyright 2021 Gravitational, Inc.
 
@@ -35,6 +32,8 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Due to thread safety design in glibc we must serialize all access to the accounting database.
@@ -45,6 +44,20 @@ const hostMaxLen = 255
 
 // Max username length as defined by glibc.
 const userMaxLen = 32
+
+// Sometimes the _UTMP_PATH and _WTMP_PATH macros from glibc are bad, this seems to depend on distro.
+// I asked around on IRC, no one really knows why. I suspect it's another
+// archaic remnant of old Unix days and that a cleanup is long overdue.
+//
+// In the meantime, we just try to resolve from these paths instead.
+
+const (
+	utmpFilePath = "/var/run/utmp"
+	wtmpFilePath = "/var/log/wtmp"
+	// wtmpAltFilePath exists only because on some system the path is different.
+	// It's being used when the wtmp path is not provided and the wtmpFilePath doesn't exist.
+	wtmpAltFilePath = "/var/run/wtmp"
+)
 
 // Open writes a new entry to the utmp database with a tag of `USER_PROCESS`.
 // This should be called when an interactive session is started.
@@ -70,17 +83,14 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
+	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
 	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char = nil
-	var cWtmpPath *C.char = nil
-	if len(utmpPath) > 0 {
-		cUtmpPath = C.CString(utmpPath)
-		defer C.free(unsafe.Pointer(cUtmpPath))
-	}
-	if len(wtmpPath) > 0 {
-		cWtmpPath = C.CString(wtmpPath)
-		defer C.free(unsafe.Pointer(cWtmpPath))
-	}
+	cUtmpPath := C.CString(utmpPath)
+	defer C.free(unsafe.Pointer(cUtmpPath))
+
+	cWtmpPath := C.CString(wtmpPath)
+	defer C.free(unsafe.Pointer(cWtmpPath))
+
 	cUsername := C.CString(username)
 	defer C.free(unsafe.Pointer(cUsername))
 	cHostname := C.CString(hostname)
@@ -101,8 +111,8 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
 	accountDb.Lock()
-	status := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
+	defer accountDb.Unlock()
+	status, errno := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -110,18 +120,13 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	case C.UACC_UTMP_WRITE_ERROR:
 		return trace.AccessDenied("failed to add entry to utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with errno %d", C.get_errno())
-		}
-
-		return nil
+		return decodeUnknownError(int(status))
 	}
 }
 
@@ -140,17 +145,14 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
+	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
+
 	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char = nil
-	var cWtmpPath *C.char = nil
-	if len(utmpPath) > 0 {
-		cUtmpPath = C.CString(utmpPath)
-		defer C.free(unsafe.Pointer(cUtmpPath))
-	}
-	if len(wtmpPath) > 0 {
-		cWtmpPath = C.CString(wtmpPath)
-		defer C.free(unsafe.Pointer(cWtmpPath))
-	}
+	cUtmpPath := C.CString(utmpPath)
+	defer C.free(unsafe.Pointer(cUtmpPath))
+	cWtmpPath := C.CString(wtmpPath)
+	defer C.free(unsafe.Pointer(cWtmpPath))
+
 	cTtyName := C.CString(strings.TrimPrefix(ttyName, "/dev/"))
 	defer C.free(unsafe.Pointer(cTtyName))
 
@@ -159,8 +161,8 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
 	accountDb.Lock()
-	status := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
+	defer accountDb.Unlock()
+	status, errno := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -170,19 +172,33 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	case C.UACC_UTMP_READ_ERROR:
 		return trace.AccessDenied("failed to read and search utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
-		}
-
-		return nil
+		return decodeUnknownError(int(status))
 	}
+}
+
+// getDefaultPaths sets the default paths for utmp and wtmp files if passed empty.
+// This function always returns both paths, even if they don't exist in the system.
+func getDefaultPaths(utmpPath, wtmpPath string) (string, string) {
+	if utmpPath == "" {
+		utmpPath = utmpFilePath
+	}
+
+	if wtmpPath == "" {
+		// Check where wtmp is located.
+		if utils.FileExists(wtmpFilePath) {
+			wtmpPath = wtmpFilePath
+		} else {
+			wtmpPath = wtmpAltFilePath
+		}
+	}
+
+	return utmpPath, wtmpPath
 }
 
 // UserWithPtyInDatabase checks the user accounting database for the existence of an USER_PROCESS entry with the given username.
@@ -192,7 +208,7 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	}
 
 	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char = nil
+	var cUtmpPath *C.char
 	if len(utmpPath) > 0 {
 		cUtmpPath = C.CString(utmpPath)
 		defer C.free(unsafe.Pointer(cUtmpPath))
@@ -201,13 +217,12 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	defer C.free(unsafe.Pointer(cUsername))
 
 	accountDb.Lock()
-	status := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
-	accountDb.Unlock()
+	defer accountDb.Unlock()
+	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
 
 	switch status {
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
 		return trace.NotFound("user not found")
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
@@ -215,10 +230,20 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
-		}
+		return decodeUnknownError(int(status))
+	}
+}
 
+func decodeUnknownError(status int) error {
+	if status == 0 {
 		return nil
 	}
+
+	if C.UACC_PATH_ERR != nil {
+		data := C.GoString(C.UACC_PATH_ERR)
+		C.free(unsafe.Pointer(C.UACC_PATH_ERR))
+		return trace.Errorf("unknown error with code %d and data %v", status, data)
+	}
+
+	return trace.Errorf("unknown error with code %d", status)
 }

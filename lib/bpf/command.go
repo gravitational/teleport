@@ -20,15 +20,14 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
+	_ "embed"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	_ "embed"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
@@ -79,7 +78,7 @@ type exec struct {
 // startExec will load, start, and pull events off the ring buffer
 // for the BPF program.
 func startExec(bufferSize int) (*exec, error) {
-	err := utils.RegisterPrometheusCollectors(lostCommandEvents)
+	err := metrics.RegisterPrometheusCollectors(lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

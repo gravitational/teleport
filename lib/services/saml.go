@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -25,22 +26,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	saml2 "github.com/russellhaering/gosaml2"
+	samltypes "github.com/russellhaering/gosaml2/types"
+	dsig "github.com/russellhaering/goxmldsig"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	saml2 "github.com/russellhaering/gosaml2"
-	samltypes "github.com/russellhaering/gosaml2/types"
-	dsig "github.com/russellhaering/goxmldsig"
 )
 
-// ValidateSAMLConnector validates the SAMLConnector and sets default values
-func ValidateSAMLConnector(sc types.SAMLConnector) error {
+// ValidateSAMLConnector validates the SAMLConnector and sets default values.
+// If a remote to fetch roles is specified, roles will be validated to exist.
+func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 	if err := sc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,7 +70,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector) error {
 		}
 
 		sc.SetIssuer(metadata.EntityID)
-		if len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
+		if metadata.IDPSSODescriptor != nil && len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
 			sc.SetSSO(metadata.IDPSSODescriptor.SingleSignOnServices[0].Location)
 		}
 	}
@@ -93,6 +94,28 @@ func ValidateSAMLConnector(sc types.SAMLConnector) error {
 			PrivateKey: string(keyPEM),
 			Cert:       string(certPEM),
 		})
+	}
+
+	if len(sc.GetAttributesToRoles()) == 0 {
+		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never assign any roles")
+	}
+
+	if rg != nil {
+		for _, mapping := range sc.GetAttributesToRoles() {
+			for _, role := range mapping.Roles {
+				if utils.ContainsExpansion(role) {
+					// Role is a template so we cannot check for existence of that literal name.
+					continue
+				}
+				_, err := rg.GetRole(context.Background(), role)
+				switch {
+				case trace.IsNotFound(err):
+					return trace.BadParameter("role %q specified in attributes_to_roles not found", role)
+				case err != nil:
+					return trace.Wrap(err)
+				}
+			}
+		}
 	}
 
 	log.Debugf("[SAML] SSO: %v", sc.GetSSO())
@@ -124,32 +147,44 @@ func SAMLAssertionsToTraits(assertions saml2.AssertionInfo) map[string][]string 
 	return traits
 }
 
+// CheckSAMLEntityDescriptor checks if the entity descriptor XML is valid and has at least one valid certificate.
+func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, error) {
+	if entityDescriptor == "" {
+		return nil, nil
+	}
+
+	metadata := &samltypes.EntityDescriptor{}
+	if err := xml.Unmarshal([]byte(entityDescriptor), metadata); err != nil {
+		return nil, trace.Wrap(err, "failed to parse entity_descriptor")
+	}
+
+	var roots []*x509.Certificate
+
+	for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
+		for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
+			certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to decode certificate defined in entity_descriptor")
+			}
+			cert, err := x509.ParseCertificate(certData)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to parse certificate defined in entity_descriptor")
+			}
+			roots = append(roots, cert)
+		}
+	}
+
+	return roots, nil
+}
+
 // GetSAMLServiceProvider gets the SAMLConnector's service provider
 func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
-	certStore := dsig.MemoryX509CertificateStore{
-		Roots: []*x509.Certificate{},
+	roots, errEd := CheckSAMLEntityDescriptor(sc.GetEntityDescriptor())
+	if errEd != nil {
+		return nil, trace.Wrap(errEd)
 	}
 
-	if sc.GetEntityDescriptor() != "" {
-		metadata := &samltypes.EntityDescriptor{}
-		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
-			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
-		}
-
-		for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
-			for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
-				certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
-				if err != nil {
-					return nil, trace.Wrap(err, "failed to decode certificate defined in entity_descriptor")
-				}
-				cert, err := x509.ParseCertificate(certData)
-				if err != nil {
-					return nil, trace.Wrap(err, "failed to parse certificate defined in entity_descriptor")
-				}
-				certStore.Roots = append(certStore.Roots, cert)
-			}
-		}
-	}
+	certStore := dsig.MemoryX509CertificateStore{Roots: roots}
 
 	if sc.GetCert() != "" {
 		cert, err := tlsca.ParseCertificatePEM([]byte(sc.GetCert()))
@@ -211,16 +246,18 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 	}
 
-	// adfs specific settings
-	if sc.GetProvider() == teleport.ADFS {
+	// Provider specific settings for ADFS and JumpCloud. Specifically these
+	// providers do not support C14N11, which means a C14N10 canonicalizer has to
+	// be used.
+	switch sc.GetProvider() {
+	case teleport.ADFS, teleport.JumpCloud:
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentSAML,
-		}).Debug("Setting ADFS values.")
+		}).Debug("Setting ADFS/JumpCloud values.")
 		if sp.SignAuthnRequests {
-			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
 
-			// at a minimum we require password protected transport
+			// At a minimum we require password protected transport.
 			sp.RequestedAuthnContext = &saml2.RequestedAuthnContext{
 				Comparison: "minimum",
 				Contexts:   []string{"urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"},
@@ -249,7 +286,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.BadParameter(err.Error())
 		}
 
-		if err := ValidateSAMLConnector(&c); err != nil {
+		if err := ValidateSAMLConnector(&c, nil); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -268,7 +305,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
 func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateSAMLConnector(samlConnector); err != nil {
+	if err := ValidateSAMLConnector(samlConnector, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

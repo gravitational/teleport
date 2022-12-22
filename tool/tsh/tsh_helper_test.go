@@ -17,13 +17,17 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os/user"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/breaker"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -37,8 +41,11 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
-		Version: "v1",
+		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
 			NodeName: "localnode",
@@ -52,10 +59,11 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
-			TunAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -67,7 +75,8 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
@@ -84,7 +93,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	s.connector = mockConnector(t)
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -93,20 +102,33 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		},
 	})
 	require.NoError(t, err)
+	kubeLoginRole, err := types.NewRoleV3("kube-login", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			KubeGroups: []string{user.Username},
+			KubernetesLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	s.user, err = types.NewUser("alice")
 	require.NoError(t, err)
-	s.user.SetRoles([]string{"access", "ssh-login"})
-	cfg.Auth.Resources = []types.Resource{s.connector, s.user, sshLoginRole}
+	s.user.SetRoles([]string{"access", "ssh-login", "kube-login"})
+	cfg.Auth.BootstrapResources = []types.Resource{s.connector, s.user, sshLoginRole, kubeLoginRole}
 
 	if options.rootConfigFunc != nil {
 		options.rootConfigFunc(cfg)
 	}
 
-	s.root = runTeleport(t, cfg)
+	s.root = runTeleport(t, cfg, options.newTeleportOptions...)
 	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
-func (s *suite) setupLeafCluster(t *testing.T) {
+func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
@@ -121,9 +143,12 @@ func (s *suite) setupLeafCluster(t *testing.T) {
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
-				EnabledFlag: "true",
+				EnabledFlag:   "true",
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -136,14 +161,15 @@ func (s *suite) setupLeafCluster(t *testing.T) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	user, err := user.Current()
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -163,16 +189,22 @@ func (s *suite) setupLeafCluster(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	cfg.Auth.Resources = []types.Resource{sshLoginRole}
-	s.leaf = runTeleport(t, cfg)
+	cfg.Auth.BootstrapResources = []types.Resource{sshLoginRole}
+	if options.leafConfigFunc != nil {
+		options.leafConfigFunc(cfg)
+	}
+	s.leaf = runTeleport(t, cfg, options.newTeleportOptions...)
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc func(cfg *service.Config)
-	leafCluster    bool
+	rootConfigFunc     func(cfg *service.Config)
+	leafConfigFunc     func(cfg *service.Config)
+	leafCluster        bool
+	validationFunc     func(*suite) bool
+	newTeleportOptions []service.NewTeleportOption
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -183,9 +215,27 @@ func withRootConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
 	}
 }
 
+func withLeafConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.leafConfigFunc = fn
+	}
+}
+
 func withLeafCluster() testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.leafCluster = true
+	}
+}
+
+func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.validationFunc = f
+	}
+}
+
+func withNewTeleportOption(opt service.NewTeleportOption) testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.newTeleportOptions = append(o.newTeleportOptions, opt)
 	}
 }
 
@@ -197,24 +247,57 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	s := &suite{}
 
 	s.setupRootCluster(t, options)
-	if options.leafCluster {
-		s.setupLeafCluster(t)
+
+	if options.leafCluster || options.leafConfigFunc != nil {
+		s.setupLeafCluster(t, options)
+		// Wait for root/leaf to find each other.
+		if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			require.Eventually(t, func() bool {
+				rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
+				require.NoError(t, err)
+				return len(rt) == 1
+			}, time.Second*10, time.Second)
+		} else {
+			require.Eventually(t, func() bool {
+				_, err := s.leaf.GetAuthServer().GetReverseTunnel(s.root.Config.Auth.ClusterName.GetClusterName())
+				return err == nil
+			}, time.Second*10, time.Second)
+		}
+	}
+
+	if options.validationFunc != nil {
 		require.Eventually(t, func() bool {
-			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
-			require.NoError(t, err)
-			return len(rt) == 1
-		}, time.Second*10, time.Second)
+			return options.validationFunc(s)
+		}, 10*time.Second, 500*time.Millisecond)
 	}
 
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
-	process, err := service.NewTeleport(cfg)
+func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportOption) *service.TeleportProcess {
+	process, err := service.NewTeleport(cfg, opts...)
 	require.NoError(t, err)
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
-	waitForEvents(t, process, service.ProxyWebServerReady, service.NodeSSHReady)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	var serviceReadyEvents []string
+	if cfg.Proxy.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.ProxyWebServerReady)
+	}
+	if cfg.SSH.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.NodeSSHReady)
+	}
+	if cfg.Databases.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
+	}
+	waitForEvents(t, process, serviceReadyEvents...)
+
+	if cfg.Databases.Enabled {
+		waitForDatabases(t, process, cfg.Databases.Databases)
+	}
 	return process
 }
 
@@ -224,14 +307,20 @@ func localListenerAddr() string {
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
-		eventCh := make(chan service.Event, 1)
-		svc.WaitForEvent(svc.ExitContext(), event, eventCh)
-		select {
-		case <-eventCh:
-		case <-time.After(30 * time.Second):
-			// in reality, the auth server should start *much* sooner than this.  we use a very large
-			// timeout here because this isn't the kind of problem that this test is meant to catch.
-			t.Fatalf("service server didn't receved %v event after 30s", event)
-		}
+		_, err := svc.WaitForEventTimeout(30*time.Second, event)
+		require.NoError(t, err, "service server didn't receive %v event after 30s", event)
 	}
+}
+
+func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string) {
+	ctx := context.Background()
+	credentials := apiclient.LoadProfile(tshHomePath, "")
+	c, err := apiclient.New(context.Background(), apiclient.Config{
+		Addrs:                    []string{addr},
+		Credentials:              []apiclient.Credentials{credentials},
+		InsecureAddressDiscovery: true,
+	})
+	require.NoError(t, err)
+	_, err = c.Ping(ctx)
+	require.NoError(t, err)
 }

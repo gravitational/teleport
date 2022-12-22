@@ -19,15 +19,24 @@ package desktop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/net/websocket"
+)
+
+const (
+	minPlaybackSpeed = 0.25
+	maxPlaybackSpeed = 16
 )
 
 // Player manages the playback of a recorded desktop session.
@@ -40,6 +49,7 @@ type Player struct {
 	mu        sync.Mutex
 	cond      *sync.Cond
 	playState playbackState
+	playSpeed float32
 
 	log logrus.FieldLogger
 	sID string
@@ -65,6 +75,7 @@ func NewPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.Fie
 		playState: playStatePlaying,
 		log:       log,
 		sID:       sID,
+		playSpeed: 1.0,
 	}
 	p.cond = sync.NewCond(&p.mu)
 	return p
@@ -83,7 +94,7 @@ func (pp *Player) Play(ctx context.Context) {
 	go pp.receiveActions(cancel)
 	go pp.streamSessionEvents(ppCtx, cancel)
 
-	// Wait until the ctx is cancelled, either by
+	// Wait until the ctx is canceled, either by
 	// one of the goroutines above or by the http handler.
 	<-ppCtx.Done()
 }
@@ -105,15 +116,16 @@ const (
 	// between playing and paused
 	actionPlayPause = playbackAction("play/pause")
 
-	// TODO(isaiah): support playbackAction("seek")
+	// actionSpeed sets the playback speed
+	actionSpeed = playbackAction("speed")
 )
 
 // actionMessage is a message passed from the playback client
-// to the server over the websocket connection in order to modify
-// the playback state.
+// to the server over the websocket connection in order to
+// control playback.
 type actionMessage struct {
-	// actionPlayPause toggles the playbackState.playState
-	Action playbackAction `json:"action"`
+	Action        playbackAction `json:"action"`
+	PlaybackSpeed float32        `json:"speed,omitempty"`
 }
 
 // waitWhilePaused waits idly while the player's state is paused, waiting until:
@@ -184,6 +196,16 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 		switch action.Action {
 		case actionPlayPause:
 			pp.togglePlaying()
+		case actionSpeed:
+			if action.PlaybackSpeed < minPlaybackSpeed {
+				action.PlaybackSpeed = minPlaybackSpeed
+			} else if action.PlaybackSpeed > maxPlaybackSpeed {
+				action.PlaybackSpeed = maxPlaybackSpeed
+			}
+
+			pp.mu.Lock()
+			pp.playSpeed = action.PlaybackSpeed
+			pp.mu.Unlock()
 		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
 			return
@@ -197,6 +219,11 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.close(cancel)
 
 	var lastDelay int64
+	scaleDelay := func(delay int64) int64 {
+		pp.mu.Lock()
+		defer pp.mu.Unlock()
+		return int64(float32(delay) / pp.playSpeed)
+	}
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
@@ -205,6 +232,15 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 		case err := <-errC:
 			if err != nil && !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
+				var errorText string
+				if os.IsNotExist(err) || trace.IsNotFound(err) {
+					errorText = "session not found"
+				} else {
+					errorText = "server error"
+				}
+				if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText))); err != nil {
+					pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
+				}
 			}
 			return
 		case evt := <-eventsC:
@@ -219,12 +255,16 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			case *apievents.DesktopRecording:
 				if e.DelayMilliseconds > lastDelay {
 					// TODO(zmb3): replace with time.After so we can cancel
-					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
+					time.Sleep(time.Duration(scaleDelay(e.DelayMilliseconds-lastDelay)) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
 				}
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
+					if _, err := pp.ws.Write([]byte(`{"message":"error","errorText":"server error"}`)); err != nil {
+						pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
+					}
+					return
 				}
 				if _, err := pp.ws.Write(msg); err != nil {
 					// We expect net.ErrClosed to arise when another goroutine returns before
@@ -234,6 +274,12 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 					}
 					return
 				}
+			case *apievents.WindowsDesktopSessionStart, *apievents.WindowsDesktopSessionEnd:
+				// these events are part of the stream but never needed for playback
+			case *apievents.DesktopClipboardReceive, *apievents.DesktopClipboardSend:
+				// these events are not currently needed for playback,
+				// but may be useful in the future
+
 			default:
 				pp.log.Warnf("session %v contains unexpected event type %T", pp.sID, evt)
 			}

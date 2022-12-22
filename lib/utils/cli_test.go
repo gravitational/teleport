@@ -19,17 +19,18 @@ package utils
 import (
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserMessageFromError(t *testing.T) {
+	t.Parallel()
+
 	t.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
 	tests := []struct {
 		comment   string
@@ -62,14 +63,18 @@ func TestUserMessageFromError(t *testing.T) {
 // Regressions test - Consolef used to panic when component name was longer
 // than 8 bytes.
 func TestConsolefLongComponent(t *testing.T) {
+	t.Parallel()
+
 	require.NotPanics(t, func() {
 		component := strings.Repeat("na ", 10) + "batman!"
-		Consolef(ioutil.Discard, logrus.New(), component, "test message")
+		Consolef(io.Discard, logrus.New(), component, "test message")
 	})
 }
 
 // TestEscapeControl tests escape control
 func TestEscapeControl(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		in  string
 		out string
@@ -95,6 +100,8 @@ func TestEscapeControl(t *testing.T) {
 
 // TestAllowNewlines tests escape control that allows newlines
 func TestAllowNewlines(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		in  string
 		out string

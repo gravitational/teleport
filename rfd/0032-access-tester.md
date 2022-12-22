@@ -1,9 +1,11 @@
 ---
 authors: Rui Li (rui@goteleport.com)
-state: implemented
+state: deprecated
 ---
 
 # RFD 32 - Datalog based access tester
+
+**Deprecated:** `roletester` has been removed for the Teleport 10 release.
 
 ## What
 This document will describe the implementation for a Datalog based access tester for Teleport's Role-Based Access Control system that will be able to answer access-related questions.

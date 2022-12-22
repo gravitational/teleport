@@ -16,14 +16,12 @@ package local
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 // CA is local implementation of Trust service that
@@ -75,6 +73,17 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// try to skip writes that would have no effect
+	if existing, err := s.GetCertAuthority(context.TODO(), types.CertAuthID{
+		Type:       ca.GetType(),
+		DomainName: ca.GetClusterName(),
+	}, true); err == nil {
+		if services.CertAuthoritiesEquivalent(existing, ca) {
+			return nil
+		}
+	}
+
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
@@ -93,42 +102,42 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 	return nil
 }
 
-const compareAndSwapFixExample = "tctl get %s/%s/%s --with-secrets > ca.yaml && tctl create -f ca.yaml && rm ca.yaml"
-
 // CompareAndSwapCertAuthority updates the cert authority value
-// if the existing value matches existing parameter, returns nil if succeeds,
+// if the existing value matches expected parameter, returns nil if succeeds,
 // trace.CompareFailed otherwise.
-func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) error {
+func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(new); err != nil {
 		return trace.Wrap(err)
 	}
+
+	key := backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName())
+
+	actualItem, err := s.Get(context.TODO(), key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !services.CertAuthoritiesEquivalent(actual, expected) {
+		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
+	}
+
 	newValue, err := services.MarshalCertAuthority(new)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	newItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName()),
+		Key:     key,
 		Value:   newValue,
 		Expires: new.Expiry(),
 	}
 
-	existingValue, err := services.MarshalCertAuthority(existing)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	existingItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(existing.GetType()), existing.GetName()),
-		Value:   existingValue,
-		Expires: existing.Expiry(),
-	}
-
-	_, err = s.CompareAndSwap(context.TODO(), existingItem, newItem)
+	_, err = s.CompareAndSwap(context.TODO(), *actualItem, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
-			if len(existing.GetMetadata().Labels) >= 2 {
-				exampleCmd := fmt.Sprintf(compareAndSwapFixExample, existing.GetKind(), existing.GetSubKind(), existing.GetName())
-				log.Warnf("comparison failed on certificate authority with multiple labels; if this occurs consistently, try re-saving the resource: %s", exampleCmd)
-			}
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 		}
 		return trace.Wrap(err)
@@ -189,7 +198,7 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 // DeactivateCertAuthority moves a CertAuthority from the normal list to
 // the deactivated list.
 func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
-	certAuthority, err := s.GetCertAuthority(id, true)
+	certAuthority, err := s.GetCertAuthority(context.TODO(), id, true)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("can not deactivate cert authority %q which does not exist", id.DomainName)
@@ -223,11 +232,11 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (s *CA) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	item, err := s.Get(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -252,14 +261,14 @@ func setSigningKeys(ca types.CertAuthority, loadSigningKeys bool) {
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (s *CA) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get all items in the bucket.
 	startKey := backend.Key(authoritiesPrefix, string(caType))
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

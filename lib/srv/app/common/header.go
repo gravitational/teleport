@@ -20,19 +20,36 @@ import (
 	"net/http"
 
 	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 )
 
-// ReservedHeaders is a list of headers injected by Teleport.
-var ReservedHeaders = []string{
-	teleport.AppJWTHeader,
-	teleport.AppCFHeader,
-	forward.XForwardedFor,
-	forward.XForwardedHost,
-	forward.XForwardedProto,
-	forward.XForwardedServer,
+// SetTeleportAPIErrorHeader saves the provided error in X-Teleport-API-Error header of response.
+func SetTeleportAPIErrorHeader(rw http.ResponseWriter, err error) {
+	obj, ok := err.(trace.DebugReporter)
+	if !ok {
+		obj = &trace.TraceErr{Err: err}
+	}
+	rw.Header().Set(TeleportAPIErrorHeader, obj.DebugReport())
 }
+
+const (
+	// XForwardedSSL is a non-standard X-Forwarded-* header that is set to "on" or "off" depending on
+	// whether SSL is enabled.
+	XForwardedSSL = "X-Forwarded-Ssl"
+
+	// TeleportAPIErrorHeader is Teleport-specific error header, optionally holding background error information.
+	TeleportAPIErrorHeader = "X-Teleport-API-Error"
+)
+
+// ReservedHeaders is a list of headers injected by Teleport.
+var ReservedHeaders = append([]string{teleport.AppJWTHeader,
+	teleport.AppCFHeader,
+	XForwardedSSL,
+},
+	forward.XHeaders...,
+)
 
 // IsReservedHeader returns true if the provided header is one of headers
 // injected by Teleport.

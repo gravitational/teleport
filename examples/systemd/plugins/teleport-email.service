@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport Email Plugin
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport-email start --config=/etc/teleport-email.toml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport-email.pid
+
+[Install]
+WantedBy=multi-user.target
