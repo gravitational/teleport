@@ -223,14 +223,21 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		return nil, trace.Wrap(err)
 	}
 
-	certPEM, keyPEM, err := windows.CertKeyPEM(ctx, d.UserName, d.RealmName, certTTL, clusterName.GetClusterName(), windows.LDAPConfig{
-		Addr:               d.KDCHostName,
-		Domain:             d.RealmName,
-		Username:           d.UserName,
-		InsecureSkipVerify: false,
-		ServerName:         d.AdminServerName,
-		CA:                 d.LDAPCA,
-	}, d.Auth)
+	certPEM, keyPEM, err := windows.CertKeyPEM(ctx, &windows.GenerateCredentialsRequest{
+		Username:    d.UserName,
+		Domain:      d.RealmName,
+		TTL:         certTTL,
+		ClusterName: clusterName.GetClusterName(),
+		LDAPConfig: windows.LDAPConfig{
+			Addr:               d.KDCHostName,
+			Domain:             d.RealmName,
+			Username:           d.UserName,
+			InsecureSkipVerify: false,
+			ServerName:         d.AdminServerName,
+			CA:                 d.LDAPCA,
+		},
+		AuthClient: d.Auth,
+	})
 
 	if err != nil {
 		return nil, trace.Wrap(err)

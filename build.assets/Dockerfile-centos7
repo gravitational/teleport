@@ -18,7 +18,7 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum clean all
 
 # Install libudev-zero.
-# libudev-zero replaces systemd's libudev
+# libudev-zero replaces systemd's libudev.
 RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
     [ "$(git rev-parse HEAD)" = "4154cf252c17297f98a8ca33693ead003b4509da" ] && \
