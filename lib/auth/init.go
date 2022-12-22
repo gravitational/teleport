@@ -545,14 +545,14 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 // It should be called when a migration starts.
 func migrationStart(ctx context.Context, migrationName string) {
 	log.Debugf("Migrations: %q migration started.", migrationName)
-	migrations.WithLabelValues(migrationName).Set(float64(1))
+	migrations.WithLabelValues(migrationName).Set(1)
 }
 
 // migrationEnd marks the migration as inactive.
 // It should be called when a migration ends.
 func migrationEnd(ctx context.Context, migrationName string) {
 	log.Debugf("Migrations: %q migration ended.", migrationName)
-	migrations.WithLabelValues(migrationName).Set(float64(0))
+	migrations.WithLabelValues(migrationName).Set(0)
 }
 
 func migrateLegacyResources(ctx context.Context, asrv *Server) error {
