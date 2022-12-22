@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -321,6 +322,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// execution of this test.
 	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
@@ -340,7 +342,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
-	auth, err = service.NewTeleport(cfg, service.WithDisabledIMDSClient())
+	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
@@ -361,6 +363,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// Set up a test proxy service.
 	cfg = service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -377,7 +380,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
 
-	proxy, err = service.NewTeleport(cfg, service.WithDisabledIMDSClient())
+	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
 
@@ -403,6 +406,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.SetAuthServerAddress(proxyAddr)
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
@@ -412,7 +416,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.ResourceMatchers = resMatchers
 	cfg.Log = utils.NewLoggerForTests()
 
-	db, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
+	db, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, db.Start())
 

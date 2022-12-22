@@ -103,6 +103,11 @@ func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
 // than the default client when not testing instance metadata behavior.
 type DisabledIMDSClient struct{}
 
+// NewDisabledIMDSClient creates a new DisabledIMDSClient.
+func NewDisabledIMDSClient() InstanceMetadata {
+	return &DisabledIMDSClient{}
+}
+
 func (d *DisabledIMDSClient) IsAvailable(ctx context.Context) bool {
 	return false
 }

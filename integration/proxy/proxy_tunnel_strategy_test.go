@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -331,6 +332,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = proxy.Log
+	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -345,7 +347,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.Proxy.DisableWebInterface = true
 	conf.FileDescriptors = proxy.Fds
 
-	process, err := service.NewTeleport(conf, service.WithDisabledIMDSClient())
+	process, err := service.NewTeleport(conf)
 	require.NoError(t, err)
 	proxy.Config = conf
 	proxy.Process = process
@@ -375,13 +377,14 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = node.Log
+	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = true
 	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
 
-	process, err := service.NewTeleport(conf, service.WithDisabledIMDSClient())
+	process, err := service.NewTeleport(conf)
 	require.NoError(t, err)
 	node.Config = conf
 	node.Process = process
@@ -419,6 +422,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = db.Log
+	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -442,7 +446,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	// start the process and block until specified events are received.
-	process, err := service.NewTeleport(conf, service.WithDisabledIMDSClient())
+	process, err := service.NewTeleport(conf)
 	require.NoError(t, err)
 	db.Config = conf
 	db.Process = process

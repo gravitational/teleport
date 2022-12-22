@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 )
@@ -268,8 +269,8 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportOption) *service.TeleportProcess {
-	opts = append(opts,
+func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
+	if cfg.InstanceMetadataClient == nil {
 		// Disables cloud auto-imported labels when running tests in cloud envs
 		// such as Github Actions.
 		//
@@ -280,9 +281,9 @@ func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportO
 		//
 		// It is also found that Azure metadata client can throw "Too many
 		// requests" during CI which fails services.NewTeleport.
-		service.WithDisabledIMDSClient(),
-	)
-	process, err := service.NewTeleport(cfg, opts...)
+		cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	}
+	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err, trace.DebugReport(err))
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {

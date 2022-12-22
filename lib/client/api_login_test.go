@@ -45,6 +45,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
@@ -540,6 +541,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	authProcess := startAndWait(t, cfg, service.AuthTLSReady)
 	t.Cleanup(func() { authProcess.Close() })
 	authAddr, err := authProcess.AuthAddr()
@@ -606,6 +608,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.DisableWebInterface = true
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	proxyProcess := startAndWait(t, cfg, service.ProxyWebServerReady)
 	t.Cleanup(func() { proxyProcess.Close() })
 	proxyWebAddr, err := proxyProcess.ProxyWebAddr()
@@ -625,7 +628,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 }
 
 func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.TeleportProcess {
-	instance, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
+	instance, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())
 

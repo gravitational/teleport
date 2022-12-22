@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
@@ -70,13 +71,14 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 	cfg.Log = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	svcC := make(chan *service.TeleportProcess)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		err := service.Run(ctx, *cfg, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithDisabledIMDSClient())
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				svcC <- svc
 			}
