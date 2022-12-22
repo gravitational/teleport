@@ -282,10 +282,12 @@ Example SSM document:
 schemaVersion: '2.2'
 description: aws:runShellScript
 parameters:
-
   sshdConfigPath:
     types: String
     description: "(Required) The path to the sshd config file."
+  token:
+    types: String
+    description: "(Required) The Teleport invite token to use when joining the cluster."
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
@@ -300,7 +302,7 @@ mainSteps:
     timeoutSeconds: '300'
     runCommand:
       - export SSHD_CONFIG='{{ sshdConfigPath }}'
-      - /bin/sh /tmp/installTeleport.sh
+      - /bin/sh /tmp/installTeleport.sh '{{ token }}'
 ```
 
 Agentless mode will serve a different install script resource named
@@ -324,8 +326,17 @@ Possible agentless installer script:
     sudo yum install -y teleport
   fi
 
+  IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+  PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" "http://169.254.169.254/latest/meta-data/public-ipv4")
+
   # new command to create the host certs, teleport ca, and update sshd_config
-  teleport join --proxy-server=proxy.example.com --token=aws-join-token --openssh-config="$SSHD_CONFIG" --restart-sshd=true
+  sudo teleport join \
+	   --openssh-config=$SSHD_CONFIG \
+	   --join-method=iam \
+	   --token="$1" \
+	   --proxy-server="{{ .PublicProxyAddr }}" \
+	   --additional-principals="$PUBLIC_IP" \
+	   --restart-sshd
 
   systemctl restart sshd
 
