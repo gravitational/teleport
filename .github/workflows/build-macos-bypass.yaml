@@ -20,10 +20,11 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'build.assets/Makefile'
 
 jobs:
   build:
-    name: Skipped
+    name: Build on Mac OS
     runs-on: macos-12
 
     permissions:

@@ -34,75 +34,109 @@ import (
 func TestServersCompare(t *testing.T) {
 	t.Parallel()
 
-	node := &types.ServerV2{
-		Kind:    types.KindNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      "node1",
-			Namespace: apidefaults.Namespace,
-			Labels:    map[string]string{"a": "b"},
-		},
-		Spec: types.ServerSpecV2{
-			Addr:      "localhost:3022",
-			CmdLabels: map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-l"}}},
-			Version:   "4.0.0",
-		},
-	}
-	node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
-	// Server is equal to itself
-	require.Equal(t, CompareServers(node, node), Equal)
+	t.Run("compare servers", func(t *testing.T) {
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      "node1",
+				Namespace: apidefaults.Namespace,
+				Labels:    map[string]string{"a": "b"},
+			},
+			Spec: types.ServerSpecV2{
+				Addr:      "localhost:3022",
+				CmdLabels: map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-l"}}},
+				Version:   "4.0.0",
+			},
+		}
+		node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
+		// Server is equal to itself
+		require.Equal(t, CompareServers(node, node), Equal)
 
-	// Only timestamps are different
-	node2 := *node
-	node2.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 8, time.UTC))
-	require.Equal(t, CompareServers(node, &node2), OnlyTimestampsDifferent)
+		// Only timestamps are different
+		node2 := *node
+		node2.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 8, time.UTC))
+		require.Equal(t, CompareServers(node, &node2), OnlyTimestampsDifferent)
 
-	// Labels are different
-	node2 = *node
-	node2.Metadata.Labels = map[string]string{"a": "d"}
-	require.Equal(t, CompareServers(node, &node2), Different)
+		// Labels are different
+		node2 = *node
+		node2.Metadata.Labels = map[string]string{"a": "d"}
+		require.Equal(t, CompareServers(node, &node2), Different)
 
-	// Command labels are different
-	node2 = *node
-	node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-lR"}}}
-	require.Equal(t, CompareServers(node, &node2), Different)
+		// Command labels are different
+		node2 = *node
+		node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-lR"}}}
+		require.Equal(t, CompareServers(node, &node2), Different)
 
-	// Address has changed
-	node2 = *node
-	node2.Spec.Addr = "localhost:3033"
-	require.Equal(t, CompareServers(node, &node2), Different)
+		// Address has changed
+		node2 = *node
+		node2.Spec.Addr = "localhost:3033"
+		require.Equal(t, CompareServers(node, &node2), Different)
 
-	// Public addr has changed
-	node2 = *node
-	node2.Spec.PublicAddr = "localhost:3033"
-	require.Equal(t, CompareServers(node, &node2), Different)
+		// Public addr has changed
+		node2 = *node
+		node2.Spec.PublicAddr = "localhost:3033"
+		require.Equal(t, CompareServers(node, &node2), Different)
 
-	// Hostname has changed
-	node2 = *node
-	node2.Spec.Hostname = "luna2"
-	require.Equal(t, CompareServers(node, &node2), Different)
+		// Hostname has changed
+		node2 = *node
+		node2.Spec.Hostname = "luna2"
+		require.Equal(t, CompareServers(node, &node2), Different)
 
-	// TeleportVersion has changed
-	node2 = *node
-	node2.Spec.Version = "5.0.0"
-	require.Equal(t, CompareServers(node, &node2), Different)
+		// TeleportVersion has changed
+		node2 = *node
+		node2.Spec.Version = "5.0.0"
+		require.Equal(t, CompareServers(node, &node2), Different)
 
-	// Rotation has changed
-	node2 = *node
-	node2.Spec.Rotation = types.Rotation{
-		State:       types.RotationStateInProgress,
-		Phase:       types.RotationPhaseUpdateClients,
-		CurrentID:   "1",
-		Started:     time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
-		GracePeriod: types.Duration(3 * time.Hour),
-		LastRotated: time.Date(2017, 2, 3, 4, 5, 6, 7, time.UTC),
-		Schedule: types.RotationSchedule{
-			UpdateClients: time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
-			UpdateServers: time.Date(2018, 3, 4, 7, 6, 7, 8, time.UTC),
-			Standby:       time.Date(2018, 3, 4, 5, 6, 13, 8, time.UTC),
-		},
-	}
-	require.Equal(t, CompareServers(node, &node2), Different)
+		// Rotation has changed
+		node2 = *node
+		node2.Spec.Rotation = types.Rotation{
+			State:       types.RotationStateInProgress,
+			Phase:       types.RotationPhaseUpdateClients,
+			CurrentID:   "1",
+			Started:     time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
+			GracePeriod: types.Duration(3 * time.Hour),
+			LastRotated: time.Date(2017, 2, 3, 4, 5, 6, 7, time.UTC),
+			Schedule: types.RotationSchedule{
+				UpdateClients: time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC),
+				UpdateServers: time.Date(2018, 3, 4, 7, 6, 7, 8, time.UTC),
+				Standby:       time.Date(2018, 3, 4, 5, 6, 13, 8, time.UTC),
+			},
+		}
+		require.Equal(t, CompareServers(node, &node2), Different)
+	})
+
+	t.Run("compare DatabaseServices", func(t *testing.T) {
+		service := &types.DatabaseServiceV1{
+			ResourceHeader: types.ResourceHeader{
+				Kind: types.KindDatabaseService,
+				Metadata: types.Metadata{
+					Name: "dbServiceT01",
+				},
+			},
+			Spec: types.DatabaseServiceSpecV1{
+				ResourceMatchers: []*types.DatabaseResourceMatcher{
+					{Labels: &types.Labels{"env": []string{"stg"}}},
+				},
+			},
+		}
+		service.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
+
+		// DatabaseService is equal to itself
+		require.Equal(t, CompareServers(service, service), Equal)
+
+		// Only timestamps are different
+		service2 := *service
+		service2.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 8, time.UTC))
+		require.Equal(t, CompareServers(service, &service2), OnlyTimestampsDifferent)
+
+		// Resource Matcher has changed
+		service2 = *service
+		service2.Spec.ResourceMatchers = []*types.DatabaseResourceMatcher{
+			{Labels: &types.Labels{"env": []string{"stg", "qa"}}},
+		}
+		require.Equal(t, CompareServers(service, &service2), Different)
+	})
 }
 
 // TestGuessProxyHostAndVersion checks that the GuessProxyHostAndVersion

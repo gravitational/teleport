@@ -17,10 +17,11 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
 
 jobs:
   test:
-    name: Skipped
+    name: Integration Tests (Root)
     runs-on: ubuntu-latest
 
     permissions:

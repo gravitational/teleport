@@ -17,10 +17,11 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'build.assets/Makefile'
 
 jobs:
   test:
-    name: Skipped
+    name: Unit Tests (Rust)
     runs-on: ubuntu-latest
 
     permissions:

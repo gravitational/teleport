@@ -12,10 +12,11 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
 
 jobs:
   build:
-    name: Build tsh tool on Windows
+    name: Build on Windows
     runs-on: windows-2022-16core
 
     permissions:
