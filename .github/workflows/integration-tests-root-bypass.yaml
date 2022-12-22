@@ -20,7 +20,7 @@ on:
 
 jobs:
   test:
-    name: Skipped
+    name: Integration Tests (Root)
     runs-on: ubuntu-latest
 
     permissions:
