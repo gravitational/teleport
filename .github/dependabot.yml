@@ -27,6 +27,8 @@ updates:
       - dependency-name: github.com/pkg/sftp
       - dependency-name: github.com/sirupsen/logrus
       - dependency-name: github.com/vulcand/predicate
+      # TODO(tross): Update after Firestore is updated
+      - dependency-name: google.golang.org/genproto
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
@@ -40,6 +42,8 @@ updates:
     ignore:
       # TODO(codingllama): Allow /x/crypto updates after upstream patch.
       - dependency-name: golang.org/x/crypto
+      # TODO(tross): Update after Firestore is updated
+      - dependency-name: google.golang.org/genproto
     open-pull-requests-limit: 10
     reviewers:
       - codingllama

@@ -105,10 +105,10 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 
 	return &transport{
 		closeContext:    ctx,
+		transportConfig: c,
 		uri:             uri,
 		tr:              tr,
-		ws:              newWebsocketTransport(uri, tr.TLSClientConfig, c),
-		transportConfig: c,
+		ws:              newWebsocketTransport(uri, tr.TLSClientConfig.Clone(), c),
 	}, nil
 }
 

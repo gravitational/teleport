@@ -233,4 +233,7 @@ type Presence interface {
 
 	// ListResoures returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	// UpsertDatabaseService updates an existing DatabaseService resource.
+	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
 }

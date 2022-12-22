@@ -52,6 +52,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -594,6 +595,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
+
+	// DatabaseService handlers
+	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
@@ -2353,42 +2357,95 @@ func (h *Handler) siteNodeConnect(
 
 func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string) (session.Session, error) {
 	var (
+		id   string
 		host string
 		port int
 	)
 	h.log.Infof("Generating new session for %s\n", clusterName)
-	// req.Server will be either an IP, hostname, or server UUID.
-	_, err := uuid.Parse(req.Server)
-	if err != nil {
-		// TODO(hatched) Investigate using ListResources instead of GetNodes as we can
-		// provide more filters that may reduce the work to do on the client side.
-		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
+
+	if _, err := uuid.Parse(req.Server); err != nil {
+		// The requested server is either a hostname or an address. Get all
+		// servers that may fuzzily match by populating SearchKeywords
+		resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      apidefaults.Namespace,
+			SearchKeywords: []string{req.Server},
+		})
 		if err != nil {
 			return session.Session{}, trace.Wrap(err)
 		}
-		host, port, err = resolveServerHostPort(req.Server, servers)
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
+
+		if len(resources) == 0 {
+			return session.Session{}, trace.NotFound("no matching servers")
+		}
+
+		matches := 0
+		for _, resource := range resources {
+			server, ok := resource.(types.Server)
+			if !ok {
+				return session.Session{}, trace.BadParameter("expected types.Server, got: %T", resource)
+			}
+
+			// match by hostname
+			if server.GetHostname() == req.Server {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host = server.GetHostname()
+				id = server.GetName()
+				port = 0
+
+				matches++
+				continue
+			}
+
+			// exact match by address
+			if server.GetAddr() == req.Server {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host = req.Server
+				id = server.GetName()
+				port = 0
+
+				matches++
+				continue
+			}
+		}
+
+		// there was either at least one partial match or multiple
+		// exact matches on the server. connect with the resolved
+		// host and port of the requested server.
+		if matches > 1 || host == "" && id == "" {
+			host, port, err = serverHostPort(req.Server)
+			if err != nil {
+				return session.Session{}, trace.Wrap(err)
+			}
+			id = req.Server
 		}
 	} else {
-		// If the user has passed in a UUID then query for that node directly. We
-		// can connect to `uuid:0` directly. with `host = req.Server` however we will
-		// not have the proper hostname and the UI will display the UUID instead.
-		// This is why we have to query for the node. In a future update we can query
-		// for a uuid:hostname to dramatically improve performance in large environments.
+		// Even though the UUID was provided and can be dialed directly, the UI
+		// requires the hostname to populate the title of the session window.
+		// Looking the node up directly by UUID is the most efficient we can be until
+		// the UI is modified to remember the hostname when the connect button is
+		// used to establish a session.
 		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
 		if err != nil {
 			return session.Session{}, trace.Wrap(err)
 		}
-		host, port, err = resolveServerHostPort(req.Server, []types.Server{server})
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
-		}
+
+		host = server.GetHostname()
+		port = 0
+		id = req.Server
 	}
 
 	return session.Session{
 		Login:          req.Login,
-		ServerID:       req.Server,
+		ServerID:       id,
 		ClusterName:    clusterName,
 		ServerHostname: host,
 		ServerHostPort: port,
