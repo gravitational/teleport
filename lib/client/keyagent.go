@@ -342,15 +342,15 @@ func (a *LocalKeyAgent) CheckHostKey(addr string, remote net.Addr, hostKey ssh.P
 	}
 
 	clusters := []string{rootCluster}
-	if rootCluster != a.siteName {
-		// In case of establishing connection to leaf cluster the client validate ssh cert against root
-		// cluster proxy cert and leaf cluster cert.
-		clusters = append(clusters, a.siteName)
-	} else if a.loadAllCAs {
+	if a.loadAllCAs {
 		clusters, err = a.GetClusterNames()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	} else if rootCluster != a.siteName {
+		// In case of establishing connection to leaf cluster the client validate ssh cert against root
+		// cluster proxy cert and leaf cluster cert.
+		clusters = append(clusters, a.siteName)
 	}
 
 	certChecker := sshutils.CertChecker{

@@ -306,7 +306,7 @@ func TestHostCertVerification(t *testing.T) {
 			caSigner, err := ssh.ParsePrivateKey(caPriv)
 			require.NoError(t, err)
 
-			hostKey, err := ssh.ParsePublicKey(caPub)
+			hostKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
 			require.NoError(t, err)
 
 			err = lka.clientStore.AddTrustedHostKeys(s.hostname, hostname, hostKey)

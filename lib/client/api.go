@@ -946,6 +946,29 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.Stdin = os.Stdin
 	}
 
+	if c.ClientStore == nil {
+		// sometimes we need to use external auth without using local auth
+		// methods, e.g. in automation daemons.
+		if c.SkipLocalAuth {
+			if len(c.AuthMethods) == 0 {
+				return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
+			}
+			c.ClientStore = newNoClientStore()
+		} else {
+			clientStore, err := NewFSClientStore(c.KeysDir)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Store client keys in memory, but still save trusted certs and profile to disk.
+			if c.AddKeysToAgent == AddKeysToAgentOnly {
+				clientStore.KeyStore = NewMemKeyStore()
+			}
+
+			c.ClientStore = clientStore
+		}
+	}
+
 	// Create a buffered channel to hold events that occurred during this session.
 	// This channel must be buffered because the SSH connection directly feeds
 	// into it. Delays in pulling messages off the global SSH request channel
@@ -961,30 +984,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		Insecure:    c.InsecureSkipVerify,
 		Site:        tc.SiteName,
 		LoadAllCAs:  tc.LoadAllCAs,
-	}
-
-	if c.ClientStore == nil {
-		// sometimes we need to use external auth without using local auth
-		// methods, e.g. in automation daemons.
-		if c.SkipLocalAuth {
-			if len(c.AuthMethods) == 0 {
-				return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
-			}
-			localAgentCfg.ClientStore = newNoClientStore()
-		} else {
-			clientStore, err := NewFSClientStore(c.KeysDir)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			// Store client keys in memory, but still save trusted certs and profile to disk.
-			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				clientStore.KeyStore = NewMemKeyStore()
-			}
-
-			localAgentCfg.ClientStore = clientStore
-
-		}
 	}
 
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
