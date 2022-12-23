@@ -18,6 +18,7 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
