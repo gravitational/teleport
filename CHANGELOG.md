@@ -1,5 +1,75 @@
 # Changelog
 
+## 10.3.11
+
+This release of Teleport contains multiple security fixes, improvements and bug fixes.
+
+### [Critical] RBAC bypass in SSH TCP tunneling
+
+When establishing a direct-tcpip channel, Teleport did not sufficiently validate
+RBAC.
+
+This could allow an attacker in possession of valid cluster credentials to
+establish a TCP tunnel to a node they didn’t have access to.
+
+The connection attempt would show up in the audit log as a “port” audit event
+(code T3003I) and include Teleport username in the “user” field.
+
+### [High] Application Access session hijack
+
+When accepting Application Access requests, Teleport did not sufficiently
+validate client credentials.
+
+This could allow an attacker in possession of a valid active application session
+ID to issue requests to this application impersonating the session owner for a
+limited time window.
+
+Presence of multiple “cert.create” audit events (code TC000I) with the same app
+session ID in the “route_to_app.session_id” field may indicate the attempt to
+impersonate an existing user’s application session.
+
+### [Medium] SSH IP pinning bypass
+
+When issuing a user certificate, Teleport did not check for the presence of IP
+restrictions in the client’s credentials.
+
+This could allow an attacker in possession of valid client credentials with IP
+restrictions to reissue credentials without IP restrictions.
+
+Presence of a “cert.create” audit event (code TC000I) without corresponding
+“user.login” audit event (codes T1000I or T1101I) for users with IP restricted
+roles may indicate an issuance of a certificate without IP restrictions.
+
+### [Low] Web API session caching
+
+After logging out via the web UI, a user’s session could remain cached in
+Teleport’s proxy, allowing continued access to resources for a limited time
+window.
+
+### Other improvements and fixes
+
+* Fixed issue with noisy-square distortions in desktop access. [#19544](https://github.com/gravitational/teleport/pull/19544)
+* Fixed LDAP pagination issue in desktop access. (#19002) [#19534](https://github.com/gravitational/teleport/pull/19534)
+* Fixed issue with SSH sessions inheriting parent's OOM score. [#19522](https://github.com/gravitational/teleport/pull/19522)
+* Fixed issue with `session.start` event being overwritten with `session.exec` event. [#19496](https://github.com/gravitational/teleport/pull/19496)
+* Fixed issue with SNI info not being set by `tsh login --format kubernetes` command. [#19432](https://github.com/gravitational/teleport/pull/19432)
+* Fixed issue with websockets not working in app access when target app is using HTTP/2. [#19424](https://github.com/gravitational/teleport/pull/19424)
+* Fixed TLS routing in insecure mode. [#19409](https://github.com/gravitational/teleport/pull/19409)
+* Fixed issue with incorrect UACC wtmp path. [#19382](https://github.com/gravitational/teleport/pull/19382)
+* Fixed issue with SAML connector validation calling issuer URL before auth checks. [#19318](https://github.com/gravitational/teleport/pull/19318)
+* Fixed issue with corrupted uploads being retried indefinitely. [#19259](https://github.com/gravitational/teleport/pull/19259)
+* Fixed issue with `disconnect_expired_cert` and `require_session_mfa` settings conflicting with each other. [#19204](https://github.com/gravitational/teleport/pull/19204)
+* Fixed issue with Teleport ALPN proxy not respecting HTTP CONNECT proxy. [#19039](https://github.com/gravitational/teleport/pull/19039)
+* Fixed `tctl windows_desktops ls` output. [#19015](https://github.com/gravitational/teleport/pull/19015)
+* Fixed issue with starting node sessions due to unknown group error. [#18991](https://github.com/gravitational/teleport/pull/18991)
+* Added support for Kubernetes port-forward over websockets protocol. [#19184](https://github.com/gravitational/teleport/pull/19184)
+* Updated desktop access config script to disable password prompt. [#19428](https://github.com/gravitational/teleport/pull/19428)
+* Updated Go to 1.19.4. [#19155](https://github.com/gravitational/teleport/pull/19155)
+* Improved `tsh ls -R` latency. [#19483](https://github.com/gravitational/teleport/pull/19483)
+* Improved performance when mapping traits to roles. [#19183](https://github.com/gravitational/teleport/pull/19183)
+* Improved web UI SSH performance. [#19119](https://github.com/gravitational/teleport/pull/19119)
+* Improved connection resiliency when auth service is offline. [#18914](https://github.com/gravitational/teleport/pull/18914)
+
 ## 10.3.9
 
 This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
