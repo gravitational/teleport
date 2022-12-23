@@ -1757,7 +1757,6 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return a.authServer.UpsertToken(ctx, token)
 }
 
