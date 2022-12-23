@@ -1135,43 +1135,18 @@ func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.De
 	return &emptypb.Empty{}, nil
 }
 
-// GetAllDatabaseServices returns all registered DatabaseServices.
-func (g *GRPCServer) GetAllDatabaseServices(ctx context.Context, _ *proto.GetAllDatabaseServicesRequest) (*proto.DatabaseServiceV1List, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbs, err := auth.GetAllDatabaseServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ret := &proto.DatabaseServiceV1List{
-		Services: make([]*types.DatabaseServiceV1, len(dbs)),
-	}
-	for i, db := range dbs {
-		dbServiceV1, ok := db.(*types.DatabaseServiceV1)
-		if !ok {
-			return nil, trace.BadParameter("unexpected DatabaseService type: %T", db)
-		}
-		ret.Services[i] = dbServiceV1
-	}
-	return ret, nil
-}
-
 // UpsertDatabaseService registers a new database service.
-func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*emptypb.Empty, error) {
+func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.UpsertDatabaseService(ctx, req.Service)
+	keepAlive, err := auth.UpsertDatabaseService(ctx, req.Service)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &emptypb.Empty{}, nil
+	return keepAlive, nil
 }
 
 // DeleteDatabaseService removes the specified DatabaseService.
@@ -2424,6 +2399,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
 		certRequestClientIP(clientIP),
+		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3900,6 +3876,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindDatabaseService:
+			databaseService, ok := resource.(*types.DatabaseServiceV1)
+			if !ok {
+				return nil, trace.BadParameter("database service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
 		case types.KindAppServer:
 			app, ok := resource.(*types.AppServerV3)
 			if !ok {

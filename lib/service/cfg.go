@@ -259,6 +259,9 @@ type Config struct {
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
 
+	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
+	AdditionalReadyEvents []string
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -1358,6 +1361,8 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.
