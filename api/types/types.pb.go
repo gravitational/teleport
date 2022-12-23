@@ -1952,7 +1952,7 @@ type ServerSpecV2 struct {
 	//
 	// DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
 	Apps []*App `protobuf:"bytes,9,rep,name=Apps,proto3" json:"apps,omitempty"` // Deprecated: Do not use.
-	// KubernetesClusters is a list of Kubernetes clusters provided by this
+	// KubernetesClusters is a list of kubernetes clusters provided by this
 	// Proxy or KubeService server.
 	//
 	// Important: jsontag must not be "kubernetes_clusters", because a
@@ -5772,7 +5772,7 @@ type RoleConditions struct {
 	// ClusterLabels is a map of node labels (used to dynamically grant access to
 	// clusters).
 	ClusterLabels Labels `protobuf:"bytes,9,opt,name=ClusterLabels,proto3,customtype=Labels" json:"cluster_labels,omitempty"`
-	// KubernetesLabels is a map of Kubernetes cluster labels used for RBAC.
+	// KubernetesLabels is a map of kubernetes cluster labels used for RBAC.
 	KubernetesLabels Labels `protobuf:"bytes,10,opt,name=KubernetesLabels,proto3,customtype=Labels" json:"kubernetes_labels,omitempty"`
 	// DatabaseLabels are used in RBAC system to allow/deny access to databases.
 	DatabaseLabels Labels `protobuf:"bytes,11,opt,name=DatabaseLabels,proto3,customtype=Labels" json:"db_labels,omitempty"`
@@ -7720,7 +7720,7 @@ var xxx_messageInfo_RemoteClusterStatusV3 proto.InternalMessageInfo
 //
 // TODO: deprecate and convert all usage to KubernetesClusterV3
 type KubernetesCluster struct {
-	// Name is the name of this Kubernetes cluster.
+	// Name is the name of this kubernetes cluster.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
 	// StaticLabels is map of static labels associated with this cluster.
 	// Used for RBAC.
@@ -8006,9 +8006,9 @@ func (m *KubeGCP) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubeGCP proto.InternalMessageInfo
 
-// KubernetesClusterV3List represents a list of Kubernetes clusters.
+// KubernetesClusterV3List represents a list of kubernetes clusters.
 type KubernetesClusterV3List struct {
-	// KubernetesClusters is a list of Kubernetes clusters resources.
+	// KubernetesClusters is a list of kubernetes clusters resources.
 	KubernetesClusters   []*KubernetesClusterV3 `protobuf:"bytes,1,rep,name=KubernetesClusters,proto3" json:"KubernetesClusters,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
 	XXX_unrecognized     []byte                 `json:"-"`

@@ -494,13 +494,13 @@ var xxx_messageInfo_ClientMetadata proto.InternalMessageInfo
 // KubernetesClusterMetadata contains common metadata for kubernetes-related
 // events.
 type KubernetesClusterMetadata struct {
-	// KubernetesCluster is a Kubernetes cluster name.
+	// KubernetesCluster is a kubernetes cluster name.
 	KubernetesCluster string `protobuf:"bytes,1,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
 	// KubernetesUsers is a list of kubernetes usernames for the user.
 	KubernetesUsers []string `protobuf:"bytes,2,rep,name=KubernetesUsers,proto3" json:"kubernetes_users,omitempty"`
 	// KubernetesGroups is a list of kubernetes groups for the user.
 	KubernetesGroups []string `protobuf:"bytes,3,rep,name=KubernetesGroups,proto3" json:"kubernetes_groups,omitempty"`
-	// KubernetesLabels are the labels (static and dynamic) of the Kubernetes cluster the
+	// KubernetesLabels are the labels (static and dynamic) of the kubernetes cluster the
 	// session occurred on.
 	KubernetesLabels     map[string]string `protobuf:"bytes,4,rep,name=KubernetesLabels,proto3" json:"kubernetes_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
@@ -606,7 +606,7 @@ type SessionStart struct {
 	ConnectionMetadata `protobuf:"bytes,5,opt,name=Connection,proto3,embedded=Connection" json:""`
 	// TerminalSize is expressed as 'W:H'
 	TerminalSize string `protobuf:"bytes,6,opt,name=TerminalSize,proto3" json:"size,omitempty"`
-	// KubernetesCluster has information about a Kubernetes cluster, if
+	// KubernetesCluster has information about a kubernetes cluster, if
 	// applicable.
 	KubernetesClusterMetadata `protobuf:"bytes,7,opt,name=KubernetesCluster,proto3,embedded=KubernetesCluster" json:""`
 	// KubernetesPod has information about a kubernetes pod, if applicable.
@@ -665,7 +665,7 @@ type SessionJoin struct {
 	ServerMetadata `protobuf:"bytes,4,opt,name=Server,proto3,embedded=Server" json:""`
 	// ConnectionMetadata holds information about the connection
 	ConnectionMetadata `protobuf:"bytes,5,opt,name=Connection,proto3,embedded=Connection" json:""`
-	// KubernetesCluster has information about a Kubernetes cluster, if
+	// KubernetesCluster has information about a kubernetes cluster, if
 	// applicable.
 	KubernetesClusterMetadata `protobuf:"bytes,6,opt,name=KubernetesCluster,proto3,embedded=KubernetesCluster" json:""`
 	XXX_NoUnkeyedLiteral      struct{} `json:"-"`
@@ -1209,7 +1209,7 @@ type Resize struct {
 	ServerMetadata `protobuf:"bytes,5,opt,name=Server,proto3,embedded=Server" json:""`
 	// TerminalSize is expressed as 'W:H'
 	TerminalSize string `protobuf:"bytes,6,opt,name=TerminalSize,proto3" json:"size,omitempty"`
-	// KubernetesCluster has information about a Kubernetes cluster, if
+	// KubernetesCluster has information about a kubernetes cluster, if
 	// applicable.
 	KubernetesClusterMetadata `protobuf:"bytes,7,opt,name=KubernetesCluster,proto3,embedded=KubernetesCluster" json:""`
 	// KubernetesPod has information about a kubernetes pod, if applicable.
@@ -1276,7 +1276,7 @@ type SessionEnd struct {
 	StartTime time.Time `protobuf:"bytes,9,opt,name=StartTime,proto3,stdtime" json:"session_start,omitempty"`
 	// EndTime is the timestamp at which the session ended.
 	EndTime time.Time `protobuf:"bytes,10,opt,name=EndTime,proto3,stdtime" json:"session_stop,omitempty"`
-	// KubernetesCluster has information about a Kubernetes cluster, if
+	// KubernetesCluster has information about a kubernetes cluster, if
 	// applicable.
 	KubernetesClusterMetadata `protobuf:"bytes,11,opt,name=KubernetesCluster,proto3,embedded=KubernetesCluster" json:""`
 	// KubernetesPod has information about a kubernetes pod, if applicable.
@@ -2263,7 +2263,7 @@ type Exec struct {
 	ServerMetadata `protobuf:"bytes,5,opt,name=Server,proto3,embedded=Server" json:""`
 	// CommandMetadata is a common command metadata
 	CommandMetadata `protobuf:"bytes,6,opt,name=Command,proto3,embedded=Command" json:""`
-	// KubernetesCluster has information about a Kubernetes cluster, if
+	// KubernetesCluster has information about a kubernetes cluster, if
 	// applicable.
 	KubernetesClusterMetadata `protobuf:"bytes,7,opt,name=KubernetesCluster,proto3,embedded=KubernetesCluster" json:""`
 	// KubernetesPod has information about a kubernetes pod, if applicable.
@@ -3208,7 +3208,7 @@ type KubeRequest struct {
 	ResourceName string `protobuf:"bytes,10,opt,name=ResourceName,proto3" json:"resource_name,omitempty"`
 	// ResponseCode is the HTTP response code for this request.
 	ResponseCode int32 `protobuf:"varint,11,opt,name=ResponseCode,proto3" json:"response_code"`
-	// Kubernetes has information about a Kubernetes cluster, if applicable.
+	// Kubernetes has information about a kubernetes cluster, if applicable.
 	KubernetesClusterMetadata `protobuf:"bytes,12,opt,name=Kubernetes,proto3,embedded=Kubernetes" json:""`
 	XXX_NoUnkeyedLiteral      struct{} `json:"-"`
 	XXX_unrecognized          []byte   `json:"-"`
@@ -6774,7 +6774,7 @@ type Identity struct {
 	// RouteToCluster specifies the target cluster
 	// if present in the session
 	RouteToCluster string `protobuf:"bytes,9,opt,name=RouteToCluster,proto3" json:"route_to_cluster,omitempty"`
-	// KubernetesCluster specifies the target Kubernetes cluster for TLS
+	// KubernetesCluster specifies the target kubernetes cluster for TLS
 	// identities. This can be empty on older Teleport clients.
 	KubernetesCluster string `protobuf:"bytes,10,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
 	// Traits hold claim data used to populate a role at runtime.
@@ -8158,7 +8158,7 @@ func (m *SessionRecordingAccess) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SessionRecordingAccess proto.InternalMessageInfo
 
-// KubeClusterMetadata contains common Kubernetes cluster information.
+// KubeClusterMetadata contains common kubernetes cluster information.
 type KubeClusterMetadata struct {
 	// KubeLabels are the configured cluster labels.
 	KubeLabels           map[string]string `protobuf:"bytes,1,rep,name=KubeLabels,proto3" json:"kube_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -8200,7 +8200,7 @@ func (m *KubeClusterMetadata) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubeClusterMetadata proto.InternalMessageInfo
 
-// KubernetesClusterCreate is emitted when a new Kubernetes cluster resource is created.
+// KubernetesClusterCreate is emitted when a new kubernetes cluster resource is created.
 type KubernetesClusterCreate struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -8248,7 +8248,7 @@ func (m *KubernetesClusterCreate) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubernetesClusterCreate proto.InternalMessageInfo
 
-// KubernetesClusterUpdate is emitted when an existing Kubernetes cluster resource is updated.
+// KubernetesClusterUpdate is emitted when an existing kubernetes cluster resource is updated.
 type KubernetesClusterUpdate struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -8296,7 +8296,7 @@ func (m *KubernetesClusterUpdate) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubernetesClusterUpdate proto.InternalMessageInfo
 
-// KubernetesClusterDelete is emitted when a Kubernetes cluster resource is deleted.
+// KubernetesClusterDelete is emitted when a kubernetes cluster resource is deleted.
 type KubernetesClusterDelete struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
