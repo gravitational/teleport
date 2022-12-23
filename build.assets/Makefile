@@ -42,7 +42,7 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 PROTOC_VER ?= 3.20.3
-# Keep in sync with api/proto/buf.yaml (and buf.lock).
+# Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included

@@ -37,6 +37,9 @@ RUN echo "aarch64-redhat-linux-gnu" > /etc/rpm/platform
 # #############################################################################
 
 FROM platform-setup-$TARGETARCH AS minimal-buildbox
+
+# NOTE: We expect the GOLANG_VERSION to contain the leading `go` in the version 
+#       string (e,g, go1.19), as produced by `go version`
 ARG GOLANG_VERSION
 ARG RUST_VERSION
 ARG UID
@@ -70,7 +73,7 @@ RUN yum update -y $YUM_UPDATE_FLAGS && \
 ## Install Go #################################################################
 RUN mkdir -p /opt && \
     mkdir -p /go  && \
-    curl https://storage.googleapis.com/golang/go$GOLANG_VERSION.linux-$GOLANG_ARCH.tar.gz | tar xz -C /opt && \
+    curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$GOLANG_ARCH.tar.gz | tar xz -C /opt && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
     /opt/go/bin/go version
