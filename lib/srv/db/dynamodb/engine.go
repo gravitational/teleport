@@ -196,7 +196,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 	}
 
 	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
-	signedReq, err := e.signingSvc.SignRequest(req,
+	signedReq, err := e.signingSvc.SignRequest(e.Context, req,
 		&libaws.SigningCtx{
 			SigningName:   re.SigningName,
 			SigningRegion: re.SigningRegion,
