@@ -31,6 +31,8 @@ import (
 )
 
 func TestRedshiftServerlessFetcher(t *testing.T) {
+	t.Parallel()
+
 	workgroupProd, workgroupProdDB := makeRedshiftServerlessWorkgroup(t, "wg1", "us-east-1", envProdLabels)
 	workgroupDev, workgroupDevDB := makeRedshiftServerlessWorkgroup(t, "wg2", "us-east-1", envDevLabels)
 	endpointProd, endpointProdDB := makeRedshiftServerlessEndpoint(t, workgroupProd, "endpoint1", "us-east-1", envProdLabels)

@@ -31,6 +31,8 @@ import (
 )
 
 func TestRedshiftFetcher(t *testing.T) {
+	t.Parallel()
+
 	redshiftUse1Prod, redshiftDatabaseUse1Prod := makeRedshiftCluster(t, "us-east-1", "prod")
 	redshiftUse1Dev, redshiftDatabaseUse1Dev := makeRedshiftCluster(t, "us-east-1", "dev")
 	redshiftUse1Unavailable, _ := makeRedshiftCluster(t, "us-east-1", "qa", withRedshiftStatus("paused"))

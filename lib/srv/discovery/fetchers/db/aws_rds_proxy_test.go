@@ -31,6 +31,8 @@ import (
 )
 
 func TestRDSDBProxyFetcher(t *testing.T) {
+	t.Parallel()
+
 	rdsProxyVpc1, rdsProxyDatabaseVpc1 := makeRDSProxy(t, "rds-proxy-1", "us-east-1", "vpc1")
 	rdsProxyVpc2, rdsProxyDatabaseVpc2 := makeRDSProxy(t, "rds-proxy-2", "us-east-1", "vpc2")
 	rdsProxyEndpointVpc1, rdsProxyEndpointDatabaseVpc1 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc1, "endpoint-1", "us-east-1")

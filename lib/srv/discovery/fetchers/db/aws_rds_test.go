@@ -36,6 +36,8 @@ import (
 // TestRDSFetchers tests RDS instance fetcher and Aurora cluster fetcher (as
 // they share the same matcher type).
 func TestRDSFetchers(t *testing.T) {
+	t.Parallel()
+
 	auroraMySQLEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEngineAuroraMySQL)}
 	postgresEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEnginePostgres)}
 
