@@ -17,8 +17,6 @@ limitations under the License.
 package aws
 
 import (
-	"unicode"
-
 	"github.com/gravitational/trace"
 )
 
@@ -30,7 +28,7 @@ func IsValidAccountID(accountID string) error {
 		return trace.BadParameter("must be 12-digit")
 	}
 	for _, d := range accountID {
-		if !unicode.IsDigit(d) {
+		if d < '0' || d > '9' {
 			return trace.BadParameter("must be 12-digit")
 		}
 	}

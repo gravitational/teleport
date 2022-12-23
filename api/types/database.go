@@ -498,13 +498,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("MySQL ServerVersion can be only set for MySQL database")
 	}
 
-	// Validate AWS Specific configuration
-	if d.Spec.AWS.AccountID != "" {
-		if err := awsutils.IsValidAccountID(d.Spec.AWS.AccountID); err != nil {
-			return trace.BadParameter("invalid AWS Account ID: %v", err)
-		}
-	}
-
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
@@ -631,6 +624,13 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 			d.Spec.Azure.Name = name
+		}
+	}
+
+	// Validate AWS Specific configuration
+	if d.Spec.AWS.AccountID != "" {
+		if err := awsutils.IsValidAccountID(d.Spec.AWS.AccountID); err != nil {
+			return trace.BadParameter("invalid AWS Account ID: %v", err)
 		}
 	}
 

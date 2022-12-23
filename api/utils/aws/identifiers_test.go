@@ -63,6 +63,11 @@ func TestIsValidAccountID(t *testing.T) {
 			accountID: "12345678901✅",
 			errCheck:  isBadParamErrFn,
 		},
+		{
+			name:      "unicode digit is invalid",
+			accountID: "123456789৩", // ৩ is a valid unicode digit and its len("৩") is 3
+			errCheck:  isBadParamErrFn,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.errCheck(t, IsValidAccountID(tt.accountID))
