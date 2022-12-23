@@ -96,7 +96,7 @@ type SessionTracker interface {
 	// UpdatePresence updates presence timestamp of a participant.
 	UpdatePresence(string) error
 
-	// GetKubeCluster returns the name of the Kubernetes cluster the session is running in.
+	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
 
 	// GetDesktopName returns the name of the Windows desktop the session is running in.
@@ -315,7 +315,7 @@ func (s *SessionTrackerV1) RemoveParticipant(id string) error {
 	return trace.NotFound("participant %v not found", id)
 }
 
-// GetKubeCluster returns the name of the Kubernetes cluster the session is running in.
+// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 //
 // This is only valid for kubernetes sessions.
 func (s *SessionTrackerV1) GetKubeCluster() string {

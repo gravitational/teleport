@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// KubeCluster represents a Kubernetes cluster.
+// KubeCluster represents a kubernetes cluster.
 type KubeCluster interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
@@ -330,7 +330,7 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	}
 	for key := range k.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {
-			return trace.BadParameter("Kubernetes cluster %q invalid label key: %q", k.GetName(), key)
+			return trace.BadParameter("kubernetes cluster %q invalid label key: %q", k.GetName(), key)
 		}
 	}
 
@@ -390,7 +390,7 @@ func (s KubeClusters) Find(name string) KubeCluster {
 	return nil
 }
 
-// ToMap returns these Kubernetes clusters as a map keyed by cluster name.
+// ToMap returns these kubernetes clusters as a map keyed by cluster name.
 func (s KubeClusters) ToMap() map[string]KubeCluster {
 	m := make(map[string]KubeCluster)
 	for _, kubeCluster := range s {

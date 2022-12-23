@@ -68,7 +68,7 @@ func EnableKube(t *testing.T, config *service.Config, clusterName string) error 
 	return nil
 }
 
-// GetKubeClusters gets all Kubernetes clusters accessible from a given auth server.
+// GetKubeClusters gets all kubernetes clusters accessible from a given auth server.
 func GetKubeClusters(t *testing.T, as *auth.Server) []types.KubeCluster {
 	ctx := context.Background()
 	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{

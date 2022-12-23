@@ -275,9 +275,9 @@ type ReadProxyAccessPoint interface {
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
-	// GetKubernetesClusters returns all Kubernetes cluster resources.
+	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// GetKubernetesCluster returns the specified Kubernetes cluster resource.
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
@@ -448,9 +448,9 @@ type ReadKubernetesAccessPoint interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
-	// GetKubernetesClusters returns all Kubernetes cluster resources.
+	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// GetKubernetesCluster returns the specified Kubernetes cluster resource.
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
@@ -693,9 +693,9 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-	// GetKubernetesCluster returns a Kubernetes cluster resource identified by name.
+	// GetKubernetesCluster returns a kubernetes cluster resource identified by name.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
-	// GetKubernetesClusters returns all Kubernetes cluster resources.
+	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 }
 
@@ -708,11 +708,11 @@ type DiscoveryAccessPoint interface {
 	// accessPoint provides common access point functionality
 	accessPoint
 
-	// CreateKubernetesCluster creates a new Kubernetes cluster resource.
+	// CreateKubernetesCluster creates a new kubernetes cluster resource.
 	CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
-	// UpdateKubernetesCluster updates existing Kubernetes cluster resource.
+	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
 	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
-	// DeleteKubernetesCluster deletes specified Kubernetes cluster resource.
+	// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
 	DeleteKubernetesCluster(ctx context.Context, name string) error
 }
 
@@ -896,9 +896,9 @@ type Cache interface {
 	// GetInstallers gets all the installer resources.
 	GetInstallers(ctx context.Context) ([]types.Installer, error)
 
-	// GetKubernetesClusters returns all Kubernetes cluster resources.
+	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// GetKubernetesCluster returns the specified Kubernetes cluster resource.
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
@@ -1063,17 +1063,17 @@ func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoi
 	}
 }
 
-// CreateKubernetesCluster creates a new Kubernetes cluster resource.
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (w *DiscoveryWrapper) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	return w.NoCache.CreateKubernetesCluster(ctx, cluster)
 }
 
-// UpdateKubernetesCluster updates existing Kubernetes cluster resource.
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	return w.NoCache.UpdateKubernetesCluster(ctx, cluster)
 }
 
-// DeleteKubernetesCluster deletes specified Kubernetes cluster resource.
+// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
 func (w *DiscoveryWrapper) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	return w.NoCache.DeleteKubernetesCluster(ctx, name)
 }
