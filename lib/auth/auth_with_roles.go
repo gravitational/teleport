@@ -5241,7 +5241,7 @@ func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
 
 // GetReleases return Teleport Enterprise releases
 func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
