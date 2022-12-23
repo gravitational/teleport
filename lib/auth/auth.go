@@ -1563,16 +1563,14 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
 
 			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
-			return err
+			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
 			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
-			return err
+			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
 	fnErr := authenticateFn()
@@ -1616,8 +1614,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	}
 
 	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-	retErr.AddField(ErrFieldKeyUserMaxedAttempts, true)
-	return retErr
+	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
