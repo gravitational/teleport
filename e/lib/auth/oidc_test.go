@@ -1005,6 +1005,8 @@ func TestOIDCAuthRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
+	idp := newFakeIDP(t, false /* tls */)
+
 	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
 	require.NoError(t, err)
 
@@ -1057,7 +1059,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:    "https://gitlab.com",
+		IssuerURL:    idp.s.URL,
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
@@ -1082,7 +1084,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 		Type:        constants.OIDC,
 		SSOTestFlow: true,
 		ConnectorSpec: &types.OIDCConnectorSpecV3{
-			IssuerURL:    "https://gitlab.com",
+			IssuerURL:    idp.s.URL,
 			ClientID:     "example-client-id",
 			ClientSecret: "example-client-secret",
 			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
