@@ -44,6 +44,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -161,7 +162,7 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 		trace.WriteError(rw, respErr)
 		return
 	}
-	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set(responsewriters.ContentTypeHeader, "application/json")
 	// Always write InternalServerError, that's the only code that kubectl will
 	// parse the Status object for. The Status object has the real status code
 	// embedded.

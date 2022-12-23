@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ContainsExpansion returns true if value contains
@@ -86,24 +88,22 @@ type RegexpConfig struct {
 
 // SliceMatchesRegex checks if input matches any of the expressions. The
 // match is always evaluated as a regex either an exact match or regexp.
-func SliceMatchesRegex(input string, expressions []string) (bool, error) {
-	for _, expression := range expressions {
-		if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
-			// replace glob-style wildcards with regexp wildcards
-			// for plain strings, and quote all characters that could
-			// be interpreted in regular expression
-			expression = "^" + GlobToRegexp(expression) + "$"
+func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
+	for _, resource := range resources {
+		// TODO(tigrato): evaluate if we should support wildcards as well
+		// for future compatibility.
+		if input.Kind != resource.Kind {
+			continue
 		}
-
-		expr, err := regexp.Compile(expression)
+		resultName, err := matchString(input.Name, resource.Name)
 		if err != nil {
-			return false, trace.BadParameter(err.Error())
+			return false, trace.Wrap(err)
 		}
-
-		// Since the expression is always surrounded by ^ and $ this is an exact
-		// match for either a a plain string (for example ^hello$) or for a regexp
-		// (for example ^hel*o$).
-		if expr.MatchString(input) {
+		resultNamespace, err := matchString(input.Namespace, resource.Namespace)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if resultNamespace && resultName {
 			return true, nil
 		}
 	}
@@ -111,5 +111,42 @@ func SliceMatchesRegex(input string, expressions []string) (bool, error) {
 	return false, nil
 }
 
-var replaceWildcard = regexp.MustCompile(`(\\\*)`)
-var reExpansion = regexp.MustCompile(`\$[^\$]+`)
+// SliceMatchesRegex checks if input matches any of the expressions. The
+// match is always evaluated as a regex either an exact match or regexp.
+func SliceMatchesRegex(input string, expressions []string) (bool, error) {
+	for _, expression := range expressions {
+		result, err := matchString(input, expression)
+		if err != nil || result {
+			return result, trace.Wrap(err)
+		}
+	}
+
+	return false, nil
+}
+
+func matchString(input, expression string) (bool, error) {
+	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
+		// replace glob-style wildcards with regexp wildcards
+		// for plain strings, and quote all characters that could
+		// be interpreted in regular expression
+		expression = "^" + GlobToRegexp(expression) + "$"
+	}
+
+	expr, err := regexp.Compile(expression)
+	if err != nil {
+		return false, trace.BadParameter(err.Error())
+	}
+
+	// Since the expression is always surrounded by ^ and $ this is an exact
+	// match for either a a plain string (for example ^hello$) or for a regexp
+	// (for example ^hel*o$).
+	if expr.MatchString(input) {
+		return true, nil
+	}
+	return false, nil
+}
+
+var (
+	replaceWildcard = regexp.MustCompile(`(\\\*)`)
+	reExpansion     = regexp.MustCompile(`\$[^\$]+`)
+)

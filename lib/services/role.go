@@ -2101,6 +2101,37 @@ type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
 }
 
+// KubernetesResourceMatcher matches a role against a Kubernetes Resource.
+// Kind is must be stricly equal but namespace and name allow wildcards.
+type KubernetesResourceMatcher struct {
+	types.KubernetesResource
+}
+
+// NewLoginMatcher creates a KubernetesResourceMatcher that checks whether the
+// role's KubeResources match the specified condition.
+func NewKubernetesResourceMatcher(resource types.KubernetesResource) *KubernetesResourceMatcher {
+	return &KubernetesResourceMatcher{
+		resource,
+	}
+}
+
+// Match matches a Kubernetes Resource against provided role and condition.
+func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	result, err := utils.KubeResourceMatchesRegex(m.KubernetesResource, role.GetKubeResources(condition))
+	if err != nil {
+		return false, trace.Wrap(err)
+	} else if !result {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// String returns the matcher's string representation.
+func (m *KubernetesResourceMatcher) String() string {
+	return fmt.Sprintf("KubernetesResourceMatcher(Resource=%v)", m.KubernetesResource)
+}
+
 // NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether a role's
 // Kubernetes service labels match.
 func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatcher {
@@ -2580,6 +2611,51 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		denyWhere:  whereParser,
 		silent:     silent,
 	})
+}
+
+// GetKubeResources returns allowed and denied list of Kubernetes Resources configured in the RoleSet.
+func (set RoleSet) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
+	var (
+		allowedResources []types.KubernetesResource
+		deniedResources  []types.KubernetesResource
+	)
+	getRoleLabels := types.Role.GetKubernetesLabels
+	for _, role := range set {
+		matchLabels, _, err := MatchLabels(getRoleLabels(role, types.Allow), cluster.GetAllLabels())
+		if err != nil {
+			continue
+		}
+		if !matchLabels {
+			continue
+		}
+		allowedResources = append(allowedResources, role.GetKubeResources(types.Allow)...)
+	}
+
+	for _, role := range set {
+		matchLabels, _, err := MatchLabels(getRoleLabels(role, types.Deny), cluster.GetAllLabels())
+		if err != nil {
+			continue
+		}
+		if !matchLabels {
+			continue
+		}
+		deniedResources = append(deniedResources, role.GetKubeResources(types.Deny)...)
+	}
+
+	return deduplicateKubeResources(allowedResources), deduplicateKubeResources(deniedResources)
+}
+
+func deduplicateKubeResources(sliceList []types.KubernetesResource) []types.KubernetesResource {
+	allKeys := make(map[string]bool)
+	list := make([]types.KubernetesResource, 0, len(sliceList))
+	for _, item := range sliceList {
+		key := item.String()
+		if _, value := allKeys[key]; !value {
+			allKeys[key] = true
+			list = append(list, item)
+		}
+	}
+	return list
 }
 
 type checkAccessParams struct {

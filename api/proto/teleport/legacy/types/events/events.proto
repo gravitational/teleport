@@ -1218,6 +1218,8 @@ message ResourceID {
   string Kind = 2 [(gogoproto.jsontag) = "kind"];
   // Name is the name of the specific resource.
   string Name = 3 [(gogoproto.jsontag) = "name"];
+  // SubResourceName is the sub resource name of the specific resource.
+  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource"];
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.

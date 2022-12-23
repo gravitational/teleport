@@ -1435,3 +1435,7 @@ func validateKubeResources(kubeResources []KubernetesResource) error {
 	}
 	return nil
 }
+
+func (k KubernetesResource) ResourceIdentifier() string {
+	return k.Namespace + "/" + k.Name
+}

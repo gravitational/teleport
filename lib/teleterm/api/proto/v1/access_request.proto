@@ -58,6 +58,7 @@ message ResourceID {
   string kind = 1;
   string name = 2;
   string cluster_name = 3;
+  string sub_resource_name = 4;
 }
 
 message ResourceDetails {

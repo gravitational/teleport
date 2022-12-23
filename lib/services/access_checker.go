@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -193,6 +194,10 @@ type AccessChecker interface {
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
+
+	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
+	// for a user.
+	GetKubeResources(cluster types.KubeCluster) (allowed []types.KubernetesResource, denied []types.KubernetesResource)
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -269,7 +274,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
 		if resourceID.ClusterName == a.localCluster &&
-			resourceID.Kind == r.GetKind() &&
+			(resourceID.Kind == r.GetKind() || (resourceID.Kind == types.KindKubePod && r.GetKind() == types.KindKubernetesCluster)) &&
 			resourceID.Name == r.GetName() {
 			// Allowed to access this resource by resource ID, move on to role checks.
 			if isDebugEnabled {
@@ -299,6 +304,32 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.RoleSet.checkAccess(r, mfa, matchers...))
+}
+
+// GetKubeResources returns the allowed and denied Kubernetes Resources configured
+// for a user.
+func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) ([]types.KubernetesResource, []types.KubernetesResource) {
+	var (
+		allowedResources []types.KubernetesResource
+		deniedResources  []types.KubernetesResource
+	)
+	if len(a.info.AllowedResourceIDs) > 0 {
+		for _, r := range a.info.AllowedResourceIDs {
+			if r.Kind == types.KindKubePod && r.Name == cluster.GetName() && r.ClusterName == a.localCluster {
+				splitted := strings.SplitN(r.SubResourceName, "/", 2)
+				allowedResources = append(allowedResources,
+					types.KubernetesResource{
+						Kind:      r.Kind,
+						Namespace: splitted[0],
+						Name:      splitted[1],
+					},
+				)
+			}
+		}
+		return allowedResources, deniedResources
+	}
+
+	return a.RoleSet.GetKubeResources(cluster)
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for

@@ -179,7 +179,8 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster, types.KindDatabaseService:
+	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService,
+		types.KindKubernetesCluster, types.KindDatabaseService, types.KindKubePod:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -286,7 +287,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)
 	}
-
 }
 
 // matchAndFilterKubeClustersLegacy is used by matchAndFilterKubeClusters to filter kube clusters that are stil living in old kube services

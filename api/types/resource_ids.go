@@ -38,12 +38,24 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 	if len(id.Name) == 0 {
 		return trace.BadParameter("ResourceID must include Name")
 	}
+
+	if !slices.Contains(KubernetesResourcesKinds, id.Kind) {
+		return nil
+	}
+
+	if len(id.SubResourceName) == 0 {
+		return trace.BadParameter("ResourceID of type %q must include a subresource name")
+	}
+
 	return nil
 }
 
 // ResourceIDToString marshals a ResourceID to a string.
 func ResourceIDToString(id ResourceID) string {
-	return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
+	if len(id.SubResourceName) == 0 {
+		return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
+	}
+	return fmt.Sprintf("/%s/%s/%s/%s", id.ClusterName, id.Kind, id.Name, id.SubResourceName)
 }
 
 // ResourceIDFromString parses a ResourceID from a string. The string should
@@ -52,17 +64,20 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	if len(raw) < 1 || raw[0] != '/' {
 		return ResourceID{}, trace.BadParameter("%s is not a valid ResourceID string", raw)
 	}
-	raw = raw[1:]
-	// Should be safe for any Name as long as the ClusterName and Kind don't
-	// contain slashes, which should never happen.
-	parts := strings.SplitN(raw, "/", 3)
-	if len(parts) != 3 {
+	raw = strings.TrimRight(raw[1:], "/")
+	// Should be safe for any Name as long as the ClusterName, Kind and ResourceName
+	// don't contain slashes, which should never happen.
+	parts := strings.SplitN(raw, "/", 4)
+	if len(parts) < 3 {
 		return ResourceID{}, trace.BadParameter("/%s is not a valid ResourceID string", raw)
 	}
 	resourceID := ResourceID{
 		ClusterName: parts[0],
 		Kind:        parts[1],
 		Name:        parts[2],
+	}
+	if len(parts) == 4 {
+		resourceID.SubResourceName = parts[3]
 	}
 	return resourceID, trace.Wrap(resourceID.CheckAndSetDefaults())
 }
