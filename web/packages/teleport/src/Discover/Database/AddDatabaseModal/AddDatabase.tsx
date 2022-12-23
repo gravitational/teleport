@@ -41,6 +41,8 @@ import {
   getDatabaseProtocol,
 } from 'teleport/Discover/Database/resources';
 
+import { generateTshLoginCommand } from 'teleport/lib/util';
+
 import useAddDatabase, { State } from './useAddDatabase';
 
 export default function Container(props: Props) {
@@ -63,10 +65,6 @@ export function AddDatabase({
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
 
-  const connectCmd =
-    authType === 'sso'
-      ? `tsh login --proxy=${host}`
-      : `tsh login --proxy=${host} --auth=local --user=${username}`;
   return (
     <Dialog
       dialogCss={() => ({
@@ -88,7 +86,10 @@ export function AddDatabase({
         )}
         {attempt.status === 'failed' && (
           <StepsWithoutToken
-            loginCommand={connectCmd}
+            loginCommand={generateTshLoginCommand({
+              authType,
+              username,
+            })}
             addCommand={generateDbStartCmd(selectedDb, host, '')}
             isEnterprise={isEnterprise}
             version={version}

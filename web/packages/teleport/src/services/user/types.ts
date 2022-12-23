@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Cluster } from 'teleport/services/clusters';
 
-export type AuthType = 'local' | 'sso';
+export type AuthType = 'local' | 'sso' | 'passwordless';
 
 export interface AccessStrategy {
   type: 'optional' | 'always' | 'reason';

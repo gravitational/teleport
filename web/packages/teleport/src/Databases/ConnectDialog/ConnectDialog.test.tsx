@@ -39,14 +39,23 @@ test('correct connect command generated for mysql db', () => {
 
 test('correct tsh login command generated with local authType', () => {
   render(<ConnectDialog {...props} />);
-  const output = 'tsh login --proxy=localhost:443 --auth=local --user=yassine';
+  const output =
+    'tsh login --proxy=localhost:443 --auth=local --user=yassine im-a-cluster';
 
   expect(screen.getByText(output)).toBeInTheDocument();
 });
 
 test('correct tsh login command generated with sso authType', () => {
   render(<ConnectDialog {...props} authType="sso" />);
-  const output = 'tsh login --proxy=localhost:443';
+  const output = 'tsh login --proxy=localhost:443 im-a-cluster';
+
+  expect(screen.getByText(output)).toBeInTheDocument();
+});
+
+test('correct tsh login command generated with passwordless authType', () => {
+  render(<ConnectDialog {...props} authType="passwordless" />);
+  const output =
+    'tsh login --proxy=localhost:443 --auth=passwordless --user=yassine im-a-cluster';
 
   expect(screen.getByText(output)).toBeInTheDocument();
 });

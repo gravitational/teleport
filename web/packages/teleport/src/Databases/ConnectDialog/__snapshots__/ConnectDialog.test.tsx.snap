@@ -264,7 +264,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
                 $
               </div>
               <div>
-                tsh login --proxy=localhost:443 --auth=local --user=yassine
+                tsh login --proxy=localhost:443 --auth=local --user=yassine im-a-cluster
               </div>
             </div>
             <button

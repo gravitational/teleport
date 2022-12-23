@@ -48,26 +48,32 @@ export async function Sha256Digest(
 }
 
 export type TshLoginCommand = {
-  accessRequestId?: string;
-  username: string;
   authType: AuthType;
-  clusterId: string;
+  clusterId?: string;
+  username: string;
+  accessRequestId?: string;
 };
 
 export function generateTshLoginCommand({
   authType,
-  clusterId,
+  clusterId = '',
   username,
-  accessRequestId,
+  accessRequestId = '',
 }: TshLoginCommand) {
   const { hostname, port } = window.location;
   const host = `${hostname}:${port || '443'}`;
-  const authSpec =
-    authType === 'local' ? `--auth=${authType} --user=${username} ` : '';
-
   const requestId = accessRequestId ? ` --request-id=${accessRequestId}` : '';
 
-  return `tsh login --proxy=${host} ${authSpec}${clusterId}${requestId}`;
+  switch (authType) {
+    case 'sso':
+      return `tsh login --proxy=${host} ${clusterId}${requestId}`.trim();
+    case 'local':
+      return `tsh login --proxy=${host} --auth=${authType} --user=${username} ${clusterId}${requestId}`.trim();
+    case 'passwordless':
+      return `tsh login --proxy=${host} --auth=${authType} --user=${username} ${clusterId}${requestId}`.trim();
+    default:
+      throw new Error(`auth type ${authType} is not supported`);
+  }
 }
 
 // arrayStrDiff returns an array of strings that

@@ -26,26 +26,16 @@ import { DbProtocol } from 'shared/services/databases';
 
 import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
+import { generateTshLoginCommand } from 'teleport/lib/util';
 
 export default function ConnectDialog({
   username,
+  clusterId,
   dbName,
   onClose,
   authType,
   accessRequestId,
 }: Props) {
-  const { hostname, port } = window.document.location;
-  const host = `${hostname}:${port || '443'}`;
-
-  const connectCmd =
-    authType === 'sso'
-      ? `tsh login --proxy=${host}`
-      : `tsh login --proxy=${host} --auth=local --user=${username}`;
-
-  const requestIdFlag = accessRequestId
-    ? ` --request-id=${accessRequestId}`
-    : '';
-
   return (
     <Dialog
       dialogCss={() => ({
@@ -65,7 +55,15 @@ export default function ConnectDialog({
             Step 1
           </Text>
           {' - Login to Teleport'}
-          <TextSelectCopy mt="2" text={`${connectCmd}${requestIdFlag}`} />
+          <TextSelectCopy
+            mt="2"
+            text={generateTshLoginCommand({
+              authType,
+              clusterId,
+              username,
+              accessRequestId,
+            })}
+          />
         </Box>
         <Box mb={4}>
           <Text bold as="span">
