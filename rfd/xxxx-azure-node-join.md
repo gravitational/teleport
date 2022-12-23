@@ -44,8 +44,8 @@ to implement the following flow at a new `RegisterWithAzureToken` gRPC endpoint:
 1. The Node initiates a `RegisterWithAzureToken` request.
 2. The auth server enforces that TLS is used for transport.
 3. The auth server sends a base64 encoded 24 byte crypto-random challenge.
-  - We use 24 bytes instead of 32 because the nonce parameter is limited to 32
-    characters, and 24 bytes require 32 base64 characters.
+  - We use 24 bytes instead of the 32 used by the IAM method because the nonce
+    parameter is limited to 32 characters, and 24 bytes require 32 base64 characters.
 4. The node requests a) the attested data document using the challenge as the
   nonce and b) an access token. Azure signs and returns both.
 5. The node sends a join request to the auth server, including the signed
@@ -55,10 +55,10 @@ to implement the following flow at a new `RegisterWithAzureToken` gRPC endpoint:
   - The returned nonce matches the issued challenge.
 7. The auth server checks that the access token is valid:
   - The access token's signature is valid.
-  - The access token was not issues before the start of the
+  - The access token was not issued before the start of the
   `RegisterWithAzureToken` request.
   - The requested Teleport token allows the node to join. Teleport will get the
-    subscription ID and resource group from the access token's claims.
+    subscription ID and resource group from the access token's `xms_mirid` claim.
 8. The auth server sends credentials to join the cluster.
 
 As with IAM join, the flow will occur within a single streaming gRPC request and
