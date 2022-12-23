@@ -204,6 +204,7 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.Sess
 
 	// Session owners can always join their own sessions.
 	if user.Username == e.owner {
+		fmt.Printf("MADE IT HERE")
 		return []types.SessionParticipantMode{types.SessionPeerMode, types.SessionModeratorMode, types.SessionObserverMode}
 	}
 

@@ -2331,7 +2331,6 @@ func (h *Handler) siteNodeConnect(
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
 		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx.cfg.User)
-		fmt.Printf("\n THE USER CREATING THE SESSION IS %v \n", sessionCtx.cfg.User)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -2352,8 +2351,6 @@ func (h *Handler) siteNodeConnect(
 			req.ParticipantMode = types.SessionObserverMode
 		}
 	}
-
-	fmt.Printf("%v IS JOINING AS A %v \n", sessionCtx.cfg.User, req.ParticipantMode)
 
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
@@ -2576,7 +2573,12 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 }
 
 type siteSessionsGetResponse struct {
-	Sessions []session.Session `json:"sessions"`
+	Sessions []siteSessionsGetResponseSession `json:"sessions"`
+}
+
+type siteSessionsGetResponseSession struct {
+	session.Session
+	ParticipantModes []types.SessionParticipantMode `json:"participantModes"`
 }
 
 func trackerToLegacySession(tracker types.SessionTracker, clusterName string) session.Session {
@@ -2635,10 +2637,33 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	sessions := make([]session.Session, 0, len(trackers))
+	// Get the participant modes available to the user from their roles.
+	userRoles, err := clt.GetCurrentUserRoles(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var policySets []*types.SessionTrackerPolicySet
+	for _, role := range userRoles {
+		policySet := role.GetSessionPolicySet()
+		policySets = append(policySets, &policySet)
+	}
+
+	fmt.Printf("USERS ROLES ARE: \n %v", userRoles)
+
+	accessContext := auth.SessionAccessContext{
+		Username: sctx.GetUser(),
+		Roles:    userRoles,
+	}
+
+	sessions := make([]siteSessionsGetResponseSession, 0, len(trackers))
 	for _, tracker := range trackers {
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
-			sessions = append(sessions, trackerToLegacySession(tracker, site.GetName()))
+			session := trackerToLegacySession(tracker, p.ByName("site"))
+			accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, session.Owner)
+			participantModes := accessEvaluator.CanJoin(accessContext)
+
+			sessions = append(sessions, siteSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})
 		}
 	}
 
