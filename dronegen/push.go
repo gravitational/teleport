@@ -97,7 +97,18 @@ func pushPipelines() []pipeline {
 		}
 	}
 
-	ps = append(ps, ghaPushBuild(buildType{os: "linux", arch: "arm64"}))
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType: buildType{os: "linux", arch: "arm64"},
+		trigger: trigger{
+			Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
+			Branch: triggerRef{Include: []string{"tcsc/gha-drone-updates"}},
+			Repo:   triggerRef{Include: []string{"gravitational/*"}},
+		},
+		namePrefix:      "push-",
+		uploadArtifacts: false,
+		slackOnError:    true,
+		srcRefVar:       "DRONE_COMMIT",
+	}))
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
@@ -105,56 +116,6 @@ func pushPipelines() []pipeline {
 	ps = append(ps, darwinPushPipeline())
 	ps = append(ps, windowsPushPipeline())
 	return ps
-}
-
-func ghaPushBuild(b buildType) pipeline {
-	p := newKubePipeline(fmt.Sprintf("push-build-%s-%s", b.os, b.arch))
-	p.Trigger = trigger{
-		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"tcsc/gha-drone-updates"}},
-		Repo:   triggerRef{Include: []string{"gravitational/*"}},
-	}
-	p.Workspace = workspace{Path: "/go"}
-	p.Environment = map[string]value{
-		"BUILDBOX_VERSION": buildboxVersion,
-		"RUNTIME":          goRuntime,
-		"UID":              {raw: "1000"},
-		"GID":              {raw: "1000"},
-	}
-
-	p.Steps = []step{
-		{
-			Name:  "Check out code",
-			Image: "docker:git",
-			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
-			},
-			Commands: pushCheckoutCommands(b),
-		}, {
-			Name:  "Determine teleport.e revision",
-			Image: "docker:git",
-			Commands: []string{
-				`cd "/go/src/github.com/gravitational/teleport"`,
-				`echo TELEPORT_E_REF=$(git rev-parse @:e) >> DRONE.ENV`,
-			},
-		}, {
-			Name:  "Delegate build to GitHub",
-			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
-			Environment: map[string]value{
-				"GHA_APP_KEY": {fromSecret: "GITHUB_WORKFLOW_APP_PRIVATE_KEY"},
-			},
-			Commands: []string{
-				`cd "/go/src/github.com/gravitational/teleport"`,
-				`source DRONE.ENV`,
-				`echo $TELEPORT_E_REF`,
-				`cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"`,
-				`go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow-ref $TELEPORT_E_REF -workflow release-linux-arm64.yml -input oss-teleport-ref=${DRONE_COMMIT} -input upload-artifacts=false`,
-			},
-		},
-		sendErrorToSlackStep(),
-	}
-
-	return p
 }
 
 // pushPipeline generates a push pipeline for a given combination of os/arch/FIPS
