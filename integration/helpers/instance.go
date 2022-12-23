@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -386,6 +387,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -400,6 +402,9 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	if tconf == nil {
 		tconf = service.MakeDefaultConfig()
+	}
+	if tconf.InstanceMetadataClient == nil {
+		tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	}
 	tconf.Log = i.Log
 	tconf.DataDir = dataDir
@@ -543,7 +548,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		return trace.Wrap(err)
 	}
 	i.Config = tconf
-	i.Process, err = service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	i.Process, err = service.NewTeleport(tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -656,7 +661,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -698,7 +703,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(conf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -748,7 +753,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
-			process, err := service.NewTeleport(cfg, service.WithIMDSClient(&DisabledIMDSClient{}))
+			process, err := service.NewTeleport(cfg)
 			if err != nil {
 				results <- result{err: err, tmpDir: dataDir}
 			}
@@ -812,7 +817,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(conf)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -945,10 +950,11 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 		},
 	}
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	i.Nodes = append(i.Nodes, process)
 
@@ -1033,11 +1039,12 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1089,7 +1096,7 @@ func (i *TeleInstance) Reset() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	i.Process, err = service.NewTeleport(i.Config, service.WithIMDSClient(&DisabledIMDSClient{}))
+	i.Process, err = service.NewTeleport(i.Config)
 	if err != nil {
 		return trace.Wrap(err)
 	}

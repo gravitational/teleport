@@ -391,20 +391,6 @@ type keyPairKey struct {
 	reason string
 }
 
-// newTeleportConfig provides extra options to NewTeleport().
-type newTeleportConfig struct {
-	imdsClient cloud.InstanceMetadata
-}
-
-type NewTeleportOption func(*newTeleportConfig)
-
-// WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
-func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
-	return func(c *newTeleportConfig) {
-		c.imdsClient = client
-	}
-}
-
 // processIndex is an internal process index
 // to help differentiate between two different teleport processes
 // during in-process reload.
@@ -767,11 +753,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, error) {
-	newTeleportConf := &newTeleportConfig{}
-	for _, opt := range opts {
-		opt(newTeleportConf)
-	}
+func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var err error
 
 	// auth and proxy benefit from precomputing keys since they can experience spikes in key
@@ -877,7 +859,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	var cloudLabels labels.Importer
 
 	// Check if we're on a cloud instance, and if we should override the node's hostname.
-	imClient := newTeleportConf.imdsClient
+	imClient := cfg.InstanceMetadataClient
 	if imClient == nil {
 		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
 		if err != nil && !trace.IsNotFound(err) {
@@ -885,7 +867,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	if imClient != nil {
+	if imClient != nil && imClient.GetType() != types.InstanceMetadataTypeDisabled {
 		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
 			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")

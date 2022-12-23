@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
@@ -259,6 +260,9 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// InstanceMetadataClient specifies the instance metadata client.
+	InstanceMetadataClient cloud.InstanceMetadata
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
