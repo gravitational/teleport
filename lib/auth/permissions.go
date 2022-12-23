@@ -366,6 +366,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
+					types.NewRule(types.KindDatabaseService, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -457,6 +458,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				types.NewRule(types.KindDatabaseService, services.RO()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -594,6 +596,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
+						types.NewRule(types.KindDatabaseService, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),

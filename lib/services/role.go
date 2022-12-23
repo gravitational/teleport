@@ -2006,10 +2006,16 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	additionalDeniedMessage := ""
 
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
+	resourceHasLabels := true
+	getEmptyLabels := func(r types.Role, rct types.RoleConditionType) types.Labels { return types.Labels{} }
+
 	switch r.GetKind() {
 	case types.KindDatabase:
 		getRoleLabels = types.Role.GetDatabaseLabels
 		additionalDeniedMessage = "Confirm database user and name."
+	case types.KindDatabaseService:
+		resourceHasLabels = false
+		getRoleLabels = getEmptyLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
@@ -2076,7 +2082,9 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !matchLabels {
+
+		// Deny only if the resourceHasLabels but there was no match.
+		if resourceHasLabels && !matchLabels {
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
 					role.GetName(), labelsMessage))
