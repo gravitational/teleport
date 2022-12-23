@@ -2615,6 +2615,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		DesktopName:           tracker.GetDesktopName(),
 		AppName:               tracker.GetAppName(),
 		DatabaseName:          tracker.GetDatabaseName(),
+		Owner:                 tracker.GetHostUser(),
 	}
 }
 
@@ -2631,13 +2632,11 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	trackers, err := clt.GetActiveSessionTrackers(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the participant modes available to the user from their roles.
 	userRoles, err := clt.GetCurrentUserRoles(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2649,8 +2648,6 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		policySets = append(policySets, &policySet)
 	}
 
-	fmt.Printf("USERS ROLES ARE: \n %v", userRoles)
-
 	accessContext := auth.SessionAccessContext{
 		Username: sctx.GetUser(),
 		Roles:    userRoles,
@@ -2660,6 +2657,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	for _, tracker := range trackers {
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			session := trackerToLegacySession(tracker, p.ByName("site"))
+			// Get the participant modes available to the user from their roles.
 			accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, session.Owner)
 			participantModes := accessEvaluator.CanJoin(accessContext)
 
