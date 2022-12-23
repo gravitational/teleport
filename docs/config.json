@@ -720,10 +720,6 @@
               "slug": "/kubernetes-access/guides/multiple-clusters/"
             },
             {
-              "title": "CI/CD",
-              "slug": "/kubernetes-access/guides/cicd/"
-            },
-            {
               "title": "Federation",
               "slug": "/kubernetes-access/guides/federation/"
             },
@@ -2037,6 +2033,11 @@
     {
       "source": "/architecture/overview/",
       "destination": "/core-concepts/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/cicd/",
+      "destination": "/machine-id/guides/kubernetes/",
       "permanent": true
     }
   ]
