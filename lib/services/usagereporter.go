@@ -154,20 +154,6 @@ func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventR
 	}
 }
 
-// UsageUIOnboardGetStartedClickEvent is a UI event sent when the "get started"
-// button is clicked.
-type UsageUIOnboardGetStartedClickEvent prehogv1.UIOnboardGetStartedClickEvent
-
-func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiOnboardGetStartedClick{
-			UiOnboardGetStartedClick: &prehogv1.UIOnboardGetStartedClickEvent{
-				UserName: a.AnonymizeString(u.UserName),
-			},
-		},
-	}
-}
-
 // UsageUIOnboardCompleteGoToDashboardClickEvent is a UI event sent when
 // onboarding is complete.
 type UsageUIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoToDashboardClickEvent
@@ -292,14 +278,6 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 			UserName: identityUsername,
 			Alert:    e.UiBannerClick.Alert,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardGetStartedClick:
-		return &UsageUIOnboardGetStartedClickEvent{
-			UserName: e.UiOnboardGetStartedClick.Username,
-		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
-		return &UsageUIOnboardCompleteGoToDashboardClickEvent{
-			UserName: identityUsername,
-		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceClick:
 		return &UsageUIOnboardAddFirstResourceClickEvent{
 			UserName: identityUsername,
@@ -307,6 +285,10 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
 		return &UsageUIOnboardAddFirstResourceLaterClickEvent{
 			UserName: identityUsername,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
+		return &UsageUIOnboardCompleteGoToDashboardClickEvent{
+			UserName: e.UiOnboardCompleteGoToDashboardClick.Username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardSetCredentialSubmit:
 		return &UsageUIOnboardSetCredentialSubmit{

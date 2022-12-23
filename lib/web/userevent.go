@@ -31,7 +31,6 @@ import (
 // packages/teleport/src/services/userEvent/UserEvents/userEvents.ts
 const (
 	bannerClickEvent                = "tp.ui.banner.click"
-	getStartedClickEvent            = "tp.ui.onboard.getStarted.click"
 	setCredentialSubmitEvent        = "tp.ui.onboard.setCredential.submit"
 	registerChallengeSubmitEvent    = "tp.ui.onboard.registerChallenge.submit"
 	addFirstResourceClickEvent      = "tp.ui.onboard.addFirstResource.click"
@@ -39,6 +38,7 @@ const (
 	recoveryCodesContinueClickEvent = "tp.ui.recoveryCodesContinue.click"
 	recoveryCodesCopyClickEvent     = "tp.ui.recoveryCodesCopy.click"
 	recoveryCodesPrintClickEvent    = "tp.ui.recoveryCodesPrint.click"
+	completeGoToDashboardClickEvent = "tp.ui.onboard.completeGoToDashboard.click"
 )
 
 // createPreUserEventRequest contains the event and properties associated with a user event
@@ -107,12 +107,6 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 
 	typedEvent := v1.UsageEventOneOf{}
 	switch req.Event {
-	case getStartedClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardGetStartedClick{
-			UiOnboardGetStartedClick: &v1.UIOnboardGetStartedClickEvent{
-				Username: req.Username,
-			},
-		}
 	case setCredentialSubmitEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardSetCredentialSubmit{
 			UiOnboardSetCredentialSubmit: &v1.UIOnboardSetCredentialSubmitEvent{
@@ -142,6 +136,12 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 	case recoveryCodesPrintClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
 			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
+				Username: req.Username,
+			},
+		}
+	case completeGoToDashboardClickEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick{
+			UiOnboardCompleteGoToDashboardClick: &v1.UIOnboardCompleteGoToDashboardClickEvent{
 				Username: req.Username,
 			},
 		}
