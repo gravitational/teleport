@@ -1539,9 +1539,6 @@ func onLogin(cf *CLIConf) error {
 		cf.Username = tc.Username
 	}
 
-	// -i flag specified? save the retrieved cert into an identity file
-	makeIdentityFile := (cf.IdentityFileOut != "")
-
 	// stdin hijack is OK for login, since it tsh doesn't read input after the
 	// login ceremony is complete.
 	// Only allow the option during the login ceremony.
@@ -1561,12 +1558,13 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
+	if err := tc.ActivateKey(cf.Context, key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
-	if makeIdentityFile {
-		if err := setupNoninteractiveClient(tc, key); err != nil {
-			return trace.Wrap(err)
-		}
+	if cf.IdentityFileOut != "" {
 		// key.TrustedCA at this point only has the CA of the root cluster we
 		// logged into. We need to fetch all the CAs for leaf clusters too, to
 		// make them available in the identity file.
@@ -1598,10 +1596,6 @@ func onLogin(cf *CLIConf) error {
 		}
 		fmt.Printf("\nThe certificate has been written to %s\n", strings.Join(filesWritten, ","))
 		return nil
-	}
-
-	if err := tc.ActivateKey(cf.Context, key); err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Attempt device login. This activates a fresh key if successful.
@@ -1707,46 +1701,6 @@ func onLogin(cf *CLIConf) error {
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
 
-	return nil
-}
-
-// setupNoninteractiveClient sets up existing client to use
-// non-interactive authentication methods
-func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error {
-	certUsername, err := key.CertUsername()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tc.Username = certUsername
-
-	// Extract and set the HostLogin to be the first principal. It doesn't
-	// matter what the value is, but some valid principal has to be set
-	// otherwise the certificate won't be validated.
-	certPrincipals, err := key.CertPrincipals()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(certPrincipals) == 0 {
-		return trace.BadParameter("no principals found")
-	}
-	tc.HostLogin = certPrincipals[0]
-
-	authMethod, err := key.AsAuthMethod()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	rootCluster, err := key.RootClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tc.TLS, err = key.TeleportClientTLSConfig(nil, []string{rootCluster})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tc.AuthMethods = []ssh.AuthMethod{authMethod}
-	tc.Interactive = false
-	tc.SkipLocalAuth = true
 	return nil
 }
 
