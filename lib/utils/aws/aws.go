@@ -19,6 +19,7 @@ package aws
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/textproto"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -55,10 +57,11 @@ const (
 	credentialAuthHeaderElem   = "Credential"
 	signedHeaderAuthHeaderElem = "SignedHeaders"
 	signatureAuthHeaderElem    = "Signature"
-	// TargetHeader is a header containing the API target.
+
+	// AmzTargetHeader is a header containing the API target.
 	// Format: target_version.operation
 	// Example: DynamoDB_20120810.Scan
-	TargetHeader = "X-Amz-Target"
+	AmzTargetHeader = "X-Amz-Target"
 	// AmzJSON1_0 is an AWS Content-Type header that indicates the media type is JSON.
 	AmzJSON1_0 = "application/x-amz-json-1.0"
 	// AmzJSON1_1 is an AWS Content-Type header that indicates the media type is JSON.
@@ -239,17 +242,24 @@ func NewSigner(credentials *credentials.Credentials, signingServiceName string) 
 	return v4.NewSigner(credentials, options)
 }
 
-// filterHeaders removes request headers that are not in the headers list.
-func filterHeaders(r *http.Request, headers []string) {
+// filterHeaders removes request headers that are not in the headers list and returns the removed header keys.
+func filterHeaders(r *http.Request, headers []string) []string {
+	keep := make(map[string]struct{})
+	for _, key := range headers {
+		keep[textproto.CanonicalMIMEHeaderKey(key)] = struct{}{}
+	}
+
+	var removed []string
 	out := make(http.Header)
-	for _, v := range headers {
-		ck := textproto.CanonicalMIMEHeaderKey(v)
-		val, ok := r.Header[ck]
-		if ok {
-			out[ck] = val
+	for key, vals := range r.Header {
+		if _, ok := keep[textproto.CanonicalMIMEHeaderKey(key)]; ok {
+			out[key] = vals
+			continue
 		}
+		removed = append(removed, key)
 	}
 	r.Header = out
+	return removed
 }
 
 // FilterAWSRoles returns role ARNs from the provided list that belong to the
@@ -359,4 +369,21 @@ func isJSON(contentType string) bool {
 	default:
 		return false
 	}
+}
+
+// BuildRoleARN constructs a string AWS ARN from a username, region, and account ID.
+func BuildRoleARN(username, region, accountID string) string {
+	if arn.IsARN(username) {
+		return username
+	}
+	resource := username
+	if !strings.Contains(resource, "/") {
+		resource = fmt.Sprintf("role/%s", username)
+	}
+	return arn.ARN{
+		Partition: apiawsutils.GetPartitionFromRegion(region),
+		Service:   "iam",
+		AccountID: accountID,
+		Resource:  resource,
+	}.String()
 }
