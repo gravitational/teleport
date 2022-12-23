@@ -461,7 +461,7 @@ release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
-# make release-unix - Produces an Enterprise binary release tarball containing
+# make release-unix-only - Produces an Enterprise binary release tarball containing
 # teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
 #
 .PHONY: release-unix-only
