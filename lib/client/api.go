@@ -3242,8 +3242,8 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
 			c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, sshProxyAddr)
 			if err != nil {
-                                fmt.Fprintf(os.Stderr, "Unable to successfully connect and authenticate to ssh proxy address=%v. Required for Teleport client.  Confirm connectivity and availability.", tc.Config.WebProxyAddr)
-                                fmt.Fprintln(os.Stderr)
+				fmt.Fprintf(os.Stderr, "Unable to successfully connect and authenticate to ssh proxy address=%v. Required for Teleport client.  Confirm connectivity and availability.", tc.Config.WebProxyAddr)
+				fmt.Fprintln(os.Stderr)
 				return nil, trace.Wrap(err)
 			}
 			log.Infof("Successful auth with proxy %v.", sshProxyAddr)
