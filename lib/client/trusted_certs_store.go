@@ -32,7 +32,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -498,14 +497,14 @@ func TrustedCertsFromCACerts(proxyHost string, tlsCACerts, knownHosts [][]byte) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, ah := range parsedKnownHosts {
-		if ah.ProxyHost == proxyHost {
-			if _, ok := clusterCAs[ah.Hostname]; !ok {
-				clusterCAs[ah.Hostname] = &auth.TrustedCerts{
-					ClusterName: ah.Hostname,
+	for _, kh := range parsedKnownHosts {
+		if kh.ProxyHost == proxyHost {
+			if _, ok := clusterCAs[kh.Hostname]; !ok {
+				clusterCAs[kh.Hostname] = &auth.TrustedCerts{
+					ClusterName: kh.Hostname,
 				}
 			}
-			clusterCAs[ah.Hostname].AuthorizedKeys = append(clusterCAs[ah.Hostname].AuthorizedKeys, ah.AuthorizedKey)
+			clusterCAs[kh.Hostname].AuthorizedKeys = append(clusterCAs[kh.Hostname].AuthorizedKeys, kh.AuthorizedKey)
 		}
 	}
 
