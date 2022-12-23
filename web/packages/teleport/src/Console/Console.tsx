@@ -18,6 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 
+import useWebSession from 'teleport/useWebSession';
 import AjaxPoller from 'teleport/components/AjaxPoller';
 
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
@@ -37,7 +38,8 @@ const POLL_INTERVAL = 5000; // every 5 sec
 
 export default function Console() {
   const consoleCtx = useConsoleContext();
-  const { verifyAndConfirm } = useOnExitConfirmation(consoleCtx);
+  const webSession = useWebSession();
+  const { verifyAndConfirm } = useOnExitConfirmation(consoleCtx, webSession);
   const { clusterId, activeDocId } = useTabRouting(consoleCtx);
 
   const storeDocs = consoleCtx.storeDocs;
@@ -68,7 +70,7 @@ export default function Console() {
   }
 
   function onLogout() {
-    consoleCtx.logout();
+    webSession.logout();
   }
 
   const disableNewTab = storeDocs.getNodeDocuments().length > 0;
