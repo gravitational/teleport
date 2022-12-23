@@ -76,10 +76,12 @@ func TestProfileStore(t *testing.T) {
 		require.Len(t, listProfiles, 2)
 		require.ElementsMatch(t, []string{"proxy1.example.com", "proxy2.example.com"}, listProfiles)
 
+		retProfiles := make([]*profile.Profile, 2)
 		for i, profileName := range listProfiles {
 			profile, err := profileStore.GetProfile(profileName)
 			require.NoError(t, err)
-			require.Equal(t, profiles[i], profile)
+			retProfiles[i] = profile
 		}
+		require.ElementsMatch(t, profiles, retProfiles)
 	})
 }

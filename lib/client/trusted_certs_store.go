@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
-	"io"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -57,10 +56,9 @@ type TrustedCertsStore interface {
 	// Each returned byte slice contains an individual PEM block.
 	GetTrustedCertsPEM(proxyHost string) ([][]byte, error)
 
-	// GetTrustedHostKeys returns all trusted public host keys. If hostNames are provided, only
-	// matching host keys will be returned. Host names should be a proxy host, cluster name, or
-	// wildcard cluster name like "*.cluster".
-	GetTrustedHostKeys(hostNames ...string) ([]ssh.PublicKey, error)
+	// GetTrustedHostKeys returns all trusted public host keys. If hostnames are provided, only
+	// matching host keys will be returned. Host names should be a proxy host or cluster name.
+	GetTrustedHostKeys(hostnames ...string) ([]ssh.PublicKey, error)
 }
 
 // MemTrustedCertsStore is an in-memory implementation of TrustedCertsStore.
@@ -133,27 +131,17 @@ func (ms *MemTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, 
 	return tlsHostCerts, nil
 }
 
-// GetTrustedHostKeys returns all trusted public host keys. If hostNames are provided, only
-// matching host keys will be returned. Host names should be a proxy host, cluster name, or
-// wildcard cluster name like "*.cluster".
-func (ms *MemTrustedCertsStore) GetTrustedHostKeys(hostNames ...string) ([]ssh.PublicKey, error) {
-	matchHost := func(proxyHost, clusterName string) (ret bool) {
-		if len(hostNames) == 0 {
-			return true
-		}
-		for _, matchHost := range hostNames {
-			if matchHost == proxyHost || matchHost == clusterName || strings.TrimPrefix(matchHost, "*.") == clusterName {
-				return true
-			}
-		}
-		return false
-	}
-
+// GetTrustedHostKeys returns all trusted public host keys. If hostnames are provided, only
+// matching host keys will be returned. Host names should be a proxy host or cluster name.
+func (ms *MemTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 	// known hosts are not retrieved by proxyHost, only clusterName, so we search all proxy entries.
 	var hostKeys []ssh.PublicKey
 	for proxyHost, proxyEntries := range ms.trustedCerts {
 		for _, entry := range proxyEntries {
-			if matchHost(proxyHost, entry.ClusterName) {
+			// Mirror the hosts we would find in a known hosts entry.
+			hosts := []string{proxyHost, entry.ClusterName, "*." + entry.ClusterName}
+
+			if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts...) {
 				clusterHostKeys, err := apisshutils.ParseAuthorizedKeys(entry.AuthorizedKeys)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -229,17 +217,16 @@ func (fs *FSTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]auth.Trusted
 	return TrustedCertsFromCACerts(proxyHost, tlsCA, [][]byte{knownHosts})
 }
 
-// GetTrustedHostKeys returns all trusted public host keys. If hostNames are provided, only
-// matching host keys will be returned. Host names should be a proxy host, cluster name, or
-// wildcard cluster name like "*.cluster".
-func (fs *FSTrustedCertsStore) GetTrustedHostKeys(hostNames ...string) (keys []ssh.PublicKey, retErr error) {
+// GetTrustedHostKeys returns all trusted public host keys. If hostnames are provided, only
+// matching host keys will be returned. Host names should be a proxy host or cluster name.
+func (fs *FSTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) (keys []ssh.PublicKey, retErr error) {
 	knownHosts, err := fs.getKnownHostsFile()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Return all known host keys with one of the given cluster names or proxyHost as a hostname.
-	return apisshutils.ParseKnownHosts([][]byte{knownHosts}, hostNames...)
+	return apisshutils.ParseKnownHosts([][]byte{knownHosts}, hostnames...)
 }
 
 func (fs *FSTrustedCertsStore) getKnownHostsFile() (knownHosts []byte, retErr error) {
@@ -400,7 +387,11 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.Truste
 			// root domain wildcard. OpenSSH clients match against both the proxy
 			// host and nodes (via the wildcard). Teleport itself occasionally uses
 			// the root cluster name.
-			line, err := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, proxyHost, hostKey)
+			line, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
+				Hostname:      ca.ClusterName,
+				ProxyHost:     proxyHost,
+				AuthorizedKey: hostKey,
+			})
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -501,42 +492,21 @@ func TrustedCertsFromCACerts(proxyHost string, tlsCACerts, knownHosts [][]byte) 
 		}
 	}
 
-	// Parse KnownHosts line by line. If a line matches a known cluster (found above)
-	// or the given proxy host, add the host key to the associated entry, prioritizing
-	// known clusters over proxy host.
-	proxyHostCA := auth.TrustedCerts{
-		ClusterName: proxyHost,
+	// Parse authorized hosts. If the authorized host is for the given proxy host,
+	// add the authorized host to the trusted certs entries.
+	parsedKnownHosts, err := sshutils.UnmarshalKnownHosts(knownHosts)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-OUTER:
-	for _, line := range knownHosts {
-		for {
-			_, hosts, publicKey, _, rest, err := ssh.ParseKnownHosts(line)
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
-			}
-
-			for _, hostName := range hosts {
-				if _, knownCluster := clusterCAs[hostName]; knownCluster {
-					clusterCAs[hostName].AuthorizedKeys = append(clusterCAs[hostName].AuthorizedKeys, ssh.MarshalAuthorizedKey(publicKey))
-					continue OUTER
+	for _, ah := range parsedKnownHosts {
+		if ah.ProxyHost == proxyHost {
+			if _, ok := clusterCAs[ah.Hostname]; !ok {
+				clusterCAs[ah.Hostname] = &auth.TrustedCerts{
+					ClusterName: ah.Hostname,
 				}
 			}
-
-			for _, hostName := range hosts {
-				if hostName == proxyHost {
-					proxyHostCA.AuthorizedKeys = append(proxyHostCA.AuthorizedKeys, ssh.MarshalAuthorizedKey(publicKey))
-					continue OUTER
-				}
-			}
-			line = rest
+			clusterCAs[ah.Hostname].AuthorizedKeys = append(clusterCAs[ah.Hostname].AuthorizedKeys, ah.AuthorizedKey)
 		}
-	}
-
-	if len(proxyHostCA.AuthorizedKeys) != 0 {
-		clusterCAs[proxyHost] = &proxyHostCA
 	}
 
 	var trustedCerts []auth.TrustedCerts

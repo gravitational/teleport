@@ -68,32 +68,10 @@ func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 	return cert, nil
 }
 
-// AuthorizedHost is an authorized key with host metadata parsed from an authorized hosts entry.
-type AuthorizedHost struct {
-	Hosts              []string
-	AuthorizedKeyBytes []byte
-}
-
 // ParseKnownHosts parses provided known_hosts entries into ssh.PublicKey list.
 // If one or more hostnames are provided, only keys that have at least one match
 // will be returned.
-func ParseKnownHosts(knownHosts [][]byte, matchHostname ...string) ([]ssh.PublicKey, error) {
-	hostnameMatch := func(hosts []string) bool {
-		if len(matchHostname) == 0 {
-			return true
-		}
-
-		for _, matchHost := range matchHostname {
-			for _, host := range hosts {
-				if host == matchHost || matchesWildcard(matchHost, host) {
-					return true
-				}
-			}
-		}
-
-		return false
-	}
-
+func ParseKnownHosts(knownHosts [][]byte, matchHostnames ...string) ([]ssh.PublicKey, error) {
 	var keys []ssh.PublicKey
 	for _, line := range knownHosts {
 		for {
@@ -104,7 +82,7 @@ func ParseKnownHosts(knownHosts [][]byte, matchHostname ...string) ([]ssh.Public
 				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
 			}
 
-			if hostnameMatch(hosts) {
+			if len(matchHostnames) == 0 || HostNameMatch(matchHostnames, hosts...) {
 				keys = append(keys, publicKey)
 			}
 
@@ -112,6 +90,21 @@ func ParseKnownHosts(knownHosts [][]byte, matchHostname ...string) ([]ssh.Public
 		}
 	}
 	return keys, nil
+}
+
+// HostNameMatch returns whether at least one of the given hosts matches one
+// of the given matchHosts. If a host has a wildcard prefix "*.", it will be
+// used to match. Ex: "*.example.com" will  match "proxy.example.com".
+func HostNameMatch(matchHosts []string, hosts ...string) bool {
+	for _, matchHost := range matchHosts {
+		for _, host := range hosts {
+			if host == matchHost || matchesWildcard(matchHost, host) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // matchesWildcard ensures the given `hostname` matches the given `pattern`.

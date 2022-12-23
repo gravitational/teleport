@@ -186,24 +186,62 @@ func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string)
 	return tlsConfig, nil
 }
 
-// TrustedCAHostKeys returns all SSH CA certificates from this key
-func (k *Key) TrustedCAHostKeys() (result [][]byte) {
-	for _, ca := range k.TrustedCerts {
-		result = append(result, ca.AuthorizedKeys...)
+// HostKeyCallback returns a host key callback that checks if the given host key was signed
+// by a Teleport certificate authority (CA) or a host certificate the user has seen before.
+func (k *Key) HostKeyCallback(hostname string) ssh.HostKeyCallback {
+	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
+		certChecker := apisshutils.CertChecker{
+			CertChecker: ssh.CertChecker{
+				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
+					for _, ak := range k.AuthorizedHostKeys(hostname) {
+						authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(ak)
+						if err != nil {
+							log.Errorf("Failed to parse authorized key: %s; raw key: %s", err, string(ak))
+							return false
+						}
+						if apisshutils.KeysEqual(authorizedKey, key) {
+							return true
+						}
+					}
+					return false
+				},
+				HostKeyFallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+					for _, ak := range k.AuthorizedHostKeys(hostname) {
+						authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(ak)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+						if apisshutils.KeysEqual(authorizedKey, key) {
+							return nil
+						}
+					}
+					return trace.BadParameter("host %s presented a public key not signed by Teleport", hostname)
+				},
+			},
+			FIPS: isFIPS(),
+		}
+		err := certChecker.CheckHostKey(addr, remote, key)
+		if err != nil {
+			log.Debugf("Host validation failed: %v.", err)
+			return trace.Wrap(err)
+		}
+		log.Debugf("Validated host %v.", addr)
+		return nil
 	}
-	return result
 }
 
-// TrustedCAHostKeysForCluster returns SSH CA for particular clusters.
-func (k *Key) TrustedCAHostKeysForCluster(clusters []string) (result [][]byte, err error) {
+// AuthorizedHostKeys returns all authorized host keys from this key. If any host
+// names are provided, only matching host keys will be returned.
+func (k *Key) AuthorizedHostKeys(hostnames ...string) (result [][]byte) {
 	for _, ca := range k.TrustedCerts {
-		for _, c := range clusters {
-			if ca.ClusterName == c {
-				result = append(result, ca.AuthorizedKeys...)
-			}
+		// Mirror the hosts we would find in a known hosts entry.
+		hosts := []string{k.ProxyHost, ca.ClusterName, "*." + ca.ClusterName}
+
+		if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts...) {
+			result = append(result, ca.AuthorizedKeys...)
 		}
 	}
-	return result, nil
+	return result
 }
 
 // TeleportClientTLSConfig returns client TLS configuration used
@@ -271,45 +309,9 @@ func (k *Key) ProxyClientSSHConfig(hostname string) (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig.HostKeyCallback = k.CheckHostKeyCallback(hostname)
+	sshConfig.HostKeyCallback = k.HostKeyCallback(hostname)
 
 	return sshConfig, nil
-}
-
-// CheckHostKey checks if the given host key was signed by a Teleport
-// certificate authority (CA) or a host certificate the user has seen before.
-func (k *Key) CheckHostKeyCallback(hostname string) ssh.HostKeyCallback {
-	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
-		certChecker := apisshutils.CertChecker{
-			CertChecker: ssh.CertChecker{
-				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
-					for _, ca := range k.TrustedCerts {
-						if ca.ClusterName == hostname {
-							for _, ak := range ca.AuthorizedKeys {
-								authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(ak)
-								if err != nil {
-									log.Errorf("Failed to parse authorized key: %s; raw key: %s", err, string(ak))
-									return false
-								}
-								if apisshutils.KeysEqual(authorizedKey, key) {
-									return true
-								}
-							}
-						}
-					}
-					return false
-				},
-			},
-			FIPS: isFIPS(),
-		}
-		err := certChecker.CheckHostKey(addr, remote, key)
-		if err != nil {
-			log.Debugf("Host validation failed: %v.", err)
-			return trace.Wrap(err)
-		}
-		log.Debugf("Validated host %v.", addr)
-		return nil
-	}
 }
 
 // CertUsername returns the name of the Teleport user encoded in the SSH certificate.
@@ -549,30 +551,6 @@ func (k *Key) checkCert(sshCert *ssh.Certificate) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// HostKeyCallback returns an ssh.HostKeyCallback that validates host
-// keys/certs against SSH CAs in the Key.
-//
-// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
-// This causes golang.org/x/crypto/ssh to prompt the user to verify host key
-// fingerprint (same as OpenSSH does for an unknown host).
-func (k *Key) HostKeyCallback(withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
-	return apisshutils.HostKeyCallback(k.TrustedCAHostKeys(), withHostKeyFallback)
-}
-
-// HostKeyCallbackForClusters returns an ssh.HostKeyCallback that validates host
-// keys/certs against SSH clusters CAs.
-//
-// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
-// This causes golang.org/x/crypto/ssh to prompt the user to verify host key
-// fingerprint (same as OpenSSH does for an unknown host).
-func (k *Key) HostKeyCallbackForClusters(withHostKeyFallback bool, clusters []string) (ssh.HostKeyCallback, error) {
-	sshCA, err := k.TrustedCAHostKeysForCluster(clusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return apisshutils.HostKeyCallback(sshCA, withHostKeyFallback)
 }
 
 // RootClusterName extracts the root cluster name from the issuer

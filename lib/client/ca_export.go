@@ -66,8 +66,8 @@ type ExportAuthoritiesRequest struct {
 //
 // Exporting using "host" AuthType:
 // Returns the certificate authority public key exported as a single line
-// that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
-// authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
+// that can be placed in ~/.ssh/known_hosts. The format adheres to the man sshd (8)
+// known_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 // > @cert-authority *.cluster-a ssh-rsa AAA... type=host
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
@@ -277,8 +277,8 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 }
 
 // hostCAFormat returns the certificate authority public key exported as a single line
-// that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
-// authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
+// that can be placed in ~/.ssh/known_hosts. The format adheres to the man sshd (8)
+// known_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
 //	@cert-authority *.cluster-a ssh-rsa AAA... type=host
@@ -290,5 +290,11 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 		return "", trace.Wrap(err)
 	}
 	allowedLogins, _ := roles.GetLoginsForTTL(apidefaults.MinCertDuration + time.Second)
-	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), "" /* proxyHost */, keyBytes, allowedLogins...)
+	return sshutils.MarshalKnownHost(sshutils.KnownHost{
+		Hostname:      ca.GetClusterName(),
+		AuthorizedKey: keyBytes,
+		Comment: map[string][]string{
+			"logins": allowedLogins,
+		},
+	})
 }

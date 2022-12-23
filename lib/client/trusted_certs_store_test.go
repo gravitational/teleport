@@ -190,6 +190,9 @@ func TestAddTrustedHostKeys(t *testing.T) {
 		keys, _ = clientStore.GetTrustedHostKeys("*.leaf")
 		require.Equal(t, 1, len(keys))
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+		keys, _ = clientStore.GetTrustedHostKeys("prefix.leaf")
+		require.Equal(t, 1, len(keys))
+		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 	})
 }
 
@@ -206,13 +209,13 @@ func TestParallelKnownHostsFileWrite(t *testing.T) {
 	err = clientStore.AddTrustedHostKeys("proxy.example1.com", "example1.com", pub)
 	require.NoError(t, err)
 
+	_, p2, _ := auth.keygen.GenerateKeyPair()
+	tmpPub, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
+
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func() {
-			_, p2, _ := auth.keygen.GenerateKeyPair()
-			tmpPub, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
-
 			err := clientStore.AddTrustedHostKeys("proxy.example2.com", "example2.com", tmpPub)
 			assert.NoError(t, err)
 
@@ -227,5 +230,5 @@ func TestParallelKnownHostsFileWrite(t *testing.T) {
 
 	keys, err := clientStore.GetTrustedHostKeys()
 	require.NoError(t, err)
-	require.Len(t, keys, 5)
+	require.Len(t, keys, 2)
 }
