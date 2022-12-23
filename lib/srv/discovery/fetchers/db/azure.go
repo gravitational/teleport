@@ -96,7 +96,7 @@ func (f *azureFetcher[DBType, ListClient]) regionMatches(region string) bool {
 		// wildcard matches all regions
 		return true
 	}
-	_, ok := f.cfg.regionSet[azureutils.NormailizeLocation(region)]
+	_, ok := f.cfg.regionSet[azureutils.NormalizeLocation(region)]
 	return ok
 }
 

@@ -111,7 +111,7 @@ func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
 			regions = []string{types.Wildcard}
 		} else {
 			for i, region := range regions {
-				regions[i] = azureutils.NormailizeLocation(region)
+				regions[i] = azureutils.NormalizeLocation(region)
 			}
 		}
 		result = append(result, AzureMatcher{
