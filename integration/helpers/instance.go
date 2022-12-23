@@ -1372,7 +1372,7 @@ func (i *TeleInstance) StopAuth(removeData bool) error {
 	i.Log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
 	err := i.Process.Close()
 	if err != nil {
-		i.Log.WithError(err).Error("Failed closing the teleport process.")
+		i.Log.WithError(err).Error("Failed closing the Teleport process.")
 		return trace.Wrap(err)
 	}
 	defer func() {

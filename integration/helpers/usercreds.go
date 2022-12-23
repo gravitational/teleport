@@ -90,7 +90,7 @@ func SetupUser(process *service.TeleportProcess, username string, roles []types.
 
 // UserCredsRequest is a request to generate user creds
 type UserCredsRequest struct {
-	// Process is a teleport process
+	// Process is a Teleport process
 	Process *service.TeleportProcess
 	// Username is a user to generate certs for
 	Username string

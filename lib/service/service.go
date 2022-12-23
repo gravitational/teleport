@@ -348,7 +348,7 @@ type TeleportProcess struct {
 	// closed all the listeners)
 	listenersClosed bool
 
-	// forkedPIDs is a collection of a teleport processes forked
+	// forkedPIDs is a collection of a Teleport processes forked
 	// during restart used to collect their status in case if the
 	// child process crashed.
 	forkedPIDs []int
@@ -407,7 +407,7 @@ func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
 }
 
 // processIndex is an internal process index
-// to help differentiate between two different teleport processes
+// to help differentiate between two different Teleport processes
 // during in-process reload.
 var processID int32
 
@@ -581,7 +581,7 @@ func (process *TeleportProcess) getAuthSubjectiveAddr() string {
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
-// teleport Role. A teleport process can have any combination of 3 roles: auth, node, proxy
+// teleport Role. A Teleport process can have any combination of 3 roles: auth, node, proxy
 // and they have their own identities
 func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *auth.Identity, err error) {
 	var found bool
@@ -663,7 +663,7 @@ func newTeleportProcess(cfg *Config) (Process, error) {
 	return NewTeleport(cfg)
 }
 
-// Run starts teleport processes, waits for signals
+// Run starts Teleport processes, waits for signals
 // and handles internal process reloads.
 func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	if newTeleport == nil {
@@ -1160,7 +1160,7 @@ func (process *TeleportProcess) notifyParent() {
 		if !trace.IsNotFound(err) {
 			process.log.Warningf("Failed to import signal pipe")
 		}
-		process.log.Debugf("No signal pipe to import, must be first teleport process.")
+		process.log.Debugf("No signal pipe to import, must be first Teleport process.")
 		return
 	}
 	defer signalPipe.Close()

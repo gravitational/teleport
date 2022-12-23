@@ -49,7 +49,7 @@ const (
 
 var stateGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name: teleport.MetricState,
-	Help: fmt.Sprintf("State of the teleport process: %d - ok, %d - recovering, %d - degraded, %d - starting", stateOK, stateRecovering, stateDegraded, stateStarting),
+	Help: fmt.Sprintf("State of the Teleport process: %d - ok, %d - recovering, %d - degraded, %d - starting", stateOK, stateRecovering, stateDegraded, stateStarting),
 })
 
 func init() {

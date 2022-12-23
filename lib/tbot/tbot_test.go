@@ -90,7 +90,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 	case <-time.After(30 * time.Second):
 		// this should really happen quite quickly, but under the load during
 		// parallel test run, it can take a while.
-		t.Fatal("teleport process did not instantiate in 30 seconds")
+		t.Fatal("Teleport process did not instantiate in 30 seconds")
 	case svc = <-svcC:
 	}
 

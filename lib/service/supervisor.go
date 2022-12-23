@@ -276,9 +276,9 @@ func (s *LocalSupervisor) serve(srv Service) {
 		err := srv.Serve()
 		if err != nil {
 			if err == ErrTeleportExited {
-				l.Info("teleport process has shut down.")
+				l.Info("Teleport process has shut down.")
 			} else {
-				l.WithError(err).Warning("teleport process has exited with error.")
+				l.WithError(err).Warning("Teleport process has exited with error.")
 				s.BroadcastEvent(Event{
 					Name:    ServiceExitedWithErrorEvent,
 					Payload: ExitEventPayload{Service: srv, Error: err},

@@ -617,7 +617,7 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 		// Tunnel is nil for a Teleport process with "kubernetes_service" but
 		// not "proxy_service".
 		if f.cfg.ReverseTunnelSrv == nil {
-			return nil, trace.BadParameter("this teleport process can not dial Kubernetes endpoints in remote Teleport clusters; only proxy_service supports this, make sure a Teleport proxy is first in the request path")
+			return nil, trace.BadParameter("this Teleport process can not dial Kubernetes endpoints in remote Teleport clusters; only proxy_service supports this, make sure a Teleport proxy is first in the request path")
 		}
 
 		targetCluster, err := f.cfg.ReverseTunnelSrv.GetSite(teleportClusterName)
@@ -1805,7 +1805,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 
 func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, error) {
 	if len(f.clusterDetails) == 0 {
-		return nil, trace.NotFound("this teleport process is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster or 'tsh kube login' into a different Kubernetes cluster")
+		return nil, trace.NotFound("this Teleport process is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster or 'tsh kube login' into a different Kubernetes cluster")
 	}
 
 	details, ok := f.clusterDetails[ctx.kubeCluster]

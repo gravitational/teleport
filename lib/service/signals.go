@@ -152,10 +152,10 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 
 // ErrTeleportReloading is returned when signal waiter exits
 // because the Teleport process has initiaded shutdown
-var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
+var ErrTeleportReloading = &trace.CompareFailedError{Message: "Teleport process is reloading"}
 
 // ErrTeleportExited means that Teleport has exited
-var ErrTeleportExited = &trace.CompareFailedError{Message: "teleport process has shutdown"}
+var ErrTeleportExited = &trace.CompareFailedError{Message: "Teleport process has shutdown"}
 
 func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message string) error {
 	messageSignalled, cancel := context.WithCancel(context.Background())
@@ -559,7 +559,7 @@ func (process *TeleportProcess) collectStatuses() {
 		}
 		if rpid == pid {
 			process.popForkedPID(pid)
-			process.log.Warningf("Forked teleport process %v has exited with status: %v.", pid, wait.ExitStatus())
+			process.log.Warningf("Forked Teleport process %v has exited with status: %v.", pid, wait.ExitStatus())
 		}
 	}
 }
