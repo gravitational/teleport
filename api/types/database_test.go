@@ -412,7 +412,7 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			AWS: AWS{
 				Region:    "us-west-1",
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
@@ -426,7 +426,7 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			URI:      "cassandra.us-west-1.amazonaws.com:9142",
 			AWS: AWS{
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
@@ -441,7 +441,7 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			URI:      "cassandra-fips.us-west-2.amazonaws.com:9142",
 			AWS: AWS{
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
@@ -471,11 +471,11 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 			Name: "test",
 		}, DatabaseSpecV3{
 			Protocol: "postgres",
-			URI:      "my-workgroup.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			URI:      "my-workgroup.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
 		})
 		require.NoError(t, err)
 		require.Equal(t, AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			RedshiftServerless: RedshiftServerless{
 				WorkgroupName: "my-workgroup",
@@ -488,7 +488,7 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 			Name: "test",
 		}, DatabaseSpecV3{
 			Protocol: "postgres",
-			URI:      "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			URI:      "my-vpc-endpoint-xxxyyyzzz.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
 			AWS: AWS{
 				RedshiftServerless: RedshiftServerless{
 					WorkgroupName: "my-workgroup",
@@ -497,7 +497,7 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			RedshiftServerless: RedshiftServerless{
 				WorkgroupName: "my-workgroup",
