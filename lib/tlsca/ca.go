@@ -131,7 +131,7 @@ type Identity struct {
 	// RouteToCluster specifies the target cluster
 	// if present in the session
 	RouteToCluster string
-	// KubernetesCluster specifies the target Kubernetes cluster for TLS
+	// KubernetesCluster specifies the target kubernetes cluster for TLS
 	// identities. This can be empty on older Teleport clients.
 	KubernetesCluster string
 	// Traits hold claim data used to populate a role at runtime.
@@ -340,7 +340,7 @@ var (
 	KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
 
 	// KubeClusterASN1ExtensionOID is an extension ID used when encoding/decoding
-	// target Kubernetes cluster name into certificates.
+	// target kubernetes cluster name into certificates.
 	KubeClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 3}
 
 	// AppSessionIDASN1ExtensionOID is an extension ID used to encode the application

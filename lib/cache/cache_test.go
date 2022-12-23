@@ -1886,7 +1886,7 @@ func TestRemoteClusters(t *testing.T) {
 	require.Empty(t, out)
 }
 
-// TestKubernetes tests that CRUD operations on Kubernetes clusters resources are
+// TestKubernetes tests that CRUD operations on kubernetes clusters resources are
 // replicated from the backend to the cache.
 func TestKubernetes(t *testing.T) {
 	t.Parallel()

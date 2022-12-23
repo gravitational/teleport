@@ -131,7 +131,7 @@ type ResourceCreateEvent struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// TODO(espadolini): is a resource the Teleport process or the
+	// TODO(espadolini): is a resource the teleport process or the
 	// databases/desktops/kube clusters accessed through it?
 	ResourceType string `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
 }

@@ -183,7 +183,7 @@ const (
 	// MetricLostRestrictedEvents measures the number of restricted events that were lost
 	MetricLostRestrictedEvents = "bpf_lost_restricted_events"
 
-	// MetricState tracks the state of the Teleport process.
+	// MetricState tracks the state of the teleport process.
 	MetricState = "process_state"
 
 	// MetricNamespace defines the teleport prometheus namespace

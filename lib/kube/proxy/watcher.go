@@ -28,7 +28,7 @@ import (
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
-// Kubernetes clusters according to the up-to-date list of kube_cluster resources.
+// kubernetes clusters according to the up-to-date list of kube_cluster resources.
 func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")

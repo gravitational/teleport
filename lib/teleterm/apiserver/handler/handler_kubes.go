@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// GetAllKubes lists Kubernetes clusters
+// GetAllKubes lists kubernetes clusters
 func (s *Handler) GetAllKubes(ctx context.Context, req *api.GetAllKubesRequest) (*api.GetAllKubesResponse, error) {
 	kubes, err := s.DaemonService.GetAllKubes(ctx, req.ClusterUri)
 	if err != nil {
