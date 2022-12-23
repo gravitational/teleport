@@ -51,6 +51,10 @@
       "title": "Deploy a Cluster",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/deploy-a-cluster/introduction/"
+        },
+        {
           "title": "Open Source Teleport",
           "slug": "/deploy-a-cluster/open-source/",
           "forScopes": ["oss"]
@@ -103,6 +107,11 @@
               "forScopes": ["enterprise"]
             }
           ]
+        },
+        {
+          "title": "High Availability Deployments",
+          "slug": "/deploy-a-cluster/high-availability/",
+          "forScopes": ["oss", "enterprise"]
         },
         {
           "title": "Deploy with Helm",
@@ -1404,11 +1413,6 @@
     {
       "source": "/api-reference/",
       "destination": "/api/getting-started/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/guides/ansible/",
-      "destination": "/machine-id/guides/ansible/",
       "permanent": true
     },
     {
