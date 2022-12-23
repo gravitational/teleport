@@ -1686,6 +1686,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Listener:                    listener,
 		ID:                          teleport.Component(process.id),
 		CertAuthorityGetter:         authServer,
+		LocalClusterName:            clusterName,
 	})
 	if err != nil {
 		listener.Close()

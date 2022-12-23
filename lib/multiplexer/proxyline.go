@@ -83,6 +83,8 @@ var (
 	ErrBadCACert = errors.New("could not add host CA to roots for verification")
 	// ErrIncorrectRole is returned when signing cert doesn't have required system role (Proxy)
 	ErrIncorrectRole = errors.New("could not find required system role on the signing certificate")
+	// ErrNonLocalCluster is returned when we received signed PROXY header, which signing certificate is from remote cluster.
+	ErrNonLocalCluster = errors.New("signing certificate is not signed by local cluster CA")
 )
 
 // ProxyLine implements PROXY protocol version 1 and 2
@@ -457,7 +459,7 @@ func (p *ProxyLine) getSignatureAndSigningCert() (string, []byte, error) {
 }
 
 // VerifySignature checks that signature contained in the proxy line is securely signed.
-func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityGetter, clock clockwork.Clock) error {
+func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityGetter, localClusterName string, clock clockwork.Clock) error {
 	// If there's no TLVs it can't be verified
 	if len(p.TLVs) == 0 {
 		return trace.Wrap(ErrNoSignature)
@@ -480,24 +482,13 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName := identity.TeleportCluster
-
-	// We're trying to get UserCA for this cluster name to see if we can trust this cluster
-	// because if we can get it, it means it's either trusted cluster or local cluster
-	_, err = caGetter.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: clusterName,
-	}, false)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.Wrap(trace.Errorf("received signed PROXY header from not trusted cluster %q", clusterName))
-		}
-		return trace.Wrap(err)
+	if identity.TeleportCluster != localClusterName {
+		return trace.Wrap(ErrNonLocalCluster, "signing certificate cluster name: %s", identity.TeleportCluster)
 	}
 
 	hostCA, err := caGetter.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
-		DomainName: clusterName,
+		DomainName: localClusterName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -528,13 +519,13 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 		Clock:       clock,
 		PublicKey:   signingCert.PublicKey,
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: clusterName,
+		ClusterName: localClusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	_, err = jwtVerifier.VerifyPROXY(jwt.PROXYVerifyParams{
-		ClusterName:        clusterName,
+		ClusterName:        localClusterName,
 		SourceAddress:      p.Source.String(),
 		DestinationAddress: p.Destination.String(),
 		RawToken:           token,

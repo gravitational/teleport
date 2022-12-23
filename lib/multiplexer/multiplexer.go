@@ -26,6 +26,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -66,6 +67,8 @@ type Config struct {
 	ID string
 	// CertAuthorityGetter is used to get CA to verify singed PROXY headers sent internally by teleport
 	CertAuthorityGetter CertAuthorityGetter
+	// LocalClusterName set the local cluster for the multiplexer, it's used in PROXY headers verification.
+	LocalClusterName string
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -350,9 +353,9 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
-			if m.CertAuthorityGetter != nil && len(newProxyLine.TLVs) > 0 {
-				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.Clock)
-				if err != nil {
+			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {
+				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
+				if err != nil && !errors.Is(err, ErrNonLocalCluster) {
 					return nil, trace.Wrap(err, "could not verify PROXY signature")
 				}
 			}
@@ -368,12 +371,10 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				continue
 			}
 
-			// If proxy line was signed but was not successfully verified we fail
+			// TODO(anton): fail instead of ignoring when we add full propagation infrastructure.
+			// If proxy line was signed but was not successfully verified we ignore it
 			if m.CertAuthorityGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
-				return nil, trace.AccessDenied(
-					"rejected signed PROXY header, incoming connection remote/local: %q, PROXY source/destination: %q",
-					conn.RemoteAddr().String()+"->"+conn.LocalAddr().String(),
-					newProxyLine.Source.String()+"->"+newProxyLine.Destination.String())
+				continue
 			}
 
 			// This is unsigned proxy line, return error if external PROXY protocol is not enabled

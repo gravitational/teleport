@@ -35,7 +35,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -818,6 +817,7 @@ func TestMux(t *testing.T) {
 			EnableExternalProxyProtocol: true,
 			CertAuthorityGetter:         casGetter,
 			Clock:                       clockwork.NewFakeClockAt(time.Now()),
+			LocalClusterName:            clusterName,
 		})
 		require.NoError(t, err)
 
@@ -977,7 +977,7 @@ func TestMux(t *testing.T) {
 		})
 	})
 	// Ensures that we can correctly send and verify signed PROXY header
-	t.Run("fails if signed PROXY header can't be verified (wrong CA)", func(t *testing.T) {
+	t.Run("is ignored if signed PROXY header can't be verified (wrong cluster)", func(t *testing.T) {
 		t.Parallel()
 
 		const clusterName = "teleport-test"
@@ -991,6 +991,7 @@ func TestMux(t *testing.T) {
 			Listener:                    listener,
 			EnableExternalProxyProtocol: true,
 			CertAuthorityGetter:         wrongCAsGetter,
+			LocalClusterName:            "different-cluster",
 		})
 		require.NoError(t, err)
 
@@ -1026,23 +1027,17 @@ func TestMux(t *testing.T) {
 
 		clt := tls.Client(conn, clientConfig(backend))
 
-		_, err = utils.RoundtripWithConn(clt)
-		require.Error(t, err)
+		out, err := utils.RoundtripWithConn(clt)
+		require.NoError(t, err)
+		require.Equal(t, conn.LocalAddr().String(), out)
 	})
 }
 
 type mockCAsGetter struct {
 	HostCA types.CertAuthority
-	UserCA types.CertAuthority
 }
 
 func (m *mockCAsGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	if id.Type == types.UserCA {
-		if m.UserCA == nil {
-			return nil, trace.NotFound("UserCA not found")
-		}
-		return m.UserCA, nil
-	}
 	return m.HostCA, nil
 }
 
@@ -1161,7 +1156,7 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 		},
 	})
 	require.NoError(t, err)
-	mockCAsGetter := &mockCAsGetter{HostCA: ca, UserCA: ca}
+	mockCAsGetter := &mockCAsGetter{HostCA: ca}
 
 	proxyPriv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
