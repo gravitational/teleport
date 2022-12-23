@@ -21,9 +21,9 @@ import (
 	"os"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
@@ -71,17 +71,9 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := windowsDesktopAndServiceCollection{
-		desktops: []windowsDesktopAndService{},
+	coll := windowsDesktopCollection{
+		desktops: desktops,
 		verbose:  c.verbose,
-	}
-	for _, desktop := range desktops {
-		ds, err := client.GetWindowsDesktopService(ctx, desktop.GetHostID())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		coll.desktops = append(coll.desktops,
-			windowsDesktopAndService{desktop: desktop, service: ds})
 	}
 	switch c.format {
 	case teleport.Text:

@@ -1,5 +1,32 @@
 # Changelog
 
+## 10.3.9
+
+This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
+
+### Insecure TOTP MFA seed removal
+
+Fixed issue where an attacker with physical access to user's computer and raw
+access to the filesystem could potentially recover the seed QR code.
+
+[#18920](https://github.com/gravitational/teleport/pull/18920)
+
+### Other improvements and fixes
+
+* Fixed error when creating a SAML connector with templated role names. [#18767](https://github.com/gravitational/teleport/pull/18767)
+* Fixed issue with connecting to a Windows desktop in leaf clusters. [#18667](https://github.com/gravitational/teleport/pull/18667)
+* Fixed compatibility issues with OpenSSH 7.x. [#18375](https://github.com/gravitational/teleport/pull/18375)
+* Fixed issue with SSH sessions failing when SELinux is enabled. [#18809](https://github.com/gravitational/teleport/pull/18809)
+* Fixed issue with cloud labels not being considered in app access RBAC. [#18680](https://github.com/gravitational/teleport/pull/18680)
+* Fixed issue with Kubernetes sessions lingering post termination. [#18686](https://github.com/gravitational/teleport/pull/18686)
+* Fixed issue with not being able to create non-moderated sessions when auth is down. [#18443](https://github.com/gravitational/teleport/pull/18443)
+* Added support for `user.spec` syntax in moderated session filters. [#18454](https://github.com/gravitational/teleport/pull/18454)
+* Updated `tctl auth sign --format kubernetes` to support merging multiple clusters in the same kubeconfig. [#18526](https://github.com/gravitational/teleport/pull/18526)
+* Updated `tctl` to support `windows_desktop` resource name. [#18815](https://github.com/gravitational/teleport/pull/18815)
+* Improved `tsh play` JSON and YAML output. [#18824](https://github.com/gravitational/teleport/pull/18824)
+* Improved error messaging in case of etcd backend connection issues. [#18821](https://github.com/gravitational/teleport/pull/18821)
+* Improved trusted clusters observability. [#18610](https://github.com/gravitational/teleport/pull/18610)
+
 ## 10.3.8
 
 This release of Teleport contains multiple improvements and bug fixes.

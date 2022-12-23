@@ -23,14 +23,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events/test"
-
 	"cloud.google.com/go/storage"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events/test"
 )
 
 func TestUploadFromPath(t *testing.T) {

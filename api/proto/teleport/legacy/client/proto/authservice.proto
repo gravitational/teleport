@@ -342,7 +342,7 @@ message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
 }
 
-// RequestStateSetter encodes the paramters necessary to update the
+// RequestStateSetter encodes the parameters necessary to update the
 // state of a privilege escalation request.
 message RequestStateSetter {
   // ID is the request ID being targeted
@@ -1952,9 +1952,9 @@ message UpstreamInventoryHello {
   // active.
   repeated string Services = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"];
 
-// TODO(fspmarshall): look into what other info can safely be stated here once, instead of
-// being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
-// non-trivial reduction in network usage by doing this.
+  // TODO(fspmarshall): look into what other info can safely be stated here once, instead of
+  // being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
+  // non-trivial reduction in network usage by doing this.
 }
 
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.

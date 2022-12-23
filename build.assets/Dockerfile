@@ -146,6 +146,9 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0
      cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
+# Install GCI
+RUN go install github.com/daixiang0/gci@v0.7.0
+
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
@@ -179,7 +182,7 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.7.0" && \
+    VERSION="1.11.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \

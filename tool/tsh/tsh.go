@@ -38,6 +38,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -68,15 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/kingpin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -141,7 +141,7 @@ type CLIConf struct {
 	// ExplicitUsername is true if Username was initially set by the end-user
 	// (for example, using command-line flags).
 	ExplicitUsername bool
-	// Proxy keeps the hostname:port of the SSH proxy to use
+	// Proxy keeps the hostname:port of the Teleport proxy to use
 	Proxy string
 	// TTL defines how long a session must be active (in minutes)
 	MinsToLive int32
@@ -529,16 +529,16 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
-	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
-	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
+	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
 
-	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
+	app.Flag("ttl", "Minutes to live for a session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
@@ -706,7 +706,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
-	play := app.Command("play", "Replay the recorded SSH session")
+	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App)")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
@@ -1482,7 +1482,13 @@ func onLogin(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
-
+		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+		kubeTLSServerName := ""
+		if tc.TLSRoutingEnabled {
+			log.Debug("Using Proxy SNI for kube TLS server name")
+			kubeHost, _ := tc.KubeProxyHostPort()
+			kubeTLSServerName = client.GetKubeTLSServerName(kubeHost)
+		}
 		filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 			OutputPath:           cf.IdentityFileOut,
 			Key:                  key,
@@ -1490,6 +1496,8 @@ func onLogin(cf *CLIConf) error {
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
 			KubeStoreAllCAs:      tc.LoadAllCAs,
+			KubeTLSServerName:    kubeTLSServerName,
+			KubeClusterName:      tc.KubernetesCluster,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1853,28 +1861,70 @@ func (l nodeListings) Swap(i, j int) {
 }
 
 func listNodesAllClusters(cf *CLIConf) error {
-	var listings nodeListings
+	// Fetch database listings for profiles in parallel. Set an arbitrary limit
+	// just in case.
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(4)
 
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for clusterName, nodes := range result {
-			for _, node := range nodes {
-				listings = append(listings, nodeListing{
-					Proxy:   profile.ProxyURL.Host,
-					Cluster: clusterName,
-					Node:    node,
-				})
+	nodeListingsResultChan := make(chan nodeListings)
+	nodeListingsCollectChan := make(chan nodeListings)
+	go func() {
+		var listings nodeListings
+		for {
+			select {
+			case items := <-nodeListingsResultChan:
+				listings = append(listings, items...)
+			case <-groupCtx.Done():
+				nodeListingsCollectChan <- listings
+				return
 			}
 		}
+	}()
+
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		group.Go(func() error {
+			proxy, err := tc.ConnectToProxy(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer proxy.Close()
+
+			sites, err := proxy.GetSites(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			var listings nodeListings
+			for _, site := range sites {
+				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				for _, node := range nodes {
+					listings = append(listings, nodeListing{
+						Proxy:   profile.ProxyURL.Host,
+						Cluster: site.Name,
+						Node:    node,
+					})
+				}
+			}
+
+			nodeListingsCollectChan <- listings
+			return nil
+		})
+
 		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if err := group.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	listings := <-nodeListingsResultChan
 	sort.Sort(listings)
 
 	format := strings.ToLower(cf.Format)

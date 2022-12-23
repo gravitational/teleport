@@ -30,9 +30,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 type TextFormatter struct {
@@ -325,6 +326,8 @@ func (w *writer) writeMap(m map[string]interface{}) {
 			continue
 		}
 		switch value := m[key].(type) {
+		case map[string]interface{}:
+			w.writeMap(value)
 		case log.Fields:
 			w.writeMap(value)
 		default:

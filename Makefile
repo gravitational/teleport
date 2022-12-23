@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.3.8
+VERSION=10.3.9
 
 DOCKER_IMAGE ?= teleport
 
@@ -660,6 +660,18 @@ endif
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)' $(GO_LINT_FLAGS)
+
+.PHONY: fix-imports
+fix-imports:
+	make -C build.assets/ fix-imports
+
+.PHONY: fix-imports/host
+fix-imports/host:
+	@if ! type gci >/dev/null 2>&1; then\
+		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
+		exit 1;\
+	fi
+	gci write -s 'standard,default,prefix(github.com/gravitational/teleport)' --skip-generated .
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=

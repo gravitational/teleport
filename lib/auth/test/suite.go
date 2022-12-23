@@ -21,6 +21,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -29,11 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
-
-	"golang.org/x/crypto/ssh"
-
-	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
 )
 
 type AuthSuite struct {
@@ -172,6 +170,30 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	outImpersonator := parsedCert.Extensions[teleport.CertExtensionImpersonator]
 	c.Assert(outImpersonator, check.DeepEquals, impersonator)
+
+	// Check that MFAVerified and PreviousIdentityExpires are encoded into ssh cert
+	clock := clockwork.NewFakeClock()
+	cert, err = s.A.GenerateUserCert(services.UserCertParams{
+		CASigner:                caSigner,
+		PublicUserKey:           pub,
+		Username:                "user",
+		AllowedLogins:           []string{"root"},
+		TTL:                     time.Minute,
+		CertificateFormat:       constants.CertificateFormatStandard,
+		MFAVerified:             "mfa-device-id",
+		PreviousIdentityExpires: clock.Now().Add(time.Hour),
+	})
+	c.Assert(err, check.IsNil)
+	parsedCert, err = sshutils.ParseCertificate(cert)
+	c.Assert(err, check.IsNil)
+	devID, ok := parsedCert.Extensions[teleport.CertExtensionMFAVerified]
+	c.Assert(ok, check.Equals, true)
+	c.Assert(devID, check.Equals, "mfa-device-id")
+	prevIDExpiresStr, ok := parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires]
+	c.Assert(ok, check.Equals, true)
+	prevIDExpires, err := time.Parse(time.RFC3339, prevIDExpiresStr)
+	c.Assert(err, check.IsNil)
+	c.Assert(prevIDExpires, check.Equals, clock.Now().Add(time.Hour))
 }
 
 func checkCertExpiry(cert []byte, after, before time.Time) error {

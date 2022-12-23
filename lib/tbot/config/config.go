@@ -23,13 +23,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
 const (

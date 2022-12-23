@@ -35,10 +35,11 @@ import (
 	"time"
 	"unicode"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -57,9 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -607,26 +605,29 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// Set cluster networking configuration from file configuration.
-	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
-		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
-		WebIdleTimeout:           fc.Auth.WebIdleTimeout,
-		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
-		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
-		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
-		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
-		RoutingStrategy:          fc.Auth.RoutingStrategy,
-		TunnelStrategy:           fc.Auth.TunnelStrategy,
-		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// Only override networking configuration if some of its fields are
+	// specified in file configuration.
+	if fc.Auth.hasCustomNetworkingConfig() {
+		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+			RoutingStrategy:          fc.Auth.RoutingStrategy,
+			TunnelStrategy:           fc.Auth.TunnelStrategy,
+			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
-	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
+	if fc.Auth.hasCustomSessionRecording() {
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
@@ -1465,6 +1466,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		CA:                 cert,
 	}
 
+	var hlrs []service.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
 		if err != nil {
@@ -1481,11 +1483,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+		hlrs = append(hlrs, service.HostLabelRule{
 			Regexp: r,
 			Labels: rule.Labels,
 		})
 	}
+	cfg.WindowsDesktop.HostLabels = service.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = make(map[string]string)

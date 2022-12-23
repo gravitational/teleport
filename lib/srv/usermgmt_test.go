@@ -23,13 +23,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type testHostUserBackend struct {
@@ -293,5 +294,23 @@ func TestSudoersSanitization(t *testing.T) {
 	} {
 		actual := sanitizeSudoersName(tc.user)
 		require.Equal(t, tc.userExpected, actual)
+	}
+}
+
+func TestIsUnknownGroupError(t *testing.T) {
+	unknownGroupName := "unknown"
+	for _, tc := range []struct {
+		err                 error
+		isUnknownGroupError bool
+	}{
+		{
+			err:                 user.UnknownGroupError(unknownGroupName),
+			isUnknownGroupError: true,
+		}, {
+			err:                 fmt.Errorf("lookup groupname %s: no such file or directory", unknownGroupName),
+			isUnknownGroupError: true,
+		},
+	} {
+		require.Equal(t, tc.isUnknownGroupError, isUnknownGroupError(tc.err, unknownGroupName))
 	}
 }

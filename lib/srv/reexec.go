@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -43,8 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -397,6 +396,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
+	if err := setNeutralOOMScore(); err != nil {
+		log.WithError(err).Warnf("failed to adjust OOM score")
+	}
+
 	// Start the command.
 	err = cmd.Start()
 	if err != nil {
@@ -472,11 +475,11 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	}
 
 	group, err := o.LookupGroup(types.TeleportServiceGroup)
-	if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
-		// The service group doesn't exist. Auto-provision is disabled, do nothing.
-		return nil
-	}
 	if err != nil {
+		if isUnknownGroupError(err, types.TeleportServiceGroup) {
+			// The service group doesn't exist. Auto-provision is disabled, do nothing.
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 

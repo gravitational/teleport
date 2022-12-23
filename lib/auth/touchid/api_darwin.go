@@ -38,7 +38,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 

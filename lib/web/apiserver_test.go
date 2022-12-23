@@ -52,9 +52,25 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/text/encoding/unicode"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -82,7 +98,9 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -96,24 +114,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
-	"golang.org/x/text/encoding/unicode"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -127,8 +127,9 @@ type WebSuite struct {
 	proxyTunnel reversetunnel.Server
 	srvID       string
 
-	user      string
-	webServer *httptest.Server
+	user       string
+	webServer  *httptest.Server
+	webHandler *APIHandler
 
 	mockU2F     *mocku2f.Key
 	server      *auth.TestServer
@@ -238,9 +239,20 @@ func newWebSuite(t *testing.T) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
@@ -259,12 +271,12 @@ func newWebSuite(t *testing.T) *WebSuite {
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 	s.node = node
 	s.srvID = node.ID()
 	require.NoError(t, s.node.Start())
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
@@ -321,12 +333,33 @@ func newWebSuite(t *testing.T) *WebSuite {
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
+		Clock:                 s.clock,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
+	router, err := proxy.NewRouter(proxy.RouterConfig{
+		ClusterName:         s.server.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: s.proxyClient,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	proxySessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   s.proxyClient,
+		AccessPoint:  s.proxyClient,
+		LockEnforcer: proxyLockWatcher,
+		Emitter:      s.proxyClient,
+		Component:    teleport.ComponentProxy,
+		ServerID:     proxyID,
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
@@ -336,7 +369,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -345,6 +378,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
+		regular.SetSessionController(proxySessionController),
 	)
 	require.NoError(t, err)
 
@@ -365,10 +399,13 @@ func newWebSuite(t *testing.T) *WebSuite {
 		StaticFS:                        fs,
 		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
+		SessionControl:                  proxySessionController,
+		Router:                          router,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
+	s.webHandler = handler
 	s.webServer.StartTLS()
 	err = s.proxy.Start()
 	require.NoError(t, err)
@@ -988,7 +1025,7 @@ func TestClusterAlertsGet(t *testing.T) {
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID(session.ID("/../../../foo")))
+	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID("/../../../foo"))
 	require.Error(t, err)
 }
 
@@ -1131,7 +1168,7 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr:  "bad term dimensions",
+			expectedErr:  "invalid dimensions",
 			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				SessionID: validSID,
@@ -1157,7 +1194,12 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	ctx := context.Background()
 	for _, testCase := range validCases {
-		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(ctx, TerminalHandlerConfig{
+			Req:          testCase.req,
+			AuthProvider: testCase.authProvider,
+			SessionCtx:   &SessionContext{},
+			Router:       &proxy.Router{},
+		})
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(testCase.req, term.params))
 		require.Equal(t, testCase.expectedHost, testCase.expectedHost)
@@ -1165,7 +1207,12 @@ func TestNewTerminalHandler(t *testing.T) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(ctx, TerminalHandlerConfig{
+			Req:          testCase.req,
+			AuthProvider: testCase.authProvider,
+			SessionCtx:   &SessionContext{},
+			Router:       &proxy.Router{},
+		})
 		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error())
 	}
 }
@@ -1352,19 +1399,51 @@ func TestTerminalPing(t *testing.T) {
 
 func TestTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	cases := []struct {
+		name            string
+		recordingConfig types.SessionRecordingConfigV2
+	}{
+		{
+			name: "node recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtNode,
+				},
+			},
+		},
+		{
+			name: "proxy recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtProxySync,
+				},
+			},
+		},
+	}
 
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := newWebSuite(t)
 
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
+			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
+
+			ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			termHandler := newTerminalHandler()
+			stream := termHandler.asTerminalStream(ws)
+
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
+		})
+	}
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
@@ -4746,6 +4825,14 @@ func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID st
 	return nil, trace.NotFound("foo")
 }
 
+func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	return nil, nil
+}
+
 type terminalOpt func(t *TerminalRequest)
 
 func withSessionID(sid session.ID) terminalOpt {
@@ -4984,9 +5071,20 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 	t.Cleanup(nodeLockWatcher.Close)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		server.TLS.ClusterName(),
 		hostSigners,
@@ -5005,14 +5103,14 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
-	var proxies []*proxy
+	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
 		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock))
@@ -5040,7 +5138,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock,
-) *proxy {
+) *testProxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
@@ -5103,7 +5201,27 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
+	router, err := proxy.NewRouter(proxy.RouterConfig{
+		ClusterName:         authServer.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: client,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   client,
+		AccessPoint:  client,
+		LockEnforcer: proxyLockWatcher,
+		Emitter:      client,
+		Component:    teleport.ComponentProxy,
+		ServerID:     proxyID,
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
 		hostSigners,
@@ -5113,7 +5231,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client, router),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -5122,6 +5240,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetClock(clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
+		regular.SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
@@ -5141,6 +5260,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Emitter:          client,
 		StaticFS:         fs,
 		ProxySettings:    &mockProxySettings{},
+		SessionControl:   sessionController,
+		Router:           router,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -5170,7 +5291,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
 
-	return &proxy{
+	return &testProxy{
 		clock:   clock,
 		auth:    authServer,
 		client:  client,
@@ -5188,13 +5309,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 // transition the test suite to use the testing package
 // directly.
 type webPack struct {
-	proxies []*proxy
+	proxies []*testProxy
 	server  *auth.TestServer
 	node    *regular.Server
 	clock   clockwork.FakeClock
 }
 
-type proxy struct {
+type testProxy struct {
 	clock   clockwork.FakeClock
 	client  *auth.Client
 	auth    *auth.TestTLSServer
@@ -5208,7 +5329,7 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
+func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
 		pass      = "abc123"
@@ -5269,7 +5390,7 @@ func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) 
 	}
 }
 
-func (r *proxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
+func (r *testProxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
@@ -5281,7 +5402,7 @@ func (r *proxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	return &result
 }
 
-func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response) *authPack {
+func (r *testProxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response) *authPack {
 	var resp *CreateSessionResponse
 	require.NoError(t, json.Unmarshal(httpResp.Bytes(), &resp))
 
@@ -5313,7 +5434,7 @@ func defaultRoleForNewUser(teleUser types.User, login string) types.Role {
 	return role
 }
 
-func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
+func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
 	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 
@@ -5346,14 +5467,14 @@ func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass,
 	}
 }
 
-func (r *proxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
+func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	clt, err := client.NewWebClient(r.webURL.String(), opts...)
 	require.NoError(t, err)
 	return clt
 }
 
-func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) *websocket.Conn {
+func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
@@ -5395,7 +5516,7 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 	return ws
 }
 
-func (r *proxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
+func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,

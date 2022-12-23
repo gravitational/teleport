@@ -19,11 +19,11 @@ package services
 import (
 	"strings"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // impersonateContext is a default rule context used in teleport

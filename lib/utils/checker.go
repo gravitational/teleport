@@ -24,10 +24,10 @@ import (
 	"crypto/rsa"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // CreateCertificate creates a valid 2048-bit RSA certificate.

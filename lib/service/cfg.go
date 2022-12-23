@@ -31,6 +31,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
@@ -55,16 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -1164,22 +1164,40 @@ type LDAPDiscoveryConfig struct {
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
-type HostLabelRules []HostLabelRule
+type HostLabelRules struct {
+	rules  []HostLabelRule
+	labels map[string]map[string]string
+}
+
+func NewHostLabelRules(rules ...HostLabelRule) HostLabelRules {
+	return HostLabelRules{
+		rules: rules,
+	}
+}
 
 // LabelsForHost returns the set of all labels that should be applied
 // to the specified host. If multiple rules match and specify the same
 // label keys, the value will be that of the last matching rule.
 func (h HostLabelRules) LabelsForHost(host string) map[string]string {
-	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
-	// change, so it may be worth not matching regexps on each heartbeat.
+	labels, ok := h.labels[host]
+	if ok {
+		return labels
+	}
+
 	result := make(map[string]string)
-	for _, rule := range h {
+	for _, rule := range h.rules {
 		if rule.Regexp.MatchString(host) {
 			for k, v := range rule.Labels {
 				result[k] = v
 			}
 		}
 	}
+
+	if h.labels == nil {
+		h.labels = make(map[string]map[string]string)
+	}
+	h.labels[host] = result
+
 	return result
 }
 

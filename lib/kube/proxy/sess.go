@@ -27,6 +27,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/tools/remotecommand"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -36,12 +42,6 @@ import (
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
-	"k8s.io/client-go/tools/remotecommand"
 )
 
 const sessionRecorderID = "session-recorder"

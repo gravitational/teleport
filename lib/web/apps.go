@@ -22,6 +22,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -33,22 +36,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	appClusterName := p.ByName("site")
 
-	identity, err := ctx.GetIdentity()
+	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get a list of application servers and their proxied apps.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -6043,6 +6043,7 @@ type MFADevice struct {
 	AddedAt  time.Time `protobuf:"bytes,6,opt,name=added_at,json=addedAt,proto3,stdtime" json:"added_at"`
 	LastUsed time.Time `protobuf:"bytes,7,opt,name=last_used,json=lastUsed,proto3,stdtime" json:"last_used"`
 	// Types that are valid to be assigned to Device:
+	//
 	//	*MFADevice_Totp
 	//	*MFADevice_U2F
 	//	*MFADevice_Webauthn

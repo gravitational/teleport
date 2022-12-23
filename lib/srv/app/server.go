@@ -29,6 +29,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -46,11 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
@@ -689,18 +688,13 @@ func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, auth
 	identity := authCtx.Identity.GetIdentity()
 	checker := authCtx.Checker
 
-	certExpires := identity.Expires
-	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		disconnectCertExpired = certExpires
-	}
 	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           s.c.LockWatcher,
 		LockTargets:           authCtx.LockTargets(),
-		DisconnectExpiredCert: disconnectCertExpired,
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity),
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  tc,
 		Tracker:               tc,

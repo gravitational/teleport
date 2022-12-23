@@ -29,14 +29,6 @@ import (
 	"strings"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -50,13 +42,20 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 )
 
 var (
 	writeRequests = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "etcd_backend_write_requests",
-			Help: "Number of wrtie requests to the database",
+			Help: "Number of write requests to the database",
 		},
 	)
 	readRequests = prometheus.NewCounter(

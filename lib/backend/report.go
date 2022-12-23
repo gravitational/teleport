@@ -21,12 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jonboulle/clockwork"
@@ -34,6 +28,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const reporterDefaultCacheSize = 1000
@@ -408,8 +408,11 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 // sensitive values.
 var sensitiveBackendPrefixes = []string{
 	"tokens",
-	"resetpasswordtokens",
 	"adduseru2fchallenges",
+	"usertoken",
+	// Global passwordless challenges, keyed by challenge, as per
+	// https://github.com/gravitational/teleport/blob/01775b73f138ff124ff0351209d629bb01836869/lib/services/local/users.go#L1510.
+	"sessionData",
 	"access_requests",
 }
 

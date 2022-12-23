@@ -23,11 +23,13 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/gravitational/teleport"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // TestEmitExecAuditEvent make sure the full command and exit code for a
@@ -35,6 +37,9 @@ import (
 func TestEmitExecAuditEvent(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
+
+	rec, ok := scx.session.recorder.(*mockRecorder)
+	require.True(t, ok)
 
 	expectedUsr, err := user.Current()
 	require.NoError(t, err)
@@ -83,7 +88,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		emitExecAuditEvent(scx, tt.inCommand, tt.inError)
-		execEvent := srv.MockEmitter.LastEvent().(*apievents.Exec)
+		execEvent := rec.emitter.LastEvent().(*apievents.Exec)
 		require.Equal(t, tt.outCommand, execEvent.Command)
 		require.Equal(t, tt.outCode, execEvent.ExitCode)
 		require.Equal(t, expectedMeta, execEvent.UserMetadata)
@@ -93,6 +98,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, "xxx", execEvent.SessionID)
 		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
 		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
+		require.NotZero(t, events.EventID)
 	}
 }
 
@@ -112,8 +118,11 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 	require.NoError(t, err)
 	term.SetTermType("xterm")
 
-	scx.session = &session{id: "xxx"}
-	scx.session.term = term
+	scx.session = &session{
+		id:       "xxx",
+		term:     term,
+		recorder: &mockRecorder{done: false},
+	}
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)
 

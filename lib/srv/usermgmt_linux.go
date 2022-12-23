@@ -22,9 +22,10 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 // HostUsersProvisioningBackend is used to implement HostUsersBackend

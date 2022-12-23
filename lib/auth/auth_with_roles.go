@@ -23,6 +23,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,12 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
-	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -3110,7 +3110,7 @@ func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID)
 	}
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return nil, trace.AccessDenied("this request can be only executed by proxy, node or auth")
+		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
 	stream, err := a.authServer.CreateAuditStream(ctx, sid)
 	if err != nil {
@@ -3130,7 +3130,7 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 	}
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return nil, trace.AccessDenied("this request can be only executed by proxy, node or auth")
+		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
 	stream, err := a.authServer.ResumeAuditStream(ctx, sid, uploadID)
 	if err != nil {
@@ -4555,18 +4555,19 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		return nil, e
 	}
 
-	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
-		return createErrorChannel(err)
-	}
+	err := a.serverAction()
+	isTeleportServer := err == nil
 
-	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
-	shouldEmitAuditEvent := true
-	if role, ok := a.context.Identity.(BuiltinRole); ok {
-		if role.IsServer() {
-			shouldEmitAuditEvent = false
+	if !isTeleportServer {
+		if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
+			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+			e <- trace.Wrap(err)
+			return c, e
 		}
 	}
 
+	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
+	shouldEmitAuditEvent := !isTeleportServer
 	if shouldEmitAuditEvent {
 		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
 			Metadata: apievents.Metadata{

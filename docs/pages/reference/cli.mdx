@@ -152,7 +152,7 @@ information about the cluster.
 | `--user` | `$USER` | none | The Teleport username |
 | `--ttl` | `720` (12 hours) | integer | Number of minutes a certificate issued for the `tsh` user will be valid for |
 | `-i, --identity` | none | **string** filepath | Identity file |
-| `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
+| `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
 | `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
@@ -568,7 +568,7 @@ $ tsh --ttl=1 login
 $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Login using GitHub as an SSO provider, assuming the GitHub connector is called "github"
-$ tsh --proxy=proxy.example.com --auth=github --user=admin login
+$ tsh --proxy=proxy.example.com --auth=github login
 
 # Suppress the opening of the system default browser for external provider logins
 $ tsh --proxy=proxy.example.com --browser=none
@@ -861,7 +861,7 @@ New command `tsh l`:
 
 ```yaml
 aliases:
-    "l": "tsh login --auth=okta --username=alice"
+    "l": "tsh login --auth=okta"
 ```
 
 Make `tsh status` use JSON as a default format:

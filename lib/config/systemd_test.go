@@ -20,8 +20,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils/golden"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestWriteSystemdUnitFile(t *testing.T) {

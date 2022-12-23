@@ -19,9 +19,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
@@ -29,6 +26,9 @@ import (
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/option"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 const (

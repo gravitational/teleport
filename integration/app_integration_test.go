@@ -35,6 +35,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -57,15 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAppAccess runs the full application access integration test suite.
@@ -218,7 +218,7 @@ func (p *pack) appAccessTCP(t *testing.T) {
 
 func TestTCPLock(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
-	mCloseChannel := make(chan struct{})
+	mCloseChannel := make(chan struct{}, 1)
 
 	pack := setupWithOptions(t, appTestOptions{
 		clock:               clock,
@@ -229,17 +229,28 @@ func TestTCPLock(t *testing.T) {
 
 	// Start the proxy to the two way communication app.
 	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
-	conn, err := net.Dial("tcp", address)
-	require.NoError(t, err)
 
-	// Read, write, and read again to make sure its working as expected.
+	var conn net.Conn
+	var err error
+	var n int
 	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	require.NoError(t, err, buf)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		conn, err = net.Dial("tcp", address)
+		if err != nil {
+			return false
+		}
+
+		// Try to read
+		n, err = conn.Read(buf)
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
 
 	resp := strings.TrimSpace(string(buf[:n]))
 	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
 
+	// Once we've read successfully, write, and then read again to verify the connection
 	_, err = conn.Write(msg)
 	require.NoError(t, err)
 
@@ -278,7 +289,7 @@ func TestTCPLock(t *testing.T) {
 // TestTCPCertExpiration tests TCP application with certs expiring.
 func TestTCPCertExpiration(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
-	mCloseChannel := make(chan struct{})
+	mCloseChannel := make(chan struct{}, 1)
 
 	pack := setupWithOptions(t, appTestOptions{
 		clock:               clock,
@@ -289,17 +300,28 @@ func TestTCPCertExpiration(t *testing.T) {
 
 	// Start the proxy to the two way communication app.
 	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
-	conn, err := net.Dial("tcp", address)
-	require.NoError(t, err)
 
-	// Read, write, and read again to make sure its working as expected.
+	var conn net.Conn
+	var err error
+	var n int
 	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	require.NoError(t, err, buf)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		conn, err = net.Dial("tcp", address)
+		if err != nil {
+			return false
+		}
+
+		// Try to read
+		n, err = conn.Read(buf)
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
 
 	resp := strings.TrimSpace(string(buf[:n]))
 	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
 
+	// Once we've read successfully, write, and then read again to verify the connection
 	_, err = conn.Write(msg)
 	require.NoError(t, err)
 
@@ -327,12 +349,16 @@ func TestTCPCertExpiration(t *testing.T) {
 	// Close and re-open the connection
 	require.NoError(t, conn.Close())
 
-	conn, err = net.Dial("tcp", address)
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		conn, err := net.Dial("tcp", address)
+		if err != nil {
+			return false
+		}
 
-	// Try to read again, expect a failure.
-	_, err = conn.Read(buf)
-	require.Error(t, err, buf)
+		// Try to read again, expect a failure.
+		_, err = conn.Read(buf)
+		return err != nil
+	}, time.Second*5, time.Millisecond*100)
 }
 
 // appAccessClientCert tests mutual TLS authentication flow with application

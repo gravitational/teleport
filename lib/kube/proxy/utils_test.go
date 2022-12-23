@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -44,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -198,17 +196,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			}
 		},
 	})
-	require.NoError(t, err)
-	// create session recording path
-	// testCtx.kubeServer.DataDir/log/upload/streaming/default
-	err = os.MkdirAll(
-		filepath.Join(
-			testCtx.kubeServer.DataDir,
-			teleport.LogsDir,
-			teleport.ComponentUpload,
-			events.StreamingLogsDir,
-			apidefaults.Namespace,
-		), os.ModePerm)
 	require.NoError(t, err)
 
 	testCtx.startKubeService(t)
@@ -365,7 +352,7 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 }
 
 func (c *testContext) newJoiningSession(cfg *rest.Config, sessionID string, mode types.SessionParticipantMode) (*streamproto.SessionStream, error) {
-	ws, err := newWebSocketExecutor(cfg, http.MethodPost, &url.URL{
+	ws, err := newWebSocketClient(cfg, http.MethodPost, &url.URL{
 		Scheme: "wss",
 		Host:   c.KubeServiceAddress(),
 		Path:   "/api/v1/teleport/join/" + sessionID,

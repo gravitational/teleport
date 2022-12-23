@@ -12,27 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package peer
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	errorProxyPeerTunnelNotFound     = "TUNNEL_NOT_FOUND"
-	errorProxyPeerTunnelDial         = "TUNNEL_DIAL"
-	errorProxyPeerTunnelDirectDial   = "TUNNEL_DIRECT_DIAL"
-	errorProxyPeerTunnelRPC          = "TUNNEL_RPC"
-	errorProxyPeerFetchProxies       = "FETCH_PROXIES"
-	errorProxyPeerProxiesUnreachable = "PROXIES_UNREACHABLE"
-)
-
-// clientMetrics represents a collection of metrics for a proxy peer client
-type clientMetrics struct {
-	dialErrors      *prometheus.CounterVec
+// serverMetrics represents a collection of metrics for a proxy peer server
+type serverMetrics struct {
 	connections     *prometheus.GaugeVec
 	rpcs            *prometheus.GaugeVec
 	rpcTotal        *prometheus.CounterVec
@@ -41,25 +31,15 @@ type clientMetrics struct {
 	messageReceived *prometheus.HistogramVec
 }
 
-// newClientMetrics inits and registers client metrics prometheus collectors.
-func newClientMetrics() (*clientMetrics, error) {
-	cm := &clientMetrics{
-		dialErrors: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: "proxy_peer",
-				Subsystem: "client",
-				Name:      "dial_error_total",
-				Help:      "Total number of errors encountered dialing peer proxies.",
-			},
-			[]string{"error_type"},
-		),
-
+// newServerMetrics inits and registers client metrics prometheus collectors.
+func newServerMetrics() (*serverMetrics, error) {
+	sm := &serverMetrics{
 		connections: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: "proxy_peer",
-				Subsystem: "client",
+				Subsystem: "server",
 				Name:      "connections",
-				Help:      "Number of currently opened connection to proxy peer servers.",
+				Help:      "Number of currently opened connection to proxy peer clients.",
 			},
 			[]string{"local_id", "remote_id", "state"},
 		),
@@ -67,9 +47,9 @@ func newClientMetrics() (*clientMetrics, error) {
 		rpcs: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: "proxy_peer",
-				Subsystem: "client",
+				Subsystem: "server",
 				Name:      "rpc",
-				Help:      "Number of current client RPC requests.",
+				Help:      "Number of current server RPC requests.",
 			},
 			[]string{"service", "method"},
 		),
@@ -77,9 +57,9 @@ func newClientMetrics() (*clientMetrics, error) {
 		rpcTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "proxy_peer",
-				Subsystem: "client",
+				Subsystem: "server",
 				Name:      "rpc_total",
-				Help:      "Total number of client RPC requests.",
+				Help:      "Total number of server RPC requests.",
 			},
 			[]string{"service", "method", "code"},
 		),
@@ -87,9 +67,9 @@ func newClientMetrics() (*clientMetrics, error) {
 		rpcDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: "proxy_peer",
-				Subsystem: "client",
+				Subsystem: "server",
 				Name:      "rpc_duration_seconds",
-				Help:      "Duration in seconds of RPCs sent by the client.",
+				Help:      "Duration in seconds of RPCs sent by the server.",
 			},
 			[]string{"service", "handler", "code"},
 		),
@@ -97,9 +77,9 @@ func newClientMetrics() (*clientMetrics, error) {
 		messageSent: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: "proxy_peer",
-				Subsystem: "client",
+				Subsystem: "server",
 				Name:      "message_sent_size",
-				Help:      "Size of messages sent by the client.",
+				Help:      "Size of messages sent by the server.",
 				Buckets:   messageByteBuckets,
 			},
 			[]string{"service", "handler"},
@@ -108,9 +88,9 @@ func newClientMetrics() (*clientMetrics, error) {
 		messageReceived: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: "proxy_peer",
-				Subsystem: "client",
+				Subsystem: "server",
 				Name:      "message_received_size",
-				Help:      "Size of messages received by the client.",
+				Help:      "Size of messages received by the server.",
 				Buckets:   messageByteBuckets,
 			},
 			[]string{"service", "handler"},
@@ -118,51 +98,45 @@ func newClientMetrics() (*clientMetrics, error) {
 	}
 
 	if err := utils.RegisterPrometheusCollectors(
-		cm.dialErrors,
-		cm.connections,
-		cm.rpcs,
-		cm.rpcTotal,
-		cm.rpcDuration,
-		cm.messageSent,
-		cm.messageReceived,
+		sm.connections,
+		sm.rpcs,
+		sm.rpcTotal,
+		sm.rpcDuration,
+		sm.messageSent,
+		sm.messageReceived,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return cm, nil
+	return sm, nil
 }
 
-// reportTunnelError reports errors encountered dialing an existing peer tunnel.
-func (c *clientMetrics) reportTunnelError(errorType string) {
-	c.dialErrors.WithLabelValues(errorType).Inc()
-}
-
-// getConnectionGauge is a getter for the connections collector.
-func (c *clientMetrics) getConnectionGauge() *prometheus.GaugeVec {
-	return c.connections
+// getConnectionGauge is a getter for the connectionCounter collector.
+func (s *serverMetrics) getConnectionGauge() *prometheus.GaugeVec {
+	return s.connections
 }
 
 // getRPCGauge is a getter for the rpcs collector.
-func (c *clientMetrics) getRPCGauge() *prometheus.GaugeVec {
-	return c.rpcs
+func (s *serverMetrics) getRPCGauge() *prometheus.GaugeVec {
+	return s.rpcs
 }
 
 // getRPCCounter is a getter for the rpcTotal collector.
-func (c *clientMetrics) getRPCCounter() *prometheus.CounterVec {
-	return c.rpcTotal
+func (s *serverMetrics) getRPCCounter() *prometheus.CounterVec {
+	return s.rpcTotal
 }
 
 // getRPCDuration is a getter for the rpcDuration collector.
-func (c *clientMetrics) getRPCDuration() *prometheus.HistogramVec {
-	return c.rpcDuration
+func (s *serverMetrics) getRPCDuration() *prometheus.HistogramVec {
+	return s.rpcDuration
 }
 
 // getMessageSent is a getter for the messageSent collector.
-func (c *clientMetrics) getMessageSent() *prometheus.HistogramVec {
-	return c.messageSent
+func (s *serverMetrics) getMessageSent() *prometheus.HistogramVec {
+	return s.messageSent
 }
 
 // getMessageReceived is a getter for the messageReceived collector.
-func (c *clientMetrics) getMessageReceived() *prometheus.HistogramVec {
-	return c.messageReceived
+func (s *serverMetrics) getMessageReceived() *prometheus.HistogramVec {
+	return s.messageReceived
 }

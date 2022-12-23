@@ -27,6 +27,11 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -41,11 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -721,6 +721,17 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
 	}
 
+	expires, err := key.TeleportTLSCertValidBefore()
+	if err != nil {
+		log.WithError(err).Warn("Failed to check TTL validity")
+		// err swallowed on purpose
+	} else if reqExpiry.Sub(expires) > time.Minute {
+		maxAllowedTTL := time.Until(expires).Round(time.Second)
+		return trace.BadParameter(`The credential was not issued because the requested TTL of %s exceeded the maximum allowed value of %s. To successfully request a credential, please reduce the requested TTL.`,
+			a.genTTL,
+			maxAllowedTTL)
+	}
+
 	// write the cert+private key to the output:
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -735,19 +746,6 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		return trace.Wrap(err)
 	}
 	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
-
-	expires, err := key.TeleportTLSCertValidBefore()
-	if err != nil {
-		log.WithError(err).Warn("Failed to check TTL validity")
-		// err swallowed on purpose
-		return nil
-	}
-	if reqExpiry.Sub(expires) > time.Minute {
-		log.Warnf("Requested TTL of %s was not granted. User may have a role with a shorter max session TTL"+
-			" or an existing session ending before the requested TTL. Proceeding with %s",
-			a.genTTL,
-			time.Until(expires).Round(time.Second))
-	}
 
 	return nil
 }
