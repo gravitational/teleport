@@ -108,7 +108,7 @@ func (e *Engine) SendError(err error) {
 	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
 		return
 	}
-	e.Log.Debugf("DynamoDB connection error: %v", err)
+	e.Log.WithError(err).Error("DynamoDB connection error")
 
 	// try to convert to a trace err if we can.
 	code := trace.ErrorToCode(err)
@@ -158,32 +158,45 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req); err != nil {
+		err = e.process(ctx, req)
+		if req.Body != nil {
+			// close the incoming request body after processing and ignore close error.
+			_ = req.Body.Close()
+		}
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 }
 
-// process reads request from connected dynamodb client, processes the requests/responses and send data back
+// process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request) error {
-	defer req.Body.Close()
+func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
+	var responseStatusCode uint32
 	re, err := e.resolveEndpoint(req)
 	if err != nil {
+		// special error case where we couldn't resolve the endpoint, just emit using the configured URI.
+		e.emitAuditEvent(req, e.sessionCtx.Database.GetURI(), responseStatusCode, err)
 		return trace.Wrap(err)
 	}
+
+	// emit an audit event regardless of failure, but using the resolved endpoint.
+	defer func() {
+		e.emitAuditEvent(req, re.URL, responseStatusCode, err)
+	}()
+
 	roundTripper, err := e.getRoundTripper(ctx, re.URL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// rewrite the request URL and headers before signing it.
-	reqCopy, err := rewriteRequest(ctx, req, re)
+	req, err = rewriteRequest(ctx, req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
-	signedReq, err := e.signingSvc.SignRequest(reqCopy,
+	signedReq, err := e.signingSvc.SignRequest(req,
 		&libaws.SigningCtx{
 			SigningName:   re.SigningName,
 			SigningRegion: re.SigningRegion,
@@ -196,19 +209,16 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 		return trace.Wrap(err)
 	}
 
-	// Send the request to DynamoDB API.
+	// Send the request.
 	resp, err := roundTripper.RoundTrip(signedReq)
 	if err != nil {
 		// convert the error from round tripping to try to get a trace error.
 		err = common.ConvertConnectError(err, e.sessionCtx)
-		e.Log.WithError(err).Error("Request failed.")
-		// err != nil indicates we failed to get a response at all, so pass status code 0.
-		e.emitAuditEvent(reqCopy, re.URL, 0, err)
 		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	responseStatusCode = uint32(resp.StatusCode)
 
-	e.emitAuditEvent(reqCopy, re.URL, resp.StatusCode, nil)
 	return trace.Wrap(e.sendResponse(resp))
 }
 
@@ -218,9 +228,9 @@ func (e *Engine) sendResponse(resp *http.Response) error {
 }
 
 // emitAuditEvent writes the request and response status code to the audit stream.
-func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode int, err error) {
+func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode uint32, err error) {
 	var eventCode string
-	if err == nil {
+	if err == nil && statusCode != 0 {
 		eventCode = events.DynamoDBRequestCode
 	} else {
 		eventCode = events.DynamoDBRequestFailureCode
@@ -340,7 +350,18 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	reqCopy := r.Clone(ctx)
 	// set url and host header to match the database uri.
 	reqCopy.URL = resolvedURL
-	reqCopy.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+	reqCopy.Host = resolvedURL.Host
+	if r.Body == nil {
+		// no body is fine, skip copying it.
+		return reqCopy, nil
+	}
+
+	// copy request body
+	body, err := io.ReadAll(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reqCopy.Body = io.NopCloser(bytes.NewReader(body))
 	return reqCopy, nil
 }
 
