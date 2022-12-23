@@ -166,6 +166,8 @@ func newWebSuite(t *testing.T) *WebSuite {
 type webSuiteConfig struct {
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	authPreferenceSpec *types.AuthPreferenceSpecV2
+
+	disableDiskBasedRecording bool
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -190,16 +192,32 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
-	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+	authCfg := auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
 			ClusterName:             "localhost",
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
-			AuthPreferenceSpec:      cfg.authPreferenceSpec,
+
+			AuthPreferenceSpec: cfg.authPreferenceSpec,
 		},
-	})
+	}
+
+	if cfg.disableDiskBasedRecording {
+		authCfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	}
+
+	s.server, err = auth.NewTestServer(authCfg)
 	require.NoError(t, err)
+
+	if cfg.disableDiskBasedRecording {
+		// use a sync recording mode because the disk-based uploader
+		// that runs in the background introduces races with test cleanup
+		recConfig := types.DefaultSessionRecordingConfig()
+		recConfig.SetMode(types.RecordAtNodeSync)
+		err := s.server.AuthServer.AuthServer.SetSessionRecordingConfig(context.Background(), recConfig)
+		require.NoError(t, err)
+	}
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
@@ -1446,40 +1464,61 @@ func TestTerminalRouting(t *testing.T) {
 	alpaca1 := s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
 	s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
 
+	closeNoError := func(t *testing.T, err error) {
+		require.NoError(t, err)
+	}
+
+	closeOkNetworkError := func(t *testing.T, err error) {
+		if err == nil {
+			return
+		}
+
+		require.True(t, utils.IsOKNetworkError(err), "websocket closure should have return an error indicating that the server already terminated the connection")
+	}
+
 	cases := []struct {
-		name   string
-		target string
-		output string
+		name             string
+		target           string
+		output           string
+		wsCloseAssertion func(t *testing.T, err error)
 	}{
 		{
-			name:   "exact match by uuid",
-			target: llama.ID(),
-			output: "teleport",
+			name:             "exact match by uuid",
+			target:           llama.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
-			name:   "exact match by hostname",
-			target: "llama",
-			output: "teleport",
+			name:             "exact match by hostname",
+			target:           "llama",
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
-			name:   "exact match by ip",
-			target: llama.Addr(),
-			output: "teleport",
+			name:             "exact match by ip",
+			target:           llama.Addr(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
 			name:   "ambiguous host",
 			target: "alpaca",
 			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
 		},
 		{
-			name:   "connect by uuid successful when multiple hostnames match",
-			target: alpaca1.ID(),
-			output: "teleport",
+			name:             "connect by uuid successful when multiple hostnames match",
+			target:           alpaca1.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
 		},
 		{
 			name:   "ambiguous ip",
 			target: "127.0.0.1",
 			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
 		},
 	}
 
@@ -1490,7 +1529,7 @@ func TestTerminalRouting(t *testing.T) {
 
 			ws, _, err := s.makeTerminal(t, s.authPack(t, fmt.Sprintf("foo-%d", i)), withServer(tt.target))
 			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
 
 			termHandler := newTerminalHandler()
 			stream := termHandler.asTerminalStream(ws)
@@ -1763,7 +1802,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 
 func TestWebAgentForward(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
@@ -6063,12 +6102,15 @@ func waitForOutput(stream *terminalStream, substr string) error {
 		}
 
 		out := make([]byte, 100)
-		_, err := stream.Read(out)
+		n, err := stream.Read(out)
+
+		// check for the string before checking the error,
+		// as it's valid for n > 0 even when there is an error
+		if n > 0 && strings.Contains(removeSpace(string(out[:n])), substr) {
+			return nil
+		}
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		if strings.Contains(removeSpace(string(out)), substr) {
-			return nil
 		}
 	}
 }

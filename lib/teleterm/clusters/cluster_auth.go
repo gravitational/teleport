@@ -186,6 +186,11 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 		return trace.Wrap(err)
 	}
 
+	// Attempt device login. This activates a fresh key if successful.
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := c.clusterClient.SaveProfile(c.dir, true); err != nil {
 		return trace.Wrap(err)
 	}

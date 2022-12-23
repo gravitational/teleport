@@ -392,20 +392,6 @@ type keyPairKey struct {
 	reason string
 }
 
-// newTeleportConfig provides extra options to NewTeleport().
-type newTeleportConfig struct {
-	imdsClient cloud.InstanceMetadata
-}
-
-type NewTeleportOption func(*newTeleportConfig)
-
-// WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
-func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
-	return func(c *newTeleportConfig) {
-		c.imdsClient = client
-	}
-}
-
 // processIndex is an internal process index
 // to help differentiate between two different teleport processes
 // during in-process reload.
@@ -493,9 +479,9 @@ func (process *TeleportProcess) getInstanceRoleEventMapping() map[types.SystemRo
 	return out
 }
 
-// setExpectedInstanceRole marks a given instance role as active, storing the name of its associated
+// SetExpectedInstanceRole marks a given instance role as active, storing the name of its associated
 // identity event.
-func (process *TeleportProcess) setExpectedInstanceRole(role types.SystemRole, eventName string) {
+func (process *TeleportProcess) SetExpectedInstanceRole(role types.SystemRole, eventName string) {
 	process.Lock()
 	defer process.Unlock()
 	process.instanceRoles[role] = eventName
@@ -517,16 +503,16 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 	process.connectors[connector.ClientIdentity.ID.Role] = connector
 }
 
-// waitForConnector is a utility function to wait for an identity event and cast
+// WaitForConnector is a utility function to wait for an identity event and cast
 // the resulting payload as a *Connector. Returns (nil, nil) when the
 // ExitContext is done, so error checking should happen on the connector rather
 // than the error:
 //
-//	conn, err := process.waitForConnector("FooIdentity", log)
+//	conn, err := process.WaitForConnector("FooIdentity", log)
 //	if conn == nil {
 //		return trace.Wrap(err)
 //	}
-func (process *TeleportProcess) waitForConnector(identityEvent string, log logrus.FieldLogger) (*Connector, error) {
+func (process *TeleportProcess) WaitForConnector(identityEvent string, log logrus.FieldLogger) (*Connector, error) {
 	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
 	if err != nil {
 		if log != nil {
@@ -768,11 +754,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, error) {
-	newTeleportConf := &newTeleportConfig{}
-	for _, opt := range opts {
-		opt(newTeleportConf)
-	}
+func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var err error
 
 	// auth and proxy benefit from precomputing keys since they can experience spikes in key
@@ -878,7 +860,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	var cloudLabels labels.Importer
 
 	// Check if we're on a cloud instance, and if we should override the node's hostname.
-	imClient := newTeleportConf.imdsClient
+	imClient := cfg.InstanceMetadataClient
 	if imClient == nil {
 		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
 		if err != nil && !trace.IsNotFound(err) {
@@ -886,7 +868,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	if imClient != nil {
+	if imClient != nil && imClient.GetType() != types.InstanceMetadataTypeDisabled {
 		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
 			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")
@@ -1008,6 +990,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		Out: TeleportReadyEvent,
 		In:  []string{InstanceReady},
 	}
+
+	// Register additional ready events before considering the Teleport instance "ready."
+	// Meant for enterprise support.
+	if cfg.AdditionalReadyEvents != nil {
+		eventMapping.In = append(eventMapping.In, cfg.AdditionalReadyEvents...)
+	}
+
 	if cfg.Auth.Enabled {
 		eventMapping.In = append(eventMapping.In, AuthTLSReady)
 	}
@@ -1913,6 +1902,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Restrictions:     cfg.services,
 		Apps:             cfg.services,
 		Kubernetes:       cfg.services,
+		DatabaseServices: cfg.services,
 		Databases:        cfg.services,
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,
@@ -2115,14 +2105,14 @@ func (process *TeleportProcess) initInstance() error {
 		process.BroadcastEvent(Event{Name: InstanceReady, Payload: nil})
 		return nil
 	}
-	process.registerWithAuthServer(types.RoleInstance, InstanceIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleInstance, InstanceIdentityEvent)
 
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentInstance, process.id),
 	})
 
 	process.RegisterCriticalFunc("instance.init", func() error {
-		conn, err := process.waitForConnector(InstanceIdentityEvent, log)
+		conn, err := process.WaitForConnector(InstanceIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
@@ -2138,7 +2128,7 @@ func (process *TeleportProcess) initInstance() error {
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
-	process.registerWithAuthServer(types.RoleNode, SSHIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleNode, SSHIdentityEvent)
 
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentNode, process.id),
@@ -2147,7 +2137,7 @@ func (process *TeleportProcess) initSSH() error {
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
-		conn, err := process.waitForConnector(SSHIdentityEvent, log)
+		conn, err := process.WaitForConnector(SSHIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
@@ -2422,15 +2412,15 @@ func (process *TeleportProcess) initSSH() error {
 	return nil
 }
 
-// registerWithAuthServer uses one time provisioning token obtained earlier
+// RegisterWithAuthServer uses one time provisioning token obtained earlier
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
-func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, eventName string) {
+func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, eventName string) {
 	serviceName := strings.ToLower(role.String())
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
 		if role.IsLocalService() && !process.instanceRoleExpected(role) {
-			// if you hit this error, your probably forgot to call setExpectedInstanceRole inside of
+			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
 			// the registerExpectedServices function.
 			process.log.Errorf("Register called for unexpected instance role %q (this is a bug).", role)
 		}
@@ -2929,9 +2919,9 @@ func (process *TeleportProcess) initProxy() error {
 			return trace.Wrap(err)
 		}
 	}
-	process.registerWithAuthServer(types.RoleProxy, ProxyIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleProxy, ProxyIdentityEvent)
 	process.RegisterCriticalFunc("proxy.init", func() error {
-		conn, err := process.waitForConnector(ProxyIdentityEvent, process.log)
+		conn, err := process.WaitForConnector(ProxyIdentityEvent, process.log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
@@ -4313,35 +4303,35 @@ func (process *TeleportProcess) waitForAppDepend() {
 // registerExpectedServices sets up the instance role -> identity event mapping.
 func (process *TeleportProcess) registerExpectedServices(cfg *Config) {
 	if cfg.Auth.Enabled {
-		process.setExpectedInstanceRole(types.RoleAuth, AuthIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleAuth, AuthIdentityEvent)
 	}
 
 	if cfg.SSH.Enabled {
-		process.setExpectedInstanceRole(types.RoleNode, SSHIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleNode, SSHIdentityEvent)
 	}
 
 	if cfg.Proxy.Enabled {
-		process.setExpectedInstanceRole(types.RoleProxy, ProxyIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleProxy, ProxyIdentityEvent)
 	}
 
 	if cfg.Kube.Enabled {
-		process.setExpectedInstanceRole(types.RoleKube, KubeIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleKube, KubeIdentityEvent)
 	}
 
 	if cfg.Apps.Enabled {
-		process.setExpectedInstanceRole(types.RoleApp, AppsIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleApp, AppsIdentityEvent)
 	}
 
 	if cfg.Databases.Enabled {
-		process.setExpectedInstanceRole(types.RoleDatabase, DatabasesIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleDatabase, DatabasesIdentityEvent)
 	}
 
 	if cfg.WindowsDesktop.Enabled {
-		process.setExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	}
 
 	if cfg.Discovery.Enabled {
-		process.setExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
 	}
 }
 
@@ -4368,14 +4358,14 @@ func (process *TeleportProcess) initApps() {
 	// be returned. For this to be successful, credentials to connect to the
 	// Auth Server need to exist on disk or a registration token should be
 	// provided.
-	process.registerWithAuthServer(types.RoleApp, AppsIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleApp, AppsIdentityEvent)
 
 	// Define logger to prefix log lines with the name of the component and PID.
 	component := teleport.Component(teleport.ComponentApp, process.id)
 	log := process.log.WithField(trace.Component, component)
 
 	process.RegisterCriticalFunc("apps.start", func() error {
-		conn, err := process.waitForConnector(AppsIdentityEvent, log)
+		conn, err := process.WaitForConnector(AppsIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}

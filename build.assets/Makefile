@@ -27,7 +27,7 @@ GOLANG_VERSION ?= go1.19.4
 
 NODE_VERSION ?= 16.18.1
 
-RUST_VERSION ?= 1.64.0 # don't bump this without checking GLIBC compatibility
+RUST_VERSION ?= 1.66.0
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -42,7 +42,7 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 PROTOC_VER ?= 3.20.3
-# Keep in sync with api/proto/buf.yaml (and buf.lock).
+# Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
