@@ -19,9 +19,11 @@ package mongodb
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/url"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/mongo/address"
 	"go.mongodb.org/mongo-driver/mongo/description"
@@ -80,7 +82,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
 func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.Option, description.ServerSelector, error) {
-	connString, err := getConnectionString(sessionCtx)
+	connString, err := e.getConnectionString(ctx, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -88,7 +90,7 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	serverOptions, err := e.getServerOptions(ctx, sessionCtx)
+	serverOptions, err := e.getServerOptions(ctx, sessionCtx, connString)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -106,8 +108,8 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 }
 
 // getServerOptions constructs server options for connecting to a MongoDB server.
-func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ServerOption, error) {
-	connectionOptions, err := e.getConnectionOptions(ctx, sessionCtx)
+func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Session, connString connstring.ConnString) ([]topology.ServerOption, error) {
+	connectionOptions, err := e.getConnectionOptions(ctx, sessionCtx, connString)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,18 +121,34 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // getConnectionOptions constructs connection options for connecting to a MongoDB server.
-func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ConnectionOption, error) {
+func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session, connString connstring.ConnString) ([]topology.ConnectionOption, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
-		// MongoDB uses full certificate Subject field as a username.
-		Username: "CN=" + sessionCtx.DatabaseUser,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var authenticator auth.Authenticator
+	switch {
+	case sessionCtx.Database.IsCosmosDB():
+		authenticator, err = auth.CreateAuthenticator(auth.PLAIN, &auth.Cred{
+			Source:      connString.AuthSource,
+			Username:    connString.Username,
+			Password:    connString.Password,
+			PasswordSet: connString.PasswordSet,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		authenticator, err = auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
+			// MongoDB uses full certificate Subject field as a username.
+			Username: "CN=" + sessionCtx.DatabaseUser,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	return []topology.ConnectionOption{
 		topology.WithTLSConfig(func(*tls.Config) *tls.Config {
 			return tlsConfig
@@ -138,7 +156,19 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 		topology.WithOCSPCache(func(ocsp.Cache) ocsp.Cache {
 			return ocsp.NewCache()
 		}),
-		topology.WithHandshaker(func(topology.Handshaker) topology.Handshaker {
+		topology.WithHandshaker(func(h topology.Handshaker) topology.Handshaker {
+			// If database is CosmosDB we are going to use basic auth. For this
+			// case we have to configure the AppName and use the default
+			// handshake, otherwise the authentication will not be completed
+			// properly.
+			if sessionCtx.Database.IsCosmosDB() {
+				return auth.Handshaker(h, &auth.HandshakeOptions{
+					Authenticator: authenticator,
+					AppName:       connString.AppName,
+					DBUser:        connString.Username,
+				})
+			}
+
 			// Auth handshaker will authenticate the client connection using
 			// x509 mechanism as the database user specified above.
 			return auth.Handshaker(
@@ -154,7 +184,11 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 }
 
 // getConnectionString returns connection string for the server.
-func getConnectionString(sessionCtx *common.Session) (connstring.ConnString, error) {
+func (e *Engine) getConnectionString(ctx context.Context, sessionCtx *common.Session) (connstring.ConnString, error) {
+	if sessionCtx.Database.IsCosmosDB() {
+		return e.getCosmosDBConnectionString(ctx, sessionCtx)
+	}
+
 	uri, err := url.Parse(sessionCtx.Database.GetURI())
 	if err != nil {
 		return connstring.ConnString{}, trace.Wrap(err)
@@ -164,6 +198,38 @@ func getConnectionString(sessionCtx *common.Session) (connstring.ConnString, err
 		return connstring.ParseAndValidate(sessionCtx.Database.GetURI())
 	}
 	return connstring.ConnString{Hosts: []string{sessionCtx.Database.GetURI()}}, nil
+}
+
+// getCosmosDBConnectionString returns the MongoDB connection string for
+// CosmosDB.
+func (e *Engine) getCosmosDBConnectionString(ctx context.Context, sessionCtx *common.Session) (connstring.ConnString, error) {
+	// Translate user to CosmosDB managed user.
+	var cosmosUser string
+	switch sessionCtx.DatabaseUser {
+	case "readonly":
+		cosmosUser = string(armcosmos.KeyKindPrimaryReadonly)
+	case "readwrite":
+		cosmosUser = string(armcosmos.KeyKindPrimary)
+	default:
+		return connstring.ConnString{}, trace.BadParameter("unable to connect using user %q")
+	}
+
+	pass, err := e.Users.GetPassword(ctx, sessionCtx.Database, cosmosUser)
+	if err != nil {
+		e.Log.Errorf("User %q not found for database %q", sessionCtx.DatabaseUser, sessionCtx.Database.GetName())
+		return connstring.ConnString{}, trace.Wrap(err)
+	}
+
+	return connstring.ConnString{
+		Hosts:       []string{sessionCtx.Database.GetURI()},
+		AppName:     fmt.Sprintf("@%s@", sessionCtx.Database.GetAzure().Name),
+		Username:    sessionCtx.Database.GetAzure().Name,
+		UsernameSet: true,
+		Password:    pass,
+		PasswordSet: true,
+		Database:    sessionCtx.DatabaseName,
+		RetryWrites: false,
+	}, nil
 }
 
 // getServerSelector returns selector for picking the server to connect to,

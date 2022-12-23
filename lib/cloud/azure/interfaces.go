@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
@@ -102,4 +103,13 @@ type ManagedSQLServerClient interface {
 	ListAll(ctx context.Context) ([]*armsql.ManagedInstance, error)
 	// ListWithinGroup returns all Azure Managed SQL servers within an Azure resource group.
 	ListWithinGroup(ctx context.Context, group string) ([]*armsql.ManagedInstance, error)
+}
+
+// CosmosDatabaseAccountsClient is an interface for a CosmosDB database account
+// client.
+type CosmosDatabaseAccountsClient interface {
+	// GetKey fetches the CosmosDB account key kind.
+	GetKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) (string, error)
+	// RegenerateKey regenerates a CosmosDB account key.
+	RegenerateKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) error
 }

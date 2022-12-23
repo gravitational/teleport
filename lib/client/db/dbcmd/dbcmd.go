@@ -457,10 +457,12 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 func (c *CLICommandBuilder) getMongoAddress() string {
 	query := make(url.Values)
 
-	// Use the same default server selection timeout (5s) that the backend
-	// engine is using. The environment variable serves as a hidden option to
+	// Use the server selection timeout greater than the default used by the
+	// backend engine (5s) because CosmosDB connections take longer to
+	// authenticate.
+	// The environment variable serves as a hidden option to
 	// force a different timeout for debugging purpose or extreme situations.
-	serverSelectionTimeoutMS := "5000"
+	serverSelectionTimeoutMS := "10000"
 	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
 		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
 		serverSelectionTimeoutMS = envValue

@@ -110,6 +110,8 @@ type Database interface {
 	IsAWSHosted() bool
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
 	IsCloudHosted() bool
+	// IsCosmosDB returns true if database is an CosmosDB database.
+	IsCosmosDB() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -365,7 +367,7 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 
 // IsAzure returns true if this is Azure hosted database.
 func (d *DatabaseV3) IsAzure() bool {
-	return d.GetType() == DatabaseTypeAzure
+	return d.IsCosmosDB() || d.GetType() == DatabaseTypeAzure
 }
 
 // IsElastiCache returns true if this is an AWS ElastiCache database.
@@ -395,6 +397,11 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
+// IsCosmosDB returns true if database is an CosmosDB database.
+func (d *DatabaseV3) IsCosmosDB() bool {
+	return d.GetType() == DatabaseTypeCosmosDBMongo
+}
+
 // getAWSType returns the database type.
 func (d *DatabaseV3) getAWSType() (string, bool) {
 	aws := d.GetAWS()
@@ -422,17 +429,31 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	return "", false
 }
 
+// getAzureType returns the Azure database type.
+func (d *DatabaseV3) getAzureType() (string, bool) {
+	az := d.GetAzure()
+	if az.Name == "" {
+		return "", false
+	}
+
+	if d.Spec.Protocol == "mongodb" {
+		return DatabaseTypeCosmosDBMongo, true
+	}
+
+	return DatabaseTypeAzure, true
+}
+
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
 	if awsType, ok := d.getAWSType(); ok {
 		return awsType
 	}
+	if azureType, ok := d.getAzureType(); ok {
+		return azureType
+	}
 
 	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
-	}
-	if d.GetAzure().Name != "" {
-		return DatabaseTypeAzure
 	}
 	return DatabaseTypeSelfHosted
 }
@@ -682,6 +703,8 @@ const (
 	DatabaseTypeAWSKeyspaces = "keyspace"
 	// DatabaseTypeCassandra is AWS-hosted Keyspace database.
 	DatabaseTypeCassandra = "cassandra"
+	// DatabaseTypeCosmosDBMongo is a Azure-hosted CosmosDB for MongoDB database.
+	DatabaseTypeCosmosDBMongo = "cosmosdb-mongo"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

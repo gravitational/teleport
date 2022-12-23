@@ -68,7 +68,8 @@ func IsAzureEndpoint(hostname string) bool {
 // IsDatabaseEndpoint returns true if provided endpoint is a valid database
 // endpoint.
 func IsDatabaseEndpoint(endpoint string) bool {
-	return strings.Contains(endpoint, DatabaseEndpointSuffix)
+	return strings.Contains(endpoint, DatabaseEndpointSuffix) ||
+		strings.Contains(endpoint, CosmosDBEndpointSuffix)
 }
 
 // IsCacheForRedisEndpoint returns true if provided endpoint is a valid Azure
@@ -103,8 +104,9 @@ func ParseDatabaseEndpoint(endpoint string) (name string, err error) {
 	}
 	// Azure endpoint looks like this:
 	// name.mysql.database.azure.com
+	// name.mongo.cosmos.azure.com
 	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, DatabaseEndpointSuffix) || len(parts) != 5 {
+	if (!strings.HasSuffix(host, DatabaseEndpointSuffix) && !strings.HasSuffix(host, CosmosDBEndpointSuffix)) || len(parts) != 5 {
 		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
 	}
 	return parts[0], nil
@@ -189,4 +191,7 @@ const (
 
 	// MSSQLEndpointSuffix is the Azure SQL Server endpoint suffix.
 	MSSQLEndpointSuffix = ".database.windows.net"
+
+	// CosmosDBEndpointSuffix is the Azure Cosmos database endpoint suffix.
+	CosmosDBEndpointSuffix = ".cosmos.azure.com"
 )

@@ -19,6 +19,7 @@ package mocks
 import (
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -698,4 +699,21 @@ func instanceEngineMatches(instance *rds.DBInstance, filterSet map[string]struct
 func clusterEngineMatches(cluster *rds.DBCluster, filterSet map[string]struct{}) bool {
 	_, ok := filterSet[aws.StringValue(cluster.Engine)]
 	return ok
+}
+
+// AzureCosmosDatatabaseAccountsMock mocks the Azure Cosmos database accounts
+// client.
+type AzureCosmosDatabaseAccountsMock struct {
+	Key           string
+	RegenerateErr error
+}
+
+// GetKey fetches the CosmosDB account key kind.
+func (m *AzureCosmosDatabaseAccountsMock) GetKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) (string, error) {
+	return m.Key, nil
+}
+
+// RegenerateKey regenerates a CosmosDB account key.
+func (m *AzureCosmosDatabaseAccountsMock) RegenerateKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) error {
+	return m.RegenerateErr
 }

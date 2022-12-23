@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -1938,6 +1939,9 @@ type agentParams struct {
 	AWSMatchers []services.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
 	AzureMatchers []services.AzureMatcher
+	// CosmosDatabaseAccountsClient defines the Azure Cosmos database accounts
+	// client.
+	CosmosDatabaseAccountsClient azure.CosmosDatabaseAccountsClient
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -1958,15 +1962,16 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:                &mocks.STSMock{},
-			RDS:                &mocks.RDSMock{},
-			Redshift:           &mocks.RedshiftMock{},
-			RedshiftServerless: &mocks.RedshiftServerlessMock{},
-			ElastiCache:        &mocks.ElastiCacheMock{},
-			MemoryDB:           &mocks.MemoryDBMock{},
-			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:                &mocks.IAMMock{},
-			GCPSQL:             p.GCPSQL,
+			STS:                         &mocks.STSMock{},
+			RDS:                         &mocks.RDSMock{},
+			Redshift:                    &mocks.RedshiftMock{},
+			RedshiftServerless:          &mocks.RedshiftServerlessMock{},
+			ElastiCache:                 &mocks.ElastiCacheMock{},
+			MemoryDB:                    &mocks.MemoryDBMock{},
+			SecretsManager:              secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                         &mocks.IAMMock{},
+			GCPSQL:                      p.GCPSQL,
+			AzureCosmosDatabaseAccounts: p.CosmosDatabaseAccountsClient,
 		}
 	}
 }
@@ -2399,6 +2404,39 @@ func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withData
 			Protocol:      defaults.ProtocolMongoDB,
 			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
 			DynamicLabels: dynamicLabels,
+		})
+		require.NoError(t, err)
+		testCtx.mongo[name] = testMongoDB{
+			db:       mongoServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withAzureCosmosMongo(name string, token string, opts ...mongodb.TestServerOption) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			ClientAuth: tls.NoClientCert,
+			AuthToken:  token,
+		}, opts...)
+		require.NoError(t, err)
+		go mongoServer.Serve()
+		t.Cleanup(func() { mongoServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMongoDB,
+			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name:       name,
+				ResourceID: fmt.Sprintf("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/database-access/providers/Microsoft.DocumentDB/databaseAccounts/mongodb"),
+			},
+			// Set CA cert, otherwise we will attempt to download RDS roots.
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.mongo[name] = testMongoDB{
