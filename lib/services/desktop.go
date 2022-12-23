@@ -59,14 +59,14 @@ func MarshalWindowsDesktop(s types.WindowsDesktop, opts ...MarshalOption) ([]byt
 		}
 		return utils.FastMarshal(s)
 	default:
-		return nil, trace.BadParameter("unrecognized windows desktop version %T", s)
+		return nil, trace.BadParameter("unrecognized Windows desktop version %T", s)
 	}
 }
 
 // UnmarshalWindowsDesktop unmarshals the WindowsDesktop resource from JSON.
 func UnmarshalWindowsDesktop(data []byte, opts ...MarshalOption) (types.WindowsDesktop, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("missing windows desktop data")
+		return nil, trace.BadParameter("missing Windows desktop data")
 	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -93,7 +93,7 @@ func UnmarshalWindowsDesktop(data []byte, opts ...MarshalOption) (types.WindowsD
 		}
 		return &s, nil
 	}
-	return nil, trace.BadParameter("windows desktop resource version %q is not supported", h.Version)
+	return nil, trace.BadParameter("Windows desktop resource version %q is not supported", h.Version)
 }
 
 // MarshalWindowsDesktopService marshals the WindowsDesktopService resource to JSON.
@@ -118,14 +118,14 @@ func MarshalWindowsDesktopService(s types.WindowsDesktopService, opts ...Marshal
 		}
 		return utils.FastMarshal(s)
 	default:
-		return nil, trace.BadParameter("unrecognized windows desktop service version %T", s)
+		return nil, trace.BadParameter("unrecognized Windows desktop service version %T", s)
 	}
 }
 
 // UnmarshalWindowsDesktopService unmarshals the WindowsDesktopService resource from JSON.
 func UnmarshalWindowsDesktopService(data []byte, opts ...MarshalOption) (types.WindowsDesktopService, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("missing windows desktop service data")
+		return nil, trace.BadParameter("missing Windows desktop service data")
 	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -152,5 +152,5 @@ func UnmarshalWindowsDesktopService(data []byte, opts ...MarshalOption) (types.W
 		}
 		return &s, nil
 	}
-	return nil, trace.BadParameter("windows desktop service resource version %q is not supported", h.Version)
+	return nil, trace.BadParameter("Windows desktop service resource version %q is not supported", h.Version)
 }

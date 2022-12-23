@@ -132,7 +132,7 @@ func TestSendEvent(t *testing.T) {
 			},
 		},
 		{
-			name:         "missing teleport user",
+			name:         "missing Teleport user",
 			teleportUser: "",
 			args: args{
 				event:  AuditUserLogin,

@@ -91,7 +91,7 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 			log.Info("removing finalizer")
 			controllerutil.RemoveFinalizer(obj, DeletionFinalizer)
 			if err := r.Update(ctx, obj); err != nil {
-				return ctrl.Result{}, trace.Wrap(err, "failed to remove finalizer after deleting in teleport")
+				return ctrl.Result{}, trace.Wrap(err, "failed to remove finalizer after deleting in Teleport")
 			}
 		}
 

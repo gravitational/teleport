@@ -1160,7 +1160,7 @@ func (process *TeleportProcess) notifyParent() {
 		if !trace.IsNotFound(err) {
 			process.log.Warningf("Failed to import signal pipe")
 		}
-		process.log.Debugf("No signal pipe to import, must be first Teleport process.")
+		process.log.Debugf("No signal pipe to import, must be first teleport process.")
 		return
 	}
 	defer signalPipe.Close()
@@ -2729,16 +2729,16 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		// 503
 		case stateDegraded:
 			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
-				"status": "teleport is in a degraded state, check logs for details",
+				"status": "Teleport is in a degraded state, check logs for details",
 			})
 		// 400
 		case stateRecovering:
 			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
-				"status": "teleport is recovering from a degraded state, check logs for details",
+				"status": "Teleport is recovering from a degraded state, check logs for details",
 			})
 		case stateStarting:
 			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
-				"status": "teleport is starting and hasn't joined the cluster yet",
+				"status": "Teleport is starting and hasn't joined the cluster yet",
 			})
 		// 200
 		case stateOK:

@@ -630,7 +630,7 @@ func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.
 	require.NoError(t, instance.Start())
 
 	_, err = instance.WaitForEventTimeout(30*time.Second, eventName)
-	require.NoError(t, err, "timed out waiting for teleport")
+	require.NoError(t, err, "timed out waiting for Teleport")
 
 	return instance
 }

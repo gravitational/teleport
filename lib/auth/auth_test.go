@@ -350,7 +350,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, *gotID, wantID)
 
-	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+	// Register a Kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
 	kubeCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
@@ -407,7 +407,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
-		// kubernetes cluster.
+		// Kubernetes cluster.
 		KubernetesCluster: "",
 	})
 	require.NoError(t, err)
@@ -430,7 +430,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, *gotID, wantID)
 
-	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+	// Register a Kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
 	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
 		Metadata: types.Metadata{Name: "kube-service"},
@@ -484,7 +484,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
-		// kubernetes cluster.
+		// Kubernetes cluster.
 		KubernetesCluster: "",
 	})
 	require.NoError(t, err)

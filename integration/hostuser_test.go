@@ -229,7 +229,7 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, os.IsNotExist(err))
 	})
 
-	t.Run("test delete all users in teleport service group", func(t *testing.T) {
+	t.Run("test delete all users in Teleport service group", func(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 		users.SetHostUserDeletionGrace(0)
 

@@ -177,10 +177,10 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 
 	// TODO(awly): unit test this.
 	for kubeCluster, cert := range key.KubeTLSCerts {
-		// Prevent directory traversal via a crafted kubernetes cluster name.
+		// Prevent directory traversal via a crafted Kubernetes cluster name.
 		//
 		// This will confuse cluster cert loading (GetKey will return
-		// kubernetes cluster names different from the ones stored here), but I
+		// Kubernetes cluster names different from the ones stored here), but I
 		// don't expect any well-meaning user to create bad names.
 		kubeCluster = filepath.Clean(kubeCluster)
 

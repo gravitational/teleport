@@ -1919,7 +1919,7 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
-			comment: "windows logins substitute",
+			comment: "Windows logins substitute",
 			inTraits: map[string][]string{
 				"windows_logins": {"user"},
 				"foo":            {"bar"},
@@ -1934,7 +1934,7 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
-			comment: "invalid windows login",
+			comment: "invalid Windows login",
 			inTraits: map[string][]string{
 				"windows_logins": {"test;"},
 			},
@@ -2283,7 +2283,7 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
-			comment: "values are expanded in windows desktop labels",
+			comment: "values are expanded in Windows desktop labels",
 			inTraits: map[string][]string{
 				"foo": {"bar", "baz"},
 			},

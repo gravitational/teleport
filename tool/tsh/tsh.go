@@ -175,7 +175,7 @@ type CLIConf struct {
 	LocalExec bool
 	// SiteName specifies remote site go login to
 	SiteName string
-	// KubernetesCluster specifies the kubernetes cluster to login to.
+	// KubernetesCluster specifies the Kubernetes cluster to login to.
 	KubernetesCluster string
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string

@@ -492,7 +492,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	if i.IsSinglePortSetup {
 		tconf.Proxy.WebAddr.Addr = i.Web
-		// Reset other addresses to ensure that teleport instance will expose only web port listener.
+		// Reset other addresses to ensure that Teleport instance will expose only web port listener.
 		tconf.Proxy.ReverseTunnelListenAddr = utils.NetAddr{}
 		tconf.Proxy.MySQLAddr = utils.NetAddr{}
 		tconf.Proxy.SSHAddr = utils.NetAddr{}
@@ -1078,7 +1078,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 		service.ProxyReverseTunnelReady, receivedEvents)
 }
 
-// Reset re-creates the teleport instance based on the same configuration
+// Reset re-creates the Teleport instance based on the same configuration
 // This is needed if you want to stop the instance, reset it and start again
 func (i *TeleInstance) Reset() (err error) {
 	if i.Process != nil {
@@ -1396,6 +1396,6 @@ func (i *TeleInstance) StopAll() error {
 		errors = append(errors, os.RemoveAll(dir))
 	}
 
-	i.Log.Infof("Stopped all teleport services for site %q", i.Secrets.SiteName)
+	i.Log.Infof("Stopped all Teleport services for site %q", i.Secrets.SiteName)
 	return trace.NewAggregate(errors...)
 }

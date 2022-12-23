@@ -100,7 +100,7 @@ const (
 
 // ForwarderConfig specifies configuration for proxy forwarder
 type ForwarderConfig struct {
-	// ReverseTunnelSrv is the teleport reverse tunnel server
+	// ReverseTunnelSrv is the Teleport reverse tunnel server
 	ReverseTunnelSrv reversetunnel.Server
 	// ClusterName is a local cluster name
 	ClusterName string
@@ -131,7 +131,7 @@ type ForwarderConfig struct {
 	KubeconfigPath string
 	// KubeServiceType specifies which Teleport service type this forwarder is for
 	KubeServiceType KubeServiceType
-	// KubeClusterName is the name of the kubernetes cluster that this
+	// KubeClusterName is the name of the Kubernetes cluster that this
 	// forwarder handles.
 	KubeClusterName string
 	// Clock is a server clock, could be overridden in tests
@@ -207,7 +207,7 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.KubeClusterName == "" && f.KubeconfigPath == "" && f.KubeServiceType == LegacyProxyService {
 		// Running without a kubeconfig and explicit k8s cluster name. Use
-		// teleport cluster name instead, to ask kubeutils.GetKubeConfig to
+		// Teleport cluster name instead, to ask kubeutils.GetKubeConfig to
 		// attempt loading the in-cluster credentials.
 		f.KubeClusterName = f.ClusterName
 	}
@@ -284,9 +284,9 @@ type Forwarder struct {
 	cfg    ForwarderConfig
 	// clientCredentials is an expiring cache of ephemeral client credentials.
 	// Forwarder requests credentials with client identity, when forwarding to
-	// another teleport process (but not when forwarding to k8s API).
+	// another Teleport process (but not when forwarding to k8s API).
 	//
-	// TODO(klizhentas): flush certs on teleport CA rotation?
+	// TODO(klizhentas): flush certs on Teleport CA rotation?
 	clientCredentials *ttlmap.TTLMap
 	// activeRequests is a map used to serialize active CSR requests to the auth server
 	activeRequests map[string]context.Context
@@ -337,7 +337,7 @@ type authContext struct {
 }
 
 func (c authContext) String() string {
-	return fmt.Sprintf("user: %v, users: %v, groups: %v, teleport cluster: %v, kube cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.teleportCluster.name, c.kubeCluster)
+	return fmt.Sprintf("user: %v, users: %v, groups: %v, Teleport cluster: %v, kube cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.teleportCluster.name, c.kubeCluster)
 }
 
 func (c *authContext) key() string {
@@ -610,14 +610,14 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 	}
 
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
-	// endpoint for a leaf teleport cluster.
+	// endpoint for a leaf Teleport cluster.
 	var dialFn dialFunc
 	var isRemoteClosed func() bool
 	if isRemoteCluster {
-		// Tunnel is nil for a teleport process with "kubernetes_service" but
+		// Tunnel is nil for a Teleport process with "kubernetes_service" but
 		// not "proxy_service".
 		if f.cfg.ReverseTunnelSrv == nil {
-			return nil, trace.BadParameter("this Teleport process can not dial Kubernetes endpoints in remote Teleport clusters; only proxy_service supports this, make sure a Teleport proxy is first in the request path")
+			return nil, trace.BadParameter("this teleport process can not dial Kubernetes endpoints in remote Teleport clusters; only proxy_service supports this, make sure a Teleport proxy is first in the request path")
 		}
 
 		targetCluster, err := f.cfg.ReverseTunnelSrv.GetSite(teleportClusterName)
@@ -719,7 +719,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		return kubeAccessDetails{}, trace.Wrap(err)
 	}
 
-	// Find requested kubernetes cluster name and get allowed kube users/groups names.
+	// Find requested Kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range kubeServers {
 		c := s.GetCluster()
 		if c.GetName() != kubeClusterName {
@@ -752,13 +752,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote
 		// end (by their proxy), after that cluster has remapped used roles.
-		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for a remote kubernetes cluster name")
+		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for a remote Kubernetes cluster name")
 		return nil
 	}
 	if actx.kubeCluster == "" {
 		// This should only happen for remote clusters (filtered above), but
 		// check and report anyway.
-		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
+		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown Kubernetes cluster name")
 		return nil
 	}
 	servers, err := f.cfg.CachingAuthClient.GetKubernetesServers(ctx)
@@ -776,7 +776,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	//
 	// We assume that users won't register two identically-named clusters with
 	// mis-matched labels. If they do, expect weirdness.
-	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
+	clusterNotFound := trace.AccessDenied("Kubernetes cluster %q not found", actx.kubeCluster)
 	for _, s := range servers {
 		ks := s.GetCluster()
 		if ks.GetName() != actx.kubeCluster {
@@ -790,7 +790,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 
 	}
 	if actx.kubeCluster == f.cfg.ClusterName {
-		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster,")
+		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based Kubernetes cluster,")
 		return nil
 	}
 	return clusterNotFound
@@ -1219,7 +1219,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
+		// of the Teleport server if not logged here.
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
@@ -1316,7 +1316,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
+		// of the Teleport server if not logged here.
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
@@ -1488,7 +1488,7 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 	// otherwise there will be no way to exclude the user from the list).
 	//
 	// If the `kubernetes_users` role set includes only one user
-	// (quite frequently that's the real intent), teleport will default to it,
+	// (quite frequently that's the real intent), Teleport will default to it,
 	// otherwise it will refuse to select.
 	//
 	// This will enable the use case when `kubernetes_users` has just one field to
@@ -1536,7 +1536,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
+		// of the Teleport server if not logged here.
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
@@ -1549,7 +1549,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
+		// of the Teleport server if not logged here.
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
@@ -1642,7 +1642,7 @@ type clusterSession struct {
 	creds     kubeCreds
 	tlsConfig *tls.Config
 	forwarder *forward.Forwarder
-	// noAuditEvents is true if this teleport service should leave audit event
+	// noAuditEvents is true if this Teleport service should leave audit event
 	// logging to another service.
 	noAuditEvents        bool
 	kubeClusterEndpoints []kubeClusterEndpoint
@@ -1798,19 +1798,19 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 
 	}
 	if len(endpoints) == 0 {
-		return nil, trace.NotFound("kubernetes cluster %q is not found in teleport cluster %q", ctx.kubeCluster, ctx.teleportCluster.name)
+		return nil, trace.NotFound("Kubernetes cluster %q is not found in Teleport cluster %q", ctx.kubeCluster, ctx.teleportCluster.name)
 	}
 	return f.newClusterSessionDirect(ctx, endpoints)
 }
 
 func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, error) {
 	if len(f.clusterDetails) == 0 {
-		return nil, trace.NotFound("this Teleport process is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster or 'tsh kube login' into a different kubernetes cluster")
+		return nil, trace.NotFound("this teleport process is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster or 'tsh kube login' into a different Kubernetes cluster")
 	}
 
 	details, ok := f.clusterDetails[ctx.kubeCluster]
 	if !ok {
-		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
+		return nil, trace.NotFound("Kubernetes cluster %q not found", ctx.kubeCluster)
 	}
 
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)

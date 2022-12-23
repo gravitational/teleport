@@ -34,23 +34,23 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// KubernetesGetter defines interface for fetching kubernetes cluster resources.
+// KubernetesGetter defines interface for fetching Kubernetes cluster resources.
 type KubernetesGetter interface {
-	// GetKubernetesClusters returns all kubernetes cluster resources.
+	// GetKubernetesClusters returns all Kubernetes cluster resources.
 	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	// GetKubernetesCluster returns the specified Kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
-// Kubernetes defines an interface for managing kubernetes clusters resources.
+// Kubernetes defines an interface for managing Kubernetes clusters resources.
 type Kubernetes interface {
 	// KubernetesGetter provides methods for fetching kubernetes resources.
 	KubernetesGetter
-	// CreateKubernetesCluster creates a new kubernetes cluster resource.
+	// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 	CreateKubernetesCluster(context.Context, types.KubeCluster) error
-	// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
+	// UpdateKubernetesCluster updates an existing Kubernetes cluster resource.
 	UpdateKubernetesCluster(context.Context, types.KubeCluster) error
-	// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
+	// DeleteKubernetesCluster removes the specified Kubernetes cluster resource.
 	DeleteKubernetesCluster(ctx context.Context, name string) error
 	// DeleteAllKubernetesClusters removes all kubernetes resources.
 	DeleteAllKubernetesClusters(context.Context) error
@@ -171,11 +171,11 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 }
 
 const (
-	// labelTeleportKubeClusterName is the label key containing the kubernetes cluster name override.
+	// labelTeleportKubeClusterName is the label key containing the Kubernetes cluster name override.
 	labelTeleportKubeClusterName = types.TeleportNamespace + "/kubernetes-name"
 )
 
-// setKubeName modifies the types.Metadata argument in place, setting the kubernetes cluster name.
+// setKubeName modifies the types.Metadata argument in place, setting the Kubernetes cluster name.
 // The name is calculated based on nameParts arguments which are joined by hyphens "-".
 // If the kube_cluster name override label is present (setKubeName), it will replace the *first* name part.
 func setKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {

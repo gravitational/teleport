@@ -191,7 +191,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		if !utils.IsEC2NodeID(params.ID.HostUUID) {
 			return nil, trace.BadParameter(
 				`Host ID %q is not valid when using the EC2 join method, `+
-					`try removing the "host_uuid" file in your teleport data dir `+
+					`try removing the "host_uuid" file in your Teleport data dir `+
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}

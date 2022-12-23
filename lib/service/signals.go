@@ -141,7 +141,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			if se.Service.IsCritical() {
 				process.log.Errorf("Critical service %v has exited with error %v, aborting.", se.Service, se.Error)
 				if err := process.Close(); err != nil {
-					process.log.Errorf("Error when shutting down teleport %v.", err)
+					process.log.Errorf("Error when shutting down Teleport %v.", err)
 				}
 				return trace.Wrap(se.Error)
 			}
@@ -151,10 +151,10 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 }
 
 // ErrTeleportReloading is returned when signal waiter exits
-// because the teleport process has initiaded shutdown
+// because the Teleport process has initiaded shutdown
 var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
 
-// ErrTeleportExited means that teleport has exited
+// ErrTeleportExited means that Teleport has exited
 var ErrTeleportExited = &trace.CompareFailedError{Message: "teleport process has shutdown"}
 
 func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message string) error {
@@ -356,7 +356,7 @@ func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
 }
 
 // registeredListener is a listener registered
-// within teleport process, can be passed to child process
+// within Teleport process, can be passed to child process
 type registeredListener struct {
 	// Type is a listener type, e.g. auth:ssh
 	typ ListenerType
@@ -536,8 +536,8 @@ func (process *TeleportProcess) forkChild() error {
 }
 
 // collectStatuses attempts to collect exit statuses from
-// forked teleport child processes.
-// If forked teleport process exited with an error during graceful
+// forked Teleport child processes.
+// If forked Teleport process exited with an error during graceful
 // restart, parent process has to collect the child process status
 // otherwise the child process will become a zombie process.
 // Call Wait4(-1) is trying to collect status of any child

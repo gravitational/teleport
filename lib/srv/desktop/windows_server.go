@@ -173,7 +173,7 @@ type WindowsServiceConfig struct {
 	// DiscoveryLDAPAttributeLabels are optional LDAP attributes to convert
 	// into Teleport labels.
 	DiscoveryLDAPAttributeLabels []string
-	// Hostname of the windows desktop service
+	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
@@ -706,7 +706,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	if len(desktops) == 0 {
-		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
+		log.Error("no Windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
 			desktopName)
 		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return

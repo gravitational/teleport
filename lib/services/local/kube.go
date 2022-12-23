@@ -36,7 +36,7 @@ func NewKubernetesService(backend backend.Backend) *KubernetesService {
 	return &KubernetesService{Backend: backend}
 }
 
-// GetKubernetesClusters returns all kubernetes cluster resources.
+// GetKubernetesClusters returns all Kubernetes cluster resources.
 func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	startKey := backend.Key(kubernetesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -55,12 +55,12 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 	return kubeClusters, nil
 }
 
-// GetKubernetesCluster returns the specified kubernetes cluster resource.
+// GetKubernetesCluster returns the specified Kubernetes cluster resource.
 func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	item, err := s.Get(ctx, backend.Key(kubernetesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("kubernetes cluster %q doesn't exist", name)
+			return nil, trace.NotFound("Kubernetes cluster %q doesn't exist", name)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -72,7 +72,7 @@ func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name strin
 	return cluster, nil
 }
 
-// CreateKubernetesCluster creates a new kubernetes cluster resource.
+// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if err := cluster.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -94,7 +94,7 @@ func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster
 	return nil
 }
 
-// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
+// UpdateKubernetesCluster updates an existing Kubernetes cluster resource.
 func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if err := cluster.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -116,19 +116,19 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 	return nil
 }
 
-// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
+// DeleteKubernetesCluster removes the specified Kubernetes cluster resource.
 func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	err := s.Delete(ctx, backend.Key(kubernetesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("kubernetes cluster %q doesn't exist", name)
+			return trace.NotFound("Kubernetes cluster %q doesn't exist", name)
 		}
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+// DeleteAllKubernetesClusters removes all Kubernetes cluster resources.
 func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) error {
 	startKey := backend.Key(kubernetesPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))

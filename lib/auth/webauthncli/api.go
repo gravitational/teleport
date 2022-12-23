@@ -124,7 +124,7 @@ func Login(
 	}
 
 	if webauthnwin.IsAvailable() {
-		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
+		log.Debug("WebAuthnWin: Using Windows webauthn for credential assertion")
 		return webauthnwin.Login(ctx, origin, assertion, &webauthnwin.LoginOpts{
 			AuthenticatorAttachment: webauthnwin.AuthenticatorAttachment(attachment),
 		})
@@ -200,7 +200,7 @@ func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
 	if webauthnwin.IsAvailable() {
-		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
+		log.Debug("WebAuthnWin: Using Windows webauthn for credential creation")
 		return webauthnwin.Register(ctx, origin, cc)
 	}
 

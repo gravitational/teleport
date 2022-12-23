@@ -129,13 +129,13 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		}
 
 		startedWait := process.Clock.Now()
-		// Wait in between attempts, but return if teleport is shutting down
+		// Wait in between attempts, but return if Teleport is shutting down
 		select {
 		case t := <-retry.After():
 			process.log.Debugf("Retrying connection to auth server after waiting %v.", t.Sub(startedWait))
 			retry.Inc()
 		case <-process.ExitContext().Done():
-			process.log.Infof("%v stopping connection attempts, teleport is shutting down.", role)
+			process.log.Infof("%v stopping connection attempts, Teleport is shutting down.", role)
 			return nil, ErrTeleportExited
 		}
 	}
@@ -180,7 +180,7 @@ func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error
 	}
 	teleportVersion, err := semver.NewVersion(version)
 	if err != nil {
-		return trace.BadParameter("failed to parse local teleport version as semver: %v", err)
+		return trace.BadParameter("failed to parse local Teleport version as semver: %v", err)
 	}
 
 	if serverVersion.Major < teleportVersion.Major {
@@ -680,7 +680,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 // periodicSyncRotationState checks rotation state periodically and
 // takes action if necessary
 func (process *TeleportProcess) periodicSyncRotationState() error {
-	// start rotation only after teleport process has started
+	// start rotation only after Teleport process has started
 	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return nil
 	}
@@ -711,7 +711,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 
 // syncRotationCycle executes a rotation cycle that returns:
 //
-// * nil whenever rotation state leads to teleport reload event
+// * nil whenever rotation state leads to Teleport reload event
 // * error whenever rotation cycle has to be restarted
 //
 // the function accepts extra delay timer extraDelay in case if parent
@@ -860,10 +860,10 @@ func (process *TeleportProcess) syncServiceRotationState(ca types.CertAuthority,
 
 type rotationStatus struct {
 	// needsReload means that phase has been updated
-	// and teleport process has to reload
+	// and Teleport process has to reload
 	needsReload bool
-	// phaseChanged means that teleport phase has been updated,
-	// but teleport does not need reload
+	// phaseChanged means that Teleport phase has been updated,
+	// but Teleport does not need reload
 	phaseChanged bool
 	// ca is the certificate authority
 	// fetched during status check
@@ -1009,7 +1009,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// Require reload of teleport process to update client and servers.
+			// Require reload of Teleport process to update client and servers.
 			return &rotationStatus{needsReload: true}, nil
 		case types.RotationPhaseUpdateServers:
 			// Allow transition to this phase only if the previous
@@ -1026,7 +1026,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// Require reload of teleport process to update servers.
+			// Require reload of Teleport process to update servers.
 			return &rotationStatus{needsReload: true}, nil
 		case types.RotationPhaseRollback:
 			// Allow transition to this phase from any other local phase
@@ -1041,7 +1041,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// Require reload of teleport process to update servers.
+			// Require reload of Teleport process to update servers.
 			return &rotationStatus{needsReload: true}, nil
 		default:
 			return nil, trace.BadParameter("unsupported phase: %q", remote.Phase)

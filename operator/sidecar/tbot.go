@@ -212,7 +212,7 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 
 	ping, err := authClient.Ping(ctx)
 	if err != nil {
-		return nil, nil, trace.WrapWithMessage(err, "failed to ping teleport")
+		return nil, nil, trace.WrapWithMessage(err, "failed to ping Teleport")
 	}
 
 	// Then we create a role for the operator

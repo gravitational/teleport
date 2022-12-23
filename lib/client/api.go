@@ -286,7 +286,7 @@ type Config struct {
 	// if omitted, first available site will be selected
 	SiteName string
 
-	// KubernetesCluster specifies the kubernetes cluster for any relevant
+	// KubernetesCluster specifies the Kubernetes cluster for any relevant
 	// operations. If empty, the auth server will choose one using stable (same
 	// cluster every time) but unspecified logic.
 	KubernetesCluster string
@@ -525,7 +525,7 @@ type ProfileStatus struct {
 	Logins []string
 
 	// KubeEnabled is true when this profile is configured to connect to a
-	// kubernetes cluster.
+	// Kubernetes cluster.
 	KubeEnabled bool
 
 	// KubeUsers are the kubernetes users used by this profile.
@@ -1433,7 +1433,7 @@ func (c *Config) DefaultResourceFilter() *proto.ListResourcesRequest {
 	}
 }
 
-// TeleportClient is a wrapper around SSH client with teleport specific
+// TeleportClient is a wrapper around SSH client with Teleport specific
 // workflow built in.
 // TeleportClient is NOT safe for concurrent use.
 type TeleportClient struct {
@@ -1453,7 +1453,7 @@ type TeleportClient struct {
 	lastPing *webclient.PingResponse
 }
 
-// ShellCreatedCallback can be supplied for every teleport client. It will
+// ShellCreatedCallback can be supplied for every Teleport client. It will
 // be called right after the remote shell is created, but the session
 // hasn't begun yet.
 //
@@ -1471,7 +1471,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.Infof("No teleport login given. defaulting to %s", c.Username)
+		log.Infof("No Teleport login given. defaulting to %s", c.Username)
 	}
 	if c.WebProxyAddr == "" {
 		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
@@ -4479,7 +4479,7 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 }
 
 // loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
-// or teleport core TLS certificate for the local agent.
+// or Teleport core TLS certificate for the local agent.
 func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	// if SkipLocalAuth flag is set use an external identity file instead of loading cert from the local agent.
 	if tc.SkipLocalAuth {

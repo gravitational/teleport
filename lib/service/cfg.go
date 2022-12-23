@@ -724,7 +724,7 @@ type KubeConfig struct {
 	// service can be reached by the proxy service.
 	PublicAddrs []utils.NetAddr
 
-	// KubeClusterName is the name of a kubernetes cluster this proxy is running
+	// KubeClusterName is the name of a Kubernetes cluster this proxy is running
 	// in. If empty, defaults to the Teleport cluster name.
 	KubeClusterName string
 

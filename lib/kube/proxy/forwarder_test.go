@@ -435,7 +435,7 @@ func TestAuthenticate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc:              "unknown kubernetes cluster in local cluster",
+			desc:              "unknown Kubernetes cluster in local cluster",
 			user:              auth.LocalUser{},
 			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:    "local",
@@ -446,7 +446,7 @@ func TestAuthenticate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc:              "custom kubernetes cluster in local cluster",
+			desc:              "custom Kubernetes cluster in local cluster",
 			user:              auth.LocalUser{},
 			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:    "local",
@@ -484,7 +484,7 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "custom kubernetes cluster in remote cluster",
+			desc:              "custom Kubernetes cluster in remote cluster",
 			user:              auth.LocalUser{},
 			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:    "remote",

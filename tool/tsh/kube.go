@@ -73,7 +73,7 @@ type kubeCommands struct {
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
-	kube := app.Command("kube", "Manage available kubernetes clusters")
+	kube := app.Command("kube", "Manage available Kubernetes clusters")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
@@ -150,7 +150,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", kubeCluster)
+			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
@@ -563,8 +563,8 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 		// tsh generates and never by users directly.
 		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
 	}
-	c.Flag("teleport-cluster", "Name of the teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
-	c.Flag("kube-cluster", "Name of the kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
+	c.Flag("teleport-cluster", "Name of the Teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
+	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
 	return c
 }
 
@@ -587,14 +587,14 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", c.kubeCluster)
+			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
 			return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
 		}
 		// Otherwise, cert for this k8s cluster is missing or expired. Request
 		// a new one.
 	}
 
-	log.Debugf("Requesting TLS cert for kubernetes cluster %q", c.kubeCluster)
+	log.Debugf("Requesting TLS cert for Kubernetes cluster %q", c.kubeCluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		var err error
 		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
@@ -662,13 +662,13 @@ type kubeLSCommand struct {
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
-		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
+		CmdClause: parent.Command("ls", "Get a list of Kubernetes clusters"),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
-	c.Flag("all", "List kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
+	c.Flag("all", "List Kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("verbose", "Show an untruncated list of labels.").Short('v').BoolVar(&c.verbose)
 	c.Flag("quiet", "Quiet mode.").Short('q').BoolVar(&c.quiet)
@@ -892,13 +892,13 @@ type kubeLoginCommand struct {
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
-		CmdClause: parent.Command("login", "Login to a kubernetes cluster"),
+		CmdClause: parent.Command("login", "Login to a Kubernetes cluster"),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
-	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
-	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
+	// TODO (tigrato): move this back to namespace once Teleport drops the namespace flag.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
 	return c
@@ -926,7 +926,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	}
 	clusterNames := kubeClustersToStrings(kubeClusters)
 	if !slices.Contains(clusterNames, c.kubeCluster) {
-		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
+		return trace.NotFound("Kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
 	// Update default kubeconfig file located at ~/.kube/config or the value of
@@ -944,7 +944,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Logged into kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
 	return nil
 }
 
@@ -986,7 +986,7 @@ func kubeClustersToStrings(kubeClusters []types.KubeCluster) []string {
 	return names
 }
 
-// kubernetesStatus holds teleport client information necessary to populate the user's kubeconfig.
+// kubernetesStatus holds Teleport client information necessary to populate the user's kubeconfig.
 type kubernetesStatus struct {
 	clusterAddr         string
 	teleportClusterName string
@@ -1041,7 +1041,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	if len(kubeStatus.kubeClusters) == 0 {
-		// If there are no registered k8s clusters, we may have an older teleport cluster.
+		// If there are no registered k8s clusters, we may have an older Teleport cluster.
 		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
 		log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
 		return v, nil

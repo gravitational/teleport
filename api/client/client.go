@@ -2356,21 +2356,21 @@ func (c *Client) DeleteAllApps(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// CreateKubernetesCluster creates a new kubernetes cluster resource.
+// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 func (c *Client) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	kubeClusterV3, ok := cluster.(*types.KubernetesClusterV3)
 	if !ok {
-		return trace.BadParameter("unsupported kubernetes cluster type %T", cluster)
+		return trace.BadParameter("unsupported Kubernetes cluster type %T", cluster)
 	}
 	_, err := c.grpc.CreateKubernetesCluster(ctx, kubeClusterV3, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
-// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+// UpdateKubernetesCluster updates existing Kubernetes cluster resource.
 func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	kubeClusterV3, ok := cluster.(*types.KubernetesClusterV3)
 	if !ok {
-		return trace.BadParameter("unsupported kubernetes cluster type %T", cluster)
+		return trace.BadParameter("unsupported Kubernetes cluster type %T", cluster)
 	}
 	_, err := c.grpc.UpdateKubernetesCluster(ctx, kubeClusterV3, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -2379,7 +2379,7 @@ func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.Kube
 // GetKubernetesCluster returns the specified kubernetes resource.
 func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	if name == "" {
-		return nil, trace.BadParameter("missing kubernetes cluster name")
+		return nil, trace.BadParameter("missing Kubernetes cluster name")
 	}
 	cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	if err != nil {
@@ -2388,7 +2388,7 @@ func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.K
 	return cluster, nil
 }
 
-// GetKubernetesClusters returns all kubernetes cluster resources.
+// GetKubernetesClusters returns all Kubernetes cluster resources.
 func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	items, err := c.grpc.GetKubernetesClusters(ctx, &emptypb.Empty{}, c.callOpts...)
 	if err != nil {
@@ -2401,13 +2401,13 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 	return clusters, nil
 }
 
-// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+// DeleteKubernetesCluster deletes specified Kubernetes cluster resource.
 func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
-// DeleteAllKubernetesClusters deletes all kubernetes cluster resources.
+// DeleteAllKubernetesClusters deletes all Kubernetes cluster resources.
 func (c *Client) DeleteAllKubernetesClusters(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllKubernetesClusters(ctx, &emptypb.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)

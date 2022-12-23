@@ -123,11 +123,11 @@ func main() {
 	if err := retry.For(ctx, func() error {
 		bot, features, err = sidecar.CreateAndBootstrapBot(ctx, sidecar.Options{})
 		if err != nil {
-			setupLog.Error(err, "failed to connect to teleport cluster, backing off")
+			setupLog.Error(err, "failed to connect to Teleport cluster, backing off")
 		}
 		return trace.Wrap(err)
 	}); err != nil {
-		setupLog.Error(err, "failed to setup teleport client")
+		setupLog.Error(err, "failed to setup Teleport client")
 		os.Exit(1)
 	}
 	setupLog.Info("connected to Teleport")

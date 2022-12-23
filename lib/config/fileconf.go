@@ -1829,7 +1829,7 @@ type KubeProxy struct {
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it
 	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
-	// ClusterName is the name of a kubernetes cluster this proxy is running
+	// ClusterName is the name of a Kubernetes cluster this proxy is running
 	// in. If set, this proxy will handle kubernetes requests for the cluster.
 	ClusterName string `yaml:"cluster_name,omitempty"`
 }
@@ -1844,13 +1844,13 @@ type Kube struct {
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it
 	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
-	// KubeClusterName is the name of a kubernetes cluster this service is
+	// KubeClusterName is the name of a Kubernetes cluster this service is
 	// running in. If set, this proxy will handle kubernetes requests for the
 	// cluster.
 	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
-	// StaticLabels are the static labels for RBAC on kubernetes clusters.
+	// StaticLabels are the static labels for RBAC on Kubernetes clusters.
 	StaticLabels map[string]string `yaml:"labels,omitempty"`
-	// DynamicLabels are the dynamic labels for RBAC on kubernetes clusters.
+	// DynamicLabels are the dynamic labels for RBAC on Kubernetes clusters.
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 	// ResourceMatchers match cluster kube_cluster resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`

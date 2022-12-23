@@ -124,7 +124,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc: "local user no teleport cluster in cert subject",
+			desc: "local user no Teleport cluster in cert subject",
 			peers: []*x509.Certificate{{
 				Subject:  subject(localUserIdentityNoTeleportCluster),
 				NotAfter: now,
@@ -167,7 +167,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc: "remote user no teleport cluster in cert subject",
+			desc: "remote user no Teleport cluster in cert subject",
 			peers: []*x509.Certificate{{
 				Subject:  subject(remoteUserIdentityNoTeleportCluster),
 				NotAfter: now,

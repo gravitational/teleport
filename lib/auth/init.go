@@ -87,7 +87,7 @@ type InitConfig struct {
 	BootstrapResources []types.Resource
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
-	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
+	// (managing multiple Teleport clusters) this field is used to tell them apart in UIs
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
@@ -196,7 +196,7 @@ type InitConfig struct {
 	// TraceClient is used to forward spans to the upstream telemetry collector
 	TraceClient otlptrace.Client
 
-	// Kubernetes is a service that manages kubernetes cluster resources.
+	// Kubernetes is a service that manages Kubernetes cluster resources.
 	Kubernetes services.Kubernetes
 
 	// AssertionReplayService is a service that mitigatates SSO assertion replay.
@@ -441,7 +441,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	if lib.IsInsecureDevMode() {
-		warningMessage := "Starting teleport in insecure mode. This is " +
+		warningMessage := "Starting Teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
 		log.Warn(warningMessage)

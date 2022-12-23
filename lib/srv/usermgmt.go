@@ -165,7 +165,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
 			if isUnknownGroupError(err, types.TeleportServiceGroup) {
-				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
+				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by Teleport", name)
 			}
 			return nil, nil, trace.Wrap(err)
 		}
@@ -177,7 +177,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			}
 		}
 		if !found {
-			return nil, nil, trace.AlreadyExists("User %q already exists and is not managed by teleport", name)
+			return nil, nil, trace.AlreadyExists("User %q already exists and is not managed by Teleport", name)
 		}
 
 		err = u.doWithUserLock(func(_ types.SemaphoreLease) error {

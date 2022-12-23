@@ -213,7 +213,7 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	if trace.IsConnectionProblem(sshError) {
 		connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 			types.ConnectionDiagnosticTrace_CONNECTIVITY,
-			`Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+			`Failed to connect to the Node. Ensure Teleport service is running using "systemctl status teleport".`,
 			sshError,
 		))
 		if err != nil {

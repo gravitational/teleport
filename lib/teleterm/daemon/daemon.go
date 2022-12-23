@@ -524,7 +524,7 @@ func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.A
 	return apps, nil
 }
 
-// GetAllKubes lists kubernetes clusters
+// GetAllKubes lists Kubernetes clusters
 func (s *Service) GetAllKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {

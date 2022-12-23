@@ -73,7 +73,7 @@ func (c *TopCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI
 		err = c.Top(ctx, diagClient)
 		if trace.IsConnectionProblem(err) {
 			return true, trace.ConnectionProblem(err,
-				"[CLIENT] Could not connect to metrics service at %v. Is teleport running with --diag-addr=%v?", *c.diagURL, *c.diagURL)
+				"[CLIENT] Could not connect to metrics service at %v. Is Teleport running with --diag-addr=%v?", *c.diagURL, *c.diagURL)
 		}
 		return true, trace.Wrap(err)
 	default:
@@ -521,7 +521,7 @@ func (b *BackendStats) SortedTopRequests() []Request {
 	return out
 }
 
-// ClusterStats contains some teleport specific stats
+// ClusterStats contains some Teleport specific stats
 type ClusterStats struct {
 	// InteractiveSessions is a number of active sessions.
 	InteractiveSessions float64

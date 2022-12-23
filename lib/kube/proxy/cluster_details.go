@@ -124,7 +124,7 @@ func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
 	}
 }
 
-// getAWSCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a EKS kubernetes cluster.
+// getAWSCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a EKS Kubernetes cluster.
 func getAWSCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
 	client := getAWSClientRestConfig(cloudClients)
@@ -233,7 +233,7 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeC
 	return creds, trace.Wrap(err)
 }
 
-// getGCPCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a GKE kubernetes cluster.
+// getGCPCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a GKE Kubernetes cluster.
 func getGCPCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
 	client := gcpRestConfigClient(cloudClients)

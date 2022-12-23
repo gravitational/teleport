@@ -574,17 +574,17 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client auth.Cl
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
-				return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("kubernetes cluster %q has been updated\n", cluster.GetName())
+			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
 	return nil
 }
 
@@ -788,12 +788,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		if err = client.DeleteKubernetesCluster(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("kubernetes cluster %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("Kubernetes cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("Windows desktop service %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
 		desktops, err := client.GetWindowsDesktops(ctx,
 			types.WindowsDesktopFilter{Name: rc.ref.Name})
@@ -819,7 +819,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 				trace.Errorf("failed to delete any desktops with the name %q, %d were found",
 					rc.ref.Name, len(desktops)))
 		}
-		fmts := "%d windows desktops with name %q have been deleted"
+		fmts := "%d Windows desktops with name %q have been deleted"
 		if err := trace.NewAggregate(errs...); err != nil {
 			fmt.Printf(fmts+" with errors while deleting\n", deleted, rc.ref.Name)
 			return err

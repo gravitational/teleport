@@ -156,7 +156,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			},
 		},
 		{
-			name:               "windows desktop",
+			name:               "Windows desktop",
 			matchingSearchVals: []string{"foo", "bar", "env", "prod", "os"},
 			newResource: func() ResourceWithLabels {
 				desktop, err := NewWindowsDesktopV3("foo", labels, WindowsDesktopSpecV3{

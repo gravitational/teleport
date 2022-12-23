@@ -25,7 +25,7 @@ import (
 
 var native nativeWebauthn = noopNative{}
 
-var errUnavailable = errors.New("windows webauthn unavailable in current build")
+var errUnavailable = errors.New("Windows webauthn unavailable in current build")
 
 type noopNative struct{}
 

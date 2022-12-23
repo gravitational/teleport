@@ -90,7 +90,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 			assertErr:   require.NoError,
 		},
 		{
-			desc: "no cluster provided, default to teleport cluster name",
+			desc: "no cluster provided, default to Teleport cluster name",
 			services: []types.KubeServer{
 				kubeServer(t, "k8s-1", "server1", "uuuid"),
 				kubeServer(t, "k8s-2", "server1", "uuuid"),

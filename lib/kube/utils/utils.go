@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// GetKubeClient returns instance of client to the kubernetes cluster
+// GetKubeClient returns instance of client to the Kubernetes cluster
 // using in-cluster configuration if available and falling back to
 // configuration file under configPath otherwise
 func GetKubeClient(configPath string) (client *kubernetes.Clientset, config *rest.Config, err error) {
@@ -149,7 +149,7 @@ type KubeServicesPresence interface {
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 }
 
-// KubeClusterNames returns a sorted list of unique kubernetes cluster
+// KubeClusterNames returns a sorted list of unique Kubernetes cluster
 // names registered in p.
 //
 // DELETE IN 11.0.0, replaced by ListKubeClustersWithFilters
@@ -171,7 +171,7 @@ func extractAndSortKubeClusterNames(kubeServers []types.KubeServer) []string {
 	return kubeClusterNames
 }
 
-// KubeClusters returns a sorted list of unique kubernetes clusters
+// KubeClusters returns a sorted list of unique Kubernetes clusters
 // registered in p.
 //
 // DELETE IN 11.0.0, replaced by ListKubeClustersWithFilters
@@ -184,7 +184,7 @@ func KubeClusters(ctx context.Context, p KubeServicesPresence) ([]types.KubeClus
 	return extractAndSortKubeClusters(kubeServers), nil
 }
 
-// ListKubeClusterWithFilters returns a sorted list of unique kubernetes clusters
+// ListKubeClusterWithFilters returns a sorted list of unique Kubernetes clusters
 // registered in p.
 func ListKubeClustersWithFilters(ctx context.Context, p client.ListResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
 	req.ResourceType = types.KindKubeServer
@@ -269,7 +269,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 	}
 	if kubeClusterName != "" {
 		if !slices.Contains(kubeClusterNames, kubeClusterName) {
-			return "", trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
+			return "", trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", kubeClusterName)
 		}
 		return kubeClusterName, nil
 	}
@@ -277,7 +277,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 	// name (for backwards-compatibility with pre-5.0 behavior) or the
 	// first name alphabetically.
 	if len(kubeClusterNames) == 0 {
-		return "", trace.NotFound("no kubernetes clusters registered")
+		return "", trace.NotFound("no Kubernetes clusters registered")
 	}
 	if slices.Contains(kubeClusterNames, teleportClusterName) {
 		return teleportClusterName, nil

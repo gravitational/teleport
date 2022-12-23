@@ -427,7 +427,7 @@ type Server struct {
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
-	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
+	// (managing multiple Teleport clusters) this field is used to tell them apart in UIs
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
@@ -630,11 +630,11 @@ const (
 	verInUseLabel  = "teleport.internal/ver-in-use"
 )
 
-// syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
+// syncReleaseAlerts calculates alerts related to new Teleport releases. When checkRemote
 // is true it pulls the latest release info from github.  Otherwise, it loads the versions used
 // for the most recent alerts and re-syncs with latest cluster state.
 func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
-	log.Debug("Checking for new teleport releases via github api.")
+	log.Debug("Checking for new Teleport releases via github api.")
 
 	// NOTE: essentially everything in this function is going to be
 	// scrapped/replaced once the inventory and version-control systems
@@ -663,12 +663,12 @@ func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	if checkRemote {
 		// scrape the github releases API with our visitor
 		if err := github.Visit(&visitor); err != nil {
-			log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
+			log.Warnf("Failed to load github releases: %v (this will not impact Teleport functionality)", err)
 			loadFailed = true
 		}
 	} else {
 		if err := a.visitCachedAlertVersions(ctx, &visitor); err != nil {
-			log.Warnf("Failed to load release alert into: %v (this will not impact teleport functionality)", err)
+			log.Warnf("Failed to load release alert into: %v (this will not impact Teleport functionality)", err)
 			loadFailed = true
 		}
 	}
@@ -678,7 +678,7 @@ func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 
 // visitCachedAlertVersions updates the visitor with targets reconstructed from the metadata
 // of existing alerts. This lets us "reevaluate" the alerts based on newer cluster state without
-// re-pulling the releases page. Future version of teleport will cache actual full release
+// re-pulling the releases page. Future version of Teleport will cache actual full release
 // descriptions, rending this unnecessary.
 func (a *Server) visitCachedAlertVersions(ctx context.Context, visitor *vc.Visitor) error {
 	// reconstruct the target for the "latest stable" alert if it exists.
@@ -1015,11 +1015,11 @@ type certRequest struct {
 	// the cert can be only used against kubernetes endpoint, and not auth endpoint,
 	// no usage means unrestricted (to keep backwards compatibility)
 	usage []string
-	// routeToCluster is an optional teleport cluster name to route the
-	// certificate requests to, this teleport cluster name will be used to
+	// routeToCluster is an optional Teleport cluster name to route the
+	// certificate requests to, this Teleport cluster name will be used to
 	// route the requests to in case of kubernetes
 	routeToCluster string
-	// kubernetesCluster specifies the target kubernetes cluster for TLS
+	// kubernetesCluster specifies the target Kubernetes cluster for TLS
 	// identities. This can be empty on older Teleport clients.
 	kubernetesCluster string
 	// traits hold claim data used to populate a role at runtime.
@@ -1654,16 +1654,16 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	// Only validate/default kubernetes cluster name for the current teleport
-	// cluster. If this cert is targeting a trusted teleport cluster, leave all
-	// the kubernetes cluster validation up to them.
+	// Only validate/default Kubernetes cluster name for the current teleport
+	// cluster. If this cert is targeting a trusted Teleport cluster, leave all
+	// the Kubernetes cluster validation up to them.
 	if req.routeToCluster == clusterName {
 		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a, req.kubernetesCluster, clusterName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			log.Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
+			log.Debug("Failed setting default Kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
 		}
 	}
 
@@ -3647,7 +3647,7 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 	return a.Cache.ListResources(ctx, req)
 }
 
-// CreateKubernetesCluster creates a new kubernetes cluster resource.
+// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
 	if err := a.Services.CreateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
@@ -3671,7 +3671,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 	return nil
 }
 
-// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
+// UpdateKubernetesCluster updates an existing Kubernetes cluster resource.
 func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
 	if err := a.Kubernetes.UpdateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
@@ -3695,7 +3695,7 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 	return nil
 }
 
-// DeleteKubernetesCluster deletes a kubernetes cluster resource.
+// DeleteKubernetesCluster deletes a Kubernetes cluster resource.
 func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	if err := a.Kubernetes.DeleteKubernetesCluster(ctx, name); err != nil {
 		return trace.Wrap(err)
@@ -3802,7 +3802,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 	case *proto.IsMFARequiredRequest_KubernetesCluster:
-		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
+		notFoundErr = trace.NotFound("Kubernetes cluster %q not found", t.KubernetesCluster)
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
@@ -3861,7 +3861,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(err)
 		}
 		if len(desktops) == 0 {
-			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
+			return nil, trace.NotFound("Windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
 		}
 
 		noMFAAccessErr = checker.CheckAccess(desktops[0],
@@ -4221,7 +4221,7 @@ func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) 
 	return nil
 }
 
-// deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
+// deleteUnusedKeys deletes all Teleport keys held in a connected HSM for this
 // auth server which are not currently used in any CAs.
 func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	clusterName, err := a.Services.GetClusterName()

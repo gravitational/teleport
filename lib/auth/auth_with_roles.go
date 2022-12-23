@@ -192,7 +192,7 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 func (a *ServerWithRoles) serverAction() error {
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+		return trace.AccessDenied("this request can be only executed by a Teleport built-in server")
 	}
 	return nil
 }
@@ -700,7 +700,7 @@ func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *p
 	// ensure requesting cert's primary role is a server role.
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
+		return trace.AccessDenied("additional system roles can only be claimed by a Teleport built-in server")
 	}
 
 	// check that additional system roles are theoretically valid (distinct from permissibility, which
@@ -751,7 +751,7 @@ Outer:
 func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
+		return trace.AccessDenied("system role assertions can only be executed by a Teleport built-in server")
 	}
 
 	if req.ServerID != role.GetServerID() {
@@ -770,10 +770,10 @@ func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req prot
 }
 
 func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) error {
-	// Ensure that caller is a teleport server
+	// Ensure that caller is a Teleport server
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
+		return trace.AccessDenied("inventory control streams can only be created by a Teleport built-in server")
 	}
 
 	// wait for upstream hello
@@ -1366,7 +1366,7 @@ func newKubeChecker(authContext Context) *kubeChecker {
 	}
 }
 
-// CanAccess checks if a user has access to kubernetes clusters defined
+// CanAccess checks if a user has access to Kubernetes clusters defined
 // in the server. Any clusters which aren't allowed will be removed from the
 // resource instead of an error being returned.
 func (k *kubeChecker) CanAccess(resource types.Resource) error {
@@ -2927,13 +2927,13 @@ func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) 
 	mapping := connector.GetTeamsToLogins()
 	for _, team := range mapping {
 		if len(team.KubeUsers) != 0 || len(team.KubeGroups) != 0 {
-			return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, use it instead of local kubernetes_users and kubernetes_groups ")
+			return trace.BadParameter("since 6.0 Teleport uses teams_to_logins to reference a role, use it instead of local kubernetes_users and kubernetes_groups ")
 		}
 		for _, localRole := range team.Logins {
 			_, err := a.GetRole(context.TODO(), localRole)
 			if err != nil {
 				if trace.IsNotFound(err) {
-					return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
+					return trace.BadParameter("since 6.0 Teleport uses teams_to_logins to reference a role, role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
 				}
 				return trace.Wrap(err)
 			}
@@ -3032,7 +3032,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	}
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+		return trace.AccessDenied("this request can be only executed by a Teleport built-in server")
 	}
 	err := events.ValidateServerMetadata(event, role.GetServerID(), a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
@@ -4319,7 +4319,7 @@ func (a *ServerWithRoles) DeleteAllKubernetesServers(ctx context.Context) error 
 	return a.authServer.DeleteAllKubernetesServers(ctx)
 }
 
-// GetKubeServices returns all Servers representing teleport kubernetes
+// GetKubeServices returns all Servers representing Teleport kubernetes
 // services.
 // DELETE in 13.0.0
 func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, error) {
@@ -4653,7 +4653,7 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 	return nil
 }
 
-// CreateKubernetesCluster creates a new kubernetes cluster resource.
+// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -4666,7 +4666,7 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 	return trace.Wrap(a.authServer.CreateKubernetesCluster(ctx, cluster))
 }
 
-// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+// UpdateKubernetesCluster updates existing Kubernetes cluster resource.
 func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -4686,7 +4686,7 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 	return trace.Wrap(a.authServer.UpdateKubernetesCluster(ctx, cluster))
 }
 
-// GetKubernetesCluster returns specified kubernetes cluster resource.
+// GetKubernetesCluster returns specified Kubernetes cluster resource.
 func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4701,7 +4701,7 @@ func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string)
 	return kubeCluster, nil
 }
 
-// GetKubernetesClusters returns all kubernetes cluster resources.
+// GetKubernetesClusters returns all Kubernetes cluster resources.
 func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4719,12 +4719,12 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 	return result, nil
 }
 
-// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
+// DeleteKubernetesCluster removes the specified Kubernetes cluster resource.
 func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	// Make sure user has access to the kubernetes cluster before deleting.
+	// Make sure user has access to the Kubernetes cluster before deleting.
 	cluster, err := a.authServer.GetKubernetesCluster(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -4735,12 +4735,12 @@ func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name stri
 	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
 }
 
-// DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+// DeleteAllKubernetesClusters removes all Kubernetes cluster resources.
 func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	// Make sure to only delete kubernetes cluster user has access to.
+	// Make sure to only delete Kubernetes cluster user has access to.
 	clusters, err := a.authServer.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -4885,7 +4885,7 @@ func (a *ServerWithRoles) DeleteAllDatabases(ctx context.Context) error {
 	return nil
 }
 
-// GetWindowsDesktopServices returns all registered windows desktop services.
+// GetWindowsDesktopServices returns all registered Windows desktop services.
 func (a *ServerWithRoles) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4897,7 +4897,7 @@ func (a *ServerWithRoles) GetWindowsDesktopServices(ctx context.Context) ([]type
 	return services, nil
 }
 
-// GetWindowsDesktopService returns a registered windows desktop service by name.
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
 func (a *ServerWithRoles) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4909,7 +4909,7 @@ func (a *ServerWithRoles) GetWindowsDesktopService(ctx context.Context, name str
 	return service, nil
 }
 
-// UpsertWindowsDesktopService creates or updates a new windows desktop service.
+// UpsertWindowsDesktopService creates or updates a new Windows desktop service.
 func (a *ServerWithRoles) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -4917,7 +4917,7 @@ func (a *ServerWithRoles) UpsertWindowsDesktopService(ctx context.Context, s typ
 	return a.authServer.UpsertWindowsDesktopService(ctx, s)
 }
 
-// DeleteWindowsDesktopService removes the specified windows desktop service.
+// DeleteWindowsDesktopService removes the specified Windows desktop service.
 func (a *ServerWithRoles) DeleteWindowsDesktopService(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -4925,7 +4925,7 @@ func (a *ServerWithRoles) DeleteWindowsDesktopService(ctx context.Context, name 
 	return a.authServer.DeleteWindowsDesktopService(ctx, name)
 }
 
-// DeleteAllWindowsDesktopServices removes all registered windows desktop services.
+// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 func (a *ServerWithRoles) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -4933,7 +4933,7 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktopServices(ctx context.Context) e
 	return a.authServer.DeleteAllWindowsDesktopServices(ctx)
 }
 
-// GetWindowsDesktops returns all registered windows desktop hosts.
+// GetWindowsDesktops returns all registered Windows desktop hosts.
 func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4949,7 +4949,7 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.W
 	return filtered, nil
 }
 
-// CreateWindowsDesktop creates a new windows desktop host.
+// CreateWindowsDesktop creates a new Windows desktop host.
 func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -4957,7 +4957,7 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
-// UpdateWindowsDesktop updates an existing windows desktop host.
+// UpdateWindowsDesktop updates an existing Windows desktop host.
 func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -4969,7 +4969,7 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 	if len(existing) == 0 {
-		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+		return trace.NotFound("no Windows desktops with HostID %s and Name %s",
 			s.GetHostID(), s.GetName())
 	}
 
@@ -4982,7 +4982,7 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 	return a.authServer.UpdateWindowsDesktop(ctx, s)
 }
 
-// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+// UpsertWindowsDesktop updates a Windows desktop resource, creating it if it doesn't exist.
 func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	// Ensure caller has both Create and Update permissions.
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
@@ -5026,7 +5026,7 @@ func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, hostID, name
 		return trace.Wrap(err)
 	}
 	if len(desktop) == 0 {
-		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+		return trace.NotFound("no Windows desktops with HostID %s and Name %s",
 			hostID, name)
 	}
 	if err := a.checkAccessToWindowsDesktop(desktop[0]); err != nil {
@@ -5035,7 +5035,7 @@ func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, hostID, name
 	return a.authServer.DeleteWindowsDesktop(ctx, hostID, name)
 }
 
-// DeleteAllWindowsDesktops removes all registered windows desktop hosts.
+// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)

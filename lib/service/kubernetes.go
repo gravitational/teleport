@@ -86,7 +86,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
 	case conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
-		return trace.BadParameter("either set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out, but don't set both")
+		return trace.BadParameter("either set kubernetes_service.listen_addr if this process can be reached from a Teleport proxy or point teleport.proxy_server to a proxy to dial out, but don't set both")
 	case !conn.UseTunnel() && cfg.Kube.ListenAddr.IsEmpty():
 		// TODO(awly): if this process runs auth, proxy and kubernetes
 		// services, the proxy should be able to route requests to this
@@ -96,7 +96,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		//
 		// For now, as a lazy shortcut, kuberentes_service.listen_addr is
 		// always required when running in the same process with a proxy.
-		return trace.BadParameter("set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out")
+		return trace.BadParameter("set kubernetes_service.listen_addr if this process can be reached from a Teleport proxy or point teleport.proxy_server to a proxy to dial out")
 
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():

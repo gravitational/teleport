@@ -1446,7 +1446,7 @@ func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv t
 // DeleteWindowsDesktopService removes the specified Windows desktop service.
 func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name string) error {
 	if name == "" {
-		return trace.BadParameter("missing windows desktop service name")
+		return trace.BadParameter("missing Windows desktop service name")
 	}
 	key := backend.Key(windowsDesktopServicesPrefix, name)
 	return s.Delete(ctx, key)

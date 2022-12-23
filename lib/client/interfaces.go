@@ -92,7 +92,7 @@ type Key struct {
 	// It's used to authenticate to the Teleport APIs.
 	TLSCert []byte `json:"TLSCert,omitempty"`
 	// KubeTLSCerts are TLS certificates (PEM-encoded) for individual
-	// kubernetes clusters. Map key is a kubernetes cluster name.
+	// Kubernetes clusters. Map key is a Kubernetes cluster name.
 	KubeTLSCerts map[string][]byte `json:"KubeCerts,omitempty"`
 	// DBTLSCerts are PEM-encoded TLS certificates for database access.
 	// Map key is the database service name.
@@ -252,7 +252,7 @@ func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string)
 	}
 	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
 	if !ok {
-		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+		return nil, trace.NotFound("TLS certificate for Kubernetes cluster %q not found", kubeClusterName)
 	}
 
 	tlsConfig, err := k.clientTLSConfig(cipherSuites, tlsCert, []string{rootCluster})
@@ -487,11 +487,11 @@ func (k *Key) TeleportTLSCertificate() (*x509.Certificate, error) {
 }
 
 // KubeTLSCertificate returns the parsed x509 certificate for
-// authentication against a named kubernetes cluster.
+// authentication against a named Kubernetes cluster.
 func (k *Key) KubeTLSCertificate(kubeClusterName string) (*x509.Certificate, error) {
 	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
 	if !ok {
-		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+		return nil, trace.NotFound("TLS certificate for Kubernetes cluster %q not found", kubeClusterName)
 	}
 	return tlsca.ParseCertificatePEM(tlsCert)
 }

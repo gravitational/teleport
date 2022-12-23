@@ -184,7 +184,7 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
-				return nil, trace.Errorf("windows desktop has invalid type %T", resource)
+				return nil, trace.Errorf("Windows desktop has invalid type %T", resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}

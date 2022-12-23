@@ -80,20 +80,20 @@ func main() {
 	rollBackFuncs := []rollBackFunc{}
 	addRollBack := func(r rollBackFunc) { rollBackFuncs = append(rollBackFuncs, r) }
 
-	// update go files within the teleport/api and teleport modules to use the new import path
+	// update go files within the teleport/api and Teleport modules to use the new import path
 	log.Info("Updating teleport/api module...")
 	if err := updateGoModule("./api", currentModPath, newPath, newVersion.String(), buildFlags, addRollBack); err != nil {
 		exitWithError(trace.Wrap(err, "failed to update teleport/api module"), rollBackFuncs)
 	}
-	log.Info("Updating teleport module...")
+	log.Info("Updating Teleport module...")
 	if err := updateGoModule("./", currentModPath, newPath, newVersion.String(), buildFlags, addRollBack); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update teleport module"), rollBackFuncs)
+		exitWithError(trace.Wrap(err, "failed to update Teleport module"), rollBackFuncs)
 	}
 
 	// Update .proto files in teleport/api to use the new import path
 	log.Info("Updating .proto files...")
 	if err := updateProtoFiles("./api", currentModPath, newPath, addRollBack); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update teleport mod file"), rollBackFuncs)
+		exitWithError(trace.Wrap(err, "failed to update Teleport mod file"), rollBackFuncs)
 	}
 }
 

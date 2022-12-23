@@ -44,7 +44,7 @@ type webauthnwinDiagCommand struct {
 
 func newWebauthnwinDiagCommand(app *kingpin.CmdClause) *webauthnwinDiagCommand {
 	return &webauthnwinDiagCommand{
-		CmdClause: app.Command("diag", "Run windows webauthn diagnostics").Hidden(),
+		CmdClause: app.Command("diag", "Run Windows webauthn diagnostics").Hidden(),
 	}
 }
 

@@ -92,14 +92,14 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 		case KubeService:
 			return nil, trace.BadParameter("no Kubernetes credentials found; Kubernetes_service requires either a valid kubeconfig_file or to run inside of a Kubernetes pod")
 		case LegacyProxyService:
-			log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
+			log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted Teleport clusters or Kubernetes nodes in this Teleport cluster")
 		}
 		return map[string]*kubeDetails{}, nil
 	}
 
 	if serviceType == LegacyProxyService {
 		// Hack for legacy proxy service - register a k8s cluster named after
-		// the teleport cluster name to route legacy requests.
+		// the Teleport cluster name to route legacy requests.
 		//
 		// Also, remove all other contexts. Multiple kubeconfig entries are
 		// only supported for kubernetes_service.
@@ -149,7 +149,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	// For each loaded cluster, check impersonation permissions. This
 	// check only logs when permissions are not configured, but does not fail startup.
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.")
+		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This Teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.")
 	} else {
 		log.Debug("Have all necessary Kubernetes impersonation permissions.")
 	}

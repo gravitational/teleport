@@ -488,7 +488,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 		wantNextProtos []string
 	}{
 		{
-			name:        "ACME enabled, teleport ALPN protocols should be appended",
+			name:        "ACME enabled, Teleport ALPN protocols should be appended",
 			acmeEnabled: true,
 			wantNextProtos: []string{
 				// Ensure http/1.1 has precedence over http2.

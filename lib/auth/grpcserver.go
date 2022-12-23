@@ -3643,7 +3643,7 @@ func (g *GRPCServer) UpsertWindowsDesktop(ctx context.Context, desktop *types.Wi
 	return &emptypb.Empty{}, nil
 }
 
-// DeleteWindowsDesktop removes the specified windows desktop host.
+// DeleteWindowsDesktop removes the specified Windows desktop host.
 // Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
 // Passing an empty host ID will not trigger "delete all" behavior. To delete
 // all desktops, use DeleteAllWindowsDesktops.
@@ -3914,21 +3914,21 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
-				return nil, trace.BadParameter("windows desktop has invalid type %T", resource)
+				return nil, trace.BadParameter("Windows desktop has invalid type %T", resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
 		case types.KindWindowsDesktopService:
 			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
 			if !ok {
-				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
+				return nil, trace.BadParameter("Windows desktop service has invalid type %T", resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
 		case types.KindKubernetesCluster:
 			cluster, ok := resource.(*types.KubernetesClusterV3)
 			if !ok {
-				return nil, trace.BadParameter("kubernetes cluster has invalid type %T", resource)
+				return nil, trace.BadParameter("Kubernetes cluster has invalid type %T", resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
@@ -4257,7 +4257,7 @@ func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *proto.Append
 	return connectionDiagnosticV1, nil
 }
 
-// GetKubernetesCluster returns the specified kubernetes cluster resource.
+// GetKubernetesCluster returns the specified Kubernetes cluster resource.
 func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4269,12 +4269,12 @@ func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.Resour
 	}
 	kubeClusterV3, ok := kubeCluster.(*types.KubernetesClusterV3)
 	if !ok {
-		return nil, trace.BadParameter("unsupported kubernetes cluster type %T", kubeCluster)
+		return nil, trace.BadParameter("unsupported Kubernetes cluster type %T", kubeCluster)
 	}
 	return kubeClusterV3, nil
 }
 
-// CreateKubernetesCluster creates a new kubernetes cluster resource.
+// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4290,7 +4290,7 @@ func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types
 	return &emptypb.Empty{}, nil
 }
 
-// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+// UpdateKubernetesCluster updates existing Kubernetes cluster resource.
 func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4303,7 +4303,7 @@ func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types
 	return &emptypb.Empty{}, nil
 }
 
-// GetKubernetesClusters returns all kubernetes cluster resources.
+// GetKubernetesClusters returns all Kubernetes cluster resources.
 func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4327,7 +4327,7 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 	}, nil
 }
 
-// DeleteKubernetesCluster removes the specified kubernetes cluster.
+// DeleteKubernetesCluster removes the specified Kubernetes cluster.
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4339,7 +4339,7 @@ func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.Res
 	return &emptypb.Empty{}, nil
 }
 
-// DeleteAllKubernetesClusters removes all kubernetes cluster.
+// DeleteAllKubernetesClusters removes all Kubernetes cluster.
 func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

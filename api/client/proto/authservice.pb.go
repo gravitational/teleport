@@ -1095,7 +1095,7 @@ type UserCertsRequest struct {
 	// AccessRequests is an optional list of request IDs indicating requests whose
 	// escalated privileges should be added to the certificate.
 	AccessRequests []string `protobuf:"bytes,6,rep,name=AccessRequests,proto3" json:"access_requests,omitempty"`
-	// KubernetesCluster specifies the target kubernetes cluster for TLS
+	// KubernetesCluster specifies the target Kubernetes cluster for TLS
 	// identities. This can be empty on older Teleport clients.
 	KubernetesCluster string `protobuf:"bytes,7,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
 	// RouteToDatabase specifies the target database proxy name to encode into
@@ -13467,17 +13467,17 @@ type AuthServiceClient interface {
 	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// GetKubernetesClusters returns all registered kubernetes clusters.
+	// GetKubernetesClusters returns all registered Kubernetes clusters.
 	GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error)
-	// GetKubernetesCluster returns a kubernetes cluster by name.
+	// GetKubernetesCluster returns a Kubernetes cluster by name.
 	GetKubernetesCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.KubernetesClusterV3, error)
-	// CreateKubernetesCluster creates a new kubernetes cluster resource.
+	// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 	CreateKubernetesCluster(ctx context.Context, in *types.KubernetesClusterV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+	// UpdateKubernetesCluster updates existing Kubernetes cluster resource.
 	UpdateKubernetesCluster(ctx context.Context, in *types.KubernetesClusterV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteKubernetesCluster removes specified kubernetes cluster resource.
+	// DeleteKubernetesCluster removes specified Kubernetes cluster resource.
 	DeleteKubernetesCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+	// DeleteAllKubernetesClusters removes all Kubernetes cluster resources.
 	DeleteAllKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error)
@@ -16192,17 +16192,17 @@ type AuthServiceServer interface {
 	DeleteDatabase(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// GetKubernetesClusters returns all registered kubernetes clusters.
+	// GetKubernetesClusters returns all registered Kubernetes clusters.
 	GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error)
-	// GetKubernetesCluster returns a kubernetes cluster by name.
+	// GetKubernetesCluster returns a Kubernetes cluster by name.
 	GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error)
-	// CreateKubernetesCluster creates a new kubernetes cluster resource.
+	// CreateKubernetesCluster creates a new Kubernetes cluster resource.
 	CreateKubernetesCluster(context.Context, *types.KubernetesClusterV3) (*emptypb.Empty, error)
-	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+	// UpdateKubernetesCluster updates existing Kubernetes cluster resource.
 	UpdateKubernetesCluster(context.Context, *types.KubernetesClusterV3) (*emptypb.Empty, error)
-	// DeleteKubernetesCluster removes specified kubernetes cluster resource.
+	// DeleteKubernetesCluster removes specified Kubernetes cluster resource.
 	DeleteKubernetesCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
-	// DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+	// DeleteAllKubernetesClusters removes all Kubernetes cluster resources.
 	DeleteAllKubernetesClusters(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context, *emptypb.Empty) (*GetWindowsDesktopServicesResponse, error)

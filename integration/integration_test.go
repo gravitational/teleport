@@ -229,7 +229,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.DisableCreateHostUser = true
 
-	// deliberately create a teleport instance that will end up binding
+	// deliberately create a Teleport instance that will end up binding
 	// unspecified addr (`0.0.0.0`/`::`). we use this further down to confirm
 	// that in-memory control stream can approximate peer-addr substitution.
 	teleport := suite.newNamedTeleportInstance(t, clusterName,
@@ -293,7 +293,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 		auditSessionsURI string
 	}{
 		{
-			comment:          "normal teleport",
+			comment:          "normal Teleport",
 			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
 		}, {
@@ -301,7 +301,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   true,
 		}, {
-			comment:          "normal teleport with upload to file server",
+			comment:          "normal Teleport with upload to file server",
 			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
@@ -311,7 +311,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
 		}, {
-			comment:          "normal teleport, sync recording",
+			comment:          "normal Teleport, sync recording",
 			inRecordLocation: types.RecordAtNodeSync,
 			inForwardAgent:   false,
 		}, {
@@ -608,7 +608,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 	tempdir := t.TempDir()
 	tempfile := filepath.Join(tempdir, "file.txt")
 
-	// create new teleport server that will be used by all tests
+	// create new Teleport server that will be used by all tests
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
 
@@ -646,7 +646,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("Test %d: %s", i, strings.Fields(tt.inCommand)[0]), func(t *testing.T) {
-			// create new teleport client
+			// create new Teleport client
 			cl, err := teleport.NewClient(helpers.ClientConfig{
 				Login:   suite.Me.Username,
 				Cluster: helpers.Site,
@@ -768,7 +768,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 
 	site := teleportSvr.GetSiteAPI(helpers.Site)
 
-	// addNode adds a node to the teleport instance, returning its uuid.
+	// addNode adds a node to the Teleport instance, returning its uuid.
 	// All nodes added this way have the same hostname.
 	addNode := func() (string, error) {
 		tconf := suite.defaultServiceConfig()
@@ -873,7 +873,7 @@ func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
 }
 
 // testInteractive covers SSH into shell and joining the same session from another client
-// against a standard teleport node.
+// against a standard Teleport node.
 func testInteractiveRegular(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
@@ -1229,7 +1229,7 @@ func testEscapeSequenceNoTrigger(t *testing.T, terminal *Terminal, sess <-chan e
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
-func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInstance) {
+func verifySessionJoin(t *testing.T, username string, Teleport *helpers.TeleInstance) {
 	// get a reference to site obj:
 	site := teleport.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
@@ -1500,7 +1500,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			sessCtlTimeout:    500 * time.Millisecond,
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
-			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
+			postFunc: func(ctx context.Context, t *testing.T, Teleport *helpers.TeleInstance) {
 				site := teleport.GetSiteAPI(helpers.Site)
 				var sems []types.Semaphore
 				var err error
@@ -1629,7 +1629,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	}
 
 	if tc.postFunc != nil {
-		// test case modifies the teleport instance after session start
+		// test case modifies the Teleport instance after session start
 		tc.postFunc(ctx, t, teleport)
 	}
 
@@ -1754,7 +1754,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.Contains(t, err.Error(), `unknown cluster "wrong-site"`)
 }
 
-// TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
+// TestTwoClustersTunnel creates two Teleport clusters: "a" and "b" and creates a
 // tunnel from A to B.
 //
 // Two tests are run, first is when both A and B record sessions at nodes. It
@@ -1783,7 +1783,7 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 			0,
 		},
 		// recording proxy. since events are recorded at the proxy, 3 events end up
-		// on site-a (because it's a teleport node so it still records at the node)
+		// on site-a (because it's a Teleport node so it still records at the node)
 		// and 2 events end up on site-b because it's recording.
 		{
 			types.RecordAtProxy,
@@ -3610,7 +3610,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 			defer sshNode.Stop()
 
-			// create a teleport instance with auth, proxy, and node
+			// create a Teleport instance with auth, proxy, and node
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode:                types.RecordAtProxy,
@@ -3631,7 +3631,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			teleport := suite.NewTeleportWithConfig(makeConfig())
 			defer teleport.StopAll()
 
-			// create a teleport client and exec a command
+			// create a Teleport client and exec a command
 			clientConfig := helpers.ClientConfig{
 				Login:        suite.Me.Username,
 				Cluster:      helpers.Site,
@@ -3660,7 +3660,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	var err error
 
-	// create a teleport instance with auth, proxy, and node
+	// create a Teleport instance with auth, proxy, and node
 	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
@@ -3847,7 +3847,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			// Create a teleport instance with auth, proxy, and node.
+			// Create a Teleport instance with auth, proxy, and node.
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
 				tconf := suite.defaultServiceConfig()
 				tconf.Auth.Enabled = true
@@ -5433,7 +5433,7 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	// Creates new teleport cluster
+	// Creates new Teleport cluster
 	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
 
@@ -5561,7 +5561,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 
-	// Creates new teleport cluster
+	// Creates new Teleport cluster
 	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
 

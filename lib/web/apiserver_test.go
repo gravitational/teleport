@@ -2935,7 +2935,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 		deleteResource func()
 	}{
 		{
-			name: "has registered windows desktop",
+			name: "has registered Windows desktop",
 			insertResource: func() {
 				wd, err := types.NewWindowsDesktopV3("test-desktop", nil, types.WindowsDesktopSpecV3{
 					Addr:   "addr",
@@ -5183,7 +5183,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Details: `Failed to connect to the Node. Ensure Teleport service is running using "systemctl status teleport".`,
 					Error:   "Teleport proxy failed to connect to",
 				},
 			},
@@ -5201,7 +5201,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Details: `Failed to connect to the Node. Ensure Teleport service is running using "systemctl status teleport".`,
 					Error:   "Teleport proxy failed to connect to",
 				},
 			},
@@ -5428,7 +5428,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online.`,
-					Error:   "kubernetes cluster \"notregistered\" is not registered or is offline",
+					Error:   "Kubernetes cluster \"notregistered\" is not registered or is offline",
 				},
 			},
 		},
@@ -5447,7 +5447,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online.`,
-					Error:   fmt.Sprintf("kubernetes cluster %q is not registered or is offline", disconnectedKubeClustername),
+					Error:   fmt.Sprintf("Kubernetes cluster %q is not registered or is offline", disconnectedKubeClustername),
 				},
 			},
 		},

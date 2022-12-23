@@ -1351,7 +1351,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			expectRoles: []string{"app-admins"},
 		},
 		{
-			desc: "windows request",
+			desc: "Windows request",
 			requestResourceIDs: []types.ResourceID{
 				{
 					ClusterName: clusterName,
@@ -1359,7 +1359,7 @@ func TestPruneRequestRoles(t *testing.T) {
 					Name:        "windows",
 				},
 			},
-			// Request for windows should only request windows-admins
+			// Request for Windows should only request windows-admins
 			expectRoles: []string{"windows-admins"},
 		},
 		{

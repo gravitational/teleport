@@ -111,7 +111,7 @@ func TestUserUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "new windows logins",
+			name: "new Windows logins",
 			args: []string{"--set-windows-logins", "w1,w2,w3"},
 			wantTraits: map[string][]string{
 				constants.TraitWindowsLogins: {"w1", "w2", "w3"},

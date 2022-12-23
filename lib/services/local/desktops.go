@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// WindowsDesktopService manages windows desktop resources in the backend.
+// WindowsDesktopService manages Windows desktop resources in the backend.
 type WindowsDesktopService struct {
 	backend.Backend
 }
@@ -58,13 +58,13 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 	}
 	// If both HostID and Name are set in the filter only one desktop should be expected
 	if filter.HostID != "" && filter.Name != "" && len(desktops) == 0 {
-		return nil, trace.NotFound("windows desktop \"%s/%s\" doesn't exist", filter.HostID, filter.Name)
+		return nil, trace.NotFound("Windows desktop \"%s/%s\" doesn't exist", filter.HostID, filter.Name)
 	}
 
 	return desktops, nil
 }
 
-// CreateWindowsDesktop creates a windows desktop resource.
+// CreateWindowsDesktop creates a Windows desktop resource.
 func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -86,7 +86,7 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 	return nil
 }
 
-// UpdateWindowsDesktop updates a windows desktop resource.
+// UpdateWindowsDesktop updates a Windows desktop resource.
 func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -108,7 +108,7 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 	return nil
 }
 
-// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+// UpsertWindowsDesktop updates a Windows desktop resource, creating it if it doesn't exist.
 func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -130,7 +130,7 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 	return nil
 }
 
-// DeleteWindowsDesktop removes the specified windows desktop resource.
+// DeleteWindowsDesktop removes the specified Windows desktop resource.
 func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	if name == "" {
 		return trace.Errorf("name must not be empty")
@@ -141,14 +141,14 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 	err := s.Delete(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
+			return trace.NotFound("Windows desktop \"%s/%s\" doesn't exist", hostID, name)
 		}
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// DeleteAllWindowsDesktops removes all windows desktop resources.
+// DeleteAllWindowsDesktops removes all Windows desktop resources.
 func (s *WindowsDesktopService) DeleteAllWindowsDesktops(ctx context.Context) error {
 	startKey := backend.Key(windowsDesktopsPrefix, "")
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
@@ -208,7 +208,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 
 	// If both HostID and Name are set in the filter only one desktop should be expected
 	if req.HostID != "" && req.Name != "" && len(desktops) == 0 {
-		return nil, trace.NotFound("windows desktop \"%s/%s\" doesn't exist", req.HostID, req.Name)
+		return nil, trace.NotFound("Windows desktop \"%s/%s\" doesn't exist", req.HostID, req.Name)
 	}
 
 	var nextKey string

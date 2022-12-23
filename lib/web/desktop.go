@@ -260,7 +260,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	}
 	windowsDesktopCerts, ok := key.WindowsDesktopCerts[desktopName]
 	if !ok {
-		return nil, trace.NotFound("failed to find windows desktop certificates for %q", desktopName)
+		return nil, trace.NotFound("failed to find Windows desktop certificates for %q", desktopName)
 	}
 	certConf, err := pk.TLSCertificate(windowsDesktopCerts)
 	if err != nil {
@@ -308,7 +308,7 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 	service, err := c.clt.GetWindowsDesktopService(context.Background(), desktopServiceID)
 	if err != nil {
 		log.Errorf("Error finding service with id %s", desktopServiceID)
-		return nil, trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
+		return nil, trace.NotFound("could not find Windows desktop service %s: %v", desktopServiceID, err)
 	}
 
 	*c.log = *c.log.WithField("windows-service-uuid", service.GetName())

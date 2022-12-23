@@ -1876,7 +1876,7 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 	return rg.presence.GetApplicationServers(ctx, namespace)
 }
 
-// GetKubernetesClusters returns all kubernetes cluster resources.
+// GetKubernetesClusters returns all Kubernetes cluster resources.
 func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
 	defer span.End()
@@ -1889,7 +1889,7 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	return rg.kubernetes.GetKubernetesClusters(ctx)
 }
 
-// GetKubernetesCluster returns the specified kubernetes cluster resource.
+// GetKubernetesCluster returns the specified Kubernetes cluster resource.
 func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
 	defer span.End()

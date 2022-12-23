@@ -80,7 +80,7 @@ func NewKubeConnectionTester(cfg KubeConnectionTesterConfig) (*KubeConnectionTes
 // We report the following cases:
 //   - trace of whether the Kubernetes cluster is reachable
 //   - trace of whether the User Role defines Kubernetes principals for the cluster: `kubernetes_groups` & `kubernetes_users`
-//   - trace of whether the User role has access to the desired kubernetes cluster: `kubernetes_labels` allow access.
+//   - trace of whether the User role has access to the desired Kubernetes cluster: `kubernetes_labels` allow access.
 //   - trace of weather the cluster is accessible and we can list pods on the desired namespace.
 func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
 	if req.ResourceKind != types.KindKubernetesCluster {
@@ -209,7 +209,7 @@ func (s KubeConnectionTester) handleUserGenCertsErr(ctx context.Context, cluster
 	if trace.IsBadParameter(actionErr) {
 		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
-		err := fmt.Errorf("kubernetes cluster %q is not registered or is offline", clusterName)
+		err := fmt.Errorf("Kubernetes cluster %q is not registered or is offline", clusterName)
 		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
 	} else if actionErr != nil {
 		return nil, trace.Wrap(actionErr)
@@ -241,7 +241,7 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 	if kubeErr != nil && strings.Contains(kubeErr.ErrStatus.Message, "This usually means that the agent is offline or has disconnected") {
 		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
-		err := fmt.Errorf("kubernetes cluster %q is not registered or is offline", clusterName)
+		err := fmt.Errorf("Kubernetes cluster %q is not registered or is offline", clusterName)
 		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
 	}
 

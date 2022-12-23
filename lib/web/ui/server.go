@@ -126,7 +126,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 
 // getAllowedKubeUsersAndGroupsForCluster works on a given set of roles to return
 // a list of allowed `kubernetes_users` and `kubernetes_groups` that can be used
-// to access a given kubernetes cluster.
+// to access a given Kubernetes cluster.
 // This function ignores any verification of the TTL associated with
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
