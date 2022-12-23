@@ -1229,7 +1229,7 @@ func testEscapeSequenceNoTrigger(t *testing.T, terminal *Terminal, sess <-chan e
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
-func verifySessionJoin(t *testing.T, username string, Teleport *helpers.TeleInstance) {
+func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInstance) {
 	// get a reference to site obj:
 	site := teleport.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
@@ -1500,7 +1500,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			sessCtlTimeout:    500 * time.Millisecond,
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
-			postFunc: func(ctx context.Context, t *testing.T, Teleport *helpers.TeleInstance) {
+			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
 				site := teleport.GetSiteAPI(helpers.Site)
 				var sems []types.Semaphore
 				var err error
