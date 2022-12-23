@@ -246,3 +246,51 @@ func SafeRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) er
 	http.Redirect(w, r, parsedURL.RequestURI(), http.StatusFound)
 	return nil
 }
+
+// ResponseStatusRecorder is an http.ResponseWriter that records the response status code.
+type ResponseStatusRecorder struct {
+	http.ResponseWriter
+	flusher http.Flusher
+	status  int
+}
+
+// NewResponseStatusRecorder makes and returns a ResponseStatusRecorder.
+func NewResponseStatusRecorder(w http.ResponseWriter) *ResponseStatusRecorder {
+	rec := &ResponseStatusRecorder{ResponseWriter: w}
+	if flusher, ok := w.(http.Flusher); ok {
+		rec.flusher = flusher
+	}
+	return rec
+}
+
+// WriteHeader sends an HTTP response header with the provided
+// status code and save the status code in the recorder.
+func (r *ResponseStatusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+// Flush optionally flushes the inner ResponseWriter if it supports that.
+// Otherwise, Flush is a noop.
+//
+// Flush is optionally used by github.com/gravitational/oxy/forward to flush
+// pending data on streaming HTTP responses (like streaming pod logs).
+//
+// Without this, oxy/forward will handle streaming responses by accumulating
+// ~32kb of response in a buffer before flushing it.
+func (r *ResponseStatusRecorder) Flush() {
+	if r.flusher != nil {
+		r.flusher.Flush()
+	}
+}
+
+// Status returns the recorded status after WriteHeader is called, or StatusOK if WriteHeader hasn't been called
+// explicitly.
+func (r *ResponseStatusRecorder) Status() int {
+	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
+	// explicitly called.
+	if r.status == 0 {
+		return http.StatusOK
+	}
+	return r.status
+}
