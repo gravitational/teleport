@@ -1,0 +1,85 @@
+  <Admonition type="note" scope={["enterprise", "cloud"]} scopeOnly>
+  The Homebrew version lacks the ability to maintain SAML/OIDC Authentication connector through the `tctl` binary.
+  Administrators especially are recommended to install the official maintained versions.
+</Admonition>
+  
+  <Notice type="danger">
+
+  The Teleport package in Homebrew is not maintained by Teleport and we can't
+  guarantee its reliability or security. We recommend the use of our [official
+  Teleport packages](https://goteleport.com/teleport/download?os=mac).
+
+  </Notice>
+
+    Run the following command:
+
+    ```code
+    $ brew install teleport
+    ```
+
+    If you choose to use Homebrew, you must verify that the versions of `tsh`
+    and `tctl` you run on your local machine are compatible with the versions
+    you run on your infrastructure. Homebrew usually ships the latest release of
+    Teleport, which may be incompatible with older versions. See our
+    [compatibility policy](./management/operations/upgrading.mdx) for details.
+
+    Log in to your cluster:
+    <ScopedBlock scope="cloud">
+
+    ```code
+    $ tsh login --proxy=mytenant.teleport.sh --user=myuser
+    ```
+
+    </ScopedBlock>
+    <ScopedBlock scope={["oss", "enterprise"]}>
+
+    ```code
+    $ tsh login --proxy=teleport.example.com --user=myuser
+    ```
+
+    </ScopedBlock>
+
+    Get the version of your Teleport cluster:
+
+    <ScopedBlock scope="cloud">
+
+    ```code
+    $ tctl status
+    tctl status
+    Cluster  mytenant.teleport.sh
+    Version  (=teleport.version=)
+    Host CA  never updated
+    User CA  never updated
+    Jwt CA   never updated
+    CA pin   (=presets.ca_pin=)
+    ```
+
+    </ScopedBlock>
+    <ScopedBlock scope={["oss", "enterprise"]}>
+
+    ```code
+    $ tctl status
+    tctl status
+    Cluster  teleport.example.com
+    Version  (=teleport.version=)
+    Host CA  never updated
+    User CA  never updated
+    Jwt CA   never updated
+    CA pin   (=presets.ca_pin=)
+    ```
+
+    </ScopedBlock>
+
+    Get your local tsh version:
+
+    ```code
+    $ tsh version
+    Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
+    ```
+
+    Get your local tctl version:
+
+    ```code
+    $ tctl version
+    Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
+    ```
