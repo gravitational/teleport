@@ -230,7 +230,7 @@ CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 # Is this build targeting the same OS & architecture it is being compiled on, or
 # will it require cross-compilation? We need to know this (especially for ARM) so we 
 # can set the cross-compiler path (and possibly feature flags) correctly. 
-IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)), "yes", "no")
+IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
@@ -249,7 +249,7 @@ CGOFLAG = CGO_ENABLED=1
 
 # If we 're not guaranteed to be building natively on an arm64 system, then we'll
 # need to configure the cross compiler.
-ifeq ("$(IS_NATIVE_BUILD)", "no")
+ifeq ($(IS_NATIVE_BUILD),"no")
 CGOFLAG += CC=aarch64-linux-gnu-gcc
 endif
 
