@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	cloud.google.com/go/container v1.9.0
-	cloud.google.com/go/iam v0.8.0
+	cloud.google.com/go/iam v0.9.0
 	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0
@@ -175,7 +175,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.105.0 // indirect
+	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.13.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
 	cloud.google.com/go/longrunning v0.3.0 // indirect
