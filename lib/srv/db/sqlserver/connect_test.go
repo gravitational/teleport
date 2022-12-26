@@ -187,6 +187,10 @@ HDKyflZ05nt/zvM6W/WIeMI7VMPw/Ryr7iynMqAYAhJhTFKdSwuNLDY8eFbOUnbw
 
 type mockAuth struct{}
 
+func (m *mockAuth) GenerateCertAuthorityCRL(ctx context.Context, t types.CertAuthType) ([]byte, error) {
+	return nil, nil
+}
+
 func (m *mockAuth) GenerateWindowsDesktopCert(ctx context.Context, request *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	return nil, nil
 }

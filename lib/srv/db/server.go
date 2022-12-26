@@ -437,8 +437,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 
 	if database.GetProtocol() == defaults.ProtocolSQLServer {
-		if err := s.startSQLServerLDAP(ctx, database); err != nil {
-			return trace.Wrap(err)
+		if database.GetAD().LDAPCert != "" {
+			if err := s.startSQLServerLDAP(ctx, database); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
