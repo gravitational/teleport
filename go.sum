@@ -37,8 +37,8 @@ cloud.google.com/go/compute v1.13.0 h1:AYrLkB8NPdDRslNp4Jxmzrhdr03fUAIDbiGFjLWow
 cloud.google.com/go/compute v1.13.0/go.mod h1:5aPTS0cUNMIc1CE546K+Th6weJUNQErARyZtRXDJ8GE=
 cloud.google.com/go/compute/metadata v0.2.1 h1:efOwf5ymceDhK6PKMnnrTHP4pppY5L22mle96M1yP48=
 cloud.google.com/go/compute/metadata v0.2.1/go.mod h1:jgHgmJd2RKBGzXqF5LR2EZMGxBkeanZ9wwa75XHJgOM=
-cloud.google.com/go/container v1.8.0 h1:wib6oN0XQT4r2M4RFfEz0AdfslEQc7H5SDLCV8EZ/lU=
-cloud.google.com/go/container v1.8.0/go.mod h1:1ZHYR+yKrEeDs/iBoUNgwyjWNo+WaPN8PRhVnWVCcuA=
+cloud.google.com/go/container v1.9.0 h1:HxfiL2aIrTs26xPhDrNNQSpeoUBW8Jkhw5q1rAiPICI=
+cloud.google.com/go/container v1.9.0/go.mod h1:fksFnGeES2eIA38Vo5FNhQUzKPfHSYCAmpeNJ7R3Gnc=
 cloud.google.com/go/datastore v1.0.0/go.mod h1:LXYbyblFSglQ5pkeyhO+Qmw7ukd3C+pD7TKLgZqpHYE=
 cloud.google.com/go/datastore v1.1.0/go.mod h1:umbIZjpQpHh4hmRpGhH4tLFup+FVzqBi1b3c64qFpCk=
 cloud.google.com/go/firestore v1.6.1 h1:8rBq3zRjnHx8UtBvaOWqBB1xq9jH6/wltfQLlTMh2Fw=
