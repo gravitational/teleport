@@ -3,7 +3,7 @@ module github.com/gravitational/teleport
 go 1.19
 
 require (
-	cloud.google.com/go/container v1.8.0
+	cloud.google.com/go/container v1.9.0
 	cloud.google.com/go/iam v0.8.0
 	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.1
@@ -173,9 +173,6 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
-
-// Do not remove. It breaks github.com/gravitational/go-oidc.
-require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 
 require (
 	cloud.google.com/go v0.105.0 // indirect
