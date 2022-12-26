@@ -91,7 +91,7 @@ require (
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.16
-	github.com/mdlayher/netlink v1.7.0
+	github.com/mdlayher/netlink v1.7.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.0
