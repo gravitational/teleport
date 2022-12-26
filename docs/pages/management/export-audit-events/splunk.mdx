@@ -670,7 +670,7 @@ url = "https://localhost:9061/services/collector/raw?token=MYTOKEN"
 ```
 
 Ensure the URL includes the scheme, host and port of your Universal Forwarder's
-HTTP intput, plus the URL path that the Universal Forwarder uses for raw data
+HTTP input, plus the URL path that the Universal Forwarder uses for raw data
 (`/services/collector/raw`). 
 
 Replace `MYTOKEN` with the token you generated earlier for the Splunk Universal
@@ -813,7 +813,7 @@ Teleport Cluster, ensure that:
 - The certificate the Teleport Event Handler is using to connect to your
   Teleport cluster is not past its expiration date. This is the value of the
   `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
-- Ensure that in your Teleport Evant Handler configuration file
+- Ensure that in your Teleport Event Handler configuration file
   (`teleport-event-handler.toml`), you have provided the correct host *and* port
   for the Teleport Proxy Service or Auth Service.
 
@@ -824,7 +824,7 @@ reference](../../reference/audit.mdx#event-types) so you can plan visualizations
 and alerts.
 
 In this guide, we made use of impersonation to supply credentials to the
-Teleport Event Handler to communicat with your Teleport cluster. To learn more
+Teleport Event Handler to communicate with your Teleport cluster. To learn more
 about impersonation, read [our
 guide](../../access-controls/guides/impersonation.mdx).
 

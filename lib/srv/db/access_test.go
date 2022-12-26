@@ -1815,9 +1815,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	testCtx.mux, err = multiplexer.New(multiplexer.Config{
-		ID:                  "test",
-		Listener:            listener,
-		EnableProxyProtocol: true,
+		ID:                          "test",
+		Listener:                    listener,
+		EnableExternalProxyProtocol: true,
 	})
 	require.NoError(t, err)
 

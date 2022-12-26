@@ -47,6 +47,8 @@ func newTestAliasRunner(t *testing.T) *aliasRunner {
 }
 
 func Test_expandAliasDefinition(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		aliasDef   string
@@ -148,6 +150,8 @@ func Test_expandAliasDefinition(t *testing.T) {
 }
 
 func Test_findAliasCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		args      []string
@@ -201,6 +205,8 @@ func Test_findAliasCommand(t *testing.T) {
 }
 
 func Test_getSeenAliases(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		env  map[string]string
@@ -236,6 +242,8 @@ func Test_getSeenAliases(t *testing.T) {
 }
 
 func Test_markAliasSeen(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		envIn  map[string]string
@@ -281,6 +289,8 @@ func Test_markAliasSeen(t *testing.T) {
 }
 
 func Test_getAliasDefinition(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		seen      []string
@@ -334,6 +344,8 @@ func Test_getAliasDefinition(t *testing.T) {
 }
 
 func Test_runAliasCommand(t *testing.T) {
+	t.Parallel()
+
 	selfExe, err := os.Executable()
 	require.NoError(t, err)
 

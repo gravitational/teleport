@@ -378,25 +378,15 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Log = utils.NewLoggerForTests()
 
-	db, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, db.Start())
-
-	t.Cleanup(func() {
-		db.Close()
-	})
-
-	// Wait for database agent to start.
-	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
-	require.NoError(t, err, "database server didn't start after 10s")
+	db = runTeleport(t, cfg)
 
 	// Wait for all databases to register to avoid races.
 	waitForDatabases(t, auth, dbs)
-
 	return db
 }
 
