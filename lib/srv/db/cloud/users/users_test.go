@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 )
@@ -52,14 +52,14 @@ func TestUsers(t *testing.T) {
 	smMock := libsecrets.NewMockSecretsManagerClient(libsecrets.MockSecretsManagerClientConfig{
 		Clock: clock,
 	})
-	ecMock := &cloudtest.ElastiCacheMock{}
+	ecMock := &mocks.ElastiCacheMock{}
 	ecMock.AddMockUser(elastiCacheUser("alice", "group1"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("bob", "group1", "group2"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("charlie", "group2", "group3"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("dan", "group3"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("not-managed", "group1", "group2"), nil)
 
-	mdbMock := &cloudtest.MemoryDBMock{}
+	mdbMock := &mocks.MemoryDBMock{}
 	mdbMock.AddMockUser(memoryDBUser("alice", "acl1"), managedTags)
 	mdbMock.AddMockUser(memoryDBUser("bob", "acl1", "acl2"), managedTags)
 	mdbMock.AddMockUser(memoryDBUser("charlie", "acl2", "acl3"), managedTags)

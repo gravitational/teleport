@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	clients "github.com/gravitational/teleport/lib/cloud"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -63,20 +63,20 @@ func TestAWSIAM(t *testing.T) {
 	}
 
 	// Configure mocks.
-	stsClient := &cloudtest.STSMock{
+	stsClient := &mocks.STSMock{
 		ARN: "arn:aws:iam::1234567890:role/test-role",
 	}
 
-	rdsClient := &cloudtest.RDSMock{
+	rdsClient := &mocks.RDSMock{
 		DBInstances: []*rds.DBInstance{rdsInstance},
 		DBClusters:  []*rds.DBCluster{auroraCluster},
 	}
 
-	redshiftClient := &cloudtest.RedshiftMock{
+	redshiftClient := &mocks.RedshiftMock{
 		Clusters: []*redshift.Cluster{redshiftCluster},
 	}
 
-	iamClient := &cloudtest.IAMMock{}
+	iamClient := &mocks.IAMMock{}
 
 	// Setup database resources.
 	rdsDatabase, err := types.NewDatabaseV3(types.Metadata{
@@ -226,7 +226,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create unauthorized mocks for AWS services.
-	stsClient := &cloudtest.STSMock{
+	stsClient := &mocks.STSMock{
 		ARN: "arn:aws:iam::1234567890:role/test-role",
 	}
 	// Make configurator.
@@ -246,8 +246,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "RDS database",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 			clients: &clients.TestCloudClients{
-				RDS: &cloudtest.RDSMockUnauth{},
-				IAM: &cloudtest.IAMErrorMock{
+				RDS: &mocks.RDSMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -257,8 +257,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "Aurora cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 			clients: &clients.TestCloudClients{
-				RDS: &cloudtest.RDSMockUnauth{},
-				IAM: &cloudtest.IAMErrorMock{
+				RDS: &mocks.RDSMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -268,8 +268,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "RDS database missing metadata",
 			meta: types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
 			clients: &clients.TestCloudClients{
-				RDS: &cloudtest.RDSMockUnauth{},
-				IAM: &cloudtest.IAMErrorMock{
+				RDS: &mocks.RDSMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -279,8 +279,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "Redshift cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				Redshift: &cloudtest.RedshiftMockUnauth{},
-				IAM: &cloudtest.IAMErrorMock{
+				Redshift: &mocks.RedshiftMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -290,8 +290,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "IAM UnmodifiableEntityException",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				Redshift: &cloudtest.RedshiftMockUnauth{},
-				IAM: &cloudtest.IAMErrorMock{
+				Redshift: &mocks.RedshiftMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: awserr.New(iam.ErrCodeUnmodifiableEntityException, "unauthorized", fmt.Errorf("unauthorized")),
 				},
 				STS: stsClient,

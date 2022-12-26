@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,7 +39,7 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 	rdsProxyEndpointVpc2, rdsProxyEndpointDatabaseVpc2 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc2, "endpoint-2", "us-east-1")
 
 	clients := &cloud.TestCloudClients{
-		RDS: &cloudtest.RDSMock{
+		RDS: &mocks.RDSMock{
 			DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
 			DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
 			DBProxyTargetPort: 9999,

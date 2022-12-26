@@ -52,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -561,7 +561,7 @@ func TestGCPRequireSSL(t *testing.T) {
 			withCloudSQLPostgres("postgres", cloudSQLAuthToken)(t, ctx, testCtx),
 			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 		},
-		GCPSQL: &cloudtest.GCPSQLAdminClientMock{
+		GCPSQL: &mocks.GCPSQLAdminClientMock{
 			EphemeralCert: ephemeralCert,
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
@@ -1929,7 +1929,7 @@ type agentParams struct {
 	// NoStart indicates server should not be started.
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
-	GCPSQL *cloudtest.GCPSQLAdminClientMock
+	GCPSQL *mocks.GCPSQLAdminClientMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CloudClients is the cloud API clients for database service.
@@ -1945,7 +1945,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 		p.HostID = c.hostID
 	}
 	if p.GCPSQL == nil {
-		p.GCPSQL = &cloudtest.GCPSQLAdminClientMock{
+		p.GCPSQL = &mocks.GCPSQLAdminClientMock{
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
 					IpConfiguration: &sqladmin.IpConfiguration{
@@ -1958,14 +1958,14 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:                &cloudtest.STSMock{},
-			RDS:                &cloudtest.RDSMock{},
-			Redshift:           &cloudtest.RedshiftMock{},
-			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
-			ElastiCache:        &cloudtest.ElastiCacheMock{},
-			MemoryDB:           &cloudtest.MemoryDBMock{},
+			STS:                &mocks.STSMock{},
+			RDS:                &mocks.RDSMock{},
+			Redshift:           &mocks.RedshiftMock{},
+			RedshiftServerless: &mocks.RedshiftServerlessMock{},
+			ElastiCache:        &mocks.ElastiCacheMock{},
+			MemoryDB:           &mocks.MemoryDBMock{},
 			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:                &cloudtest.IAMMock{},
+			IAM:                &mocks.IAMMock{},
 			GCPSQL:             p.GCPSQL,
 		}
 	}

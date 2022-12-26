@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -57,7 +57,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &cloudtest.ElastiCacheMock{
+				ElastiCache: &mocks.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheQA},
 					TagsByARN:         elasticacheTagsByARN,
 				},
@@ -68,7 +68,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 		{
 			name: "fetch prod",
 			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &cloudtest.ElastiCacheMock{
+				ElastiCache: &mocks.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheQA},
 					TagsByARN:         elasticacheTagsByARN,
 				},
@@ -79,7 +79,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 		{
 			name: "skip unavailable",
 			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &cloudtest.ElastiCacheMock{
+				ElastiCache: &mocks.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheUnavailable},
 					TagsByARN:         elasticacheTagsByARN,
 				},
@@ -90,7 +90,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 		{
 			name: "skip unsupported",
 			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &cloudtest.ElastiCacheMock{
+				ElastiCache: &mocks.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheUnsupported},
 					TagsByARN:         elasticacheTagsByARN,
 				},

@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -44,9 +44,9 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 		aws.StringValue(endpointDev.EndpointArn):    libcloudaws.LabelsToTags[redshiftserverless.Tag](envDevLabels),
 	}
 
-	workgroupNotAvailable := cloudtest.RedshiftServerlessWorkgroup("wg-creating", "us-east-1")
+	workgroupNotAvailable := mocks.RedshiftServerlessWorkgroup("wg-creating", "us-east-1")
 	workgroupNotAvailable.Status = aws.String("creating")
-	endpointNotAvailable := cloudtest.RedshiftServerlessEndpointAccess(workgroupNotAvailable, "endpoint-creating", "us-east-1")
+	endpointNotAvailable := mocks.RedshiftServerlessEndpointAccess(workgroupNotAvailable, "endpoint-creating", "us-east-1")
 	endpointNotAvailable.EndpointStatus = aws.String("creating")
 
 	tests := []struct {
@@ -58,7 +58,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
-				RedshiftServerless: &cloudtest.RedshiftServerlessMock{
+				RedshiftServerless: &mocks.RedshiftServerlessMock{
 					Workgroups: []*redshiftserverless.Workgroup{workgroupProd, workgroupDev},
 					Endpoints:  []*redshiftserverless.EndpointAccess{endpointProd, endpointDev},
 					TagsByARN:  tagsByARN,
@@ -70,7 +70,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 		{
 			name: "fetch prod",
 			inputClients: &cloud.TestCloudClients{
-				RedshiftServerless: &cloudtest.RedshiftServerlessMock{
+				RedshiftServerless: &mocks.RedshiftServerlessMock{
 					Workgroups: []*redshiftserverless.Workgroup{workgroupProd, workgroupDev},
 					Endpoints:  []*redshiftserverless.EndpointAccess{endpointProd, endpointDev},
 					TagsByARN:  tagsByARN,
@@ -82,7 +82,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 		{
 			name: "skip unavailable",
 			inputClients: &cloud.TestCloudClients{
-				RedshiftServerless: &cloudtest.RedshiftServerlessMock{
+				RedshiftServerless: &mocks.RedshiftServerlessMock{
 					Workgroups: []*redshiftserverless.Workgroup{workgroupProd, workgroupNotAvailable},
 					Endpoints:  []*redshiftserverless.EndpointAccess{endpointNotAvailable},
 					TagsByARN:  tagsByARN,
@@ -105,7 +105,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 }
 
 func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels map[string]string) (*redshiftserverless.Workgroup, types.Database) {
-	workgroup := cloudtest.RedshiftServerlessWorkgroup(name, region)
+	workgroup := mocks.RedshiftServerlessWorkgroup(name, region)
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels m
 }
 
 func makeRedshiftServerlessEndpoint(t *testing.T, workgroup *redshiftserverless.Workgroup, name, region string, labels map[string]string) (*redshiftserverless.EndpointAccess, types.Database) {
-	endpoint := cloudtest.RedshiftServerlessEndpointAccess(workgroup, name, region)
+	endpoint := mocks.RedshiftServerlessEndpointAccess(workgroup, name, region)
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 	require.NoError(t, err)

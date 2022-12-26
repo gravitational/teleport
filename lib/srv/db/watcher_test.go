@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -199,7 +199,7 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 func TestWatcherCloudFetchers(t *testing.T) {
 	// Test an AWS fetcher. Note that status AWS can be set by Metadata
 	// service.
-	redshiftServerlessWorkgroup := cloudtest.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
+	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
 	redshiftServerlessDatabase, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
@@ -216,8 +216,8 @@ func TestWatcherCloudFetchers(t *testing.T) {
 			reconcileCh <- d
 		},
 		CloudClients: &clients.TestCloudClients{
-			RDS: &cloudtest.RDSMockUnauth{}, // Access denied error should not affect other fetchers.
-			RedshiftServerless: &cloudtest.RedshiftServerlessMock{
+			RDS: &mocks.RDSMockUnauth{}, // Access denied error should not affect other fetchers.
+			RedshiftServerless: &mocks.RedshiftServerlessMock{
 				Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
 			},
 			AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{

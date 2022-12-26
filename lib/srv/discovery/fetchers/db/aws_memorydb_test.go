@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -56,7 +56,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &cloudtest.MemoryDBMock{
+				MemoryDB: &mocks.MemoryDBMock{
 					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbTest},
 					TagsByARN: memorydbTagsByARN,
 				},
@@ -67,7 +67,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 		{
 			name: "fetch prod",
 			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &cloudtest.MemoryDBMock{
+				MemoryDB: &mocks.MemoryDBMock{
 					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbTest},
 					TagsByARN: memorydbTagsByARN,
 				},
@@ -78,7 +78,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 		{
 			name: "skip unavailable",
 			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &cloudtest.MemoryDBMock{
+				MemoryDB: &mocks.MemoryDBMock{
 					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbUnavailable},
 					TagsByARN: memorydbTagsByARN,
 				},
@@ -89,7 +89,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 		{
 			name: "skip unsupported",
 			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &cloudtest.MemoryDBMock{
+				MemoryDB: &mocks.MemoryDBMock{
 					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbUnsupported},
 					TagsByARN: memorydbTagsByARN,
 				},

@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -47,7 +47,7 @@ func TestRedshiftFetcher(t *testing.T) {
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
-				Redshift: &cloudtest.RedshiftMock{
+				Redshift: &mocks.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
 			},
@@ -57,7 +57,7 @@ func TestRedshiftFetcher(t *testing.T) {
 		{
 			name: "fetch prod",
 			inputClients: &cloud.TestCloudClients{
-				Redshift: &cloudtest.RedshiftMock{
+				Redshift: &mocks.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
 			},
@@ -67,7 +67,7 @@ func TestRedshiftFetcher(t *testing.T) {
 		{
 			name: "skip unavailable",
 			inputClients: &cloud.TestCloudClients{
-				Redshift: &cloudtest.RedshiftMock{
+				Redshift: &mocks.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable, redshiftUse1UnknownStatus},
 				},
 			},

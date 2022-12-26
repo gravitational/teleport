@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -65,12 +65,12 @@ func TestRDSFetchers(t *testing.T) {
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &cloudtest.RDSMock{
+					"us-east-1": &mocks.RDSMock{
 						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
 						DBClusters:       []*rds.DBCluster{auroraCluster1},
 						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 					},
-					"us-east-2": &cloudtest.RDSMock{
+					"us-east-2": &mocks.RDSMock{
 						DBInstances:      []*rds.DBInstance{rdsInstance2},
 						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
 						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
@@ -98,12 +98,12 @@ func TestRDSFetchers(t *testing.T) {
 			name: "fetch different labels for different regions",
 			inputClients: &cloud.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &cloudtest.RDSMock{
+					"us-east-1": &mocks.RDSMock{
 						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
 						DBClusters:       []*rds.DBCluster{auroraCluster1},
 						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 					},
-					"us-east-2": &cloudtest.RDSMock{
+					"us-east-2": &mocks.RDSMock{
 						DBInstances:      []*rds.DBInstance{rdsInstance2},
 						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
 						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
@@ -131,12 +131,12 @@ func TestRDSFetchers(t *testing.T) {
 			name: "skip unrecognized engines",
 			inputClients: &cloud.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &cloudtest.RDSMock{
+					"us-east-1": &mocks.RDSMock{
 						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
 						DBClusters:       []*rds.DBCluster{auroraCluster1},
 						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 					},
-					"us-east-2": &cloudtest.RDSMock{
+					"us-east-2": &mocks.RDSMock{
 						DBInstances:      []*rds.DBInstance{rdsInstance2},
 						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
 						DBEngineVersions: []*rds.DBEngineVersion{postgresEngine},
@@ -161,7 +161,7 @@ func TestRDSFetchers(t *testing.T) {
 			name: "skip unsupported databases",
 			inputClients: &cloud.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &cloudtest.RDSMock{
+					"us-east-1": &mocks.RDSMock{
 						DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
 						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 					},
@@ -177,7 +177,7 @@ func TestRDSFetchers(t *testing.T) {
 		{
 			name: "skip unavailable databases",
 			inputClients: &cloud.TestCloudClients{
-				RDS: &cloudtest.RDSMock{
+				RDS: &mocks.RDSMock{
 					DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
 					DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
 					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
@@ -193,7 +193,7 @@ func TestRDSFetchers(t *testing.T) {
 		{
 			name: "Aurora cluster without writer",
 			inputClients: &cloud.TestCloudClients{
-				RDS: &cloudtest.RDSMock{
+				RDS: &mocks.RDSMock{
 					DBClusters:       []*rds.DBCluster{auroraClusterNoWriter},
 					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 				},
