@@ -54,7 +54,7 @@ require (
 	github.com/go-redis/redis/v9 v9.0.0-rc.1 // replaced
 	github.com/go-webauthn/webauthn v0.5.0
 	github.com/gobuffalo/flect v0.3.0
-	github.com/gocql/gocql v1.3.0
+	github.com/gocql/gocql v1.3.1
 	github.com/gofrs/flock v0.8.1
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.4.3
@@ -173,9 +173,6 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
-
-// Do not remove. It breaks github.com/gravitational/go-oidc.
-require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 
 require (
 	cloud.google.com/go v0.105.0 // indirect
