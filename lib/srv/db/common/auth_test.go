@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -107,8 +107,8 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 		Clock:      clock,
 		AuthClient: new(authClientMock),
 		Clients: &cloud.TestCloudClients{
-			RedshiftServerless: &cloudtest.RedshiftServerlessMock{
-				GetCredentialsOutput: cloudtest.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
+			RedshiftServerless: &mocks.RedshiftServerlessMock{
+				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
 		},
 	})
