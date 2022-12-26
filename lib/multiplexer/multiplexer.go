@@ -234,7 +234,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	connWrapper, err := m.detect(conn)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			m.Warning(trace.DebugReport(err))
+			m.Debug(trace.DebugReport(err))
 		}
 		conn.Close()
 		return

@@ -329,9 +329,9 @@ func (p *Proxy) Serve(ctx context.Context) error {
 				}
 
 				if trace.IsBadParameter(err) {
-					p.log.Warnf("Failed to handle client connection: %v", err)
+					p.log.Debugf("Failed to handle client connection: %v", err)
 				} else if !utils.IsOKNetworkError(err) {
-					p.log.WithError(err).Warnf("Failed to handle client connection.")
+					p.log.WithError(err).Debug("Failed to handle client connection.")
 				}
 			}
 		}()

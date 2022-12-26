@@ -141,7 +141,7 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 	start := l.cfg.Clock.Now()
 	if err := conn.Handshake(); err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			l.log.WithError(err).Warning("Handshake failed.")
+			l.log.WithError(err).Debug("Handshake failed.")
 		}
 		conn.Close()
 		return
