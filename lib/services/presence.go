@@ -231,7 +231,7 @@ type Presence interface {
 	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
 	DeleteAllWindowsDesktopServices(context.Context) error
 
-	// ListResoures returns a paginated list of resources.
+	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
 	// UpsertDatabaseService updates an existing DatabaseService resource.

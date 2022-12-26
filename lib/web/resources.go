@@ -393,6 +393,6 @@ type resourcesAPIGetter interface {
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
-	// ListResoures returns a paginated list of resources.
+	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
