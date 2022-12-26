@@ -21,8 +21,8 @@ import (
 	"encoding/binary"
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 // Login7Packet represents a Login7 packet that defines authentication rules
@@ -36,6 +36,10 @@ type Login7Packet struct {
 	database string
 }
 
+const (
+	ReadOnlyIntent = 32
+)
+
 // Username returns the username from the Login7 packet.
 func (p *Login7Packet) Username() string {
 	return p.username
@@ -46,19 +50,27 @@ func (p *Login7Packet) Database() string {
 	return p.database
 }
 
-// OptionFlags1 returns the packet's first set of option flags.
+// OptionFlags1 returns the packet's first set of option flags. Removed in MSSQL Microsoft Driver - fUseDB and fSetLang
+// are given regardless of client options.
 func (p *Login7Packet) OptionFlags1() uint8 {
 	return p.header.OptionFlags1
 }
 
-// OptionFlags2 returns the packet's second set of option flags.
+// OptionFlags2 returns the packet's second set of option flags. Removed in MSSQL Microsoft Driver - fODBC is set regardless
+// of client options.
 func (p *Login7Packet) OptionFlags2() uint8 {
 	return p.header.OptionFlags2
 }
 
-// TypeFlags returns the packet's set of type flags.
+// TypeFlags returns the packet's set of type flags. Removed in MSSQL Microsoft Driver - type flags are still passed,
+// but they are interpreted only from a boolean option given in the login configuration, ReadOnlyIntent.
 func (p *Login7Packet) TypeFlags() uint8 {
 	return p.header.TypeFlags
+}
+
+// ReadOnlyIntent returns whether the type flag setting ReadOnlyIntent is set in the packet header.
+func (p *Login7Packet) ReadOnlyIntent() bool {
+	return p.TypeFlags()&ReadOnlyIntent == 0
 }
 
 // PacketSize return the packet size from the Login7 packet.

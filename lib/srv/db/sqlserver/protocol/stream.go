@@ -19,8 +19,8 @@ package protocol
 import (
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 // WriteStreamResponse writes stream response packet to the writer.

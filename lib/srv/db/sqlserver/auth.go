@@ -21,6 +21,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"github.com/microsoft/go-mssqldb/integratedauth"
+	"github.com/microsoft/go-mssqldb/msdsn"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -163,3 +165,7 @@ func (a *krbAuth) NextBytes(bytes []byte) ([]byte, error) {
 }
 
 func (a *krbAuth) Free() {}
+
+func (a *krbAuth) GetIntegratedAuthenticator(config msdsn.Config) (integratedauth.IntegratedAuthenticator, error) {
+	return a, nil
+}

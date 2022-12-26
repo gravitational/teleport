@@ -22,9 +22,9 @@ import (
 	"net"
 	"strconv"
 
-	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/msdsn"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,7 +51,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mssql
 		User:       config.RouteToDatabase.Username,
 		Database:   config.RouteToDatabase.Database,
 		Encryption: msdsn.EncryptionDisabled,
-	}, nil)
+	})
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {
@@ -81,18 +81,11 @@ func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session,
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Pass all login options from the client to the server.
-	options := msdsn.LoginOptions{
-		OptionFlags1: loginPacket.OptionFlags1(),
-		OptionFlags2: loginPacket.OptionFlags2(),
-		TypeFlags:    loginPacket.TypeFlags(),
-	}
-
 	connector := mssql.NewConnectorConfig(msdsn.Config{
-		Host:         host,
-		Port:         portI,
-		LoginOptions: options,
-	}, nil)
+		Host:           host,
+		Port:           portI,
+		ReadOnlyIntent: loginPacket.ReadOnlyIntent(),
+	})
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {

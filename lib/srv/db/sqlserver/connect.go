@@ -19,15 +19,16 @@ package sqlserver
 import (
 	"context"
 	"errors"
+	"github.com/microsoft/go-mssqldb/integratedauth"
 	"io"
 	"net"
 	"strconv"
 
-	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/denisenkom/go-mssqldb/azuread"
-	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/azuread"
+	"github.com/microsoft/go-mssqldb/msdsn"
 
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -91,21 +92,14 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Pass all login options from the client to the server.
-	options := msdsn.LoginOptions{
-		OptionFlags1: loginPacket.OptionFlags1(),
-		OptionFlags2: loginPacket.OptionFlags2(),
-		TypeFlags:    loginPacket.TypeFlags(),
-	}
-
 	dsnConfig := msdsn.Config{
-		Host:         host,
-		Port:         portI,
-		Database:     sessionCtx.DatabaseName,
-		LoginOptions: options,
-		Encryption:   msdsn.EncryptionRequired,
-		TLSConfig:    tlsConfig,
-		PacketSize:   loginPacket.PacketSize(),
+		Host:           host,
+		Port:           portI,
+		Database:       sessionCtx.DatabaseName,
+		Encryption:     msdsn.EncryptionRequired,
+		TLSConfig:      tlsConfig,
+		PacketSize:     loginPacket.PacketSize(),
+		ReadOnlyIntent: loginPacket.ReadOnlyIntent(),
 	}
 
 	var connector *mssql.Connector
@@ -126,6 +120,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 			return nil, nil, trace.Wrap(err)
 		}
 	} else {
+		dsnConfig.Parameters = map[string]string{"authenticator": "teleport"}
 		kc, err := c.getKerberosClient(ctx, sessionCtx)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -134,8 +129,11 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-
-		connector = mssql.NewConnectorConfig(dsnConfig, dbAuth)
+		err = integratedauth.SetIntegratedAuthenticationProvider("teleport", dbAuth)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		connector = mssql.NewConnectorConfig(dsnConfig)
 	}
 
 	conn, err := connector.Connect(ctx)
