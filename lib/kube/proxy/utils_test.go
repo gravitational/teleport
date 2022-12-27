@@ -279,6 +279,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, usern
 	role.SetKubeGroups(types.Allow, roleSpec.kubeGroups)
 	role.SetSessionRequirePolicies(roleSpec.sessionRequire)
 	role.SetSessionJoinPolicies(roleSpec.sessionJoin)
+	role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard}})
 	err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role

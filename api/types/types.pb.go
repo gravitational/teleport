@@ -5397,7 +5397,11 @@ type ResourceID struct {
 	Kind string `protobuf:"bytes,2,opt,name=Kind,proto3" json:"kind"`
 	// Name is the name of the specific resource.
 	Name string `protobuf:"bytes,3,opt,name=Name,proto3" json:"name"`
-	// SubResourceName is the sub resource name of the specific resource.
+	// SubResourceName is the resource belonging to resource identified by "Name"
+	// that the user is allowed to access to.
+	// When granting access to a subresource, access to other resources is limited.
+	// Currently it just supports resources of Kind=pod and the format is the following
+	// "<kube_namespace>/<kube_pod>".
 	SubResourceName      string   `protobuf:"bytes,4,opt,name=SubResourceName,proto3" json:"sub_resource"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

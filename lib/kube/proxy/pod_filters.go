@@ -20,10 +20,10 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
@@ -35,7 +35,7 @@ import (
 // - deniedPods: excluded if (namespace,name) matches an entry even if it matches
 // the allowedPod's list.
 // - allowedPods: excluded if (namespace,name) not match a single entry.
-func newPodFiltererBuilder(allowedPods, deniedPods []types.KubernetesResource) responsewriters.FilterWrapper {
+func newPodFiltererBuilder(allowedPods, deniedPods []types.KubernetesResource, log logrus.FieldLogger) responsewriters.FilterWrapper {
 	negotiator := newClientNegotiator()
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
 		return newPodFilterer(
@@ -45,6 +45,7 @@ func newPodFiltererBuilder(allowedPods, deniedPods []types.KubernetesResource) r
 				negotiator:       negotiator,
 				allowedResources: allowedPods,
 				deniedResources:  deniedPods,
+				log:              log,
 			},
 		)
 	}
@@ -62,6 +63,8 @@ type podFiltererConfig struct {
 	allowedResources []types.KubernetesResource
 	// deniedResources is the list of kubernetes resources the user must not access.
 	deniedResources []types.KubernetesResource
+	// log is the logger.
+	log logrus.FieldLogger
 }
 
 // newPodFilterer creates a new instance of podFilterer with the encoders and
@@ -116,10 +119,13 @@ func (d *podFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 		// filterPod filters a single corev1.Pod and returns an error if access to
 		// pod was denied.
 		if err := filterPod(o, d.allowedResources, d.deniedResources); err != nil {
+			if !trace.IsAccessDenied(err) {
+				d.log.WithError(err).Warnf("Unable to compile role kubernetes_resources.")
+			}
 			return trace.Wrap(err)
 		}
 	case *corev1.PodList:
-		filtered = filterCoreV1PodList(o, d.allowedResources, d.deniedResources)
+		filtered = filterCoreV1PodList(o, d.allowedResources, d.deniedResources, d.log)
 	case *metav1.Table:
 		filtered, err = d.filterMetav1Table(o, d.allowedResources, d.deniedResources)
 		if err != nil {
@@ -139,10 +145,13 @@ func (d *podFilterer) FilterObj(obj runtime.Object) (bool, error) {
 	switch o := obj.(type) {
 	case *corev1.Pod:
 		err := filterPod(o, d.allowedResources, d.deniedResources)
+		if err != nil && !trace.IsAccessDenied(err) {
+			d.log.WithError(err).Warnf("Unable to compile role kubernetes_resources.")
+		}
 		// if err is not nil we should not include it.
 		return err == nil, nil
 	case *corev1.PodList:
-		_ = filterCoreV1PodList(o, d.allowedResources, d.deniedResources)
+		_ = filterCoreV1PodList(o, d.allowedResources, d.deniedResources, d.log)
 		return len(o.Items) > 0, nil
 	case *metav1.Table:
 		_, err := d.filterMetav1Table(o, d.allowedResources, d.deniedResources)
@@ -167,41 +176,22 @@ func (d *podFilterer) decode(buffer []byte) (runtime.Object, []byte, error) {
 		// did not return a structured error.
 		return nil, buffer, nil
 	default:
-		out, gvk, err := d.decoder.Decode(buffer, nil, nil)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		if gvk != nil {
-			// objects from decode do not contain GroupVersionKind.
-			// We force it to be present for later encoding.
-			out.GetObjectKind().SetGroupVersionKind(*gvk)
-		}
-		return out, nil, nil
+		out, err := decodeAndSetGVK(d.decoder, buffer)
+		return out, nil, trace.Wrap(err)
 	}
 }
 
 // decodePartialObjectMetadata decodes the metav1.PartialObjectMetadata present
 // in the metav1.TableRow entry. This information comes from server side and
 // includes the resource name and namespace as a structured object.
-func (d *podFilterer) decodePartialObjectMetadata(row *metav1.TableRow) error {
+func (d *podFilterer) decodePartialObjectMetadata(row *metav1.TableRow) (err error) {
 	if row.Object.Object != nil {
 		return nil
 	}
 
 	// decode only if row.Object.Object was not decoded before.
-	var (
-		gvk *schema.GroupVersionKind
-		err error
-	)
-	row.Object.Object, gvk, err = d.decoder.Decode(row.Object.Raw, nil, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if gvk != nil {
-		row.Object.Object.GetObjectKind().SetGroupVersionKind(*gvk)
-	}
-
-	return nil
+	row.Object.Object, err = decodeAndSetGVK(d.decoder, row.Object.Raw)
+	return trace.Wrap(err)
 }
 
 // encode encodes the filtered object into the io.Writer using the same
@@ -210,12 +200,14 @@ func (d *podFilterer) encode(obj runtime.Object, w io.Writer) error {
 	return trace.Wrap(d.encoder.Encode(obj, w))
 }
 
-// filterCoreV1PodList exludes pods the user should not have access to.
-func filterCoreV1PodList(list *corev1.PodList, allowed, denied []types.KubernetesResource) *corev1.PodList {
+// filterCoreV1PodList excludes pods the user should not have access to.
+func filterCoreV1PodList(list *corev1.PodList, allowed, denied []types.KubernetesResource, log logrus.FieldLogger) *corev1.PodList {
 	pods := make([]corev1.Pod, 0, len(list.Items))
 	for _, pod := range list.Items {
 		if err := filterPod(&pod, allowed, denied); err == nil {
 			pods = append(pods, pod)
+		} else if !trace.IsAccessDenied(err) {
+			log.WithError(err).Warnf("Unable to compile role kubernetes_resources.")
 		}
 	}
 	list.Items = pods
@@ -235,6 +227,8 @@ func filterPod(pod *corev1.Pod, allowed, denied []types.KubernetesResource) erro
 	return trace.Wrap(err)
 }
 
+// filterMetav1Table filters the serverside printed table to exclude pods
+// that the user must not have access to.
 func (d *podFilterer) filterMetav1Table(table *metav1.Table, allowedPods, deniedPods []types.KubernetesResource) (*metav1.Table, error) {
 	pods := make([]metav1.TableRow, 0, len(table.Rows))
 	for i := range table.Rows {
@@ -248,6 +242,8 @@ func (d *podFilterer) filterMetav1Table(table *metav1.Table, allowedPods, denied
 		}
 		if err := matchKubernetesResource(resource, allowedPods, deniedPods); err == nil {
 			pods = append(pods, *row)
+		} else if !trace.IsAccessDenied(err) {
+			d.log.WithError(err).Warnf("Unable to compile regex expression.")
 		}
 	}
 	table.Rows = pods
@@ -290,4 +286,19 @@ func newEncoderAndDecoderForContentType(contentType string, negotiator runtime.C
 		return nil, nil, trace.Wrap(err)
 	}
 	return enc, dec, nil
+}
+
+// decodeAndSetGVK decodes the payload into the appropriate type using the decoder
+// provider and sets the GVK if available.
+func decodeAndSetGVK(decoder runtime.Decoder, payload []byte) (runtime.Object, error) {
+	obj, gvk, err := decoder.Decode(payload, nil, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gvk != nil {
+		// objects from decode do not contain GroupVersionKind.
+		// We force it to be present for later encoding.
+		obj.GetObjectKind().SetGroupVersionKind(*gvk)
+	}
+	return obj, nil
 }

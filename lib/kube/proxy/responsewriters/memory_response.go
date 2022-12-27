@@ -73,10 +73,10 @@ func (f *MemoryResponseWriter) Status() int {
 	return f.status
 }
 
-// CopyTo copies the headers, response code and body into the provided response
+// FilterInto copies the headers, response code and body into the provided response
 // writer. If MemoryResponseWriter was initialized with a filter, it will
 // filter the response buffer before writing it into the destination response.
-func (f *MemoryResponseWriter) CopyTo(w http.ResponseWriter) error {
+func (f *MemoryResponseWriter) FilterInto(w http.ResponseWriter) error {
 	copyHeader(w.Header(), f.header)
 
 	b := f.buf.Bytes()

@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	mathrand "math/rand"
-	"mime"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -350,11 +349,14 @@ type authContext struct {
 	certExpires time.Time
 	// sessionTTL specifies the duration of the user's session
 	sessionTTL time.Duration
-	// kubernetesCluster is the Kubernetes cluster the request is targeted into.
+	// kubernetesCluster is the Kubernetes cluster the request is targeted to.
 	kubernetesCluster types.KubeCluster
 	// kubeResource is the kubernetes resource the request is targeted at.
 	// Can be nil, if the resource is not a pod or the request is not targeted
 	// at a specific pod.
+	// If non empty, kubeResource.Kind is populated with type "pod",
+	// kubeResource.Namespace is the resource namespace and kubeResource.Name
+	// is the resource name.
 	kubeResource *types.KubernetesResource
 }
 
@@ -762,18 +764,33 @@ func (f *Forwarder) getKubeAccessDetails(
 		// Get list of allowed kube user/groups based on kubernetes service labels.
 		labels := types.CombineLabels(c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
 
-		matchers := []services.RoleMatcher{
-			services.NewKubernetesClusterLabelMatcher(labels),
-		}
-		// if kubeResource is available append an extra matcher that validates if the
-		// kubernetes resource satisfies the user roles.
+		matchers := make([]services.RoleMatcher, 1, 2)
+		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
+		// defined for each user's role.
+		matchers[0] = services.NewKubernetesClusterLabelMatcher(labels)
+
+		// If the kubeResource is available, append an extra matcher that validates
+		// if the kubernetes resource is allowed by the user roles that satisfy the
+		// target cluster labels.
+		// Each role defines `kubernetes_resources` and when kubeResource is available,
+		// KubernetesResourceMatcher will match roles that statisfy the resources at the
+		// same time that ClusterLabelMatcher matches the role's "kubernetes_labels".
+		// The call to roles.CheckKubeGroupsAndUsers when both matchers are provided
+		// results in the intersection of roles that match the "kubernetes_labels" and
+		// roles that allow access to the desired "kubernetes_resource".
+		// If from the intersection results an empty set, the request is denied.
 		if kubeResource != nil {
 			matchers = append(
 				matchers,
 				services.NewKubernetesResourceMatcher(*kubeResource),
 			)
 		}
-
+		// roles.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
+		// and kubernetes_users that satisfy te provided matchers.
+		// When a KubernetesResourceMatcher, it will gather the Kubernetes principals
+		// whose role satisfy the the desired Kubernetes Resource.
+		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
+		// headers.
 		groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false, matchers...)
 		if err != nil {
 			return kubeAccessDetails{}, trace.Wrap(err)
@@ -797,7 +814,8 @@ func (f *Forwarder) getKubeAccessDetails(
 var podRegex = regexp.MustCompile(`(?m)/api/v1/namespaces/([^/]+)/pods/([^/]+)`)
 
 // getPodResourceFromRequest returns a KubernetesResource if the user tried to access
-// a specific pod endpoint. Otherwise, returns nil.
+// a specific Pod endpoint. Otherwise, returns nil.
+// TODO(tigrato): extend it to support other resources.
 func getPodResourceFromRequest(requestURI string) *types.KubernetesResource {
 	if !podRegex.MatchString(requestURI) {
 		return nil
@@ -833,21 +851,22 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	}
 
 	mfaParams := actx.MFAParams(ap.GetRequireMFAType())
+
+	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
+	var roleMatchers services.RoleMatchers
+	if actx.kubeResource != nil {
+		clusterNotFound = trace.AccessDenied("%s %q from Kubernetes cluster %q not found", actx.kubeResource.Kind, actx.kubeResource.ClusterResource(), actx.kubeCluster)
+		roleMatchers = services.RoleMatchers{
+			// Append a matcher that validates if the Kubernetes resource is allowed
+			// by the roles that satisfy the Kubernetes Cluster.
+			services.NewKubernetesResourceMatcher(*actx.kubeResource),
+		}
+	}
+
 	// Check authz against the first match.
 	//
 	// We assume that users won't register two identically-named clusters with
 	// mis-matched labels. If they do, expect weirdness.
-	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
-	var roleMatchers services.RoleMatchers
-	if actx.kubeResource != nil {
-		clusterNotFound = trace.AccessDenied("%s %q from Kubernetes cluster %q not found", actx.kubeResource.Kind, actx.kubeResource.ResourceIdentifier(), actx.kubeCluster)
-
-		roleMatchers = append(
-			roleMatchers,
-			services.NewKubernetesResourceMatcher(*actx.kubeResource),
-		)
-	}
-
 	for _, s := range servers {
 		ks := s.GetCluster()
 		if ks.GetName() != actx.kubeCluster {
@@ -857,7 +876,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		if err := actx.Checker.CheckAccess(ks, mfaParams, roleMatchers...); err != nil {
 			return clusterNotFound
 		}
-
+		// store a copu of the Kubernetes Cluster.
 		actx.kubernetesCluster = ks
 		return nil
 	}
@@ -868,21 +887,24 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	return clusterNotFound
 }
 
-func matchKubernetesResource(name types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
-	result, err := utils.KubeResourceMatchesRegex(name, denied)
+// matchKubernetesResource checks if the Kubernetes Resource does not match any
+// entry from the deny list and matches at least of entry from the allowed list.
+func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
+	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
+	//  to each entry and validates if the Name and Namespace fields matches the
+	// regex allowed by each entry.
+	result, err := utils.KubeResourceMatchesRegex(resource, denied)
 	if err != nil {
-		// TODO: add logging here
 		return trace.Wrap(err)
 	} else if result {
-		return trace.AccessDenied("access to pod %q denied", name.ResourceIdentifier())
+		return trace.AccessDenied("access to pod %q denied", resource.ClusterResource())
 	}
 
-	result, err = utils.KubeResourceMatchesRegex(name, allowed)
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
 	if err != nil {
-		// TODO: add logging here
 		return trace.Wrap(err)
 	} else if !result {
-		return trace.AccessDenied("access to pod %q denied", name.ResourceIdentifier())
+		return trace.AccessDenied("access to pod %q denied", resource.ClusterResource())
 	}
 	return nil
 }
@@ -2240,6 +2262,14 @@ func (f *Forwarder) removeKubeDetails(name string) {
 	delete(f.clusterDetails, name)
 }
 
+// isLocalKubeCluster checks if the current service must hold the cluster and
+// if it's of Type KubeService.
+// KubeProxy services or remote clusters are automatically forwarded to
+// the final destination.
+func (f *Forwarder) isLocalKubeCluster(sess *clusterSession) bool {
+	return !sess.authContext.teleportCluster.isRemote && f.cfg.KubeServiceType == KubeService
+}
+
 // listPods forwards the pod list request to the target server, captures
 // all output and filters accordingly to user roles resource access rules.
 func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
@@ -2263,19 +2293,27 @@ func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-
+	// status holds the returned response code.
 	var status int
-	if sess.authContext.teleportCluster.isRemote || f.cfg.ReverseTunnelSrv != nil {
+	// Check if the target Kubernetes cluster is not served by the current service.
+	// If it's the case, forward the request to the target Kube Service where the
+	// filtering logic will be applied.
+	if !f.isLocalKubeCluster(sess) {
 		rw := httplib.NewResponseStatusRecorder(w)
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
-
 		allowedResources, deniedResources := ctx.Checker.GetKubeResources(ctx.kubernetesCluster)
-		isWatch := len(req.URL.Query().Get("watch")) > 0
+		// isWatch identifies if the request is long-lived watch stream based on
+		// HTTP connection.
+		isWatch := req.URL.Query().Get("watch") == "yes"
 		if !isWatch {
+			// List pods and return immediately.
 			status, err = f.listPodsList(req, w, sess, allowedResources, deniedResources)
 		} else {
+			// Creates a watch stream to the upstream target and applies filtering
+			// for each new frame that is received to exlude pods the user doesn't
+			// have access to.
 			status, err = f.listPodsWatcher(req, w, sess, allowedResources, deniedResources)
 		}
 		if err != nil {
@@ -2319,24 +2357,46 @@ func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.
 	return nil, nil
 }
 
+// listPodsList forwards the request into the target cluster and accumulates the
+// response into the memory. Once the request finishes, the memory buffer
+// data is parsed and pods the user does not have access to are excluded from
+// the response. Finally, the filtered response is serialized and sent back to
+// to the user with the appropriate headers.
 func (f *Forwarder) listPodsList(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
-	memBuffer := responsewriters.NewMemoryResponseWriter(newPodFiltererBuilder(allowedResources, deniedResources))
+	// Create a memory response writer with the respective pod filter builder.
+	// The filterer builder is only executed once we know the response Content-Type.
+	memBuffer := responsewriters.NewMemoryResponseWriter(newPodFiltererBuilder(allowedResources, deniedResources, f.log))
+	// Forward the request to the target cluster.
 	sess.forwarder.ServeHTTP(memBuffer, req)
-	err := memBuffer.CopyTo(w)
+	// memBuffer.FilterInto parses the response, filters it and writes it into
+	// w.
+	err := memBuffer.FilterInto(w)
+	// Returns the status and any filter error.
 	return memBuffer.Status(), trace.Wrap(err)
 }
 
+// listPodsWatcher handles a long lived connection to the upstream server where
+// the Kubernetes API returns frames with events.
+// This handler creates a WatcherResponseWriter that spins a new go routine once
+// the API server writes the status code and headers.
+// The go routine waits for new events written into the response body and
+// decodes each event. Once decoded, we validate if the Pod name matches
+// any Pod specified in `kubernetes_resources` and if included, the event is
+// forwarded to the user's response writer.
+// If it does not match, the watcher ignores the event and continues waiting
+// for the next event.
 func (f *Forwarder) listPodsWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
 	negotiator := newClientNegotiator()
-	rw := responsewriters.NewWatcherResponseWriter(w, negotiator, newPodFiltererBuilder(allowedResources, deniedResources))
+	rw := responsewriters.NewWatcherResponseWriter(w, negotiator, newPodFiltererBuilder(allowedResources, deniedResources, f.log))
+	// Forwards the request to the target cluster.
 	sess.forwarder.ServeHTTP(rw, req)
+	// Once the request terminates, close the watcher and waits for resources
+	// cleanup.
 	err := rw.Close()
 	return rw.Status(), trace.Wrap(err)
 }
 
-// deletePodsCollection lists the pods the user has access and tries to delete
-// them one by one. If the delete request fails, Teleport won't include it in the
-// response.
+// deletePodsCollection calls checks the listPodsList
 func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
@@ -2358,14 +2418,20 @@ func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	// status holds the returned response code.
 	var status int
-	if sess.authContext.teleportCluster.isRemote || f.cfg.ReverseTunnelSrv != nil {
+	// Check if the target Kubernetes cluster is not served by the current service.
+	// If it's the case, forward the request to the target Kube Service where the
+	// filtering logic will be applied.
+	if !f.isLocalKubeCluster(sess) {
 		rw := httplib.NewResponseStatusRecorder(w)
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
 		memoryRW := responsewriters.NewMemoryResponseWriter(nil)
 		listReq := req.Clone(req.Context())
+		// reset body and method since list does not need the body response.
+		listReq.Body = nil
 		listReq.Method = http.MethodGet
 		_, err = f.listPods(ctx, memoryRW, listReq, p)
 		if err != nil {
@@ -2414,42 +2480,46 @@ func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter
 }
 
 func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authContext, memWriter *responsewriters.MemoryResponseWriter, w http.ResponseWriter) (int, error) {
-	// is cluster is remote return the response
-	negotiator := newClientNegotiator()
-
+	const internalErrStatus = http.StatusInternalServerError
+	// get content-type value
 	contentType := responsewriters.GetContentHeader(memWriter.Header())
-	mediaType, params, err := mime.ParseMediaType(contentType)
+	encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, newClientNegotiator())
 	if err != nil {
-		return 500, trace.WrapWithMessage(err, "unable to parse %q header %q", responsewriters.ContentTypeHeader, contentType)
-	}
-	dec, err := negotiator.Decoder(mediaType, params)
-	if err != nil {
-		return 500, trace.Wrap(err)
+		return internalErrStatus, trace.Wrap(err)
 	}
 
-	enc, err := negotiator.Encoder(mediaType, params)
+	deleteOptions, err := parseDeleteCollectionBody(req.Body, decoder)
 	if err != nil {
-		return 500, trace.Wrap(err)
+		return internalErrStatus, trace.Wrap(err)
+	}
+	req.Body.Close()
+
+	// decode memory rw body.
+	obj, err := decodeAndSetGVK(decoder, memWriter.Buffer().Bytes())
+	if err != nil {
+		return internalErrStatus, trace.Wrap(err)
 	}
 
-	obj, gvk, err := dec.Decode(memWriter.Buffer().Bytes(), nil, nil)
-	if err != nil {
-		return 500, trace.Wrap(err)
-	}
-	if gvk != nil {
-		obj.GetObjectKind().SetGroupVersionKind(*gvk)
-	}
 	details, err := f.findKubeDetailsByClusterName(authCtx.kubeCluster)
 	if err != nil {
-		return 500, trace.Wrap(err)
+		return internalErrStatus, trace.Wrap(err)
 	}
 	switch o := obj.(type) {
 	case *metav1.Status:
 		// Do nothing.
 	case *corev1.PodList:
+		// At this point, items already include the list of pods the filtered pods the
+		// user has access to.
+		// For each Pod, we compute the kubernetes_groups and kubernetes_labels
+		// that are applicable and we will forward them as the delete request.
+		// If request is a dry-run.
+		// TODO (tigrato):
+		//  - parallelize loop
+		//  -  check if the request should stop at the first fail.
 		items := make([]corev1.Pod, 0, len(o.Items))
-
 		for _, item := range o.Items {
+			// Compute users and groups from available roles that match the
+			// cluster labels and kubernetes resources.
 			kubeGroups, kubeUsers, err := authCtx.Checker.CheckKubeGroupsAndUsers(
 				authCtx.sessionTTL,
 				false,
@@ -2462,8 +2532,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 					},
 				),
 			)
+			// no match was found, we ignore the request.
 			if err != nil {
-				// TODO: log message here
 				continue
 			}
 			// By default, if no kubernetes_users is set (which will be a majority),
@@ -2479,35 +2549,62 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 			if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
 				kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 			}
+			// create a new kubernetes.Client using the impersonated users and groups
+			// that matched the current pod.
 			client, err := newImpersonatedKubeClient(details.kubeCreds, kubeUsers, kubeGroups)
 			if err != nil {
-				return 500, trace.Wrap(err)
+				return internalErrStatus, trace.Wrap(err)
 			}
-			// TODO: extract grace period from request
-			err = client.CoreV1().Pods(item.Namespace).Delete(req.Context(), item.Name, metav1.DeleteOptions{})
+			// delete each pod individually.
+			err = client.CoreV1().Pods(item.Namespace).Delete(req.Context(), item.Name, deleteOptions)
 			if err != nil {
-				return 500, trace.Wrap(err)
+				// TODO(tigrato): check what should we do when delete returns an error.
+				// Should we check if it's permission error?
+				continue
 			}
 			items = append(items, item)
 		}
+		// reset items.
 		o.Items = items
 	default:
-		return 500, trace.BadParameter("expected *corev1.PodList, got: %T", obj)
+		return internalErrStatus, trace.BadParameter("expected *corev1.PodList, got: %T", obj)
 	}
+	// reset the memory buffer.
 	memWriter.Buffer().Reset()
-	if err := enc.Encode(obj, memWriter.Buffer()); err != nil {
-		return 500, trace.Wrap(err)
+	// encode the filtered response into the memory buffer.
+	if err := encoder.Encode(obj, memWriter.Buffer()); err != nil {
+		return internalErrStatus, trace.Wrap(err)
 	}
-	return memWriter.Status(), trace.Wrap(memWriter.CopyTo(w))
+	// copy the output into the user's ResponseWriter and return.
+	return memWriter.Status(), trace.Wrap(memWriter.FilterInto(w))
 }
 
-func newImpersonatedKubeClient(creds kubeCreds, userName []string, groups []string) (*kubernetes.Clientset, error) {
+// newImpersonatedKubeClient creates a new Kubernetes Client that impersonates 3
+// a username and the groups.
+func newImpersonatedKubeClient(creds kubeCreds, usernames []string, groups []string) (*kubernetes.Clientset, error) {
 	c := &rest.Config{}
+	// clone cluster's rest config.
 	*c = *creds.getKubeRestConfig()
+	// change the impersonated headers.
 	c.Impersonate = rest.ImpersonationConfig{
-		UserName: userName[0],
+		UserName: usernames[0],
 		Groups:   groups,
 	}
+	// TODO(tigrato): reuse the http client.
 	client, err := kubernetes.NewForConfig(c)
 	return client, trace.Wrap(err)
+}
+
+// parseDeleteCollectionBody parses the request body targeted to pod collection
+// endpoints.
+func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.DeleteOptions, error) {
+	into := metav1.DeleteOptions{}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return into, trace.Wrap(err)
+	}
+	if len(data) > 0 {
+		_, _, err = decoder.Decode(data, nil, &into)
+	}
+	return into, trace.Wrap(err)
 }

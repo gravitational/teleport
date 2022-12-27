@@ -86,7 +86,7 @@ type RegexpConfig struct {
 	IgnoreCase bool
 }
 
-// SliceMatchesRegex checks if input matches any of the expressions. The
+// KubeResourceMatchesRegex checks if input matches any of the expressions. The
 // match is always evaluated as a regex either an exact match or regexp.
 func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
 	for _, resource := range resources {

@@ -39,12 +39,27 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 		return trace.BadParameter("ResourceID must include Name")
 	}
 
+	// If the resource Kind is not a Kubernetes Resource - currently only "pod" -
+	// we do not need to validate the sub-resource.
 	if !slices.Contains(KubernetesResourcesKinds, id.Kind) {
 		return nil
 	}
 
 	if len(id.SubResourceName) == 0 {
-		return trace.BadParameter("ResourceID of type %q must include a subresource name")
+		return trace.BadParameter("resource of type %q must include a subresource name")
+	}
+
+	split := strings.Split(id.SubResourceName, "/")
+	if len(split) == 2 {
+		return trace.BadParameter("resource of type %q must follow the following format: <namespace>/<name>")
+	}
+
+	if len(split[0]) == 0 {
+		return trace.BadParameter("sub_resource must include a non-empty namespace: <namespace>/<name>")
+	}
+
+	if len(split[1]) == 0 {
+		return trace.BadParameter("sub_resource must include a non-empty name: <namespace>/<name>")
 	}
 
 	return nil

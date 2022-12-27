@@ -16,6 +16,7 @@ package responsewriters
 
 import (
 	"io"
+	"net/http"
 
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -50,3 +51,13 @@ type Filter interface {
 // the allowedPod's list.
 // - allowedPods: excluded if (namespace,name) not match a single entry.
 type FilterWrapper func(contentType string, responseCode int) (Filter, error)
+
+// GetContentHeader checks for the presence of the "Content-Type" header and
+// returns its value or returns the default content-type: "application/json".
+func GetContentHeader(header http.Header) string {
+	contentType := header.Get(ContentTypeHeader)
+	if len(contentType) > 0 {
+		return contentType
+	}
+	return DefaultContentType
+}

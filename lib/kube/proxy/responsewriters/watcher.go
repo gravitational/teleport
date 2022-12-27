@@ -35,17 +35,43 @@ const (
 	DefaultContentType = "application/json"
 )
 
+// WatcherResponseWriter satisfies the http.ResponseWriter interface and
+// once the server writes the headers and response code spins a go routine
+// that parses each event frame, decodes it and analyzes if the user
+// is allowed to receive the events for that pod.
+// If the user is not allowed, the event is ignored.
+// If allowed, the event is encoded into the user's response.
 type WatcherResponseWriter struct {
-	target     http.ResponseWriter
-	status     int
-	group      errgroup.Group
+	// target is the user response writer.
+	// everything written will be received by the user.
+	target http.ResponseWriter
+	// status holds the response code status for logging purposes.
+	status int
+	// group is the errorgroup used by the spinning goroutine.
+	group errgroup.Group
+	// pipeReader and pipeWriter are synchronous memory pipes used to forward
+	// events written from the upstream server to the routine that decodes
+	// them and validates if the event should be forward downstream.
 	pipeReader *io.PipeReader
 	pipeWriter *io.PipeWriter
+	// negotiator is the client negotiator used to select the serializers based
+	// on response content-type.
 	negotiator runtime.ClientNegotiator
-	filter     FilterWrapper
+	// filter hold the filtering rules to filter events.
+	filter FilterWrapper
 }
 
-func NewWatcherResponseWriter(target http.ResponseWriter, negotiator runtime.ClientNegotiator, filter FilterWrapper) *WatcherResponseWriter {
+// NewWatcherResponseWriter creates aWatcherResponseWriter that satisfies the
+// http.ResponseWriter interface and once the server writes the headers and
+// response code spins a go routine that parses each event frame, decodes it
+// and analyzes if the user is allowed to receive the events for that pod.
+// If the user is not allowed, the event is ignored.
+// If allowed, the event is encoded into the user's response.
+func NewWatcherResponseWriter(
+	target http.ResponseWriter,
+	negotiator runtime.ClientNegotiator,
+	filter FilterWrapper,
+) *WatcherResponseWriter {
 	reader, writer := io.Pipe()
 	return &WatcherResponseWriter{
 		target:     target,
@@ -56,14 +82,19 @@ func NewWatcherResponseWriter(target http.ResponseWriter, negotiator runtime.Cli
 	}
 }
 
+// Write writes buf into the pipeWriter.
 func (w *WatcherResponseWriter) Write(buf []byte) (int, error) {
 	return w.pipeWriter.Write(buf)
 }
 
+// Header returns the target headers.
 func (w *WatcherResponseWriter) Header() http.Header {
 	return w.target.Header()
 }
 
+// WriteHeader writes the status code and headers into the target http.ResponseWriter
+// and spins a go-routine that will wait for events received in w.pipeReader
+// and analyze if they must be forwarded to target.
 func (w *WatcherResponseWriter) WriteHeader(code int) {
 	w.status = code
 	w.target.WriteHeader(code)
@@ -85,6 +116,7 @@ func (w *WatcherResponseWriter) WriteHeader(code int) {
 	)
 }
 
+// Status returns the http status response.
 func (w *WatcherResponseWriter) Status() int {
 	return w.getStatus()
 }
@@ -98,6 +130,9 @@ func (w *WatcherResponseWriter) getStatus() int {
 	return w.status
 }
 
+// Close closes the reader part of the pipe with io.EOF and waits until
+// the spinned goroutine terminates.
+// After closes the writer pipe and flushes the response into target.
 func (w *WatcherResponseWriter) Close() error {
 	w.pipeReader.CloseWithError(io.EOF)
 	err := w.group.Wait()
@@ -106,35 +141,45 @@ func (w *WatcherResponseWriter) Close() error {
 	return trace.Wrap(err)
 }
 
+// Flush flushes the response into the target and returns.
 func (w *WatcherResponseWriter) Flush() {
 	if flusher, ok := w.target.(http.Flusher); ok {
 		flusher.Flush()
 	}
 }
 
+// watchDecoder waits for events written into w.pipeWriter and decodes them.
+// Once decoded, it checks if the user is allowed to watch the events for that pod
+// and ignores or forwards them downstream depending on the result.
 func (w *WatcherResponseWriter) watchDecoder(contentType string, reader io.ReadCloser, writer io.Writer) error {
+	// parse mime type.
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// create a stream decoder based on mediaType.s
 	objectDecoder, streamingSerializer, framer, err := w.negotiator.StreamDecoder(mediaType, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// create a encoder to encode filtered requests to the user.
 	encoder, err := w.negotiator.Encoder(mediaType, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// create a frameReader that waits until the Kubernetes API sends the full
+	// event frame.
 	frameReader := framer.NewFrameReader(reader)
+	// create a frameWriter that writes event frames into the user's connection.
 	frameWriter := framer.NewFrameWriter(writer)
+	// streamingDecoder is the decoder that parses metav1.WatchEvents from the
+	// long-lived connection.
 	streamingDecoder := streaming.NewDecoder(frameReader, streamingSerializer)
 	defer streamingDecoder.Close()
-
+	// create encoders
 	watchEventEncoder := streaming.NewEncoder(frameWriter, streamingSerializer)
-
 	watchEncoder := restclientwatch.NewEncoder(watchEventEncoder, encoder)
+	// instantiate filterObj if available.
 	var filter FilterObj
 	if w.filter != nil {
 		filter, err = w.filter(contentType, w.getStatus())
@@ -142,6 +187,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, reader io.ReadC
 			return trace.Wrap(err)
 		}
 	}
+	// wait for events received from upstream until the connection is terminated.
 	for {
 		eventType, obj, err := w.decodeStreamingMessage(streamingDecoder, objectDecoder)
 		if errors.Is(err, io.EOF) {
@@ -152,10 +198,13 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, reader io.ReadC
 
 		switch obj.(type) {
 		case *metav1.Status:
+			// if the response is  status forward it into target and return.
 			err = encoder.Encode(obj, writer)
 			return trace.Wrap(err)
 		default:
 			if filter != nil {
+				// check if the event object matches the filtering criteria.
+				// If it does not match, ignore the event.
 				publish, err := filter.FilterObj(obj)
 				if err != nil {
 					return trace.Wrap(err)
@@ -164,6 +213,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, reader io.ReadC
 					continue
 				}
 			}
+			// encode the event into the target connection.
 			err = watchEncoder.Encode(
 				&watch.Event{
 					Type:   eventType,
@@ -195,8 +245,8 @@ func (w *WatcherResponseWriter) decodeStreamingMessage(
 	case *metav1.Status:
 		return "", res, nil
 	default:
-		switch got.Type {
-		case string(watch.Added), string(watch.Modified), string(watch.Deleted), string(watch.Error), string(watch.Bookmark):
+		switch watch.EventType(got.Type) {
+		case watch.Added, watch.Modified, watch.Deleted, watch.Error, watch.Bookmark:
 		default:
 			return "", nil, fmt.Errorf("got invalid watch event type: %v", got.Type)
 		}
@@ -209,12 +259,4 @@ func (w *WatcherResponseWriter) decodeStreamingMessage(
 		}
 		return watch.EventType(got.Type), obj, nil
 	}
-}
-
-func GetContentHeader(header http.Header) string {
-	contentType := header.Get(ContentTypeHeader)
-	if len(contentType) > 0 {
-		return contentType
-	}
-	return DefaultContentType
 }
