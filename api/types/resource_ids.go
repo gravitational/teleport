@@ -46,12 +46,12 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 	}
 
 	if len(id.SubResourceName) == 0 {
-		return trace.BadParameter("resource of type %q must include a subresource name")
+		return trace.BadParameter("resource of kind %q must include a subresource name", id.Kind)
 	}
 
 	split := strings.Split(id.SubResourceName, "/")
 	if len(split) == 2 {
-		return trace.BadParameter("resource of type %q must follow the following format: <namespace>/<name>")
+		return trace.BadParameter("resource of kind %q must follow the following format: <namespace>/<name>", id.Kind)
 	}
 
 	if len(split[0]) == 0 {
