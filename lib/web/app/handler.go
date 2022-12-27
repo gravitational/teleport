@@ -34,7 +34,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -159,6 +161,28 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if ws.GetUser() != identity.Username {
+		err := trace.AccessDenied("session owner %q does not match caller %q", ws.GetUser(), identity.Username)
+		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login: ws.GetUser(),
+				User:  identity.Username,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  clientConn.LocalAddr().String(),
+				RemoteAddr: clientConn.RemoteAddr().String(),
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
+		return err
+	}
 
 	session, err := h.getSession(ctx, ws)
 	if err != nil {
@@ -255,44 +279,107 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 
 // getAppSession retrieves the `types.WebSession` using the provided
 // `http.Request`.
-func (h *Handler) getAppSession(r *http.Request) (types.WebSession, error) {
-	sessionID, err := h.extractSessionID(r)
-	if err != nil {
-		h.log.Warnf("Failed to extract session id: %v.", err)
-		return nil, trace.AccessDenied("invalid session")
-	}
-
-	// Check that the session exists in the backend cache. This allows the user
-	// to logout and invalidate their application session immediately. This
-	// lookup should also be fast because it's in the local cache.
-	return h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
-}
-
-// extractSessionID extracts application access session ID from either the
-// cookie or the client certificate of the provided request.
-func (h *Handler) extractSessionID(r *http.Request) (sessionID string, err error) {
+func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error) {
 	// We have a client certificate with encoded session id in application
 	// access CLI flow i.e. when users log in using "tsh app login" and
 	// then connect to the apps with the issued certs.
 	if HasClientCert(r) {
-		certificate := r.TLS.PeerCertificates[0]
-		identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		sessionID = identity.RouteToApp.SessionID
+		ws, err = h.getAppSessionFromCert(r)
 	} else {
-		sessionID, err = extractCookie(r)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
+		ws, err = h.getAppSessionFromCookie(r)
 	}
-	if sessionID == "" {
-		return "", trace.NotFound("empty session id")
+	if err != nil {
+		h.log.Warnf("Failed to get session: %v.", err)
+		return nil, trace.AccessDenied("invalid session")
 	}
-	return sessionID, nil
+	return ws, nil
+}
+
+func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, error) {
+	if !HasClientCert(r) {
+		return nil, trace.BadParameter("request missing client certificate")
+	}
+	certificate := r.TLS.PeerCertificates[0]
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Check that the session exists in the backend cache. This allows the user
+	// to logout and invalidate their application session immediately. This
+	// lookup should also be fast because it's in the local cache.
+	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
+		SessionID: identity.RouteToApp.SessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ws.GetUser() != identity.Username {
+		err := trace.AccessDenied("session owner %q does not match caller %q",
+			ws.GetUser(), identity.Username)
+		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login: ws.GetUser(),
+				User:  identity.Username,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  r.Host,
+				RemoteAddr: r.RemoteAddr,
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
+		return nil, err
+	}
+	return ws, nil
+}
+
+func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, error) {
+	subjectValue, err := extractCookie(r, SubjectCookieName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionID, err := extractCookie(r, CookieName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Check that the session exists in the backend cache. This allows the user
+	// to logout and invalidate their application session immediately. This
+	// lookup should also be fast because it's in the local cache.
+	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ws.GetBearerToken() != subjectValue {
+		err := trace.AccessDenied("subject session token does not match")
+		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login: ws.GetUser(),
+				User:  "unknown", // we don't have client's username, since this came from an http request with cookies.
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  r.Host,
+				RemoteAddr: r.RemoteAddr,
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
+		return nil, err
+	}
+	return ws, nil
 }
 
 // getSession returns a request session used to proxy the request to the
@@ -321,8 +408,8 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 }
 
 // extractCookie extracts the cookie from the *http.Request.
-func extractCookie(r *http.Request) (string, error) {
-	rawCookie, err := r.Cookie(CookieName)
+func extractCookie(r *http.Request, cookieName string) (string, error) {
+	rawCookie, err := r.Cookie(cookieName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -391,6 +478,9 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 const (
 	// CookieName is the name of the application session cookie.
 	CookieName = "__Host-grv_app_session"
+
+	// SubjectCookieName is the name of the application session subject cookie.
+	SubjectCookieName = "__Host-grv_app_session_subject"
 
 	// AuthStateCookieName is the name of the state cookie used during the
 	// initial authentication flow.

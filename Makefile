@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.1.2
+VERSION=11.1.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -1160,3 +1160,8 @@ dronegen:
 .PHONY: backport
 backport:
 	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))
+
+
+.PHONY: changelog
+changelog:
+	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
