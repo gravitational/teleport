@@ -42,7 +42,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1489,7 +1489,7 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 }
 
 func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
-	workgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
+	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup",
@@ -1523,8 +1523,8 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 }
 
 func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
-	workgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
-	endpoint := cloudtest.RedshiftServerlessEndpointAccess(workgroup, "my-endpoint", "eu-west-2")
+	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
+	endpoint := mocks.RedshiftServerlessEndpointAccess(workgroup, "my-endpoint", "eu-west-2")
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup-my-endpoint",

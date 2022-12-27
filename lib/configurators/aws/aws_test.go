@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/services"
@@ -636,7 +636,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						{
 							Name:     "redshift-serverless-1",
 							Protocol: "postgres",
-							URI:      fmt.Sprintf("%s:5439", aws.StringValue(cloudtest.RedshiftServerlessWorkgroup("redshift-serverless-1", "us-west-2").Endpoint.Address)),
+							URI:      fmt.Sprintf("%s:5439", aws.StringValue(mocks.RedshiftServerlessWorkgroup("redshift-serverless-1", "us-west-2").Endpoint.Address)),
 						},
 					},
 				},
