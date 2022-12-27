@@ -1,5 +1,41 @@
 # Changelog
 
+## 9.3.25
+
+This release of Teleport contains multiple security fixes, improvements and bug fixes.
+
+### [High] Application Access session hijack
+
+When accepting Application Access requests, Teleport did not sufficiently
+validate client credentials.
+
+This could allow an attacker in possession of a valid active application session
+ID to issue requests to this application impersonating the session owner for a
+limited time window.
+
+Presence of multiple “cert.create” audit events (code TC000I) with the same app
+session ID in the “route_to_app.session_id” field may indicate the attempt to
+impersonate an existing user’s application session.
+
+### [Low] Web API session caching
+
+After logging out via the web UI, a user’s session could remain cached in
+Teleport’s proxy, allowing continued access to resources for a limited time
+window.
+
+### Other improvements and fixes
+
+* Fixed LDAP pagination issues in desktop access. [#19535](https://github.com/gravitational/teleport/pull/19535)
+* Fixed issue with SSH sessions inheriting OOM score of parent process. [#19523](https://github.com/gravitational/teleport/pull/19523)
+* Fixed issue with `session.start` event being overwritten by `session.exec` event. [#19499](https://github.com/gravitational/teleport/pull/19499)
+* Fixed issue with SNI info not being set by `tsh login --format kubernetes` command. [#19434](https://github.com/gravitational/teleport/pull/19434)
+* Fixed issue with websocket connections to HTTP/2 enabled apps over app access. [#19425](https://github.com/gravitational/teleport/pull/19425)
+* Fixed issue with SAML connector validation calling issuer URL before auth checks. [#19319](https://github.com/gravitational/teleport/pull/19319)
+* Improved  `tsh ls -R` latency. [#19484](https://github.com/gravitational/teleport/pull/19484)
+* Improved handling of corrupted session recordings.  [#19263](https://github.com/gravitational/teleport/pull/19263)
+* Improved web UI SSH performance. [#19191](https://github.com/gravitational/teleport/pull/19191)
+* Improved performance of traits to roles mapping. [#19182](https://github.com/gravitational/teleport/pull/19182)
+
 ## 9.3.23
 
 This release of Teleport contains two security fixes as well as multiple improvements and bug fixes.
