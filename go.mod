@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	cloud.google.com/go/container v1.9.0
-	cloud.google.com/go/iam v0.9.0
 	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0
@@ -154,9 +153,11 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-// DO NOT UPDATE genproto without first updating firestore to 1.9.0
-// and fixing the deprecation of the Batch api in firestore 1.7.0.
+// DO NOT UPDATE any of the following dependencies until the
+// deprecated Firestore Batch API is replaced. Updating causes
+// the linter to fail due to deprecation warnings.
 require (
+	cloud.google.com/go/iam v0.8.0
 	cloud.google.com/go/firestore v1.6.1
 	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
 )
