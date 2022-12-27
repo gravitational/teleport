@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
@@ -2760,14 +2762,15 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	tunnelOutput := &bytes.Buffer{}
 	tunnelClient.Stdout = tunnelOutput
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
+
+	// Use assert package to get access to the returned error. In this way we can log it.
+	if !assert.Eventually(t, func() bool {
 		err = tunnelClient.SSH(context.Background(), cmd, false)
-		if err == nil {
-			break
-		}
+		return err == nil
+	}, 10*time.Second, 200*time.Millisecond) {
+		require.FailNow(t, "Failed to established SSH connection", err)
 	}
-	require.NoError(t, err)
+
 	require.Equal(t, "hello world\n", tunnelOutput.String())
 
 	// Stop clusters and remaining nodes.
@@ -3933,7 +3936,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4097,7 +4100,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4241,7 +4244,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -5860,6 +5863,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
 	cfg.Console = nil
 	cfg.Log = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return cfg
 }
 

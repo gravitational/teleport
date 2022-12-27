@@ -760,12 +760,12 @@ registered devices using [`tsh mfa ls`](cli.mdx#tsh-mfa-ls).
 $ tsh mfa rm <device-name>
 ```
 
-### tsh request new
+### tsh request create
 
 Create a new Access Request.
 
 ```code
-$ tsh request new [<flags>]
+$ tsh request create [<flags>]
 ```
 
 #### Flags
@@ -777,6 +777,17 @@ $ tsh request new [<flags>]
 | `--reason` | none | String | Reason for making the request (optional) |
 | `--reviewers` | none | Comma-separated strings | Suggested reviewers for the request (optional) |
 | `--nowait` | `false` | `true` or `false` | Finish without waiting for request resolution |
+| `--request-ttl` | 1 hour | Relative duration like `5s`, `2m`, or `3h`, | Defines how long the Access Request will be in a `PENDING` state before becoming invalid |
+| `--session-ttl` | Time left on current session | Relative duration like `5s`, `2m`, or `3h` | Defines how long the elevated session will be valid for |
+
+<Admonition type="tip" title="Note">
+The `--request-ttl` and `--session-ttl` values can not be greater than the
+following:
+
+- Maximum certificate lifetime.
+- Time left on an existing session (certificate).
+- Maximum session duration defined by the user's roles.
+</Admonition>
 
 ### tsh request ls
 

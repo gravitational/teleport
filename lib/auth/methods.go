@@ -480,18 +480,18 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		authority,
 	}
 
-	sourceIP := ""
-	if checker.PinSourceIP() {
-		md := req.ClientMetadata
-		if md == nil {
-			return nil, trace.Errorf("source IP pinning is enabled but client metadata is nil")
-		}
-		host, err := utils.Host(md.RemoteAddr)
+	clientIP := ""
+	if req.ClientMetadata != nil && req.ClientMetadata.RemoteAddr != "" {
+		host, err := utils.Host(req.ClientMetadata.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sourceIP = host
+		clientIP = host
 	}
+	if checker.PinSourceIP() && clientIP == "" {
+		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
+	}
+
 	certs, err := s.generateUserCert(certRequest{
 		user:                 user,
 		ttl:                  req.TTL,
@@ -501,7 +501,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		traits:               user.GetTraits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
-		sourceIP:             sourceIP,
+		clientIP:             clientIP,
 		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
