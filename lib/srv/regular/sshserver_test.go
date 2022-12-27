@@ -651,6 +651,23 @@ func TestDirectTCPIP(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, []byte("hello, world\n"), body)
+
+	t.Run("SessionJoinPrincipal cannot use direct-tcpip", func(t *testing.T) {
+		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
+		// connect using "direct-tcpip".
+		ctx := context.Background()
+		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
+		httpClientUsingSessionJoin := http.Client{
+			Transport: &http.Transport{
+				Dial: func(network string, addr string) (net.Conn, error) {
+					return cliUsingSessionJoin.DialContext(ctx, "tcp", u.Host)
+				},
+			},
+		}
+		//nolint:bodyclose // We expect an error here, no need to close.
+		_, err := httpClientUsingSessionJoin.Get(ts.URL)
+		require.ErrorContains(t, err, "ssh: rejected: administratively prohibited (attempted direct-tcpip channel open in join-only mode")
+	})
 }
 
 func TestAdvertiseAddr(t *testing.T) {
@@ -756,7 +773,7 @@ func TestMaxSessions(t *testing.T) {
 // command and send the command to then launch through a pipe.
 func TestExecLongCommand(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	// Get the path to where the "echo" command is on disk.
@@ -1065,7 +1082,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	require.NoError(t, err)
 
 	// Allow non-root user to write to the temp file
-	err = tmpFile.Chmod(fs.FileMode(0777))
+	err = tmpFile.Chmod(fs.FileMode(0o777))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.Remove(tmpFile.Name())

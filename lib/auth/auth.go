@@ -1306,6 +1306,19 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pinnedIP := ""
+	if req.checker.PinSourceIP() {
+		if req.clientIP == "" && req.sourceIP == "" {
+			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error instead of warning.
+			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
+		}
+
+		pinnedIP = req.clientIP
+		if req.sourceIP != "" {
+			pinnedIP = req.sourceIP
+		}
+	}
+
 	params := services.UserCertParams{
 		CASigner:                caSigner,
 		PublicUserKey:           req.publicKey,
@@ -1329,7 +1342,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Generation:              req.generation,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
-		SourceIP:                req.sourceIP,
+		SourceIP:                pinnedIP,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
