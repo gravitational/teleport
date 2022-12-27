@@ -60,7 +60,7 @@ func TestRegisterAndLogin(t *testing.T) {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "Teleport",
 		RPID:          "teleport",
-		RPOrigin:      "https://goteleport.com",
+		RPOrigins:     []string{"https://goteleport.com"},
 	})
 	require.NoError(t, err)
 
@@ -74,7 +74,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		{
 			name:    "passwordless",
 			webUser: &fakeUser{id: []byte{1, 2, 3, 4, 5}, name: llamaUser},
-			origin:  web.Config.RPOrigin,
+			origin:  web.Config.RPOrigins[0],
 			modifyAssertion: func(a *wanlib.CredentialAssertion) {
 				a.Response.AllowedCredentials = nil // aka passwordless
 			},
@@ -236,14 +236,14 @@ func TestLogin_findsCorrectCredential(t *testing.T) {
 	web2, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "TeleportO",
 		RPID:          "teleportO",
-		RPOrigin:      "https://goteleportO.com",
+		RPOrigins:     []string{"https://goteleportO.com"},
 	})
 	require.NoError(t, err)
 	for _, u := range []*fakeUser{userAlpaca, userLlama} {
 		cc, _, err := web2.BeginRegistration(u)
 		require.NoError(t, err, "web2 BeginRegistration failed")
 
-		reg, err := touchid.Register(web2.Config.RPOrigin, (*wanlib.CredentialCreation)(cc))
+		reg, err := touchid.Register(web2.Config.RPOrigins[0], (*wanlib.CredentialCreation)(cc))
 		require.NoError(t, err, "web2 Register failed")
 		require.NoError(t, reg.Confirm(), "Confirm failed")
 	}
