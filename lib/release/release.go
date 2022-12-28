@@ -33,12 +33,18 @@ import (
 type ClientConfig struct {
 	// TLSConfig is the client TLS configuration
 	TLSConfig *tls.Config
+	// ReleaseServerAddr is the address of the release server
+	ReleaseServerAddr string
 }
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLS configuration")
+	}
+
+	if c.ReleaseServerAddr == "" {
+		return trace.BadParameter("missing release server address")
 	}
 
 	return nil
@@ -70,7 +76,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := roundtrip.NewClient(fmt.Sprintf("https://%s", cfg.TLSConfig.ServerName), "", roundtrip.HTTPClient(httpClient))
+	client, err := roundtrip.NewClient(fmt.Sprintf("https://%s", cfg.ReleaseServerAddr), "", roundtrip.HTTPClient(httpClient))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

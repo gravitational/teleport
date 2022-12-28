@@ -33,9 +33,16 @@ func TestNewClient(t *testing.T) {
 	_, err := NewClient(ClientConfig{})
 	assert.NotNil(t, err)
 
-	// should not err when TLS config is passed in
+	// should err when no server addr is passed in
 	_, err = NewClient(ClientConfig{
 		TLSConfig: &tls.Config{},
+	})
+	assert.NotNil(t, err)
+
+	// should not err when TLS config and server addr is passed in
+	_, err = NewClient(ClientConfig{
+		TLSConfig:         &tls.Config{},
+		ReleaseServerAddr: "server-addr",
 	})
 	assert.Nil(t, err)
 }
