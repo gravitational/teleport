@@ -69,21 +69,26 @@ import (
 
 // Clients provides interface for obtaining cloud provider clients.
 type Clients interface {
-	// GetGCPIAMClient returns GCP IAM client.
-	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetInstanceMetadataClient returns instance metadata client based on which
 	// cloud provider Teleport is running on, if any.
 	GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error)
-	// GetGCPGKEClient returns GKE client.
-	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// GCPClients is an interface for providing GCP API clients.
+	GCPClients
 	// AWSClients is an interface for providing AWS API clients.
 	AWSClients
 	// AzureClients is an interface for Azure-specific API clients
 	AzureClients
 	// Closer closes all initialized clients.
 	io.Closer
+}
+
+type GCPClients interface {
+	// GetGCPIAMClient returns GCP IAM client.
+	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
+	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetGCPGKEClient returns GKE client.
+	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
 }
 
 // AWSClients is an interface for providing AWS API clients.
