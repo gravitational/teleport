@@ -2984,6 +2984,8 @@ func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 
 	return trail.FromGRPC(err)
 }
+
+// GetLicense return the license used the star the teleport enterprise auth server
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
 	resp, err := c.grpc.GetLicense(ctx, &proto.GetLicenseRequest{})
 	if err != nil {
@@ -2992,6 +2994,7 @@ func (c *Client) GetLicense(ctx context.Context) (string, error) {
 	return string(resp.License), nil
 }
 
+// ListReleases returns a list of teleport enterprise releases
 func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) ([]*types.Release, error) {
 	resp, err := c.grpc.ListReleases(ctx, req)
 	if err != nil {
