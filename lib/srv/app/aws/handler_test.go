@@ -323,7 +323,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		Username: "user",
 		Expires:  clock.Now().Add(time.Hour),
 		RouteToApp: tlsca.RouteToApp{
-			AWSRoleARN: "arn:aws:iam::123456789:role/test",
+			AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 		},
 	}
 

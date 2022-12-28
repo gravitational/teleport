@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -37,11 +38,13 @@ type sitesGetter interface {
 }
 
 // NewAuthProxyDialerService create new instance of AuthProxyDialerService.
-func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, localClusterName string, authServers []string) *AuthProxyDialerService {
+func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, localClusterName string, authServers []string, jwtSigner multiplexer.PROXYSigner, signingCert []byte) *AuthProxyDialerService {
 	return &AuthProxyDialerService{
 		reverseTunnelServer: reverseTunnelServer,
 		localClusterName:    localClusterName,
 		authServers:         authServers,
+		jwtSigner:           jwtSigner,
+		signingCert:         signingCert,
 	}
 }
 
@@ -51,6 +54,8 @@ type AuthProxyDialerService struct {
 	reverseTunnelServer sitesGetter
 	localClusterName    string
 	authServers         []string
+	jwtSigner           multiplexer.PROXYSigner
+	signingCert         []byte
 }
 
 func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.Conn, connInfo alpnproxy.ConnectionInfo) error {
@@ -64,6 +69,20 @@ func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 	defer authConn.Close()
+
+	// We'll write signed PROXY header to the outgoing connection to securely
+	// propagate observed client ip to the auth server.
+	if s.jwtSigner != nil && s.signingCert != nil {
+		b, err := multiplexer.GetSignedPROXYHeader(conn.RemoteAddr(), conn.LocalAddr(), s.localClusterName, s.signingCert, s.jwtSigner)
+		if err != nil {
+			return trace.Wrap(err, "could not create signed PROXY header")
+		}
+		_, err = authConn.Write(b)
+		if err != nil {
+			return trace.Wrap(err, "could not write PROXY line to remote connection")
+		}
+	}
+
 	if err := s.proxyConn(ctx, conn, authConn); err != nil {
 		return trace.Wrap(err)
 	}
