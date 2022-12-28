@@ -24,6 +24,9 @@ main() {
     --path=proto/teleport/lib/multiplexer/
 
   cp -r github.com/gravitational/teleport/* .
+
+  # Generate prehog protos.
+  cd lib/prehog && buf generate
 }
 
 main "$@"
