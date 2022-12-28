@@ -82,10 +82,6 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if resp.Code() == http.StatusUnauthorized {
 		return nil, trace.AccessDenied("access denied by the release server")
 	}
