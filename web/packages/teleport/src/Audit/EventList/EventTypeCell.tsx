@@ -81,6 +81,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
   [eventCodes.APP_SESSION_END]: Icons.Info,
+  [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
   [eventCodes.APP_UPDATED]: Icons.Code,
   [eventCodes.APP_DELETED]: Icons.Code,
