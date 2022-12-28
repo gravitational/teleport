@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -46,12 +47,18 @@ type Proxy struct {
 	// Log is used for logging.
 	Log logrus.FieldLogger
 	// Limiter limits the number of active connections per client IP.
-	Limiter *limiter.Limiter
+	Limiter         *limiter.Limiter
+	IngressReporter *ingress.Reporter
 }
 
 // HandleConnection accepts connection from a Postgres client, authenticates
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
+	if p.IngressReporter != nil {
+		p.IngressReporter.ConnectionAccepeted(ingress.Postgres, clientConn)
+		defer p.IngressReporter.ConnectionClosed(ingress.Postgres, clientConn)
+	}
+
 	startupMessage, tlsConn, backend, err := p.handleStartup(ctx, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -81,6 +88,11 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if p.IngressReporter != nil {
+		p.IngressReporter.ConnectionAuthenticated(ingress.Postgres, clientConn)
+		p.IngressReporter.AuthenticatedConnectionClosed(ingress.Postgres, clientConn)
 	}
 
 	serviceConn, err := p.Service.Connect(ctx, proxyCtx)

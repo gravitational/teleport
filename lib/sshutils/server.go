@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -100,6 +101,9 @@ type Server struct {
 
 	// clock is used to control time.
 	clock clockwork.Clock
+
+	ingressReporter *ingress.Reporter
+	ingressService  string
 }
 
 const (
@@ -120,6 +124,14 @@ const (
 
 // ServerOption is a functional argument for server
 type ServerOption func(cfg *Server) error
+
+func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
+	return func(s *Server) error {
+		s.ingressReporter = r
+		s.ingressService = service
+		return nil
+	}
+}
 
 // SetLogger sets the logger for the server
 func SetLogger(logger logrus.FieldLogger) ServerOption {
@@ -420,6 +432,13 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
 func (s *Server) HandleConnection(conn net.Conn) {
+	s.log.Info("connection accepetet will report?")
+	if s.ingressReporter != nil {
+		s.log.Info("Reporting connection accepeted")
+		s.ingressReporter.ConnectionAccepeted(s.ingressService, conn)
+		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
+	}
+
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
 	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
@@ -462,6 +481,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 
+	if s.ingressReporter != nil {
+		s.ingressReporter.ConnectionAuthenticated(s.ingressService, conn)
+		defer s.ingressReporter.AuthenticatedConnectionClosed(s.ingressService, conn)
+	}
 	ctx := tracing.WithPropagationContext(context.Background(), wrappedConn.traceContext)
 
 	certType := "unknown"
