@@ -46,6 +46,8 @@ type Client struct {
 	client *roundtrip.Client
 }
 
+// NewClient returns a new release client with a client
+// to make https requests to the release server
 func NewClient(cfg ClientConfig) (*Client, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -72,6 +74,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	}, nil
 }
 
+// ListRelease calls the release server and returns a list of releases
 func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	if c.client == nil {
 		return nil, trace.BadParameter("client not initialized")
@@ -118,7 +121,7 @@ func byteCount(b int64) string {
 }
 
 // GetServerAddr returns the release server address from the environment
-// variables or, i
+// variables or, if not set, the default value
 func GetServerAddr() string {
 	addr := os.Getenv(types.ReleaseServerEnvVar)
 	if addr == "" {
