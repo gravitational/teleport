@@ -96,6 +96,10 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 		return nil, trace.AccessDenied("access denied by the release server")
 	}
 
+	if resp.Code() != http.StatusOK {
+		return nil, trace.Errorf("release server responded with status %d", resp.Code())
+	}
+
 	var releases []Release
 	err = json.Unmarshal(resp.Bytes(), &releases)
 	if err != nil {
