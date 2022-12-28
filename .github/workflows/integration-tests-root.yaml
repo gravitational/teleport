@@ -10,6 +10,8 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
