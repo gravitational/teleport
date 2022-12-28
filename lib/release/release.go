@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // ClientConfig contains configuration for the release client
@@ -87,6 +88,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 	resp, err := c.client.Get(ctx, c.client.Endpoint("teleport-ent"), nil)
 	if err != nil {
+		log.WithError(err).Error()
 		return nil, trace.Wrap(err)
 	}
 
@@ -94,20 +96,40 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 		return nil, trace.AccessDenied("access denied by the release server")
 	}
 
-	var releases []*types.Release
+	var releases []Release
 	err = json.Unmarshal(resp.Bytes(), &releases)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// add human-readable display sizes
-	for i := range releases {
-		for j := range releases[i].Assets {
-			releases[i].Assets[j].DisplaySize = byteCount(releases[i].Assets[j].Size_)
+	responseReleases := []*types.Release{}
+	for _, r := range releases {
+		releaseAssets := []*types.Asset{}
+		for _, a := range r.Assets {
+			releaseAssets = append(releaseAssets, &types.Asset{
+				Arch:        a.Arch,
+				Description: a.Description,
+				Name:        a.Name,
+				OS:          a.OS,
+				SHA256:      a.SHA256,
+				Size_:       a.Size,
+				DisplaySize: byteCount(a.Size),
+				ReleaseIDs:  a.ReleaseIDs,
+				PublicURL:   a.PublicURL,
+			})
 		}
+
+		responseReleases = append(responseReleases, &types.Release{
+			NotesMD:   r.NotesMD,
+			Product:   r.Product,
+			ReleaseID: r.ReleaseID,
+			Status:    r.Status,
+			Version:   r.Version,
+			Assets:    releaseAssets,
+		})
 	}
 
-	return releases, err
+	return responseReleases, err
 }
 
 // byteCount converts a size in bytes to a human-readable string.
@@ -133,4 +155,42 @@ func GetServerAddr() string {
 		addr = types.DefaultReleaseServerAddr
 	}
 	return addr
+}
+
+// Release correspond to a Teleport Enterprise release
+// returned by the release service
+type Release struct {
+	// NotesMD is the notes of the release in markdown
+	NotesMD string `json:"notesMd"`
+	// Product is the release product, teleport or teleport-ent
+	Product string `json:"product"`
+	// ReleaseId is the ID of the product
+	ReleaseID string `json:"releaseIds"`
+	// Status is the status of the release
+	Status string `json:"status"`
+	// Version is the version of the release
+	Version string `json:"version"`
+	// Asset is a list of assets related to the release
+	Assets []*Asset `json:"assets"`
+}
+
+// Asset represents a release asset returned by the
+// release service
+type Asset struct {
+	// Arch is the architecture of the asset
+	Arch string `json:"arch"`
+	// Description is the description of the asset
+	Description string `json:"description"`
+	// Name is the name of the asset
+	Name string `json:"name"`
+	// Name is which OS the asset is built for
+	OS string `json:"os"`
+	// SHA256 is the sha256 of the asset
+	SHA256 string `json:"sha256"`
+	// Size is the size of the release in bytes
+	Size int64 `json:"size"`
+	// ReleaseID is a list of releases that have the asset included
+	ReleaseIDs []string `json:"releaseIds"`
+	// PublicURL is the public URL used to download the asset
+	PublicURL string `json:"publicUrl"`
 }
