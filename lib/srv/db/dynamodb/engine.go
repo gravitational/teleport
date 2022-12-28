@@ -259,7 +259,7 @@ func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode uint32
 			DatabaseName:     e.sessionCtx.DatabaseName,
 			DatabaseUser:     e.sessionCtx.DatabaseUser,
 		},
-		StatusCode: uint32(statusCode),
+		StatusCode: statusCode,
 		Path:       req.URL.Path,
 		RawQuery:   req.URL.RawQuery,
 		Method:     req.Method,
