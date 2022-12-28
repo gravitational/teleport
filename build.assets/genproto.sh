@@ -14,7 +14,8 @@ main() {
   rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
 
   # Generate Gogo protos (default).
-  buf generate --template=buf-gogo.gen.yaml
+  buf generate --template=buf-gogo.gen.yaml api/proto
+  buf generate --template=buf-gogo.gen.yaml proto
 
   # Generate protoc-gen-go protos (preferred).
   # Add your protos to the list if you can.
@@ -26,7 +27,7 @@ main() {
   cp -r github.com/gravitational/teleport/* .
 
   # Generate prehog protos.
-  cd lib/prehog && buf generate
+  buf generate --template=lib/prehog/buf.gen.yaml lib/prehog/proto
 }
 
 main "$@"
