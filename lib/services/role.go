@@ -486,31 +486,33 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 // at least one value in case if return value is nil
 func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) {
 	// Extract the variable from the role variable.
-	variable, err := parse.NewExpression(val)
+	expr, err := parse.NewExpression(val)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// verify that internal traits match the supported variables
-	if variable.Namespace() == teleport.TraitInternalPrefix {
-		switch variable.Name() {
-		case constants.TraitLogins, constants.TraitWindowsLogins,
-			constants.TraitKubeGroups, constants.TraitKubeUsers,
-			constants.TraitDBNames, constants.TraitDBUsers,
-			constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-			teleport.TraitJWT:
-		default:
-			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
+	varValidation := func(v parse.VarNode) error {
+		// verify that internal traits match the supported variables
+		if v.Namespace() == teleport.TraitInternalPrefix {
+			switch v.Name() {
+			case constants.TraitLogins, constants.TraitWindowsLogins,
+				constants.TraitKubeGroups, constants.TraitKubeUsers,
+				constants.TraitDBNames, constants.TraitDBUsers,
+				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
+				teleport.TraitJWT:
+			default:
+				return trace.BadParameter("unsupported variable %q", v.Name())
+			}
 		}
+		// TODO: which namespace values are allowed? here we're allowing all.
+		return nil
 	}
-
-	// If the variable is not found in the traits, skip it.
-	interpolated, err := variable.Interpolate(traits)
-	if trace.IsNotFound(err) || len(interpolated) == 0 {
-		return nil, trace.NotFound("variable %q not found in traits", variable.Name())
-	}
+	interpolated, err := expr.Interpolate(varValidation, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(interpolated) == 0 {
+		return nil, trace.NotFound("variable interpolation result is empty")
 	}
 	return interpolated, nil
 }

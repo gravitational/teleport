@@ -1909,6 +1909,48 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "logins substitute in allow rule with multiple functions and regexps",
+			inTraits: map[string][]string{
+				"email": {"ab_cd@example.com"},
+			},
+			allow: rule{
+				inLogins: []string{
+					`{{email.local(whatever.email)}}`, // no validation is done on the namespace
+					`{{regexp.replace(external.email, "_", "")}}`,
+					`{{regexp.replace(email.local(external.email), "_", "")}}`,
+					`{{email.local(regexp.replace(external.email, "d", "e"))}}`,
+					`{{regexp.replace(regexp.replace(email.local(regexp.replace(external.email, "cd", "z")), "ab", "xy"), "_", "")}}`,
+					"root",
+				},
+				outLogins: []string{
+					"ab_cd",
+					"abcd@example.com",
+					"abcd",
+					"ab_ce",
+					"xyz",
+					"root",
+				},
+			},
+		},
+		{
+			comment:  "logins substitute in allow rule can have constant expressions",
+			inTraits: map[string][]string{},
+			allow: rule{
+				inLogins: []string{
+					`{{regexp.replace("vitor@gravitational.com", "gravitational", "goteleport")}}`,
+					`{{email.local("vitor@goteleport.com")}}`,
+					`{{email.local(regexp.replace("vitor.enes@gravitational.com", "gravitational", "goteleport"))}}`,
+					"root",
+				},
+				outLogins: []string{
+					"vitor@goteleport.com",
+					"vitor",
+					"vitor.enes",
+					"root",
+				},
+			},
+		},
+		{
 			comment: "logins substitute in deny rule",
 			inTraits: map[string][]string{
 				"foo": {"bar"},
