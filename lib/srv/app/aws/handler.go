@@ -100,7 +100,6 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 // formatForwardResponseError converts an error to a status code and writes the code to a response.
 func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
 	s.Log.WithError(err).Debugf("Failed to process request.")
-	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
 	code := trace.ErrorToCode(err)
