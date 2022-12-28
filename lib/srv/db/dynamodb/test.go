@@ -65,7 +65,7 @@ func MakeTestClient(_ context.Context, config common.TestClientConfig, opts ...C
 	dynamoClient := dynamodb.New(provider, &aws.Config{
 		Endpoint:   aws.String("http://" + config.Address),
 		MaxRetries: aws.Int(0), // disable automatic retries in tests
-		HTTPClient: &http.Client{Timeout: 5*time.Second},
+		HTTPClient: &http.Client{Timeout: 5 * time.Second},
 	})
 	return dynamoClient, nil
 }
@@ -82,8 +82,6 @@ type TestServer struct {
 
 	// mu is needed to guard starting/closing the server.
 	mu sync.Mutex
-	// mock response data
-	tableNames []string
 }
 
 // NewTestServer returns a new instance of a test DynamoDB server.
