@@ -28,11 +28,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ClientConfig contains configuration for the release client
 type ClientConfig struct {
 	// TLSConfig is the client TLS configuration
 	TLSConfig *tls.Config
 }
 
+// CheckAndSetDefaults checks and sets default config values
 func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLS configuration")
@@ -41,6 +43,9 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Client is a client to make HTTPS requests to the
+// release server using the Teleport Enterprise license
+// as authentication
 type Client struct {
 	// client is the client used to make calls to the release API
 	client *roundtrip.Client
