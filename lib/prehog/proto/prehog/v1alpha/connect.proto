@@ -83,6 +83,7 @@ message SubmitConnectEventRequest {
   google.protobuf.Timestamp timestamp = 2;
 
   oneof event {
+    // TODO: Either remove the event suffix or add it consistently.
     ConnectLoginEvent connect_login = 3;
     ConnectProtocolRunEvent connect_protocol_run = 4;
     ConnectAccessRequestCreateEvent connect_access_request_create = 5;

@@ -17,68 +17,23 @@ syntax = "proto3";
 package teleport.terminal.v1;
 
 import "google/protobuf/timestamp.proto";
+import "prehog/v1alpha/connect.proto";
 
 option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 message ReportEventRequest {
   string distinct_id = 1;
   google.protobuf.Timestamp timestamp = 2;
-  ConnectUsageEventOneOf event = 3;
+  string auth_cluster_id = 3;
+  oneof event {
+    prehog.v1alpha.ConnectLoginEvent connect_login = 4;
+    prehog.v1alpha.ConnectProtocolRunEvent connect_protocol_run = 5;
+    prehog.v1alpha.ConnectAccessRequestCreateEvent connect_access_request_create = 6;
+    prehog.v1alpha.ConnectAccessRequestReviewEvent connect_access_request_review = 7;
+    prehog.v1alpha.ConnectAccessRequestAssumeRoleEvent connect_access_request_assume_role = 8;
+    prehog.v1alpha.ConnectFileTransferRunEvent connect_file_transfer_run_event = 9;
+    prehog.v1alpha.ConnectUserJobRoleUpdateEvent connect_user_job_role_update_event = 10;
+  }
 }
 
 message EventReportedResponse {}
-
-message ClusterProperties {
-  string auth_cluster_id = 1;
-  string cluster_name = 2;
-  string user_name = 3;
-}
-
-message LoginEvent {
-  ClusterProperties cluster_properties = 1;
-  string arch = 2;
-  string os = 3;
-  string os_version = 4;
-  string connect_version = 5;
-}
-
-message ProtocolRunEvent {
-  ClusterProperties cluster_properties = 1;
-  // one of ssh/db/kube
-  string protocol = 2;
-}
-
-message AccessRequestCreateEvent {
-  ClusterProperties cluster_properties = 1;
-  // one of role/resource
-  string kind = 2;
-}
-
-message AccessRequestReviewEvent {
-  ClusterProperties cluster_properties = 1;
-}
-
-message AccessRequestAssumeRoleEvent {
-  ClusterProperties cluster_properties = 1;
-}
-
-message FileTransferRunEvent {
-  ClusterProperties cluster_properties = 1;
-  string direction = 2;
-}
-
-message UserJobRoleUpdateEvent {
-  string job_role = 1;
-}
-
-message ConnectUsageEventOneOf {
-  oneof event {
-    LoginEvent login_event = 1;
-    ProtocolRunEvent protocol_run_event = 2;
-    AccessRequestCreateEvent access_request_create_event = 3;
-    AccessRequestReviewEvent access_request_review_event = 4;
-    AccessRequestAssumeRoleEvent access_request_assume_role_event = 5;
-    FileTransferRunEvent file_transfer_run_event = 6;
-    UserJobRoleUpdateEvent user_job_role_update_event = 7;
-  }
-}

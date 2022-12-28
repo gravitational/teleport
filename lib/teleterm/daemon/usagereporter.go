@@ -119,56 +119,78 @@ func (s *Service) ReportUsageEvent(req *api.ReportEventRequest) error {
 	return nil
 }
 
-func convertAndAnonymizeApiEvent(event *api.ReportEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
+func convertAndAnonymizeApiEvent(req *api.ReportEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
 	convertedEvent := &prehogapi.SubmitConnectEventRequest{
-		DistinctId: event.GetDistinctId(),
-		Timestamp:  event.GetTimestamp(),
+		DistinctId: req.GetDistinctId(),
+		Timestamp:  req.GetTimestamp(),
 	}
-	switch e := event.GetEvent().GetEvent().(type) {
-	//anonymized
-	case *api.ConnectUsageEventOneOf_LoginEvent:
-		anonymizer, err := newClusterAnonymizer(e.LoginEvent.GetClusterProperties().GetAuthClusterId()) // authClusterId is sent with each event that needs to be anonymized
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		convertedEvent.Event = anonymizeLoginEvent(e.LoginEvent, anonymizer)
-	case *api.ConnectUsageEventOneOf_ProtocolRunEvent:
-		anonymizer, err := newClusterAnonymizer(e.ProtocolRunEvent.GetClusterProperties().GetAuthClusterId())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		convertedEvent.Event = anonymizeProtocolRunEvent(e.ProtocolRunEvent, anonymizer)
-	case *api.ConnectUsageEventOneOf_AccessRequestCreateEvent:
-		anonymizer, err := newClusterAnonymizer(e.AccessRequestCreateEvent.GetClusterProperties().GetAuthClusterId())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		convertedEvent.Event = anonymizeAccessRequestCreateEvent(e.AccessRequestCreateEvent, anonymizer)
-	case *api.ConnectUsageEventOneOf_AccessRequestReviewEvent:
-		anonymizer, err := newClusterAnonymizer(e.AccessRequestReviewEvent.GetClusterProperties().GetAuthClusterId())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		convertedEvent.Event = anonymizeAccessRequestReviewEvent(e.AccessRequestReviewEvent, anonymizer)
-	case *api.ConnectUsageEventOneOf_AccessRequestAssumeRoleEvent:
-		anonymizer, err := newClusterAnonymizer(e.AccessRequestAssumeRoleEvent.GetClusterProperties().GetAuthClusterId())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		convertedEvent.Event = anonymizeAccessRequestAssumeRoleEvent(e.AccessRequestAssumeRoleEvent, anonymizer)
-	case *api.ConnectUsageEventOneOf_FileTransferRunEvent:
-		anonymizer, err := newClusterAnonymizer(e.FileTransferRunEvent.GetClusterProperties().GetAuthClusterId())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		convertedEvent.Event = anonymizeFileTransferRunEvent(e.FileTransferRunEvent, anonymizer)
 
-	// non-anonymized
-	case *api.ConnectUsageEventOneOf_UserJobRoleUpdateEvent:
-		convertedEvent.Event = convertUserJobRoleUpdateEvent(e.UserJobRoleUpdateEvent)
+	// Non-anonymized events.
+	switch req.GetEvent().(type) {
+	case *api.ReportEventRequest_ConnectUserJobRoleUpdateEvent:
+		convertedEvent.Event = &prehogapi.SubmitConnectEventRequest_ConnectUserJobRoleUpdateEvent{
+			ConnectUserJobRoleUpdateEvent: req.GetConnectUserJobRoleUpdateEvent(),
+		}
+	}
 
+	// authClusterId is sent with each event that needs to be anonymized.
+	anonymizer, err := newClusterAnonymizer(req.GetAuthClusterId())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Anonymized events.
+	switch eventType := req.GetEvent().(type) {
+	case *api.ReportEventRequest_ConnectLogin:
+		event := req.GetConnectLogin()
+		event.ClusterName = anonymizer.AnonymizeString(event.ClusterName)
+		event.UserName = anonymizer.AnonymizeString(event.UserName)
+
+		convertedEvent.Event = &prehogapi.SubmitConnectEventRequest_ConnectLogin{
+			ConnectLogin: event,
+		}
+	case *api.ReportEventRequest_ConnectProtocolRun:
+		event := req.GetConnectProtocolRun()
+		event.ClusterName = anonymizer.AnonymizeString(event.ClusterName)
+		event.UserName = anonymizer.AnonymizeString(event.UserName)
+
+		convertedEvent.Event = &prehogapi.SubmitConnectEventRequest_ConnectProtocolRun{
+			ConnectProtocolRun: event,
+		}
+	case *api.ReportEventRequest_ConnectAccessRequestCreate:
+		event := req.GetConnectAccessRequestCreate()
+		event.ClusterName = anonymizer.AnonymizeString(event.ClusterName)
+		event.UserName = anonymizer.AnonymizeString(event.UserName)
+
+		convertedEvent.Event = &prehogapi.SubmitConnectEventRequest_ConnectAccessRequestCreate{
+			ConnectAccessRequestCreate: event,
+		}
+	case *api.ReportEventRequest_ConnectAccessRequestReview:
+		event := req.GetConnectAccessRequestReview()
+		event.ClusterName = anonymizer.AnonymizeString(event.ClusterName)
+		event.UserName = anonymizer.AnonymizeString(event.UserName)
+
+		convertedEvent.Event = &prehogapi.SubmitConnectEventRequest_ConnectAccessRequestReview{
+			ConnectAccessRequestReview: event,
+		}
+	case *api.ReportEventRequest_ConnectAccessRequestAssumeRole:
+		event := req.GetConnectAccessRequestAssumeRole()
+		event.ClusterName = anonymizer.AnonymizeString(event.ClusterName)
+		event.UserName = anonymizer.AnonymizeString(event.UserName)
+
+		convertedEvent.Event = &prehogapi.SubmitConnectEventRequest_ConnectAccessRequestAssumeRole{
+			ConnectAccessRequestAssumeRole: event,
+		}
+	case *api.ReportEventRequest_ConnectFileTransferRunEvent:
+		event := req.GetConnectFileTransferRunEvent()
+		event.ClusterName = anonymizer.AnonymizeString(event.ClusterName)
+		event.UserName = anonymizer.AnonymizeString(event.UserName)
+
+		convertedEvent.Event = &prehogapi.SubmitConnectEventRequest_ConnectFileTransferRunEvent{
+			ConnectFileTransferRunEvent: event,
+		}
 	default:
-		return nil, trace.BadParameter("unexpected Event usage type %T", event)
+		return nil, trace.BadParameter("unexpected Event usage type %T", eventType)
 	}
 
 	return convertedEvent, nil
@@ -180,73 +202,4 @@ func newClusterAnonymizer(authClusterId string) (utils.Anonymizer, error) {
 		return nil, trace.BadParameter("Invalid auth cluster ID %s", authClusterId)
 	}
 	return utils.NewHMACAnonymizer(authClusterId)
-}
-
-func anonymizeLoginEvent(event *api.LoginEvent, anonymizer utils.Anonymizer) *prehogapi.SubmitConnectEventRequest_ConnectLogin {
-	return &prehogapi.SubmitConnectEventRequest_ConnectLogin{
-		ConnectLogin: &prehogapi.ConnectLoginEvent{
-			ClusterName:    anonymizer.AnonymizeString(event.GetClusterProperties().GetClusterName()),
-			UserName:       anonymizer.AnonymizeString(event.GetClusterProperties().GetUserName()),
-			Arch:           event.GetArch(),
-			Os:             event.GetOs(),
-			OsVersion:      event.GetOsVersion(),
-			ConnectVersion: event.GetConnectVersion(),
-		},
-	}
-}
-
-func anonymizeProtocolRunEvent(event *api.ProtocolRunEvent, anonymizer utils.Anonymizer) *prehogapi.SubmitConnectEventRequest_ConnectProtocolRun {
-	return &prehogapi.SubmitConnectEventRequest_ConnectProtocolRun{
-		ConnectProtocolRun: &prehogapi.ConnectProtocolRunEvent{
-			ClusterName: anonymizer.AnonymizeString(event.GetClusterProperties().GetClusterName()),
-			UserName:    anonymizer.AnonymizeString(event.GetClusterProperties().GetUserName()),
-			Protocol:    event.GetProtocol(),
-		},
-	}
-}
-
-func anonymizeAccessRequestCreateEvent(event *api.AccessRequestCreateEvent, anonymizer utils.Anonymizer) *prehogapi.SubmitConnectEventRequest_ConnectAccessRequestCreate {
-	return &prehogapi.SubmitConnectEventRequest_ConnectAccessRequestCreate{
-		ConnectAccessRequestCreate: &prehogapi.ConnectAccessRequestCreateEvent{
-			ClusterName: anonymizer.AnonymizeString(event.GetClusterProperties().GetClusterName()),
-			UserName:    anonymizer.AnonymizeString(event.GetClusterProperties().GetUserName()),
-			Kind:        event.GetKind(),
-		},
-	}
-}
-
-func anonymizeAccessRequestReviewEvent(event *api.AccessRequestReviewEvent, anonymizer utils.Anonymizer) *prehogapi.SubmitConnectEventRequest_ConnectAccessRequestReview {
-	return &prehogapi.SubmitConnectEventRequest_ConnectAccessRequestReview{
-		ConnectAccessRequestReview: &prehogapi.ConnectAccessRequestReviewEvent{
-			ClusterName: anonymizer.AnonymizeString(event.GetClusterProperties().GetClusterName()),
-			UserName:    anonymizer.AnonymizeString(event.GetClusterProperties().GetUserName()),
-		},
-	}
-}
-
-func anonymizeAccessRequestAssumeRoleEvent(event *api.AccessRequestAssumeRoleEvent, anonymizer utils.Anonymizer) *prehogapi.SubmitConnectEventRequest_ConnectAccessRequestAssumeRole {
-	return &prehogapi.SubmitConnectEventRequest_ConnectAccessRequestAssumeRole{
-		ConnectAccessRequestAssumeRole: &prehogapi.ConnectAccessRequestAssumeRoleEvent{
-			ClusterName: anonymizer.AnonymizeString(event.GetClusterProperties().GetClusterName()),
-			UserName:    anonymizer.AnonymizeString(event.GetClusterProperties().GetUserName()),
-		},
-	}
-}
-
-func anonymizeFileTransferRunEvent(event *api.FileTransferRunEvent, anonymizer utils.Anonymizer) *prehogapi.SubmitConnectEventRequest_ConnectFileTransferRunEvent {
-	return &prehogapi.SubmitConnectEventRequest_ConnectFileTransferRunEvent{
-		ConnectFileTransferRunEvent: &prehogapi.ConnectFileTransferRunEvent{
-			ClusterName: anonymizer.AnonymizeString(event.GetClusterProperties().GetClusterName()),
-			UserName:    anonymizer.AnonymizeString(event.GetClusterProperties().GetUserName()),
-			Direction:   event.GetDirection(),
-		},
-	}
-}
-
-func convertUserJobRoleUpdateEvent(event *api.UserJobRoleUpdateEvent) *prehogapi.SubmitConnectEventRequest_ConnectUserJobRoleUpdateEvent {
-	return &prehogapi.SubmitConnectEventRequest_ConnectUserJobRoleUpdateEvent{
-		ConnectUserJobRoleUpdateEvent: &prehogapi.ConnectUserJobRoleUpdateEvent{
-			JobRole: event.GetJobRole(),
-		},
-	}
 }

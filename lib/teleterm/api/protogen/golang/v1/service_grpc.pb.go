@@ -114,7 +114,7 @@ type TerminalServiceClient interface {
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (TerminalService_TransferFileClient, error)
-	// dsf
+	// ReportEvent sends usage event
 	ReportEvent(ctx context.Context, in *ReportEventRequest, opts ...grpc.CallOption) (*EventReportedResponse, error)
 }
 
@@ -564,7 +564,7 @@ type TerminalServiceServer interface {
 	Logout(context.Context, *LogoutRequest) (*EmptyResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error
-	// dsf
+	// ReportEvent sends usage event
 	ReportEvent(context.Context, *ReportEventRequest) (*EventReportedResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
