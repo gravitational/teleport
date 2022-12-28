@@ -49,7 +49,7 @@ type Client struct {
 func NewClient(cfg ClientConfig) (*Client, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
-		return &Client{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	httpClient := &http.Client{
@@ -59,12 +59,12 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	}
 
 	if err != nil {
-		return &Client{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	client, err := roundtrip.NewClient(fmt.Sprintf("https://%s", cfg.TLSConfig.ServerName), "", roundtrip.HTTPClient(httpClient))
 	if err != nil {
-		return &Client{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return &Client{
