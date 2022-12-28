@@ -1149,10 +1149,10 @@ var (
 	dbCmdUnsupportedTemplate = template.Must(template.New("").Parse(`"{{.command}}" is not supported for {{.protocol}} databases{{if .condition}} {{.condition}}{{end}}.
 {{if eq (len .alternatives) 1}}
 Please use the following command to connect to the database:
-    ` + "`{{index .alternatives 0 -}}`" + `{{else}}
+    {{index .alternatives 0 -}}{{else}}
 Please use one of the following commands to connect to the database:
 	{{- range .alternatives}}
-    ` + "`{{.}}`" + `{{end -}}
+    {{.}}{{end -}}
 {{- end}}`))
 )
 
