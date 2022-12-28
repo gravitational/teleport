@@ -48,7 +48,10 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	out.DatabaseQuery = ""
 	out.DatabaseQueryParameters = nil
 
-	// Use 12% max size ballast + message size without custom fields.
+	// Use 12% max size ballast + message size without custom fields. This was
+	// changed from 10% to 12% to handle the additional overhead of logging
+	// large MongoDB queries that require larger amounts of escaping. See issue:
+	// https://github.com/gravitational/teleport/issues/15645
 	sizeBallast := maxSize/8 + out.Size()
 	maxSize -= sizeBallast
 
