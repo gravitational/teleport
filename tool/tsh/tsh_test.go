@@ -2455,13 +2455,11 @@ func withSSHLabel(key, value string) testServerOptFunc {
 	})
 }
 
-func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) (node *service.TeleportProcess) {
+func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) *service.TeleportProcess {
 	var options testServersOpts
 	for _, opt := range opts {
 		opt(&options)
 	}
-
-	var err error
 
 	// Set up a test ssh service.
 	cfg := service.MakeDefaultConfig()
@@ -2483,23 +2481,12 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 		fn(cfg)
 	}
 
-	node, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, node.Start())
-
-	t.Cleanup(func() {
-		require.NoError(t, node.Close())
-		require.NoError(t, node.Wait())
-	})
-
-	// Wait for node to become ready.
-	node.WaitForEventTimeout(10*time.Second, service.NodeSSHReady)
-	require.NoError(t, err, "node didn't start after 10s")
-
-	return node
+	return runTeleport(t, cfg)
 }
 
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+	t.Helper()
+
 	var options testServersOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -2536,14 +2523,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		fn(cfg)
 	}
 
-	auth, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, auth.Start())
-
-	t.Cleanup(func() {
-		require.NoError(t, auth.Close())
-		require.NoError(t, auth.Wait())
-	})
+	auth = runTeleport(t, cfg)
 
 	// Wait for proxy to become ready.
 	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
@@ -2571,19 +2551,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
 
-	proxy, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, proxy.Start())
-
-	t.Cleanup(func() {
-		require.NoError(t, proxy.Close())
-		require.NoError(t, proxy.Wait())
-	})
-
-	// Wait for proxy to become ready.
-	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
-	require.NoError(t, err, "proxy web server didn't start after 10s")
-
+	proxy = runTeleport(t, cfg)
 	return auth, proxy
 }
 
@@ -3590,34 +3558,35 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	}
 }
 
-func TestExportingTraces(t *testing.T) {
-	connector := mockConnector(t)
-	alice, err := types.NewUser("alice@example.com")
-	require.NoError(t, err)
-	alice.SetRoles([]string{"access"})
+func spanAssertion(containsTSH, empty bool) func(t *testing.T, spans []*otlp.ScopeSpans) {
+	return func(t *testing.T, spans []*otlp.ScopeSpans) {
+		if empty {
+			require.Empty(t, spans)
+			return
+		}
 
-	spanAssertion := func(containsTSH bool) func(t require.TestingT, i interface{}, i2 ...interface{}) {
-		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
-			spans, ok := i.([]*otlp.ScopeSpans)
-			require.True(t, ok)
+		require.NotEmpty(t, spans)
 
-			var scopes []string
-			for _, span := range spans {
-				scopes = append(scopes, span.Scope.Name)
-			}
+		var scopes []string
+		for _, span := range spans {
+			scopes = append(scopes, span.Scope.Name)
+		}
 
-			if containsTSH {
-				require.Contains(t, scopes, teleport.ComponentTSH)
-			} else {
-				require.NotContains(t, scopes, teleport.ComponentTSH)
-			}
+		if containsTSH {
+			require.Contains(t, scopes, teleport.ComponentTSH)
+		} else {
+			require.NotContains(t, scopes, teleport.ComponentTSH)
 		}
 	}
+}
+
+func TestForwardingTraces(t *testing.T) {
+	t.Parallel()
 
 	cases := []struct {
 		name          string
 		cfg           func(c *tracing.Collector) service.TracingConfig
-		spanAssertion require.ValueAssertionFunc
+		spanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
 	}{
 		{
 			name: "spans exported with auth sampling all",
@@ -3628,7 +3597,7 @@ func TestExportingTraces(t *testing.T) {
 					SamplingRate: 1.0,
 				}
 			},
-			spanAssertion: spanAssertion(true),
+			spanAssertion: spanAssertion(true, false),
 		},
 		{
 			name: "spans exported with auth sampling none",
@@ -3639,20 +3608,29 @@ func TestExportingTraces(t *testing.T) {
 					SamplingRate: 0.0,
 				}
 			},
-			spanAssertion: spanAssertion(true),
+			spanAssertion: spanAssertion(true, false),
 		},
 		{
 			name: "spans not exported when tracing disabled",
 			cfg: func(c *tracing.Collector) service.TracingConfig {
 				return service.TracingConfig{}
 			},
-			spanAssertion: require.Empty,
+			spanAssertion: func(t *testing.T, spans []*otlp.ScopeSpans) {
+				require.Empty(t, spans)
+			},
 		},
 	}
 
 	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			connector := mockConnector(t)
+
+			alice, err := types.NewUser("alice@example.com")
+			require.NoError(t, err)
+			alice.SetRoles([]string{"access"})
+
 			tmpHomePath := t.TempDir()
 			collector, err := tracing.NewCollector(tracing.CollectorConfig{})
 			require.NoError(t, err)
@@ -3668,10 +3646,11 @@ func TestExportingTraces(t *testing.T) {
 				require.NoError(t, <-errCh)
 			})
 
+			traceCfg := tt.cfg(collector)
 			authProcess, proxyProcess := makeTestServers(t,
 				withBootstrap(connector, alice),
 				withConfig(func(cfg *service.Config) {
-					cfg.Tracing = tt.cfg(collector)
+					cfg.Tracing = traceCfg
 				}),
 			)
 
@@ -3693,10 +3672,13 @@ func TestExportingTraces(t *testing.T) {
 				return nil
 			})
 			require.NoError(t, err)
-			// ensure login doesn't generate any spans from tsh. we can't
-			// check for an empty span list here because other spans may be
-			// generated from background components running within the auth/proxy
-			loginAssertion := spanAssertion(false)
+
+			if traceCfg.Enabled {
+				collector.WaitForExport()
+			}
+
+			// ensure login doesn't generate any spans from tsh if spans are being sampled
+			loginAssertion := spanAssertion(false, !traceCfg.Enabled)
 			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
@@ -3707,7 +3689,139 @@ func TestExportingTraces(t *testing.T) {
 				"--trace",
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
+
+			if traceCfg.Enabled {
+				collector.WaitForExport()
+			}
+
 			tt.spanAssertion(t, collector.Spans())
+		})
+	}
+}
+
+func TestExportingTraces(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                  string
+		cfg                   func(c *tracing.Collector) service.TracingConfig
+		teleportSpanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
+		tshSpanAssertion      func(t *testing.T, spans []*otlp.ScopeSpans)
+	}{
+		{
+			name: "spans exported with auth sampling all",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.GRPCAddr(),
+					SamplingRate: 1.0,
+				}
+			},
+			teleportSpanAssertion: spanAssertion(false, false),
+			tshSpanAssertion:      spanAssertion(true, false),
+		},
+		{
+			name: "spans exported with auth sampling none",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.HTTPAddr(),
+					SamplingRate: 0.0,
+				}
+			},
+			teleportSpanAssertion: spanAssertion(false, false),
+			tshSpanAssertion:      spanAssertion(true, false),
+		},
+		{
+			name: "spans not exported when tracing disabled",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{}
+			},
+			teleportSpanAssertion: spanAssertion(false, true),
+			tshSpanAssertion:      spanAssertion(true, false),
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			alice, err := types.NewUser("alice@example.com")
+			require.NoError(t, err)
+			alice.SetRoles([]string{"access"})
+
+			connector := mockConnector(t)
+			tmpHomePath := t.TempDir()
+
+			teleportCollector, err := tracing.NewCollector(tracing.CollectorConfig{})
+			require.NoError(t, err)
+
+			tshCollector, err := tracing.NewCollector(tracing.CollectorConfig{})
+			require.NoError(t, err)
+
+			errCh := make(chan error, 2)
+			go func() {
+				errCh <- teleportCollector.Start()
+			}()
+			go func() {
+				errCh <- tshCollector.Start()
+			}()
+
+			traceCfg := tt.cfg(teleportCollector)
+			authProcess, proxyProcess := makeTestServers(t,
+				withBootstrap(connector, alice),
+				withConfig(func(cfg *service.Config) {
+					cfg.Tracing = traceCfg
+				}),
+			)
+
+			authServer := authProcess.GetAuthServer()
+			require.NotNil(t, authServer)
+
+			proxyAddr, err := proxyProcess.ProxyWebAddr()
+			require.NoError(t, err)
+
+			// login events should be included since there is
+			// no forwarding
+			err = Run(context.Background(), []string{
+				"login",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+				"--trace-exporter", tshCollector.GRPCAddr(),
+			}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+				return nil
+			})
+			require.NoError(t, err)
+
+			if traceCfg.Enabled {
+				teleportCollector.WaitForExport()
+			}
+			tshCollector.WaitForExport()
+
+			tt.teleportSpanAssertion(t, teleportCollector.Spans())
+			tt.tshSpanAssertion(t, tshCollector.Spans())
+
+			err = Run(context.Background(), []string{
+				"ls",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+				"--trace-exporter", tshCollector.GRPCAddr(),
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			if traceCfg.Enabled {
+				teleportCollector.WaitForExport()
+			}
+			tshCollector.WaitForExport()
+
+			tt.teleportSpanAssertion(t, teleportCollector.Spans())
+			tt.tshSpanAssertion(t, tshCollector.Spans())
 		})
 	}
 }
