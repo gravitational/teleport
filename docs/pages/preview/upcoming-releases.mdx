@@ -10,12 +10,12 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ### 11.2
 
-#### Script-based Upgrades
+#### Script-based upgrades
 
 Teleport will add the ability to upload installation scripts which can then be
 remotely pushed to upgrade hosts.
 
-#### Add support for x509 integration for self-hosted Microsoft SQL Server
+#### Add support for X.509 integration for self-hosted Microsoft SQL Server
 
 Teleport Database Access will add the ability to configure Microsoft SQL Server
 access to accept X.509 authentication instead of keytab credentials.
@@ -50,10 +50,17 @@ PostgreSQL and RDS databases.
 |------------------|--------------------|----------------------------|
 | Release          | January 6th, 2022  | Good to go for production. |
 
-## 11.3
+### 11.3
 
-- Dropping support for SHA1
-- Adding support for claim rewriting with Login Rules
+#### Dropping support for SHA-1
+
+Newer OpenSSH clients won't need the workaround with accepting SHA-1 signed certificates
+to connect to Teleport Proxy anymore.
+
+#### Adding support for claim rewriting with Login Rules
+
+Cluster administrators will be able to modify SSO claims without making changes to the
+identity provider.
 
 | Version          | Date                | Description                |
 |------------------|---------------------|----------------------------|
