@@ -169,7 +169,7 @@ type Release struct {
 	// Product is the release product, teleport or teleport-ent
 	Product string `json:"product"`
 	// ReleaseId is the ID of the product
-	ReleaseID string `json:"releaseIds"`
+	ReleaseID string `json:"releaseId"`
 	// Status is the status of the release
 	Status string `json:"status"`
 	// Version is the version of the release
