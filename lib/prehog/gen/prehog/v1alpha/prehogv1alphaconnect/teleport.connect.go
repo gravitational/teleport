@@ -29,7 +29,6 @@ const (
 // service.
 type TeleportReportingServiceClient interface {
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
-	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
 }
 
 // NewTeleportReportingServiceClient constructs a client for the
@@ -47,18 +46,12 @@ func NewTeleportReportingServiceClient(httpClient connect_go.HTTPClient, baseURL
 			baseURL+"/prehog.v1alpha.TeleportReportingService/SubmitEvent",
 			opts...,
 		),
-		helloTeleport: connect_go.NewClient[v1alpha.HelloTeleportRequest, v1alpha.HelloTeleportResponse](
-			httpClient,
-			baseURL+"/prehog.v1alpha.TeleportReportingService/HelloTeleport",
-			opts...,
-		),
 	}
 }
 
 // teleportReportingServiceClient implements TeleportReportingServiceClient.
 type teleportReportingServiceClient struct {
-	submitEvent   *connect_go.Client[v1alpha.SubmitEventRequest, v1alpha.SubmitEventResponse]
-	helloTeleport *connect_go.Client[v1alpha.HelloTeleportRequest, v1alpha.HelloTeleportResponse]
+	submitEvent *connect_go.Client[v1alpha.SubmitEventRequest, v1alpha.SubmitEventResponse]
 }
 
 // SubmitEvent calls prehog.v1alpha.TeleportReportingService.SubmitEvent.
@@ -66,16 +59,10 @@ func (c *teleportReportingServiceClient) SubmitEvent(ctx context.Context, req *c
 	return c.submitEvent.CallUnary(ctx, req)
 }
 
-// HelloTeleport calls prehog.v1alpha.TeleportReportingService.HelloTeleport.
-func (c *teleportReportingServiceClient) HelloTeleport(ctx context.Context, req *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error) {
-	return c.helloTeleport.CallUnary(ctx, req)
-}
-
 // TeleportReportingServiceHandler is an implementation of the
 // prehog.v1alpha.TeleportReportingService service.
 type TeleportReportingServiceHandler interface {
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
-	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
 }
 
 // NewTeleportReportingServiceHandler builds an HTTP handler from the service implementation. It
@@ -90,11 +77,6 @@ func NewTeleportReportingServiceHandler(svc TeleportReportingServiceHandler, opt
 		svc.SubmitEvent,
 		opts...,
 	))
-	mux.Handle("/prehog.v1alpha.TeleportReportingService/HelloTeleport", connect_go.NewUnaryHandler(
-		"/prehog.v1alpha.TeleportReportingService/HelloTeleport",
-		svc.HelloTeleport,
-		opts...,
-	))
 	return "/prehog.v1alpha.TeleportReportingService/", mux
 }
 
@@ -103,8 +85,4 @@ type UnimplementedTeleportReportingServiceHandler struct{}
 
 func (UnimplementedTeleportReportingServiceHandler) SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error) {
 	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("prehog.v1alpha.TeleportReportingService.SubmitEvent is not implemented"))
-}
-
-func (UnimplementedTeleportReportingServiceHandler) HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error) {
-	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("prehog.v1alpha.TeleportReportingService.HelloTeleport is not implemented"))
 }
