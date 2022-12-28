@@ -76,7 +76,7 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 
 func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
 	rdsProxy := &rds.DBProxy{
-		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:1234567890:db-proxy:prx-%s", region, name)),
+		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:123456789012:db-proxy:prx-%s", region, name)),
 		DBProxyName:  aws.String(name),
 		EngineFamily: aws.String(rds.EngineFamilyMysql),
 		Endpoint:     aws.String("localhost"),
@@ -95,7 +95,7 @@ func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, regio
 		Endpoint:            aws.String("localhost"),
 		DBProxyEndpointName: aws.String(name),
 		DBProxyName:         rdsProxy.DBProxyName,
-		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456:db-proxy-endpoint:prx-endpoint-%v", region, name)),
+		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db-proxy-endpoint:prx-endpoint-%v", region, name)),
 		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
 		Status:              aws.String("available"),
 	}
