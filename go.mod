@@ -119,6 +119,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.2
 	go.opentelemetry.io/otel/trace v1.11.2
 	go.opentelemetry.io/proto/otlp v0.19.0
+	golang.org/x/crypto v0.2.0
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 	golang.org/x/mod v0.7.0
 	golang.org/x/net v0.4.0
@@ -171,8 +172,6 @@ require (
 
 // Do not remove. It breaks github.com/gravitational/go-oidc.
 require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-
-require golang.org/x/crypto v0.2.0
 
 require (
 	cloud.google.com/go v0.107.0 // indirect
@@ -363,5 +362,6 @@ replace (
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
+	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
 	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221221152432-903e65687e59
 )
