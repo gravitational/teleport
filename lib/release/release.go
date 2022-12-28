@@ -86,7 +86,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 		return nil, trace.BadParameter("client not initialized")
 	}
 
-	resp, err := c.client.Get(ctx, c.client.Endpoint("teleport-ent"), nil)
+	resp, err := c.client.Get(ctx, c.client.Endpoint(types.EnterpriseReleaseEndpoint), nil)
 	if err != nil {
 		log.WithError(err).Error()
 		return nil, trace.Wrap(err)

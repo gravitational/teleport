@@ -28,6 +28,10 @@ const (
 	// the default release server address
 	ReleaseServerEnvVar = "RELEASE_SERVER_HOSTPORT"
 
+	// enterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
+	// releases on the release server
+	EnterpriseReleaseEndpoint = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
