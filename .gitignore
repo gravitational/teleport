@@ -69,6 +69,7 @@ ssh.config
 
 # build tooling
 build.assets/tooling/bin/** 
+build.assets/.cache/
 
 # Go workspace files
 go.work
