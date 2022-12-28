@@ -4640,3 +4640,281 @@ enum RequireMFAType {
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
 }
+
+// LocalScriptInstallerV1 is used by the version control system to install
+// new teleport versions via user-provided scripts.
+message LocalScriptInstallerV1 {
+  // Header is the common resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the version installer script spec.
+  LocalScriptInstallerSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// LocalScriptInstallerSpecV1 specifies the details of a local version installer.
+message LocalScriptInstallerSpecV1 {
+  // Nonce protects installers from unexpected concurrent updates.
+  uint64 Nonce = 1 [(gogoproto.jsontag) = "nonce"];
+
+  // Status represents the status of an installer in terms of its runnability. The only
+  // currently supported statuses are 'enabled' and 'disabled', but we may want to
+  // support additional statuses, such as 'poisoned' in the future.
+  string Status = 2 [
+    (gogoproto.jsontag) = "status",
+    (gogoproto.casttype) = "VersionControlInstallerStatus"
+  ];
+
+  // Env is a set of optional env vars to be made available to the script.
+  map<string, string> Env = 3 [(gogoproto.jsontag) = "env,omitempty"];
+
+  // EnvPassthrough is an optional list of environment variables that are allowed to be
+  // enherited from the teleport instance's environment.
+  repeated string EnvPassthrough = 4 [(gogoproto.jsontag) = "env_passthrough,omitempty"];
+
+  // Shell optionally overrides the target shell (defaults to `/bin/sh`).
+  string Shell = 5 [(gogoproto.jsontag) = "shell,omitempty"];
+
+  // InstallScript is the install script to be run.
+  string InstallScript = 6 [(gogoproto.jsontag) = "install.sh,omitempty"];
+
+  // RestartScript is the restart script to be run.
+  string RestartScript = 7 [(gogoproto.jsontag) = "restart.sh,omitempty"];
+}
+
+// ExecScript is a message representing a script to be executed against a teleport instance. Used
+// by the version control system to execute various scripts on target instances.
+message ExecScript {
+  // Type is the type of exec operatin (e.g. version-control-script).
+  string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+
+  // ID is a random ID used to differentiate/correlate runs.
+  uint64 ID = 2 [(gogoproto.jsontag) = "id,omitempty"];
+
+  // Time is the time at which the exec was triggered.
+  google.protobuf.Timestamp Time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "time,omitempty"
+  ];
+
+  // Expect optionally asserts details of the currently running teleport installation.
+  map<string, string> Expect = 4 [
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/versioncontrol.Target",
+    (gogoproto.jsontag) = "expect,omitempty"
+  ];
+
+  // Env is the env vars to be provided to the script.
+  map<string, string> Env = 5 [(gogoproto.jsontag) = "env,omitempty"];
+
+  // EnvPassthrough is an optional list of environment variables that are allowed to be
+  // enherited from the teleport instance's environment.
+  repeated string EnvPassthrough = 6 [(gogoproto.jsontag) = "env_passthrough,omitempty"];
+
+  // Shell is the shell to be used to execute the script.
+  string Shell = 7 [(gogoproto.jsontag) = "shell,omitempty"];
+
+  // Script is the body of the script.
+  string Script = 8 [(gogoproto.jsontag) = "script,omitempty"];
+}
+
+// ExecScriptResult is a message representing the result of an ExecScript result. Sending an ExecScript message
+// to an instance does not guarantee that an ExecScriptResult will ever be observed, and failure to observe
+// an ExecScriptResult does not guarantee that the script was not run.
+message ExecScriptResult {
+  // Type is the type of exec operatin (e.g. version-control-script).
+  string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+
+  // ID is a random ID used to differentiate/correlate runs.
+  uint64 ID = 2 [(gogoproto.jsontag) = "id,omitempty"];
+
+  // Time is the time at which the exec was triggered.
+  google.protobuf.Timestamp Time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "time,omitempty"
+  ];
+
+  // Success indicates that the script ran successfully if true.
+  bool Success = 4 [(gogoproto.jsontag) = "success,omitempty"];
+
+  // Code is the exit code of the script. may not be valid if Error is present.
+  int32 Code = 5 [(gogoproto.jsontag) = "code,omitempty"];
+
+  // Error is the string representation of an error that occurred leading upto or during
+  // execution of the script.
+  string Error = 6 [(gogoproto.jsontag) = "error,omitempty"];
+}
+
+// VersionControlInstallerFilter matches version control installers.
+message VersionControlInstallerFilter {
+  // Kind specifies the kind of installer to match (matches all if unspecified).
+  string Kind = 1 [(gogoproto.casttype) = "VersionControlInstallerKind"];
+  // Name specifies a specific installer by name if non-empty (invalid if Type is unspecified).
+  string Name = 2;
+  // Nonce asserts expected nonce if non-zero (generally only useful for delete operations).
+  uint64 Nonce = 3;
+}
+
+// VersionDirectiveFilter matches version directives. If nonce and/or name are set, then it is
+// a reference to exactly one version directive.
+message VersionDirectiveFilter {
+  // Phase specifies the directive phase to match (matches all if NONE).
+  string Phase = 1 [(gogoproto.casttype) = "VersionDirectivePhase"];
+  // Kind specifies the directive kind to match (e.g. 'static' for user created directives).
+  string Kind = 2;
+  // Name specifies a specific directive by name if non-empty (invalid if phase or kind are unset).
+  string Name = 3;
+  // Nonce asserts expected nonce if non-zero (generally only useful for promote/delete/poison ops).
+  uint64 Nonce = 4;
+}
+
+// VersionDirectiveV1 is used by the version control system to represent the
+// desired state of the cluster.
+message VersionDirectiveV1 {
+  // Header is the common resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the version installer script spec.
+  VersionDirectiveSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// VersionDirectiveSpecV1 specifies the details of a version directive resource.
+message VersionDirectiveSpecV1 {
+  // Nonce protects directives from unexpected concurrent updates.
+  uint64 Nonce = 1 [(gogoproto.jsontag) = "nonce"];
+
+  // Phase is the phase that the directive is in (draft|pending|active). This field exists
+  // mostly for user-facing display purposes. Directives in different phases are stored in
+  // separate key ranges, and most operations only work on directives of a specific phase.
+  string Phase = 2 [
+    (gogoproto.jsontag) = "phase",
+    (gogoproto.casttype) = "VersionDirectivePhase"
+  ];
+
+  // Status represents the status of the version directive in terms of its theoretical
+  // runnability. Unknown status values are permitted, but cause the version directive
+  // to be treated as if it were locked. The supported statuses are:
+  // - ready: version directive can be promoted and enforced.
+  // - locked: version direcitve should not be promoted or enforced right now.
+  // - poisoned: equivalent to locked, but permanent. something went wrong.
+  string Status = 3 [
+    (gogoproto.jsontag) = "status",
+    (gogoproto.casttype) = "VersionDirectiveStatus"
+  ];
+
+  // StatusMsg is an optional human-readable explanation for the current status. E.g. in
+  // the case of poisoning, the message might be an explanation of what went wrong.
+  string StatusMsg = 4 [(gogoproto.jsontag) = "status_msg,omitempty"];
+
+  // Origin indicates the source of the version directive.
+  string Origin = 5 [(gogoproto.jsontag) = "origin,omitempty"];
+
+  // Schedule encodes basic scheduling parameters.
+  VersionDirectiveSchedule Schedule = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "schedule,omitempty"
+  ];
+
+  // Directives is the heart of the version directive resource. Each stanza represents
+  // a mapping of teleport instances to tagets and installers.
+  repeated VersionDirectiveStanza Directives = 16 [(gogoproto.jsontag) = "directives,omitempty"];
+}
+
+message VersionDirectiveSchedule {
+  // NotBefore limits the directive to not be enforced before the given time.
+  google.protobuf.Timestamp NotBefore = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "not_before,omitempty"
+  ];
+
+  // NotAfter limits the directive to not be enforced after the given time.
+  google.protobuf.Timestamp NotAfter = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "not_after,omitempty"
+  ];
+}
+
+// VersionDirectiveStanza maps teleport instances to targets and installers, and is
+// the heart of the version directive resource.
+message VersionDirectiveStanza {
+  // Name is an optional human-readable name.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+
+  // Targets specifies the install targets for this stanza.
+  repeated WrappedInstallTarget Targets = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "targets,omitempty"
+  ];
+
+  // Installers lists the appropriate installers for this stanza.
+  repeated VersionControlInstallerRef Installers = 3 [(gogoproto.jsontag) = "installers,omitempty"];
+
+  // Selectors match teleport instances that should be upgraded as
+  // prescribed by this stanza.
+  repeated InstanceSelector Selectors = 4 [(gogoproto.jsontag) = "selectors,omitempty"];
+}
+
+// WrappedInstallTarget is a wrapper to support lists of install targets via
+// custom marshal/unmarshal methods (protobuf can't handle `repeated map<..>`).
+message WrappedInstallTarget {
+  // Target represents an install target (e.g. `{version: v1.2.3, security-patch: yes}`).
+  map<string, string> Target = 1 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/versioncontrol.Target"];
+}
+
+// VersionControlInstallerRef is a reference to a version control installer.
+message VersionControlInstallerRef {
+  // Kind is the kind of the target installer.
+  string Kind = 1 [
+    (gogoproto.jsontag) = "kind,omitempty",
+    (gogoproto.casttype) = "VersionControlInstallerKind"
+  ];
+  // Name is the name of the target installer.
+  string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// InstanceSelector is the selector used to match instances to version directive stanzas.
+message InstanceSelector {
+  // Labels selects on instances by label (matches all if unset).
+  map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
+  // Services selects on instances by service (matches none if unset).
+  repeated string Services = 2 [
+    (gogoproto.casttype) = "SystemRole",
+    (gogoproto.jsontag) = "services,omitempty"
+  ];
+
+  // Current matches the currently installed target (matches all if unset).
+  map<string, string> Current = 3 [
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/versioncontrol.Target",
+    (gogoproto.jsontag) = "current,omitempty"
+  ];
+}
+
+// VersionControlInstallerSet holds version control installers, sorted by type.
+message VersionControlInstallerSet {
+  // LocalScript holds local script installers.
+  repeated types.LocalScriptInstallerV1 LocalScript = 1;
+}
+
+// VersionDirectiveSet holds version directives, sorted by phase.
+message VersionDirectiveSet {
+  // Active holds the currently active version directive, if one exists.
+  types.VersionDirectiveV1 Active = 1;
+  // Pending holds version directives that are in an immutable pending state.
+  repeated types.VersionDirectiveV1 Pending = 2;
+  // Draft holds version directives that are in a mutable draft state.
+  repeated types.VersionDirectiveV1 Draft = 3;
+}

@@ -29,7 +29,8 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	vc "github.com/gravitational/teleport/api/versioncontrol"
+	libvc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // NOTE: when making modifications to package, make sure to run tests with
@@ -41,12 +42,12 @@ var log = logrus.WithFields(logrus.Fields{
 })
 
 // Visit uses the supplied visitor to aggregate release info from the github releases api.
-func Visit(visitor *vc.Visitor) error {
+func Visit(visitor *libvc.Visitor) error {
 	return visit(Iterator{}, visitor)
 }
 
 // visit is the business logic of Visit, broken out for testing purposes.
-func visit(iter Iterator, visitor *vc.Visitor) error {
+func visit(iter Iterator, visitor *libvc.Visitor) error {
 	if !visitor.Current.Ok() {
 		return trace.BadParameter("cannot scrape github releases, invalid 'current' target: %+v", visitor.Current)
 	}

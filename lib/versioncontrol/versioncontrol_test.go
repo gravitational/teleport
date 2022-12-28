@@ -19,6 +19,7 @@ package versioncontrol
 import (
 	"testing"
 
+	vc "github.com/gravitational/teleport/api/versioncontrol"
 	"github.com/stretchr/testify/require"
 )
 
@@ -115,11 +116,11 @@ func TestVisitorBasics(t *testing.T) {
 	for _, tt := range tts {
 		visitor := Visitor{
 			PermitPrerelease: tt.permitPrerelease,
-			NotNewerThan:     NewTarget(tt.notNewerThan),
+			NotNewerThan:     vc.NewTarget(tt.notNewerThan),
 		}
 
 		for _, v := range tt.versions {
-			visitor.Visit(Target{LabelVersion: v})
+			visitor.Visit(vc.NewTarget(v))
 		}
 
 		require.Equal(t, tt.newest, visitor.Newest().Version(), tt.desc)
@@ -129,94 +130,94 @@ func TestVisitorBasics(t *testing.T) {
 
 func TestVisitorRelative(t *testing.T) {
 	tts := []struct {
-		current       Target
-		targets       []Target
-		nextMajor     Target
-		newestCurrent Target
-		newestSec     Target
-		notNewerThan  Target
+		current       vc.Target
+		targets       []vc.Target
+		nextMajor     vc.Target
+		newestCurrent vc.Target
+		newestSec     vc.Target
+		notNewerThan  vc.Target
 		desc          string
 	}{
 		{
-			current: NewTarget("v1.2.3"),
-			targets: []Target{
-				NewTarget("v1.3.5", SecurityPatch(true)),
-				NewTarget("v2.3.4"),
-				NewTarget("v2", SecurityPatch(true)),
-				NewTarget("v0.1", SecurityPatch(true)),
-				NewTarget("v2.4.2"),
-				NewTarget("v1.4.4"),
-				NewTarget("v3.4.5"),
+			current: vc.NewTarget("v1.2.3"),
+			targets: []vc.Target{
+				vc.NewTarget("v1.3.5", vc.SecurityPatch(true)),
+				vc.NewTarget("v2.3.4"),
+				vc.NewTarget("v2", vc.SecurityPatch(true)),
+				vc.NewTarget("v0.1", vc.SecurityPatch(true)),
+				vc.NewTarget("v2.4.2"),
+				vc.NewTarget("v1.4.4"),
+				vc.NewTarget("v3.4.5"),
 			},
-			nextMajor:     NewTarget("v2.4.2"),
-			newestCurrent: NewTarget("v1.4.4"),
-			newestSec:     NewTarget("v1.3.5", SecurityPatch(true)),
+			nextMajor:     vc.NewTarget("v2.4.2"),
+			newestCurrent: vc.NewTarget("v1.4.4"),
+			newestSec:     vc.NewTarget("v1.3.5", vc.SecurityPatch(true)),
 			desc:          "broad test case",
 		},
 		{
-			targets: []Target{
-				NewTarget("v1.3.5", SecurityPatch(true)),
-				NewTarget("v2.3.4"),
-				NewTarget("v2", SecurityPatch(true)),
-				NewTarget("v0.1", SecurityPatch(true)),
-				NewTarget("v2.4.2"),
-				NewTarget("v1.4.4"),
+			targets: []vc.Target{
+				vc.NewTarget("v1.3.5", vc.SecurityPatch(true)),
+				vc.NewTarget("v2.3.4"),
+				vc.NewTarget("v2", vc.SecurityPatch(true)),
+				vc.NewTarget("v0.1", vc.SecurityPatch(true)),
+				vc.NewTarget("v2.4.2"),
+				vc.NewTarget("v1.4.4"),
 			},
 			desc: "no current target specified",
 		},
 		{
-			current: NewTarget("v1.2.3"),
-			targets: []Target{
-				NewTarget("v1.1"),
-				NewTarget("v1", SecurityPatch(true)),
-				NewTarget("v0.1"),
+			current: vc.NewTarget("v1.2.3"),
+			targets: []vc.Target{
+				vc.NewTarget("v1.1"),
+				vc.NewTarget("v1", vc.SecurityPatch(true)),
+				vc.NewTarget("v0.1"),
 			},
-			newestCurrent: NewTarget("v1.1"),
-			newestSec:     NewTarget("v1", SecurityPatch(true)),
+			newestCurrent: vc.NewTarget("v1.1"),
+			newestSec:     vc.NewTarget("v1", vc.SecurityPatch(true)),
 			desc:          "older targets",
 		},
 		{
-			current: NewTarget("v3.5.6"),
-			targets: []Target{
-				NewTarget("v1.2.3"),
-				NewTarget("v2.3.4", SecurityPatch(true)),
-				NewTarget("v0.1.2"),
+			current: vc.NewTarget("v3.5.6"),
+			targets: []vc.Target{
+				vc.NewTarget("v1.2.3"),
+				vc.NewTarget("v2.3.4", vc.SecurityPatch(true)),
+				vc.NewTarget("v0.1.2"),
 			},
 			desc: "too old",
 		},
 		{
-			current: NewTarget("v1.2.3"),
-			targets: []Target{
-				NewTarget("v3.4.5"),
-				NewTarget("v3", SecurityPatch(true)),
-				NewTarget("v12.13.14"),
+			current: vc.NewTarget("v1.2.3"),
+			targets: []vc.Target{
+				vc.NewTarget("v3.4.5"),
+				vc.NewTarget("v3", vc.SecurityPatch(true)),
+				vc.NewTarget("v12.13.14"),
 			},
 			desc: "too new",
 		},
 		{
-			current: NewTarget("v9"),
-			targets: []Target{
-				NewTarget("v10.0.1"),
-				NewTarget("v10", SecurityPatch(true)),
-				NewTarget("v9.0.1"),
-				NewTarget("v9", SecurityPatch(true)),
+			current: vc.NewTarget("v9"),
+			targets: []vc.Target{
+				vc.NewTarget("v10.0.1"),
+				vc.NewTarget("v10", vc.SecurityPatch(true)),
+				vc.NewTarget("v9.0.1"),
+				vc.NewTarget("v9", vc.SecurityPatch(true)),
 			},
-			nextMajor:     NewTarget("v10.0.1"),
-			newestCurrent: NewTarget("v9.0.1"),
-			newestSec:     NewTarget("v9", SecurityPatch(true)),
+			nextMajor:     vc.NewTarget("v10.0.1"),
+			newestCurrent: vc.NewTarget("v9.0.1"),
+			newestSec:     vc.NewTarget("v9", vc.SecurityPatch(true)),
 			desc:          "carry the one",
 		},
 		{
-			current: NewTarget("v1.5.9"),
-			targets: []Target{
-				NewTarget("v2.2.2"),
-				NewTarget("v1.2.3"),
-				NewTarget("v2.4.8", SecurityPatch(true)),
-				NewTarget("v1", SecurityPatch(true)),
+			current: vc.NewTarget("v1.5.9"),
+			targets: []vc.Target{
+				vc.NewTarget("v2.2.2"),
+				vc.NewTarget("v1.2.3"),
+				vc.NewTarget("v2.4.8", vc.SecurityPatch(true)),
+				vc.NewTarget("v1", vc.SecurityPatch(true)),
 			},
-			notNewerThan:  NewTarget("v1.3.5"),
-			newestCurrent: NewTarget("v1.2.3"),
-			newestSec:     NewTarget("v1", SecurityPatch(true)),
+			notNewerThan:  vc.NewTarget("v1.3.5"),
+			newestCurrent: vc.NewTarget("v1.2.3"),
+			newestSec:     vc.NewTarget("v1", vc.SecurityPatch(true)),
 			desc:          "not newer than",
 		},
 	}

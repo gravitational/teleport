@@ -17,32 +17,8 @@ limitations under the License.
 package versioncontrol
 
 import (
-	"fmt"
-
-	"golang.org/x/mod/semver"
+	vc "github.com/gravitational/teleport/api/versioncontrol"
 )
-
-// Normalize attaches the expected `v` prefix to a version string if the supplied
-// version is currently invalid, and attaching the prefix makes it valid. Useful for normalizing
-// the teleport.Version variable. Note that this package generally treats targets and version strings
-// as immutable, so normalization is never applied automatically. It is the responsibility of the
-// consumers of this package to apply normalization when and where immutability is known to not
-// be required (e.g. the 'teleport.Version' can and should always be normalized).
-//
-// NOTE: this isn't equivalent to "canonicalization" which makes equivalent version strings
-// comparable via `==`. version strings returned by this function should still only be compared
-// via `semver.Compare`, or via the comparison methods on the Target type.
-func Normalize(v string) string {
-	if semver.IsValid(v) {
-		return v
-	}
-
-	if n := fmt.Sprintf("v%s", v); semver.IsValid(n) {
-		return n
-	}
-
-	return v
-}
 
 // Visitor is a helper for aggregating information about observed targets. Useful for
 // getting newest/oldest version observed during iteration/pagination. Zero value omits
@@ -57,24 +33,24 @@ type Visitor struct {
 	PermitPrerelease bool
 
 	// NotNewerThan is an optional target represented a constraint for the *newest* version
-	// that we care about. Targets newer than NotNewerThan are ignored if it is supplied.
-	NotNewerThan Target
+	// that we care about. vc.Targets newer than NotNewerThan are ignored if it is supplied.
+	NotNewerThan vc.Target
 
 	// Current is an optional target representing the current installation. If a valid
 	// target is supplied, then the Next* family of targets are selected relative to it.
-	Current Target
+	Current vc.Target
 
-	newest         Target
-	oldest         Target
-	nextMajor      Target
-	newestCurrent  Target
-	newestSecPatch Target
+	newest         vc.Target
+	oldest         vc.Target
+	nextMajor      vc.Target
+	newestCurrent  vc.Target
+	newestSecPatch vc.Target
 }
 
 // Visit processes the supplied target. If ok is false, the target was
 // ignored due to being invalid, or because it was a prerelease if the visitor
 // is configured to ignore those.
-func (v *Visitor) Visit(t Target) (ok bool) {
+func (v *Visitor) Visit(t vc.Target) (ok bool) {
 	if !t.Ok() {
 		return false
 	}
@@ -117,31 +93,31 @@ func (v *Visitor) Visit(t Target) (ok bool) {
 }
 
 // Newest gets the most recent version string from among those observed.
-func (v *Visitor) Newest() Target {
+func (v *Visitor) Newest() vc.Target {
 	return v.newest
 }
 
 // Oldest gets the oldest version string from among those observed.
-func (v *Visitor) Oldest() Target {
+func (v *Visitor) Oldest() vc.Target {
 	return v.oldest
 }
 
 // NextMajor gets the newest target from the next major version (nil if Current was not
 // supplied or no matches were found).
-func (v *Visitor) NextMajor() Target {
+func (v *Visitor) NextMajor() vc.Target {
 	return v.nextMajor
 }
 
 // NewestCurrent gets the newest target from the current major version (nil if Current was
 // not supplied or no matches were found). Note that this target may not actually be newer
 // than than the current target.
-func (v *Visitor) NewestCurrent() Target {
+func (v *Visitor) NewestCurrent() vc.Target {
 	return v.newestCurrent
 }
 
 // NewestSecurityPatch gets the newest target from the current major version which is a
 // security patch (nil if Current was not supplied or if no matches were found). Note that
 // this target may not actually be newer than the current target.
-func (v *Visitor) NewestSecurityPatch() Target {
+func (v *Visitor) NewestSecurityPatch() vc.Target {
 	return v.newestSecPatch
 }

@@ -17,14 +17,36 @@ limitations under the License.
 package versioncontrol
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/mod/semver"
 )
 
-// NOTE: the contents of this file might be moving to the 'api' package in the future.
+// Normalize attaches the expected `v` prefix to a version string if the supplied
+// version is currently invalid, and attaching the prefix makes it valid. Useful for normalizing
+// the teleport.Version variable. Note that this package generally treats targets and version strings
+// as immutable, so normalization is never applied automatically. It is the responsibility of the
+// consumers of this package to apply normalization when and where immutability is known to not
+// be required (e.g. the 'teleport.Version' can and should always be normalized).
+//
+// NOTE: this isn't equivalent to "canonicalization" which makes equivalent version strings
+// comparable via `==`. version strings returned by this function should still only be compared
+// via `semver.Compare`, or via the comparison methods on the vc.Target type.
+func Normalize(v string) string {
+	if semver.IsValid(v) {
+		return v
+	}
+
+	if n := fmt.Sprintf("v%s", v); semver.IsValid(n) {
+		return n
+	}
+
+	return v
+}
 
 // isValidLabel checks if a string is a valid target label or value. this function is exposed
 // as two separate helpers below in order to simplfiy things if we start having different
@@ -161,4 +183,37 @@ func (t Target) VersionEquals(other Target) bool {
 	}
 
 	return semver.Compare(t.Version(), other.Version()) == 0
+}
+
+func (t *Target) UnmarshalJSON(data []byte) error {
+	// we regularly use libraries that convert yaml directly to json, and
+	// then unmarshal from there, so we need to be able to unmarshal some
+	// unexpected types. unfortunately, this creates some unavoidable ambiguity,
+	// so we need to commit to some "reasonable" defaults. specifically that
+	// bool-like values are represented as `yes`/`no`, and that whole numbers
+	// do not have a trailing `.0` (i.e. `1.0` is represented as `1`). If these
+	// defaults do not work, the user will need to explicitly quote their strings.
+	m := make(map[string]any)
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	m2 := make(map[string]string, len(m))
+	for key, val := range m {
+		switch v := val.(type) {
+		case string:
+			m2[key] = v
+		case bool:
+			if v {
+				m2[key] = "yes"
+			} else {
+				m2[key] = "no"
+			}
+		case float64:
+			m2[key] = strconv.FormatFloat(v, 'f', -1, 64)
+		default:
+			return trace.BadParameter("unexpected version control target value type %T for key %q", val, key)
+		}
+	}
+	*t = m2
+	return nil
 }

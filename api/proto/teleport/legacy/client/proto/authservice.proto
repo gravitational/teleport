@@ -1861,6 +1861,8 @@ message UpstreamInventoryOneOf {
     InventoryHeartbeat Heartbeat = 2;
     // UpstreamInventoryPong is a response to a ping (used for testing/debug).
     UpstreamInventoryPong Pong = 3;
+    // ExecResult is the result of a previous Exec.
+    InventoryExecResult ExecResult = 4;
   }
 }
 
@@ -1872,6 +1874,8 @@ message DownstreamInventoryOneOf {
     DownstreamInventoryHello Hello = 1;
     // Ping triggers an upstream pong (used for testing/debug).
     DownstreamInventoryPing Ping = 2;
+    // Exec attempts to execute a job on a downstream instance.
+    InventoryExec Exec = 3;
   }
 }
 
@@ -1921,6 +1925,18 @@ message InventoryHeartbeat {
   // we should be able to cut down on network usage fairly significantly by moving static values
   // to the hello message and only heartbeating dynamic values here).
   types.ServerV2 SSHServer = 1;
+}
+
+// InventoryExec attempts to execute an job on a downstream instance.
+message InventoryExec {
+  // ExecScript attempts to command the downstream instance to execute a script.
+  types.ExecScript ExecScript = 1;
+}
+
+// InventoryExecResult encodes the result of a previous InventoryExec.
+message InventoryExecResult {
+  // ExecScript encodes the result of a previous ExecScript operation.
+  types.ExecScriptResult ExecScript = 1;
 }
 
 // InventoryStatusRequest requests inventory status info.
@@ -1986,6 +2002,52 @@ message SubmitUsageEventRequest {
   teleport.usageevents.v1.UsageEventOneOf Event = 1 [(gogoproto.jsontag) = "event"];
 }
 
+// VersionControlInstallerOneOf is used to hold a single version control installer that may
+// be of any type. Prefer using the more strongly typed VersionControlInstallerSet if handling
+// multiple installers.
+message VersionControlInstallerOneOf {
+  oneof Installer {
+    // LocalScript is a local script installer.
+    types.LocalScriptInstallerV1 LocalScript = 1;
+  }
+}
+
+// PromoteVersionDirectiveRequest specifies an existing version directive, and
+// a new target state to promote it to. The allowed state transitions are
+// draft -> pending, and pending -> active.
+message PromoteVersionDirectiveRequest {
+  // Ref selects the target directive. Must match exactly one.
+  types.VersionDirectiveFilter Ref = 1 [(gogoproto.nullable) = false];
+  // ToPhase indicates the phase that the directive is to be promoted to.
+  string ToPhase = 2 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.VersionDirectivePhase"];
+}
+
+// PromoteVersionDirectiveResponse describes the post-promotion state of the target
+// directive.
+message PromoteVersionDirectiveResponse {
+  // NewRef describes the post promotion phase/kind/name of the target directive.
+  types.VersionDirectiveFilter NewRef = 1 [(gogoproto.nullable) = false];
+}
+
+// SetVersionDirectiveStatusRequest attempts to update the status of a
+// given version directive.
+message SetVersionDirectiveStatusRequest {
+  // Ref selects the target directive. Must match exactly one.
+  types.VersionDirectiveFilter Ref = 1 [(gogoproto.nullable) = false];
+  // Expect asserts the expected status. Potentially more reliable than setting the expected Nonce in Ref.
+  string Expect = 2 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.VersionDirectiveStatus"];
+  // Status is the status to be set.
+  string Status = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.VersionDirectiveStatus"];
+  // Message is a required message indicating the reason for poisoning.
+  string Message = 4;
+}
+
+// SetVersionDirectiveStatusResponse returns the previous status.
+message SetVersionDirectiveStatusResponse {
+  // PreviousStatus is the previous status of the target version directive.
+  string PreviousStatus = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.VersionDirectiveStatus"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2000,6 +2062,34 @@ service AuthService {
 
   // GetInstances streams all instances matching the specified filter.
   rpc GetInstances(types.InstanceFilter) returns (stream types.InstanceV1);
+
+  // GetVersionControlInstallers loads version control installers, sorted by type.
+  rpc GetVersionControlInstallers(types.VersionControlInstallerFilter) returns (types.VersionControlInstallerSet);
+
+  // UpsertVersionControlInstaller creates or updates a version control installer (nonce safety is
+  // enforced).
+  rpc UpsertVersionControlInstaller(VersionControlInstallerOneOf) returns (google.protobuf.Empty);
+
+  // DeleteVersionControlInstaller deletes a single version control installer if it matches the supplied
+  // filter. Filters that match multiple installers are rejected.
+  rpc DeleteVersionControlInstaller(types.VersionControlInstallerFilter) returns (google.protobuf.Empty);
+
+  // GetVersionDirectives gets one or more version directives, sorted by state (draft|pending|active).
+  rpc GetVersionDirectives(types.VersionDirectiveFilter) returns (types.VersionDirectiveSet);
+
+  // UpsertVersionDirective creates or updates a version directive in draft state.
+  rpc UpsertVersionDirective(types.VersionDirectiveV1) returns (google.protobuf.Empty);
+
+  // DeleteVersionDirective deletes a single version directive if it matches the supplied
+  // filter. Filters that match multiple directives are rejected.
+  rpc DeleteVersionDirective(types.VersionDirectiveFilter) returns (google.protobuf.Empty);
+
+  // PromoteVersionDirective attempts to promote a version directive (allowed phase transitions
+  // are draft -> pending, and pending -> active).
+  rpc PromoteVersionDirective(PromoteVersionDirectiveRequest) returns (PromoteVersionDirectiveResponse);
+
+  // SetVersionDirectiveStatus attempts to update the status of a version directive.
+  rpc SetVersionDirectiveStatus(SetVersionDirectiveStatusRequest) returns (SetVersionDirectiveStatusResponse);
 
   // GetClusterAlerts loads cluster-level alert messages.
   rpc GetClusterAlerts(types.GetClusterAlertsRequest) returns (GetClusterAlertsResponse);

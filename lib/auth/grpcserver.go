@@ -611,6 +611,122 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream proto.Aut
 	return trace.Wrap(instances.Done())
 }
 
+func (g *GRPCServer) GetVersionControlInstallers(ctx context.Context, filter *types.VersionControlInstallerFilter) (*types.VersionControlInstallerSet, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	installers, err := auth.GetVersionControlInstallers(ctx, *filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &installers, nil
+}
+
+func (g *GRPCServer) UpsertVersionControlInstaller(ctx context.Context, oneof *proto.VersionControlInstallerOneOf) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var installer types.VersionControlInstaller
+	switch {
+	case oneof.GetLocalScript() != nil:
+		installer = oneof.GetLocalScript()
+	default:
+		return nil, trace.BadParameter("unexpected version control installer type %T", oneof.GetInstaller())
+	}
+
+	if err := auth.UpsertVersionControlInstaller(ctx, installer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) DeleteVersionControlInstaller(ctx context.Context, filter *types.VersionControlInstallerFilter) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteVersionControlInstaller(ctx, *filter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetVersionDirectives(ctx context.Context, filter *types.VersionDirectiveFilter) (*types.VersionDirectiveSet, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	directives, err := auth.GetVersionDirectives(ctx, *filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &directives, nil
+}
+
+func (g *GRPCServer) UpsertVersionDirective(ctx context.Context, directive *types.VersionDirectiveV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.UpsertVersionDirective(ctx, directive); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) DeleteVersionDirective(ctx context.Context, filter *types.VersionDirectiveFilter) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteVersionDirective(ctx, *filter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) PromoteVersionDirective(ctx context.Context, req *proto.PromoteVersionDirectiveRequest) (*proto.PromoteVersionDirectiveResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.PromoteVersionDirective(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &rsp, nil
+}
+
+func (g *GRPCServer) SetVersionDirectiveStatus(ctx context.Context, req *proto.SetVersionDirectiveStatusRequest) (*proto.SetVersionDirectiveStatusResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.SetVersionDirectiveStatus(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &rsp, nil
+}
+
 func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*proto.GetClusterAlertsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

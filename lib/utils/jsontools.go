@@ -37,7 +37,7 @@ import (
 // JSON specific).
 // Creds to: k8s.io for the code
 func ToJSON(data []byte) ([]byte, error) {
-	if hasJSONPrefix(data) {
+	if HasJSONPrefix(data) {
 		return data, nil
 	}
 	return yaml.YAMLToJSON(data)
@@ -45,9 +45,9 @@ func ToJSON(data []byte) ([]byte, error) {
 
 var jsonPrefix = []byte("{")
 
-// hasJSONPrefix returns true if the provided buffer appears to start with
+// HasJSONPrefix returns true if the provided buffer appears to start with
 // a JSON open brace.
-func hasJSONPrefix(buf []byte) bool {
+func HasJSONPrefix(buf []byte) bool {
 	return hasPrefix(buf, jsonPrefix)
 }
 
