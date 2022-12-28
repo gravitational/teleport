@@ -935,7 +935,7 @@ func withAzurePostgresVersion(version string) func(*armpostgresql.Server) {
 
 func makeRDSInstance(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBInstance)) (*rds.DBInstance, types.Database) {
 	instance := &rds.DBInstance{
-		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:db:%v", region, name)),
+		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
 		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
@@ -957,7 +957,7 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 
 func makeRDSCluster(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) (*rds.DBCluster, types.Database) {
 	cluster := &rds.DBCluster{
-		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
+		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New().String()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
@@ -982,7 +982,7 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshift.Cluster)) (*redshift.Cluster, types.Database) {
 	cluster := &redshift.Cluster{
 		ClusterIdentifier:   aws.String(env),
-		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:1234567890:namespace:%s", region, env)),
+		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:123456789012:namespace:%s", region, env)),
 		ClusterStatus:       aws.String("available"),
 		Endpoint: &redshift.Endpoint{
 			Address: aws.String("localhost"),
@@ -1004,7 +1004,7 @@ func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshif
 
 func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string, hasWriter bool) (*rds.DBCluster, types.Databases) {
 	cluster := &rds.DBCluster{
-		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
+		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New().String()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
@@ -1048,7 +1048,7 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 
 func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {
 	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789:replicationgroup:%s", region, name)),
+		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789012:replicationgroup:%s", region, name)),
 		ReplicationGroupId:       aws.String(name),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
@@ -1086,7 +1086,7 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 
 func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {
 	cluster := &memorydb.Cluster{
-		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789:cluster:%s", region, name)),
+		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789012:cluster:%s", region, name)),
 		Name:       aws.String(name),
 		Status:     aws.String("available"),
 		TLSEnabled: aws.Bool(true),
@@ -1113,7 +1113,7 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 
 func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
 	rdsProxy := &rds.DBProxy{
-		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:1234567890:db-proxy:prx-%s", region, name)),
+		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:123456789012:db-proxy:prx-%s", region, name)),
 		DBProxyName:  aws.String(name),
 		EngineFamily: aws.String(rds.EngineFamilyMysql),
 		Endpoint:     aws.String("localhost"),
@@ -1132,7 +1132,7 @@ func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, regio
 		Endpoint:            aws.String("localhost"),
 		DBProxyEndpointName: aws.String(name),
 		DBProxyName:         rdsProxy.DBProxyName,
-		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456:db-proxy-endpoint:prx-endpoint-%v", region, name)),
+		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db-proxy-endpoint:prx-endpoint-%v", region, name)),
 		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
 		Status:              aws.String("available"),
 	}
