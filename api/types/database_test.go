@@ -21,25 +21,83 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
 // TestDatabaseRDSEndpoint verifies AWS info is correctly populated
 // based on the RDS endpoint.
 func TestDatabaseRDSEndpoint(t *testing.T) {
-	database, err := NewDatabaseV3(Metadata{
-		Name: "rds",
-	}, DatabaseSpecV3{
-		Protocol: "postgres",
-		URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-	})
-	require.NoError(t, err)
-	require.Equal(t, AWS{
-		Region: "us-west-1",
-		RDS: RDS{
-			InstanceID: "aurora-instance-1",
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	for _, tt := range []struct {
+		name        string
+		spec        DatabaseSpecV3
+		errorCheck  require.ErrorAssertionFunc
+		expectedAWS AWS
+	}{
+		{
+			name: "aurora instance",
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			},
+			errorCheck: require.NoError,
+			expectedAWS: AWS{
+				Region: "us-west-1",
+				RDS: RDS{
+					InstanceID: "aurora-instance-1",
+				},
+			},
 		},
-	}, database.GetAWS())
+		{
+			name: "invalid account id",
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "marcotest-db001.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+				AWS: AWS{
+					AccountID: "invalid",
+				},
+			},
+			errorCheck: isBadParamErrFn,
+		},
+		{
+			name: "valid account id",
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "marcotest-db001.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+				AWS: AWS{
+					AccountID: "123456789012",
+				},
+			},
+			errorCheck: require.NoError,
+			expectedAWS: AWS{
+				Region: "us-east-1",
+				RDS: RDS{
+					InstanceID: "marcotest-db001",
+				},
+				AccountID: "123456789012",
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			database, err := NewDatabaseV3(
+				Metadata{
+					Name: "rds",
+				},
+				tt.spec,
+			)
+			tt.errorCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Equal(t, tt.expectedAWS, database.GetAWS())
+		})
+	}
 }
 
 // TestDatabaseRDSProxyEndpoint verifies AWS info is correctly populated based
@@ -356,7 +414,7 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			AWS: AWS{
 				Region:    "us-west-1",
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
@@ -370,7 +428,7 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			URI:      "cassandra.us-west-1.amazonaws.com:9142",
 			AWS: AWS{
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
@@ -385,7 +443,7 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			URI:      "cassandra-fips.us-west-2.amazonaws.com:9142",
 			AWS: AWS{
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
@@ -415,11 +473,11 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 			Name: "test",
 		}, DatabaseSpecV3{
 			Protocol: "postgres",
-			URI:      "my-workgroup.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			URI:      "my-workgroup.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
 		})
 		require.NoError(t, err)
 		require.Equal(t, AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			RedshiftServerless: RedshiftServerless{
 				WorkgroupName: "my-workgroup",
@@ -432,7 +490,7 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 			Name: "test",
 		}, DatabaseSpecV3{
 			Protocol: "postgres",
-			URI:      "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			URI:      "my-vpc-endpoint-xxxyyyzzz.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
 			AWS: AWS{
 				RedshiftServerless: RedshiftServerless{
 					WorkgroupName: "my-workgroup",
@@ -441,7 +499,7 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			RedshiftServerless: RedshiftServerless{
 				WorkgroupName: "my-workgroup",

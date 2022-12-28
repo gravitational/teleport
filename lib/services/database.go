@@ -810,7 +810,7 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 	// rds.DBProxy has no resource ID attribute. The resource ID can be found
 	// in the ARN, e.g.:
 	//
-	// arn:aws:rds:ca-central-1:1234567890:db-proxy:prx-xxxyyyzzz
+	// arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-xxxyyyzzz
 	//
 	// In this example, the arn.Resource is "db-proxy:prx-xxxyyyzzz", where the
 	// resource type is "db-proxy" and the resource ID is "prx-xxxyyyzzz".

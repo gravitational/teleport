@@ -44,7 +44,7 @@ func (c *MockSecretsManagerClientConfig) SetDefaults() {
 		c.Region = "us-east-1"
 	}
 	if c.Account == "" {
-		c.Account = "1234567890"
+		c.Account = "123456789012"
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewFakeClock()
