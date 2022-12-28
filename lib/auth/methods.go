@@ -36,6 +36,12 @@ import (
 
 const (
 	// maxUserAgentLen is the maximum length of a user agent that will be logged.
+	// There is no current consensus on what the maximum length of a User-Agent
+	// should be and there were reports of extremely large UAs especially from
+	// older versions of IE. 2048 was picked because it still allowed for very
+	// large UAs but keeps from causing logging issues. For reference Nginx
+	// defaults to 4k or 8k header size limits for ALL headers so 2k seems more
+	// than sufficient.
 	maxUserAgentLen = 2048
 )
 
