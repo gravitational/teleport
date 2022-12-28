@@ -1,3 +1,5 @@
+# buf-teleterm.gen.yaml is identical to buf.gen.yaml,
+# with the exception of three addidiotal JS plugins.
 version: v1
 managed:
   enabled: true
@@ -14,3 +16,15 @@ plugins:
     out: lib/prehog/gen
     opt:
       - paths=source_relative
+
+  - name: js
+    out: lib/prehog/gen-js
+    opt:
+      - import_style=commonjs,binary
+  - name: grpc
+    out: lib/prehog/gen-js
+    opt: grpc_js
+    path: grpc_tools_node_protoc_plugin
+  - name: ts
+    out: lib/prehog/gen-js
+    opt: "service=grpc-node"
