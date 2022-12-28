@@ -227,7 +227,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 	// Create unauthorized mocks for AWS services.
 	stsClient := &mocks.STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
+		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
