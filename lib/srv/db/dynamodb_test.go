@@ -189,7 +189,7 @@ func TestAuditDynamoDB(t *testing.T) {
 	})
 
 	t.Run("session ends when local proxy closes the connection", func(t *testing.T) {
-		// closing local proxy and cancelling the context used to start it should trigger session end event.
+		// closing local proxy and canceling the context used to start it should trigger session end event.
 		// without this cancel, the session will not end until the smaller of client_idle_timeout or the testCtx closes.
 		_, err := clt.ListTables(&awsdynamodb.ListTablesInput{})
 		require.NoError(t, err)
