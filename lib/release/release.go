@@ -91,9 +91,10 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	}
 
 	var releases []*types.Release
-	json.Unmarshal(resp.Bytes(), &releases)
-
-	// TODO remove unplublished releases
+	err = json.Unmarshal(resp.Bytes(), &releases)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// add human-readable display sizes
 	for i := range releases {
