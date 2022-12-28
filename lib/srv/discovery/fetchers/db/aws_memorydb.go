@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package watchers
+package db
 
 import (
 	"context"
@@ -26,8 +26,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // memoryDBFetcherConfig is the MemoryDB databases fetcher configuration.
@@ -56,12 +57,14 @@ func (c *memoryDBFetcherConfig) CheckAndSetDefaults() error {
 
 // memoryDBFetcher retrieves MemoryDB Redis databases.
 type memoryDBFetcher struct {
+	awsFetcher
+
 	cfg memoryDBFetcherConfig
 	log logrus.FieldLogger
 }
 
 // newMemoryDBFetcher returns a new MemoryDB databases fetcher instance.
-func newMemoryDBFetcher(config memoryDBFetcherConfig) (Fetcher, error) {
+func newMemoryDBFetcher(config memoryDBFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,7 +79,7 @@ func newMemoryDBFetcher(config memoryDBFetcherConfig) (Fetcher, error) {
 }
 
 // Get returns MemoryDB databases matching the watcher's selectors.
-func (f *memoryDBFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *memoryDBFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	clusters, err := getMemoryDBClusters(ctx, f.cfg.MemoryDB)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,7 +103,7 @@ func (f *memoryDBFetcher) Get(ctx context.Context) (types.Databases, error) {
 	}
 
 	if len(eligibleClusters) == 0 {
-		return types.Databases{}, nil
+		return types.ResourcesWithLabels{}, nil
 	}
 
 	// Fetch more information to provide extra labels. Do not fail because some
@@ -133,7 +136,7 @@ func (f *memoryDBFetcher) Get(ctx context.Context) (types.Databases, error) {
 			databases = append(databases, database)
 		}
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 
 // String returns the fetcher's string description.
@@ -149,14 +152,14 @@ func getMemoryDBClusters(ctx context.Context, client memorydbiface.MemoryDBAPI) 
 
 	// MemoryDBAPI does NOT have "page" version of the describe API so use the
 	// NextToken from the output in a loop.
-	for pageNum := 0; pageNum < common.MaxPages; pageNum++ {
+	for pageNum := 0; pageNum < maxAWSPages; pageNum++ {
 		output, err := client.DescribeClustersWithContext(ctx,
 			&memorydb.DescribeClustersInput{
 				NextToken: nextToken,
 			},
 		)
 		if err != nil {
-			return nil, common.ConvertError(err)
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 
 		clusters = append(clusters, output.Clusters...)
@@ -172,14 +175,14 @@ func getMemoryDBSubnetGroups(ctx context.Context, client memorydbiface.MemoryDBA
 	var subnetGroups []*memorydb.SubnetGroup
 	var nextToken *string
 
-	for pageNum := 0; pageNum < common.MaxPages; pageNum++ {
+	for pageNum := 0; pageNum < maxAWSPages; pageNum++ {
 		output, err := client.DescribeSubnetGroupsWithContext(ctx,
 			&memorydb.DescribeSubnetGroupsInput{
 				NextToken: nextToken,
 			},
 		)
 		if err != nil {
-			return nil, common.ConvertError(err)
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 
 		subnetGroups = append(subnetGroups, output.SubnetGroups...)
@@ -196,7 +199,7 @@ func getMemoryDBResourceTags(ctx context.Context, client memorydbiface.MemoryDBA
 		ResourceArn: resourceARN,
 	})
 	if err != nil {
-		return nil, common.ConvertError(err)
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
 	return output.TagList, nil
