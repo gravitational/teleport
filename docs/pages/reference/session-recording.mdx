@@ -119,7 +119,7 @@ A Teleport session recording is an ordered sequence of structured events associa
 with a session. Each event is an encoded [Protocol Buffer](https://developers.google.com/protocol-buffers)
 and the complete session is compressed with gzip before being written to the storage backend.
 
-These recordings have a `.tar` extension for backwards compatibility reason, but it
+These recordings have a `.tar` extension for backwards compatibility reasons, but it
 should be noted that they are not TAR archives and cannot be read using the `tar` utility.
 
 ## Playback
@@ -133,6 +133,26 @@ audit log for session end events, which contain metadata about the recording.
 This is sometimes surprising to Teleport users, because even though the recordings
 and audit log are stored in separate backends, both need to be operational in
 order to play recordings.
+
+## Upload Completer
+
+Every Teleport process runs a service called the _upload completer_ which periodically
+checks for abandoned uploads and completes them if there is not an active session tracker
+for the session associated with the recording. By default, the upload completer runs
+every 5 minutes, and session trackers have a 30 minute expiration period. This means it
+can take up to ~35 minutes after the service comes back online for an abandoned upload
+to be completed.
+
+In asynchronous recording modes, if the node goes down during the session, the partially
+completed recording will sit on the node's disk. The node's upload completer will eventually
+detect the abandoned upload and stream it to the Teleport Auth Server where it will be
+written to the storage backend.
+
+In synchronous recording modes, Teleport's Auth Server is streaming the recording directly
+to storage. If the Auth Server goes down during a session, the uncompleted upload will sit
+as a series of parts (in cloud storage or on the Auth Server's disk) and it is the
+responsibility of the Auth Server's upload completer to detect the abandoned upload and
+complete it.
 
 ## Related Reading
 
