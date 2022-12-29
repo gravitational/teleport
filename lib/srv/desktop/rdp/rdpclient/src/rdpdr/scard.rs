@@ -841,7 +841,7 @@ impl Encode for ListReaders_Call {
         let mut index = 0;
         self.context.encode_ptr(&mut index, &mut w)?;
         encode_ptr(Some(self.groups_ptr_length), &mut index, &mut w)?; // takes care of encoding groups_ptr
-        let readers_is_null = if self.readers_is_null { 1 } else { 0 };
+        let readers_is_null = u32::from(self.readers_is_null);
         w.write_u32::<LittleEndian>(readers_is_null)?;
         w.write_u32::<LittleEndian>(self.readers_size)?;
 
@@ -1521,7 +1521,7 @@ impl Encode for Status_Call {
 
         let mut index = 0;
         self.handle.encode_ptr(&mut index, &mut w)?;
-        let reader_names_is_null = if self.reader_names_is_null { 1 } else { 0 };
+        let reader_names_is_null = u32::from(self.reader_names_is_null);
         w.write_u32::<LittleEndian>(reader_names_is_null)?;
         w.write_u32::<LittleEndian>(self.reader_length)?;
         w.write_u32::<LittleEndian>(self.atr_length)?;
@@ -1676,7 +1676,7 @@ impl Encode for Transmit_Call {
         } else {
             w.write_u32::<LittleEndian>(0)?;
         }
-        let recv_buffer_is_null = if self.recv_buffer_is_null { 1 } else { 0 };
+        let recv_buffer_is_null = u32::from(self.recv_buffer_is_null);
         w.write_u32::<LittleEndian>(recv_buffer_is_null)?;
         w.write_u32::<LittleEndian>(self.recv_length)?;
 
@@ -1929,7 +1929,7 @@ impl ReadCache_Common {
         encode_ptr(None, index, w)?; // _card_uuid_ptr
 
         w.write_u32::<LittleEndian>(self.freshness_counter)?;
-        let data_is_null = if self.data_is_null { 1 } else { 0 };
+        let data_is_null = u32::from(self.data_is_null);
         w.write_u32::<LittleEndian>(data_is_null)?;
         w.write_u32::<LittleEndian>(self.data_len)?;
 

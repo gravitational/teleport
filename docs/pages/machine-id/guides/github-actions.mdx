@@ -66,9 +66,6 @@ to the year `3000`, however care should be taken in production in order to Ensur
 that the expiration date will not be given a value that is greater than what is needed.
 - `spec.bot_name` is the name of the Machine ID bot that this token will grant access to.
 Note that this value will need to be used in other parts of the configuration later.
-- `metadata.expires` defines the date that the join token will expire. This example is set
-to the year `3000`, however care should be taken in production in order to Ensure
-that the expiration date will not be given a value that is greater than what is needed.
 - `spec.roles` defines the role for the bot user. The value of `[Bot]` is a pre-existing role
 that ensures that only bots are allowed to join the cluster using this token, reducing the scope of privileges.
 - `spec.join_method` defines the join method the token is applicable for. Since this guide

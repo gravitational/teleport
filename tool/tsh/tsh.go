@@ -731,7 +731,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 
 	// join
-	join := app.Command("join", "Join the active SSH session")
+	join := app.Command("join", "Join the active SSH or Kubernetes session")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	join.Flag("mode", "Mode of joining the session, valid modes are observer and moderator").Short('m').Default("peer").StringVar(&cf.JoinMode)
 	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
@@ -836,7 +836,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqShow.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
-	reqCreate := req.Command("new", "Create a new access request").Alias("create")
+	// Note: The "tsh request new" subcommand should not be used anymore. It
+	// will be kept around for users that built automation around it, but all
+	// public facing documentation should now refer to "tsh request create".
+	reqCreate := req.Command("create", "Create a new access request").Alias("new")
 	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
