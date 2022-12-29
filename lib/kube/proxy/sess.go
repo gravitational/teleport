@@ -140,7 +140,7 @@ func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSiz
 		for {
 			size := p.sizeQueue.Next()
 			if size == nil {
-				break
+				return
 			}
 
 			ch <- size
@@ -165,32 +165,52 @@ func (p *kubeProxyClientStreams) sendStatus(err error) error {
 }
 
 func (p *kubeProxyClientStreams) Close() error {
-	close(p.close)
 	return trace.Wrap(p.proxy.Close())
 }
 
 // multiResizeQueue is a merged queue of multiple terminal size queues.
 type multiResizeQueue struct {
-	queues   map[string]<-chan *remotecommand.TerminalSize
-	cases    []reflect.SelectCase
-	callback func(*remotecommand.TerminalSize)
-	mutex    sync.Mutex
+	queues       map[string]<-chan *remotecommand.TerminalSize
+	cases        []reflect.SelectCase
+	callback     func(*remotecommand.TerminalSize)
+	mutex        sync.Mutex
+	parentCtx    context.Context
+	reloadCtx    context.Context
+	reloadCancel context.CancelFunc
 }
 
-func newMultiResizeQueue() *multiResizeQueue {
+func newMultiResizeQueue(parentCtx context.Context) *multiResizeQueue {
+	ctx, cancel := context.WithCancel(parentCtx)
 	return &multiResizeQueue{
-		queues: make(map[string]<-chan *remotecommand.TerminalSize),
+		queues:       make(map[string]<-chan *remotecommand.TerminalSize),
+		parentCtx:    parentCtx,
+		reloadCtx:    ctx,
+		reloadCancel: cancel,
 	}
 }
 
 func (r *multiResizeQueue) rebuild() {
-	r.cases = nil
+	oldCancel := r.reloadCancel
+	defer oldCancel()
+
+	r.reloadCtx, r.reloadCancel = context.WithCancel(r.parentCtx)
+	r.cases = make([]reflect.SelectCase, len(r.queues)+1)
+	r.cases[0] = reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(r.reloadCtx.Done()),
+	}
+	i := 1
 	for _, queue := range r.queues {
-		r.cases = append(r.cases, reflect.SelectCase{
+		r.cases[i] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
 			Chan: reflect.ValueOf(queue),
-		})
+		}
+		i++
 	}
+}
+
+func (r *multiResizeQueue) close() {
+	r.reloadCancel()
 }
 
 func (r *multiResizeQueue) add(id string, queue <-chan *remotecommand.TerminalSize) {
@@ -208,17 +228,27 @@ func (r *multiResizeQueue) remove(id string) {
 }
 
 func (r *multiResizeQueue) Next() *remotecommand.TerminalSize {
-	r.mutex.Lock()
-	cases := r.cases
-	r.mutex.Unlock()
-	_, value, ok := reflect.Select(cases)
-	if !ok {
-		return nil
-	}
+loop:
+	for {
+		r.mutex.Lock()
+		cases := r.cases
+		r.mutex.Unlock()
+		idx, value, ok := reflect.Select(cases)
+		if !ok || idx == 0 {
+			select {
+			// if parent context is cancelled, the session has ended and we should
+			// return early. Otherwise, it means that we rebuilt and in that case we should continue.
+			case <-r.parentCtx.Done():
+				return nil
+			default:
+				continue loop
+			}
+		}
 
-	size := value.Interface().(*remotecommand.TerminalSize)
-	r.callback(size)
-	return size
+		size := value.Interface().(*remotecommand.TerminalSize)
+		r.callback(size)
+		return size
+	}
 }
 
 // party represents one participant of the session and their associated state.
@@ -351,7 +381,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		io:                             io,
 		accessEvaluator:                accessEvaluator,
 		emitter:                        events.NewDiscardEmitter(),
-		terminalSizeQueue:              newMultiResizeQueue(),
+		terminalSizeQueue:              newMultiResizeQueue(streamContext),
 		started:                        false,
 		sess:                           sess,
 		closeC:                         make(chan struct{}),
@@ -1085,7 +1115,7 @@ func (s *session) Close() error {
 		recorder := s.recorder
 		s.streamContextCancel()
 		s.mu.Unlock()
-
+		s.terminalSizeQueue.close()
 		if recorder != nil {
 			// wait for events to be emitted before closing the recorder/emitter.
 			// If we close it immediately we will lose session.end events.

@@ -122,12 +122,14 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 
 	streamCh := make(chan streamAndReply)
 
+	ctx, cancel := context.WithCancel(req.context)
+	defer cancel()
 	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)
 	conn := upgrader.UpgradeResponse(req.httpResponseWriter, req.httpRequest, func(stream httpstream.Stream, replySent <-chan struct{}) error {
 		select {
 		case streamCh <- streamAndReply{Stream: stream, replySent: replySent}:
 			return nil
-		case <-req.context.Done():
+		case <-ctx.Done():
 			return trace.BadParameter("request has been canceled")
 		}
 	})
@@ -150,6 +152,7 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		log.Infof("Negotiated protocol %v.", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
+		conn.Close()
 		return nil, trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
 	}
 
@@ -171,8 +174,9 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	expired := time.NewTimer(DefaultStreamCreationTimeout)
 	defer expired.Stop()
 
-	proxy, err := handler.waitForStreams(req.context, streamCh, expectedStreams, expired.C)
+	proxy, err := handler.waitForStreams(ctx, streamCh, expectedStreams, expired.C)
 	if err != nil {
+		conn.Close()
 		return nil, trace.Wrap(err)
 	}
 
