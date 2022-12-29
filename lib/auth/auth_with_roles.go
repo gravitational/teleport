@@ -42,6 +42,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -178,13 +179,13 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 // actionForKindSession is a special checker that grants access to session
 // recordings.  It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid session.ID) error {
+func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) error {
 	extendContext := func(ctx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(namespace, sid)
 		ctx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
 // serverAction returns an access denied error if the role is not one of the builtin server roles.
@@ -1254,7 +1255,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1337,6 +1338,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr.GetCluster(), mfaParams)
 	case types.DatabaseServer:
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
+	case types.DatabaseService:
+		return r.CheckAccess(rr, mfaParams)
 	case types.Database:
 		return r.CheckAccess(rr, mfaParams)
 	case types.Server:
@@ -1433,7 +1436,7 @@ func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -1663,8 +1666,30 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 	return a.authServer.GetToken(ctx, token)
 }
 
+func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		return nil
+	}
+
+	v, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("unexpected token type %T", token)
+	}
+
+	if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+		return fmt.Errorf(
+			"github enterprise server joining: %w",
+			ErrRequiresEnterprise,
+		)
+	}
+	return nil
+}
+
 func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertToken(ctx, token)
@@ -1672,6 +1697,9 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.CreateToken(ctx, token)
@@ -2557,7 +2585,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		azureIdentity:     req.RouteToApp.AzureIdentity,
 		checker:           checker,
-		traits:            accessInfo.Traits,
+		// Copy IP from current identity to the generated certificate, if present,
+		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
+		clientIP: a.context.Identity.GetIdentity().ClientIP,
+		traits:   accessInfo.Traits,
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
@@ -3128,7 +3159,7 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3136,7 +3167,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3430,6 +3461,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
+	}
+
+	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetAuthPreference(ctx, newAuthPref)
@@ -3861,20 +3896,12 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
 }
 
-// GetAllDatabaseServices returns all DatabaseService resources.
-func (a *ServerWithRoles) GetAllDatabaseServices(ctx context.Context) ([]types.DatabaseService, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbRead); err != nil {
+// UpsertDatabaseService creates or updates a new DatabaseService resource.
+func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.NotImplemented("no DatabaseService service")
-}
-
-// UpsertDatabaseService creates or updates a new DatabaseService resource.
-func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) error {
-	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.NotImplemented("no DatabaseService service")
+	return a.authServer.UpsertDatabaseService(ctx, service)
 }
 
 // DeleteAllDatabaseServices removes all DatabaseService resources.
@@ -3882,7 +3909,7 @@ func (a *ServerWithRoles) DeleteAllDatabaseServices(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.NotImplemented("no DatabaseService service")
+	return a.authServer.DeleteAllDatabaseServices(ctx)
 }
 
 // DeleteDatabaseService removes a specific DatabaseService resource.
@@ -3890,7 +3917,7 @@ func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string
 	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.NotImplemented("no DatabaseService service")
+	return a.authServer.DeleteDatabaseService(ctx, name)
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
@@ -4527,7 +4554,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	isTeleportServer := err == nil
 
 	if !isTeleportServer {
-		if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
+		if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
 			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 			e <- trace.Wrap(err)
 			return c, e

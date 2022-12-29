@@ -634,6 +634,13 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Validate AWS Specific configuration
+	if d.Spec.AWS.AccountID != "" {
+		if err := awsutils.IsValidAccountID(d.Spec.AWS.AccountID); err != nil {
+			return trace.BadParameter("invalid AWS Account ID: %v", err)
+		}
+	}
+
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":

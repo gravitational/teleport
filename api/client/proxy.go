@@ -33,7 +33,8 @@ func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, e
 	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
 }
 
-// DialProxyWithDialer creates a connection to a server via an HTTP or SOCKS5 Proxy using a specified dialer.
+// DialProxyWithDialer creates a connection to a server via an HTTP or SOCKS5
+// Proxy using a specified dialer.
 func DialProxyWithDialer(
 	ctx context.Context,
 	proxyURL *url.URL,

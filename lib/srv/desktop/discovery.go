@@ -80,8 +80,8 @@ func (s *WindowsService) startDesktopDiscovery() error {
 
 func (s *WindowsService) ldapSearchFilter() string {
 	var filters []string
-	filters = append(filters, fmt.Sprintf("(objectClass=%s)", windows.ComputerClass))
-	filters = append(filters, fmt.Sprintf("(!(objectClass=%s))", windows.GMSAClass))
+	filters = append(filters, fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassComputer))
+	filters = append(filters, fmt.Sprintf("(!(%s=%s))", windows.AttrObjectClass, windows.ClassGMSA))
 	filters = append(filters, s.cfg.DiscoveryLDAPFilters...)
 
 	return windows.CombineLDAPFilters(filters)

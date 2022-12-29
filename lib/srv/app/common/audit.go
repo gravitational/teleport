@@ -39,11 +39,11 @@ type Audit interface {
 	// OnSessionEnd is called when an app session ends.
 	OnSessionEnd(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error
 	// OnSessionChunk is called when a new session chunk is created.
-	OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string) error
+	OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error
 	// OnRequest is called when an app request is sent during the session and a response is received.
-	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error
+	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
-	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error
+	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
@@ -140,34 +140,34 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 }
 
 // OnSessionChunk is called when a new session chunk is created.
-func (a *audit) OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string) error {
+func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error {
 	event := &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
 			Code:        events.AppSessionChunkCode,
-			ClusterName: sessionCtx.Identity.RouteToApp.ClusterName,
+			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionCtx.Identity.RouteToApp.SessionID,
-			WithMFA:   sessionCtx.Identity.MFAVerified,
+			SessionID: identity.RouteToApp.SessionID,
+			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: sessionCtx.Identity.GetUserMetadata(),
+		UserMetadata: identity.GetUserMetadata(),
 		AppMetadata: apievents.AppMetadata{
-			AppURI:        sessionCtx.App.GetURI(),
-			AppPublicAddr: sessionCtx.App.GetPublicAddr(),
-			AppName:       sessionCtx.App.GetName(),
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppName:       app.GetName(),
 		},
-		SessionChunkID: sessionCtx.ChunkID,
+		SessionChunkID: chunkID,
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // OnRequest is called when an app request is sent during the session and a response is received.
-func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
+func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error {
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionRequestEvent,
@@ -177,14 +177,14 @@ func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *
 		Method:             req.Method,
 		Path:               req.URL.Path,
 		RawQuery:           req.URL.RawQuery,
-		StatusCode:         uint32(res.StatusCode),
+		StatusCode:         status,
 		AWSRequestMetadata: *MakeAWSRequestMetadata(req, re),
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // OnDynamoDBRequest is called when a DynamoDB app request is sent during the session.
-func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
+func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error {
 	// Try to read the body and JSON unmarshal it.
 	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
 	body, err := awsutils.UnmarshalRequestBody(req)
@@ -193,7 +193,7 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 	}
 	// get the API target from the request header, according to the API request format documentation:
 	// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html#Programming.LowLevelAPI.RequestFormat
-	target := req.Header.Get(awsutils.TargetHeader)
+	target := req.Header.Get(awsutils.AmzTargetHeader)
 	event := &apievents.AppSessionDynamoDBRequest{
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionDynamoDBRequestEvent,
@@ -203,7 +203,7 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 		AppMetadata:        *MakeAppMetadata(sessionCtx.App),
 		AWSRequestMetadata: *MakeAWSRequestMetadata(req, re),
 		SessionChunkID:     sessionCtx.ChunkID,
-		StatusCode:         uint32(res.StatusCode),
+		StatusCode:         status,
 		Path:               req.URL.Path,
 		RawQuery:           req.URL.RawQuery,
 		Method:             req.Method,
@@ -236,6 +236,6 @@ func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *endpoints.ResolvedEn
 	return &apievents.AWSRequestMetadata{
 		AWSRegion:  awsEndpoint.SigningRegion,
 		AWSService: awsEndpoint.SigningName,
-		AWSHost:    req.Host,
+		AWSHost:    req.URL.Host,
 	}
 }
