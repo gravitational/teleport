@@ -2686,7 +2686,7 @@ func TestGetLicense(t *testing.T) {
 	suite := newAuthSuite(t)
 
 	// GetLicense should return error if license is not set
-	_, err := suite.a.GetLicense(context.Background(), &proto.SubmitUsageEventRequest{})
+	_, err := suite.a.GetLicense(context.Background())
 	assert.NotNil(t, err)
 
 	// GetLicense should return cert and key pem concatenated, when license is set
@@ -2696,7 +2696,7 @@ func TestGetLicense(t *testing.T) {
 	}
 	suite.a.SetLicense(&l)
 
-	license, err := suite.a.GetLicense(context.Background(), &proto.SubmitUsageEventRequest{})
+	license, err := suite.a.GetLicense(context.Background())
 	assert.Nil(t, err)
 	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), license)
 }

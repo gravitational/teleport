@@ -5238,7 +5238,7 @@ func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindLicense, types.VerbRead); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GetLicense(ctx, &proto.SubmitUsageEventRequest{})
+	return a.authServer.GetLicense(ctx)
 }
 
 // GetReleases return Teleport Enterprise releases
