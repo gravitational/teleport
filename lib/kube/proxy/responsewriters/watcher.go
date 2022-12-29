@@ -170,6 +170,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, reader io.ReadC
 	// create a frameReader that waits until the Kubernetes API sends the full
 	// event frame.
 	frameReader := framer.NewFrameReader(reader)
+	defer frameReader.Close()
 	// create a frameWriter that writes event frames into the user's connection.
 	frameWriter := framer.NewFrameWriter(writer)
 	// streamingDecoder is the decoder that parses metav1.WatchEvents from the
