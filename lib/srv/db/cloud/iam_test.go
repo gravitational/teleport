@@ -46,25 +46,25 @@ func TestAWSIAM(t *testing.T) {
 
 	// Setup AWS database objects.
 	rdsInstance := &rds.DBInstance{
-		DBInstanceArn:        aws.String("arn:aws:rds:us-west-1:1234567890:db:postgres-rds"),
+		DBInstanceArn:        aws.String("arn:aws:rds:us-west-1:123456789012:db:postgres-rds"),
 		DBInstanceIdentifier: aws.String("postgres-rds"),
 		DbiResourceId:        aws.String("db-xyz"),
 	}
 
 	auroraCluster := &rds.DBCluster{
-		DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:postgres-aurora"),
+		DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:postgres-aurora"),
 		DBClusterIdentifier: aws.String("postgres-aurora"),
 		DbClusterResourceId: aws.String("cluster-xyz"),
 	}
 
 	redshiftCluster := &redshift.Cluster{
-		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:1234567890:namespace:namespace-xyz"),
+		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:123456789012:namespace:namespace-xyz"),
 		ClusterIdentifier:   aws.String("redshift-cluster-1"),
 	}
 
 	// Configure mocks.
 	stsClient := &mocks.STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
+		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 
 	rdsClient := &mocks.RDSMock{
@@ -84,7 +84,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -93,7 +93,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDSProxy: types.RDSProxy{Name: "rds-proxy", ResourceID: "rds-proxy-resource-id"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDSProxy: types.RDSProxy{Name: "rds-proxy", ResourceID: "rds-proxy-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -111,7 +111,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 	})
 	require.NoError(t, err)
 
@@ -227,7 +227,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 	// Create unauthorized mocks for AWS services.
 	stsClient := &mocks.STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
+		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
@@ -244,7 +244,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	}{
 		{
 			name: "RDS database",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 			clients: &clients.TestCloudClients{
 				RDS: &mocks.RDSMockUnauth{},
 				IAM: &mocks.IAMErrorMock{
@@ -255,7 +255,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "Aurora cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 			clients: &clients.TestCloudClients{
 				RDS: &mocks.RDSMockUnauth{},
 				IAM: &mocks.IAMErrorMock{
@@ -277,7 +277,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "Redshift cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
 				Redshift: &mocks.RedshiftMockUnauth{},
 				IAM: &mocks.IAMErrorMock{
@@ -288,7 +288,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "IAM UnmodifiableEntityException",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
 				Redshift: &mocks.RedshiftMockUnauth{},
 				IAM: &mocks.IAMErrorMock{

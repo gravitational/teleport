@@ -112,7 +112,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 
 func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {
 	cluster := &memorydb.Cluster{
-		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789:cluster:%s", region, name)),
+		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789012:cluster:%s", region, name)),
 		Name:       aws.String(name),
 		Status:     aws.String("available"),
 		TLSEnabled: aws.Bool(true),
