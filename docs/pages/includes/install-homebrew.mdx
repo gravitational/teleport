@@ -1,85 +1,30 @@
-  <Admonition type="note" scope={["enterprise", "cloud"]} scopeOnly>
-  The Homebrew version lacks the ability to maintain SAML/OIDC Authentication connector through the `tctl` binary.
-  Administrators especially are recommended to install the official enterprise maintained versions.
-</Admonition>
-  
-  <Notice type="danger">
+ <Notice type="danger">
 
-  The Teleport package in Homebrew is not maintained by Teleport and we can't
-  guarantee its reliability or security. We recommend the use of our [official
-  Teleport packages](https://goteleport.com/teleport/download?os=mac).
+The Teleport package in Homebrew is not maintained by Teleport and we can't
+guarantee its reliability or security. We recommend the use of our [official
+Teleport packages](https://goteleport.com/teleport/download?os=mac).
 
-  </Notice>
+<ScopedBlock scope={["enterprise", "cloud"]}>
 
-    Run the following command:
+The Homebrew version lacks the ability to maintain SAML/OIDC Authentication
+connector through the `tctl` binary. Administrators especially are recommended
+to install the official enterprise maintained versions.
 
-    ```code
-    $ brew install teleport
-    ```
+</ScopedBlock>
 
-    If you choose to use Homebrew, you must verify that the versions of `tsh`
-    and `tctl` you run on your local machine are compatible with the versions
-    you run on your infrastructure. Homebrew usually ships the latest release of
-    Teleport, which may be incompatible with older versions. See our
-    [compatibility policy](../management/operations/upgrading.mdx) for details.
+</Notice>
 
-    Log in to your cluster:
-    <ScopedBlock scope="cloud">
+To install Teleport with Homebrew, run the following command:
 
-    ```code
-    $ tsh login --proxy=mytenant.teleport.sh --user=myuser
-    ```
+```code
+$ brew install teleport
+```
 
-    </ScopedBlock>
-    <ScopedBlock scope={["oss", "enterprise"]}>
+If you choose to use Homebrew, you must verify that the versions of `tsh`
+and `tctl` you run on your local machine are compatible with the versions
+you run on your infrastructure. Homebrew usually ships the latest release of
+Teleport, which may be incompatible with older versions. See our
+[compatibility policy](../management/operations/upgrading.mdx) for details.
 
-    ```code
-    $ tsh login --proxy=teleport.example.com --user=myuser
-    ```
-
-    </ScopedBlock>
-
-    Get the version of your Teleport cluster:
-
-    <ScopedBlock scope="cloud">
-
-    ```code
-    $ tctl status
-    tctl status
-    Cluster  mytenant.teleport.sh
-    Version  (=teleport.version=)
-    Host CA  never updated
-    User CA  never updated
-    Jwt CA   never updated
-    CA pin   (=presets.ca_pin=)
-    ```
-
-    </ScopedBlock>
-    <ScopedBlock scope={["oss", "enterprise"]}>
-
-    ```code
-    $ tctl status
-    tctl status
-    Cluster  teleport.example.com
-    Version  (=teleport.version=)
-    Host CA  never updated
-    User CA  never updated
-    Jwt CA   never updated
-    CA pin   (=presets.ca_pin=)
-    ```
-
-    </ScopedBlock>
-
-    Get your local tsh version:
-
-    ```code
-    $ tsh version
-    Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
-    ```
-
-    Get your local tctl version:
-
-    ```code
-    $ tctl version
-    Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
-    ```
+To verify versions, log in to your cluster and compare the output of `tctl status`
+against `tsh version` and `tctl version`.
