@@ -93,6 +93,8 @@ export const eventCodes = {
   CASSANDRA_EXECUTE_EVENT: 'TCA03I',
   CASSANDRA_REGISTER_EVENT: 'TCA04I',
   ELASTICSEARCH_REQUEST: 'TES00I',
+  DYNAMODB_REQUEST: 'TDY01I',
+  DYNAMODB_REQUEST_FAILURE: 'TDY01E',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -869,6 +871,20 @@ export type RawEvents = {
       target: string;
       query: string;
       path: string;
+    }
+  >;
+  [eventCodes.DYNAMODB_REQUEST]: RawEvent<
+    typeof eventCodes.DYNAMODB_REQUEST,
+    {
+      target: string;
+      db_service: string;
+    }
+  >;
+  [eventCodes.DYNAMODB_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.DYNAMODB_REQUEST_FAILURE,
+    {
+      target: string;
+      db_service: string;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<

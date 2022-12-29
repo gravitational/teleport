@@ -152,6 +152,8 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.CASSANDRA_PREPARE_EVENT]: Icons.Database,
   [eventCodes.CASSANDRA_REGISTER_EVENT]: Icons.Database,
   [eventCodes.ELASTICSEARCH_REQUEST]: Icons.Database,
+  [eventCodes.DYNAMODB_REQUEST]: Icons.Database,
+  [eventCodes.DYNAMODB_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_ENDED]: Icons.Desktop,
