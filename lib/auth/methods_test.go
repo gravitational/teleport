@@ -20,9 +20,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/stretchr/testify/require"
 )
 
 func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
