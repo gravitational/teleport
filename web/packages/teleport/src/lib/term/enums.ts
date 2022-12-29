@@ -32,8 +32,13 @@ export enum TermEvent {
   WEBAUTHN_CHALLENGE = 'terminal.webauthn',
 }
 
-// See https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
+// Websocket connection close codes.
+// If unset, the browser will automtically set the code to a standard value.
+// If specified, the value must be 1000 or a custom code in the range 3000-4999.
+//
+// See:
+// - https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/close
+// - https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
 export enum WebsocketCloseCode {
   NORMAL = 1000,
-  ABNORMAL = 1006,
 }
