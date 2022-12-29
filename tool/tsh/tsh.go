@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -338,6 +337,10 @@ type CLIConf struct {
 	// SampleTraces indicates whether traces should be sampled.
 	SampleTraces bool
 
+	// TraceExporter is a manually provided URI to send traces to instead of
+	// forwarding them to the Auth service.
+	TraceExporter string
+
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
 
@@ -467,6 +470,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
+	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -751,7 +755,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// Connect to the span exporter and initialize the trace provider only if
 	// the --trace flag was set.
 	if cf.SampleTraces {
-		provider, err := newTraceProvider(&cf, command, []string{login.FullCommand()})
+		// login only needs to be ignored if forwarding to auth
+		var ignored []string
+		if cf.TraceExporter == "" {
+			ignored = []string{login.FullCommand()}
+		}
+		provider, err := newTraceProvider(&cf, command, ignored)
 		if err != nil {
 			log.WithError(err).Debug("failed to set up span forwarding.")
 		} else {
@@ -902,45 +911,68 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	return trace.Wrap(err)
 }
 
-// newTraceProvider initializes the tracing provider and exports all recorded spans
-// to the auth server to be forwarded to the telemetry backend. The whitelist allows
+// newTraceProvider initializes the tracing provider that will export spans for tsh.
+//
+// If an explicit exporter url was provided via --trace-exporter all spans will be
+// send to the provided exporter. Otherwise all recorded spans are exported to the
+// Auth server which then forwards to the telemetry backend. The ignored list contains
 // certain commands to have exporting spans be a no-op. Since the provider requires
-// connecting to the auth server, this means a user may have to log in first before
-// the provider can be created. By whitelisting the login command we can avoid having
+// connecting to the auth server, this means a user may have to login first before
+// the provider can be created. By ignoring the login command we can avoid having
 // users logging in twice at the expense of not exporting spans for the login command.
-func newTraceProvider(cf *CLIConf, command string, whitelist []string) (*tracing.Provider, error) {
-	// don't record any spans for commands that have been whitelisted
-	for _, c := range whitelist {
+func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.Provider, error) {
+	// don't record any spans for commands that have been allowed
+	for _, c := range ignored {
 		if strings.EqualFold(command, c) {
 			return tracing.NoopProvider(), nil
 		}
 	}
 
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var traceclt *apitracing.Client
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		traceclt, err = tc.NewTracingClient(cf.Context)
-		return err
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	provider, err := tracing.NewTraceProvider(cf.Context,
-		tracing.Config{
-			Service: teleport.ComponentTSH,
-			Client:  traceclt,
+	// an explicit exporter url was provided no need to forward to auth
+	if cf.TraceExporter != "" {
+		provider, err := tracing.NewTraceProvider(cf.Context, tracing.Config{
+			Service:     teleport.ComponentTSH,
+			ExporterURL: cf.TraceExporter,
 			// We are using 1 here to record all spans as a result of this tsh command. Teleport
 			// will respect the recording flag of remote spans even if the spans it generates
 			// wouldn't otherwise be recorded due to its configured sampling rate.
 			SamplingRate: 1.0,
 		})
+
+		return provider, trace.Wrap(err)
+	}
+
+	// create a TeleportClient and generate a provider that forwards
+	// spans to Auth
+	tc, err := makeClient(cf, true)
 	if err != nil {
-		return nil, trace.NewAggregate(err, traceclt.Close())
+		return nil, trace.Wrap(err)
+	}
+
+	var provider *tracing.Provider
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clt, err := tc.NewTracingClient(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		p, err := tracing.NewTraceProvider(cf.Context,
+			tracing.Config{
+				Service: teleport.ComponentTSH,
+				Client:  clt,
+				// We are using 1 here to record all spans as a result of this tsh command. Teleport
+				// will respect the recording flag of remote spans even if the spans it generates
+				// wouldn't otherwise be recorded due to its configured sampling rate.
+				SamplingRate: 1.0,
+			})
+		if err != nil {
+			return trace.NewAggregate(err, clt.Close())
+		}
+
+		provider = p
+		return nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return provider, nil

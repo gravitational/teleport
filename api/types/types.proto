@@ -2918,6 +2918,11 @@ message RegisterUsingTokenRequest {
     // EC2IdentityDocument is used for the EC2 join method to prove the identity
     // of a joining EC2 instance.
     bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
+    // Expires is a desired time of the expiry of user certificates returned by
+    // registration. This only applies to bot joining, and will be ignored by
+    // node joining.
+    google.protobuf.Timestamp Expires = 12
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "expires,omitempty" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
