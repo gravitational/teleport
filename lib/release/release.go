@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package release
 
 import (
@@ -118,7 +119,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 				Name:        a.Name,
 				OS:          a.OS,
 				SHA256:      a.SHA256,
-				Size_:       a.Size,
+				AssetSize:   a.Size,
 				DisplaySize: byteCount(a.Size),
 				ReleaseIDs:  a.ReleaseIDs,
 				PublicURL:   a.PublicURL,

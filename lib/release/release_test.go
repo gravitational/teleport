@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package release
 
 import (
@@ -155,7 +156,7 @@ func TestListReleases(t *testing.T) {
 							Name:        "Teleport",
 							OS:          "Linux",
 							SHA256:      "200fd83c8fbe55df25bfc638e4ee2e746443ff037c78a985005dff0206e103d3",
-							Size_:       1000000000,
+							AssetSize:   1000000000,
 							DisplaySize: "1.0 GB",
 							ReleaseIDs:  []string{"1", "2"},
 							PublicURL:   "example.com/teleport.tar.gz",
@@ -166,7 +167,7 @@ func TestListReleases(t *testing.T) {
 							Name:        "Teleport",
 							OS:          "Linux",
 							SHA256:      "100fd83c8fbe55df25bfc638e4ee2e746443ff037c78a985005dff0206e103d3",
-							Size_:       1000000000,
+							AssetSize:   1000000000,
 							DisplaySize: "1.0 GB",
 							ReleaseIDs:  []string{"1", "2"},
 							PublicURL:   "example.com/teleport.tar.gz",
@@ -186,7 +187,7 @@ func TestListReleases(t *testing.T) {
 							Name:        "Teleport",
 							OS:          "Linux",
 							SHA256:      "200fd83c8fbe55df25bfc638e4ee2e746443ff037c78a985005dff0206e103d3",
-							Size_:       1000000000,
+							AssetSize:   1000000000,
 							DisplaySize: "1.0 GB",
 							ReleaseIDs:  []string{"1", "2"},
 							PublicURL:   "example.com/teleport.tar.gz",
@@ -197,7 +198,7 @@ func TestListReleases(t *testing.T) {
 							Name:        "Teleport",
 							OS:          "Linux",
 							SHA256:      "100fd83c8fbe55df25bfc638e4ee2e746443ff037c78a985005dff0206e103d3",
-							Size_:       1000000000,
+							AssetSize:   1000000000,
 							DisplaySize: "1.0 GB",
 							ReleaseIDs:  []string{"1", "2"},
 							PublicURL:   "example.com/teleport.tar.gz",
