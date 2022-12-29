@@ -68,7 +68,7 @@ func TestListReleases(t *testing.T) {
 			responseStatusCode: 200,
 			responseBody:       "[]",
 			shouldErr:          false,
-			expected:           []*types.Release{},
+			expected:           nil,
 		},
 		{
 			name:               "access denied",
