@@ -1,10 +1,13 @@
 package ingress
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -145,6 +148,9 @@ func (r *Reporter) AuthenticatedConnectionClosed(service string, conn net.Conn) 
 
 // getIngressPath determines the ingress path of a given connection.
 func (r *Reporter) getIngressPath(conn net.Conn) string {
+	// Unwarp a proxy protocol connection to compare against the local listener address.
+	addr := getRealLocalAddr(conn)
+
 	// An empty address indicates alpn routing is disabled.
 	if r.alpnAddr == "" {
 		return pathDirect
@@ -152,7 +158,7 @@ func (r *Reporter) getIngressPath(conn net.Conn) string {
 
 	// If the IP is unspecified we only check if the ports match.
 	if r.unspecifiedIP {
-		_, port, err := net.SplitHostPort(conn.LocalAddr().String())
+		_, port, err := net.SplitHostPort(addr.String())
 		if err != nil {
 			return pathUnknown
 		}
@@ -161,8 +167,29 @@ func (r *Reporter) getIngressPath(conn net.Conn) string {
 		}
 		return pathDirect
 	}
-	if r.alpnAddr == conn.LocalAddr().String() {
+	if r.alpnAddr == addr.String() {
 		return pathALPN
 	}
 	return pathDirect
+}
+
+// getRealLocalAddr returns the underlying local address if proxy protocol is being used.
+func getRealLocalAddr(conn net.Conn) net.Addr {
+	if timeoutConn, ok := conn.(*utils.TimeoutConn); ok {
+		conn = timeoutConn.Conn
+	}
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		conn = tlsConn.NetConn()
+	}
+	if connGetter, ok := conn.(netConnGetter); ok {
+		conn = connGetter.NetConn()
+	}
+	if wrappedConn, ok := conn.(*multiplexer.Conn); ok {
+		conn = wrappedConn.Conn
+	}
+	return conn.LocalAddr()
+}
+
+type netConnGetter interface {
+	NetConn() net.Conn
 }

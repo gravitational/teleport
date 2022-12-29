@@ -64,6 +64,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		p.IngressReporter.ConnectionAccepeted(ingress.MySQL, clientConn)
 		defer p.IngressReporter.ConnectionClosed(ingress.MySQL, clientConn)
 	}
+
 	// Wrap the client connection in the connection that can detect the protocol
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
