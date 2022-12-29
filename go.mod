@@ -3,8 +3,7 @@ module github.com/gravitational/teleport
 go 1.19
 
 require (
-	cloud.google.com/go/container v1.8.0
-	cloud.google.com/go/iam v0.8.0
+	cloud.google.com/go/container v1.9.0
 	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0
@@ -27,13 +26,13 @@ require (
 	github.com/aws/aws-sdk-go v1.44.163
 	github.com/aws/aws-sdk-go-v2 v1.17.3
 	github.com/aws/aws-sdk-go-v2/config v1.18.6
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.6
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.7
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.21
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.76.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.7
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.1.0
-	github.com/bufbuild/connect-go v1.3.2
+	github.com/bufbuild/connect-go v1.4.1
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.0
 	github.com/creack/pty v1.1.18
@@ -54,7 +53,7 @@ require (
 	github.com/go-redis/redis/v9 v9.0.0-rc.1 // replaced
 	github.com/go-webauthn/webauthn v0.5.0
 	github.com/gobuffalo/flect v0.3.0
-	github.com/gocql/gocql v1.3.0
+	github.com/gocql/gocql v1.3.1
 	github.com/gofrs/flock v0.8.1
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.4.3
@@ -91,12 +90,12 @@ require (
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.16
-	github.com/mdlayher/netlink v1.7.0
+	github.com/mdlayher/netlink v1.7.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.0
 	github.com/pkg/sftp v1.13.5 // replaced
-	github.com/pquerna/otp v1.3.0
+	github.com/pquerna/otp v1.4.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.39.0
@@ -154,10 +153,12 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-// DO NOT UPDATE genproto without first updating firestore to 1.9.0
-// and fixing the deprecation of the Batch api in firestore 1.7.0.
+// DO NOT UPDATE any of the following dependencies until the
+// deprecated Firestore Batch API is replaced. Updating causes
+// the linter to fail due to deprecation warnings.
 require (
 	cloud.google.com/go/firestore v1.6.1
+	cloud.google.com/go/iam v0.8.0
 	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
 )
 
@@ -178,7 +179,7 @@ require (
 require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 
 require (
-	cloud.google.com/go v0.105.0 // indirect
+	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.13.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
 	cloud.google.com/go/longrunning v0.3.0 // indirect
@@ -213,7 +214,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.13.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.29.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.11.27 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.11.28 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.13.11 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
