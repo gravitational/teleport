@@ -161,7 +161,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "requires enterprise license")
+				require.ErrorIs(t, err, ErrRequiresEnterprise)
 			}),
 		},
 		{

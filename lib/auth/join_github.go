@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -52,9 +53,10 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
 	if enterpriseOverride != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied(
-				"github enterprise server joining support requires enterprise license",
-			)
+			return nil, fmt.Errorf(
+				"github enterprise server joining: %w",
+				ErrRequiresEnterprise,
+				)
 		}
 	}
 

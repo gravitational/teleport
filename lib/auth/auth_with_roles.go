@@ -1743,8 +1743,9 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	}
 
 	if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
-		return trace.AccessDenied(
-			"github enterprise server joining support requires enterprise license",
+		return fmt.Errorf(
+			"github enterprise server joining: %w",
+			ErrRequiresEnterprise,
 		)
 	}
 	return nil
