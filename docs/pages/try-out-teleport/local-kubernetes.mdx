@@ -121,7 +121,8 @@ teleport-cluster   LoadBalancer   10.107.218.212   127.0.0.1     443:32143/TCP,3
 
 The Proxy Service enables you to manage your cluster via an HTTP API. Assign the
 external IP of the load balancer to an environment variable and verify that the
-HTTP API is working. The example below uses [jq](https://stedolan.github.io/jq/) to format the API return, but you can omit it if not installed:
+HTTP API is working. The example below uses [jq](https://stedolan.github.io/jq/)
+to format the API response, but you can omit it if not installed:
 
 ```code
 # Define EXTERNAL_IP, which we will use again in this guide
