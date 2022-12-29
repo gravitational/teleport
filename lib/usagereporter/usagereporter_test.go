@@ -22,8 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -41,8 +39,7 @@ const (
 )
 
 type TestEvent struct {
-	count     string
-	timestamp *timestamppb.Timestamp
+	count string
 }
 
 // newTestSubmitter creates a submitter that reports batches to a channel.
@@ -116,8 +113,7 @@ func createDummyEvents(start, count int) []*TestEvent {
 
 	for i := 0; i < count; i++ {
 		ret = append(ret, &TestEvent{
-			timestamp: timestamppb.Now(),
-			count:     fmt.Sprintf("%d", start+i),
+			count: fmt.Sprintf("%d", start+i),
 		})
 	}
 
@@ -132,7 +128,6 @@ func compareUsageEvents(t *testing.T, reporter *UsageReporter[TestEvent], inputs
 		output := outputs[i]
 
 		require.Equal(t, input.count, output.Event.count)
-		//require.Equal(t, timestmap, output.Event.timestamp)
 	}
 }
 
