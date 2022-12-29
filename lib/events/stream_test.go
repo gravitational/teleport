@@ -158,18 +158,18 @@ func TestNewStreamErrors(t *testing.T) {
 // it should be trimmed otherwise an error should be thrown.
 func TestProtoStreamLargeEvent(t *testing.T) {
 	tests := []struct {
-		name      string
-		event     events.AuditEvent
+		name         string
+		event        events.AuditEvent
 		errAssertion require.ErrorAssertionFunc
 	}{
 		{
-			name:      "large trimmable event is trimmed",
-			event:     makeQueryEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
+			name:         "large trimmable event is trimmed",
+			event:        makeQueryEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
 			errAssertion: require.NoError,
 		},
 		{
-			name:      "large untrimmable event returns error",
-			event:     makeAccessRequestEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
+			name:         "large untrimmable event returns error",
+			event:        makeAccessRequestEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
 			errAssertion: require.Error,
 		},
 	}
@@ -186,12 +186,7 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err = stream.EmitAuditEvent(ctx, test.event)
-			if test.expectErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			test.errAssertion(t, stream.EmitAuditEvent(ctx, test.event))
 		})
 	}
 	require.NoError(t, stream.Complete(ctx))
