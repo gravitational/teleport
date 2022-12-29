@@ -487,6 +487,7 @@ func awsRegions() []string {
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 	regions := awsRegions()
+	var err error
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -512,13 +513,21 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
 
+		var installParams services.InstallerParams
+
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
 				JoinParams: JoinParams{
 					TokenName: defaults.IAMInviteTokenName,
 					Method:    types.JoinMethodIAM,
 				},
-				ScriptName: installers.InstallerScriptName,
+				ScriptName:      installers.InstallerScriptName,
+				InstallTeleport: "",
+				SSHDConfig:      defaults.SSHDConfigPath,
+			}
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		} else {
 			if method := matcher.InstallParams.JoinParams.Method; method == "" {
@@ -527,12 +536,21 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
 			}
 
-			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+			if matcher.InstallParams.JoinParams.TokenName == "" {
 				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
 			}
 
+			if matcher.InstallParams.SSHDConfig == "" {
+				matcher.InstallParams.SSHDConfig = defaults.SSHDConfigPath
+			}
+
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				if matcher.InstallParams.InstallTeleport {
+				if installParams.InstallTeleport {
 					matcher.InstallParams.ScriptName = installers.InstallerScriptName
 				} else {
 					matcher.InstallParams.ScriptName = installers.InstallerScriptNameAgentless
@@ -541,7 +559,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 		}
 
 		if matcher.SSM.DocumentName == "" {
-			if matcher.InstallParams.InstallTeleport {
+			if installParams.InstallTeleport {
 				matcher.SSM.DocumentName = defaults.AWSInstallerDocument
 			} else {
 				matcher.SSM.DocumentName = defaults.AWSAgentlessInstallerDocument
@@ -1515,9 +1533,31 @@ type InstallParams struct {
 	// resource for the EC2 instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
 	// InstallTeleport disables agentless discovery
-	InstallTeleport bool `yaml:"install_teleport"`
+	InstallTeleport string `yaml:"install_teleport,omitempty"`
 	// SSHDConfig provides the path to write sshd configuration changes
 	SSHDConfig string `yaml:"sshd_config,omitempty"`
+}
+
+func (ip *InstallParams) Parse() (services.InstallerParams, error) {
+	install := services.InstallerParams{
+		JoinMethod:      ip.JoinParams.Method,
+		JoinToken:       ip.JoinParams.TokenName,
+		ScriptName:      ip.ScriptName,
+		InstallTeleport: true,
+		SSHDConfig:      ip.SSHDConfig,
+	}
+
+	if ip.InstallTeleport == "" {
+		return install, nil
+	}
+
+	var err error
+	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
+	if err != nil {
+		return services.InstallerParams{}, trace.Wrap(err)
+	}
+
+	return install, nil
 }
 
 // AWSSSM provides options to use when executing SSM documents

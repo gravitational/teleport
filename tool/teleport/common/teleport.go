@@ -93,7 +93,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
-	join := app.Command("join", "Download the Teleport CA and SSH host keys and update the SSH config to use them")
+	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon")
+	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
@@ -399,14 +400,14 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	kubeStateDelete := kubeState.Command("delete", "Used internally to delete Kubernetes states when the helm chart is uninstalled.").Hidden()
 
 	// teleport join --proxy-server=proxy.example.com --token=aws-join-token [--openssh-config=/path/to/sshd.conf] [--restart-sshd=true]
-	join.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
-	join.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
-	join.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
-	join.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
-	join.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default("/etc/ssh").StringVar(&ccf.OpenSSHKeysPath)
-	join.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
-	join.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
-	join.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
+	joinOpenSSH.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
+	joinOpenSSH.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
+	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
+	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default("/etc/ssh").StringVar(&ccf.OpenSSHKeysPath)
+	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
+	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
+	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -485,8 +486,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.DiscoveryService = true
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
-	case join.FullCommand():
-		err = onJoin(ccf)
+	case joinOpenSSH.FullCommand():
+		err = onJoinOpenSSH(ccf)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -531,7 +532,7 @@ func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
 	return privateKey, publicKey, tlsPublicKey, nil
 }
 
-func onJoin(clf config.CommandLineFlags) error {
+func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	addr, err := utils.ParseAddr(clf.ProxyServer)
 	if err != nil {
 		return trace.Wrap(err)
@@ -589,16 +590,22 @@ func onJoin(clf config.CommandLineFlags) error {
 	return nil
 }
 
+const (
+	teleportKey    = "teleport"
+	teleportCert   = "teleport-cert.pub"
+	teleportUserCA = "teleport_user_ca.pub"
+)
+
 func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs) error {
-	if err := os.WriteFile(filepath.Join(sshdConfigDir, "teleport"), private, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportKey), private, 0600); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := os.WriteFile(filepath.Join(sshdConfigDir, "teleport-cert.pub"), certs.SSH, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportCert), certs.SSH, 0600); err != nil {
 		return trace.Wrap(err)
 	}
 
-	certsFile, err := os.Create(filepath.Join(sshdConfigDir, "teleport_user_ca.pub"))
+	certsFile, err := os.Create(filepath.Join(sshdConfigDir, teleportUserCA))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -625,7 +632,7 @@ func updateSSHDConfig(keyDir, sshdConfigPath string) error {
 	defer sshdConfig.Close()
 
 	configUpdate := fmt.Sprintf(`
-### Section created by 'teleport  join'
+### Section created by 'teleport join openssh'
 TrustedUserCaKeys %s
 HostKey %s
 HostCertificate %s
