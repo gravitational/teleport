@@ -34,9 +34,9 @@ import (
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -929,7 +929,7 @@ func TestCADownloaderDownload(t *testing.T) {
 		certContents := []byte("cloud-sql-test-cert")
 		fingerPrint := []byte("cert-fingerprint")
 		downloader := &realDownloader{
-			sqlAdminClient: &cloud.GCPSQLAdminClientMock{
+			sqlAdminClient: &mocks.GCPSQLAdminClientMock{
 				DatabaseInstance: &sqladmin.DatabaseInstance{
 					ServerCaCert: &sqladmin.SslCert{
 						Cert:            string(certContents),
