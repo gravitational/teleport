@@ -83,8 +83,8 @@ Verify that Teleport is running.
 
 ```code
 $ kubectl get pods
-# NAME                               READY   STATUS    RESTARTS   AGE
-# teleport-cluster-b9dc6c68b-d75fb   1/1     Running   0          46s
+NAME                               READY   STATUS    RESTARTS   AGE
+teleport-cluster-b9dc6c68b-d75fb   1/1     Running   0          46s
 ```
 
 ### Expose the Proxy Service to your local machine
@@ -97,37 +97,63 @@ SSH tunnel to ports on your local machine.
 
 Open a new terminal and run the following command to create a reverse tunnel. In
 this case, the tunnel forwards port 443, so you will need to enter your
-password.
+password:
 
 ```code
 $ minikube tunnel
-# ✅  Tunnel successfully started
+✅  Tunnel successfully started
 
-# 📌  NOTE: Please do not close this terminal as this process must stay alive for the tunnel to be accessible ...
+📌  NOTE: Please do not close this terminal as this process must stay alive for the tunnel to be accessible ...
 
-# ❗  The service/ingress teleport-cluster requires privileged ports to be exposed: [443]
-# 🔑  sudo permission will be asked for it.
-# 🏃  Starting tunnel for service teleport-cluster.
-#Password:
+❗  The service/ingress teleport-cluster requires privileged ports to be exposed: [443]
+🔑  sudo permission will be asked for it.
+🏃  Starting tunnel for service teleport-cluster.
+Password:
 ```
 
 The `teleport-cluster` service should now have an external IP:
 
 ```code
 $ kubectl get services
-#NAME               TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                     AGE
-#teleport-cluster   LoadBalancer   10.107.218.212   127.0.0.1     443:32143/TCP,3023:30618/TCP,3026:32750/TCP,3024:32406/TCP,3036:30687/TCP   6m18s
+NAME               TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                     AGE
+teleport-cluster   LoadBalancer   10.107.218.212   127.0.0.1     443:32143/TCP,3023:30618/TCP,3026:32750/TCP,3024:32406/TCP,3036:30687/TCP   6m18s
 ```
 
 The Proxy Service enables you to manage your cluster via an HTTP API. Assign the
 external IP of the load balancer to an environment variable and verify that the
-HTTP API is working:
+HTTP API is working. The example below uses [jq](https://stedolan.github.io/jq/) to format the API return, but you can omit it if not installed:
 
 ```code
+# Define EXTERNAL_IP, which we will use again in this guide
 $ EXTERNAL_IP=$(kubectl get service teleport-cluster -o jsonpath='{ .status.loadBalancer.ingress[0].ip }')
+# Define TELEPORT_PING_URL to test against
 $ TELEPORT_PING_URL="https://${EXTERNAL_IP?}:443/webapi/ping"
-$ curl --insecure $TELEPORT_PING_URL
-# {"auth":{"type":"local","second_factor":"otp","preferred_local_mfa":"otp","has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"teleport-cluster:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"8.2.0","min_client_version":"7.0.0"}%
+$ curl --insecure $TELEPORT_PING_URL | jq
+{
+  "auth": {
+    "type": "local",
+    "second_factor": "otp",
+    "preferred_local_mfa": "otp",
+    "has_motd": false
+  },
+  "proxy": {
+    "kube": {
+      "enabled": true,
+      "listen_addr": "0.0.0.0:3026"
+    },
+    "ssh": {
+      "listen_addr": "[::]:3023",
+      "tunnel_listen_addr": "0.0.0.0:3024",
+      "public_addr": "teleport-cluster:443"
+    },
+    "db": {
+      "mysql_listen_addr": "0.0.0.0:3036"
+    },
+    "tls_routing_enabled": false
+  },
+  "server_version": "8.2.0",
+  "min_client_version": "7.0.0"
+}
 ```
 
 <Details opened={false} title='Getting a "Connection refused" error?'>
@@ -213,9 +239,14 @@ Verify that the dashboard and metrics scraper services are running:
 
 ```code
 $ kubectl get services -n kubernetes-dashboard
-#NAME                        TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-#dashboard-metrics-scraper   ClusterIP   10.100.9.163   <none>        8000/TCP   8s
-#kubernetes-dashboard        ClusterIP   10.100.80.65   <none>        443/TCP    8s
+```
+
+You should see output similar to:
+
+```text
+NAME                        TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+dashboard-metrics-scraper   ClusterIP   10.100.9.163   <none>        8000/TCP   8s
+kubernetes-dashboard        ClusterIP   10.100.80.65   <none>        443/TCP    8s
 ```
 
 The `kubernetes-dashboard` service has an open HTTPS port but is not accessible
@@ -243,8 +274,8 @@ Run the following commands to get the name of the relevant pod and execute a
 # We will use this variable for subsequent commands
 $ PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 $ kubectl exec $PROXY_POD -- tctl users add --roles=access appuser
-#User "appuser" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
-#https://teleport-cluster.teleport-cluster.svc.cluster.local:443/web/invite/<token>
+User "appuser" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport-cluster.teleport-cluster.svc.cluster.local:443/web/invite/<token>
 ```
 
 Next, open a browser at the URL returned by `tctl users add` command. minikube's
@@ -275,10 +306,10 @@ spec:
 EOF
 tctl create --force --confirm /home/cp.yaml"
 ```
+
 </Details>
 
 After signing in, you will navigate to the Teleport Web UI.
-
 
 ## Step 3/4 Enable access to Kubernetes Dashboard
 
@@ -299,9 +330,9 @@ $ kubectl exec -i $PROXY_POD -- tctl tokens add \
 --type=app \
 --app-name=kube-dash \
 --app-uri=https://$DASH_ADDR
-#The invite token: <token>.
-#This token will expire in 60 minutes.
-#...
+The invite token: <token>.
+This token will expire in 60 minutes.
+...
 ```
 
 Copy the invite token so you can assign it to `INVITE_TOKEN` below, then launch the
@@ -340,6 +371,7 @@ Run the following command:
 ```code
 $ kubectl exec $PROXY_POD -- tctl tokens ls
 ```
+
 </Admonition>
 
 Visit the Teleport Web UI at the following link:
@@ -389,4 +421,3 @@ production.
   [Single Sign-On and Kubernetes RBAC](../kubernetes-access/controls.mdx)
 - Have a Kubernetes cluster but don't want to run Teleport there?
   [Kubernetes Access from Standalone Teleport](../kubernetes-access/guides/standalone-teleport.mdx)
-
