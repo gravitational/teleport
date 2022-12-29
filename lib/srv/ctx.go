@@ -976,7 +976,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			varValidation := func(v parse.VarExpr) error {
+			varValidation := func(v parse.VarNode) error {
 				if v.Namespace() != teleport.TraitExternalPrefix && v.Namespace() != parse.LiteralNamespace {
 					return trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
 				}
