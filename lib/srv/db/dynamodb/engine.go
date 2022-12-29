@@ -36,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -158,12 +157,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		err = e.process(ctx, req)
-		if req.Body != nil {
-			// close the incoming request body after processing and ignore close error.
-			_ = req.Body.Close()
-		}
-		if err != nil {
+		if err := e.process(ctx, req); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -172,6 +166,11 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
 func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
+	if req.Body != nil {
+		// make sure we close the incoming request's body. ignore any close error.
+		defer req.Body.Close()
+	}
+
 	var responseStatusCode uint32
 	re, err := e.resolveEndpoint(req)
 	if err != nil {
@@ -185,18 +184,23 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 		e.emitAuditEvent(req, re.URL, responseStatusCode, err)
 	}()
 
+	// try to read, close, and replace the incoming request body.
+	body, err := libaws.GetAndReplaceReqBody(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	roundTripper, err := e.getRoundTripper(ctx, re.URL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// rewrite the request URL and headers before signing it.
-	req, err = rewriteRequest(ctx, req, re)
+	outReq, err := rewriteRequest(ctx, req, re, body)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
-	signedReq, err := e.signingSvc.SignRequest(e.Context, req,
+	signedReq, err := e.signingSvc.SignRequest(e.Context, outReq,
 		&libaws.SigningCtx{
 			SigningName:   re.SigningName,
 			SigningRegion: re.SigningRegion,
@@ -342,25 +346,21 @@ func (e *Engine) resolveEndpoint(req *http.Request) (*endpoints.ResolvedEndpoint
 }
 
 // rewriteRequest clones a request, modifies the clone to rewrite its URL, and returns the modified request clone.
-func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint, body []byte) (*http.Request, error) {
 	resolvedURL, err := url.Parse(re.URL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	reqCopy := r.Clone(ctx)
-	// set url and host header to match the database uri.
+	// set url and host header to match the resolved endpoint.
 	reqCopy.URL = resolvedURL
 	reqCopy.Host = resolvedURL.Host
-	if r.Body == nil {
+	if body == nil {
 		// no body is fine, skip copying it.
 		return reqCopy, nil
 	}
 
 	// copy request body
-	body, err := io.ReadAll(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	reqCopy.Body = io.NopCloser(bytes.NewReader(body))
 	return reqCopy, nil
 }
