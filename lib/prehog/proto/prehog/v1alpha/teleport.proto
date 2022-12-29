@@ -106,6 +106,7 @@ message SubmitEventRequest {
     UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 16;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
+  reserved "ui_onboard_get_started_click";
 }
 message SubmitEventResponse {}
 
