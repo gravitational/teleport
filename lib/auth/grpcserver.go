@@ -4378,11 +4378,11 @@ func (g *GRPCServer) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsag
 func (g *GRPCServer) GetLicense(ctx context.Context, req *proto.GetLicenseRequest) (*proto.GetLicenseResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return &proto.GetLicenseResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	license, err := auth.GetLicense(ctx)
 	if err != nil {
-		return &proto.GetLicenseResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	return &proto.GetLicenseResponse{
 		License: []byte(license),
@@ -4393,11 +4393,11 @@ func (g *GRPCServer) GetLicense(ctx context.Context, req *proto.GetLicenseReques
 func (g *GRPCServer) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) (*proto.ListReleasesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return &proto.ListReleasesResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	releases, err := auth.ListReleases(ctx)
 	if err != nil {
-		return &proto.ListReleasesResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return &proto.ListReleasesResponse{
