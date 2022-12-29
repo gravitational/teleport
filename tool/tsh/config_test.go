@@ -28,6 +28,8 @@ import (
 
 // TestWriteSSHConfig tests the writeSSHConfig template output.
 func TestWriteSSHConfig(t *testing.T) {
+	t.Parallel()
+
 	want := `# Begin generated Teleport configuration for localhost by tsh
 
 # Common flags for all test-cluster hosts
