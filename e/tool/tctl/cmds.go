@@ -27,7 +27,6 @@ import (
 // for oss and ent, and commands that are unique to ent.
 func ENTCommands() []common.CLICommand {
 	return []common.CLICommand{
-		&ResourceCommandE{},
 		&SAMLCommand{},
 		&configure.SSOConfigureCommandE{},
 		&devices.Command{},
