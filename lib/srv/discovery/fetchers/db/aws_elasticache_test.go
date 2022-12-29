@@ -113,7 +113,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 
 func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {
 	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789:replicationgroup:%s", region, name)),
+		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789012:replicationgroup:%s", region, name)),
 		ReplicationGroupId:       aws.String(name),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),

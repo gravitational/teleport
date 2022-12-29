@@ -80,7 +80,7 @@ func TestInitCACert(t *testing.T) {
 		URI:      "localhost:5432",
 		AWS: types.AWS{
 			Region:    "us-east-1",
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			RedshiftServerless: types.RedshiftServerless{
 				WorkgroupName: "workgroup",
 			},
