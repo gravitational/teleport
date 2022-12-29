@@ -217,7 +217,10 @@ func TestSSHLoadAllCAs(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := newTestSuite(t, tc.opts...)
 
 			leafProxySSHAddr, err := s.leaf.ProxySSHAddr()
@@ -398,7 +401,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := newTestSuite(t, tc.opts...)
 
 			runProxySSHJump := func(opts ...cliOption) error {
@@ -458,12 +464,13 @@ proxy_templates:
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
-	os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
+	err = os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
 Host *
   HostName %%h
   StrictHostKeyChecking no
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
 `, tshPath)), 0o644)
+	require.NoError(t, err)
 
 	// Connect to "localnode" with OpenSSH.
 	mustRunOpenSSHCommand(t, sshConfigFile, "localnode.root",
@@ -553,6 +560,8 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 }
 
 func TestEnvVarCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		inputFormat  string
 		inputKey     string
@@ -607,7 +616,7 @@ func TestEnvVarCommand(t *testing.T) {
 func createAgent(t *testing.T) string {
 	t.Helper()
 
-	user, err := user.Current()
+	currentUser, err := user.Current()
 	require.NoError(t, err)
 
 	sockDir := "test"
@@ -621,7 +630,7 @@ func createAgent(t *testing.T) string {
 	})
 
 	// Start the SSH agent.
-	err = teleAgent.ListenUnixSocket(sockDir, sockName, user)
+	err = teleAgent.ListenUnixSocket(sockDir, sockName, currentUser)
 	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
@@ -766,6 +775,8 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 }
 
 func TestFormatCommand(t *testing.T) {
+	t.Parallel()
+
 	setEnv := func(command *exec.Cmd, envs ...string) *exec.Cmd {
 		command.Env = append(command.Env, envs...)
 		return command
@@ -807,6 +818,8 @@ func TestFormatCommand(t *testing.T) {
 }
 
 func Test_chooseProxyCommandTemplate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		commands         []dbcmd.CommandAlternative

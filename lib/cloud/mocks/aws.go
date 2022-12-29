@@ -14,11 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cloud
+package mocks
 
 import (
-	"context"
-	"crypto/tls"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -36,10 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // STSMock mocks AWS STS API.
@@ -471,26 +465,6 @@ func (m *IAMErrorMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutU
 		return nil, m.Error
 	}
 	return nil, trace.AccessDenied("unauthorized")
-}
-
-// GCPSQLAdminClientMock implements the common.GCPSQLAdminClient interface for tests.
-type GCPSQLAdminClientMock struct {
-	// DatabaseInstance is returned from GetDatabaseInstance.
-	DatabaseInstance *sqladmin.DatabaseInstance
-	// EphemeralCert is returned from GenerateEphemeralCert.
-	EphemeralCert *tls.Certificate
-}
-
-func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error {
-	return nil
-}
-
-func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error) {
-	return g.DatabaseInstance, nil
-}
-
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, identity tlsca.Identity) (*tls.Certificate, error) {
-	return g.EphemeralCert, nil
 }
 
 // ElastiCache mocks AWS ElastiCache API.
