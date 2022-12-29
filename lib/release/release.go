@@ -72,10 +72,6 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		},
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	client, err := roundtrip.NewClient(fmt.Sprintf("https://%s", cfg.ReleaseServerAddr), "", roundtrip.HTTPClient(httpClient))
 	if err != nil {
 		return nil, trace.Wrap(err)
