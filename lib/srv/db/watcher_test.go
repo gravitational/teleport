@@ -181,7 +181,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
 	})
 
-	t.Run("dynamic resource - no match", func(t *testing.T) {
+	t.Run("discovery resource - no match", func(t *testing.T) {
 		// Created a discovery service created database resource that doesn't
 		// match any db service ResourceMatchers.
 		db3, err = makeDiscoveryDatabase("db3", map[string]string{"group": "z"}, withRDSURL)
@@ -225,7 +225,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 
 	reconcileCh := make(chan types.Databases)
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
-		ResourceMatchers: nil, // Disables resource matchers.
+		// Keep ResourceMatchers as nil to disable resource matchers.
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
 		},

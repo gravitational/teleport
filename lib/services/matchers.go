@@ -357,6 +357,7 @@ var SupportedAWSMatchers = []string{
 	AWSMatcherRDS,
 	AWSMatcherRDSProxy,
 	AWSMatcherRedshift,
+	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
 	AWSMatcherMemoryDB,
 }
