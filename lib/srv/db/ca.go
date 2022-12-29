@@ -361,7 +361,7 @@ func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, []byte, er
 // This database service GCP IAM role should have "cloudsql.instances.get"
 // permission in order for this to work.
 func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types.Database) ([]byte, []byte, error) {
-	cl, err := d.getSqlAdminClient(ctx)
+	cl, err := d.getSQLAdminClient(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -396,9 +396,9 @@ func (d *realDownloader) getVersionFromURL(database types.Database, url string) 
 	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
 }
 
-// getSqlAdminClient returns the client provided on the struct initialization,
+// getSQLAdminClient returns the client provided on the struct initialization,
 // otherwise init a new one.
-func (d *realDownloader) getSqlAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
+func (d *realDownloader) getSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
 	if d.sqlAdminClient != nil {
 		return d.sqlAdminClient, nil
 	}
