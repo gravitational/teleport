@@ -465,21 +465,21 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 	}{
 		{
 			name:                               "workgroup endpoint",
-			endpoint:                           "my-workgroup.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			endpoint:                           "my-workgroup.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
 			expectIsRedshiftServerlessEndpoint: true,
 			expectDetails: &RedshiftServerlessEndpointDetails{
 				WorkgroupName: "my-workgroup",
-				AccountID:     "1234567890",
+				AccountID:     "123456789012",
 				Region:        "us-east-1",
 			},
 		},
 		{
 			name:                               "vpc endpoint",
-			endpoint:                           "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com",
+			endpoint:                           "my-vpc-endpoint-xxxyyyzzz.123456789012.us-east-1.redshift-serverless.amazonaws.com",
 			expectIsRedshiftServerlessEndpoint: true,
 			expectDetails: &RedshiftServerlessEndpointDetails{
 				EndpointName: "my-vpc",
-				AccountID:    "1234567890",
+				AccountID:    "123456789012",
 				Region:       "us-east-1",
 			},
 		},
