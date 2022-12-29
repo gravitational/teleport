@@ -19,11 +19,17 @@ package events
 import "github.com/gogo/protobuf/proto"
 
 func trimN(s string, n int) string {
-	if n <= 0 {
-		return s
-	}
-	if len(s) > n {
-		return s[:n]
+	// Starting at 2 to leave room for quotes at the begging and end.
+	charCount := 2
+	for i, r := range s {
+		// Make sure we always have room to add an escape character if necessary.
+		if charCount+1 > n {
+			return s[:i]
+		}
+		if r == rune('"') || r == '\\' {
+			charCount++
+		}
+		charCount++
 	}
 	return s
 }
@@ -48,11 +54,8 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	out.DatabaseQuery = ""
 	out.DatabaseQueryParameters = nil
 
-	// Use 12% max size ballast + message size without custom fields. This was
-	// changed from 10% to 12% to handle the additional overhead of logging
-	// large MongoDB queries that require larger amounts of escaping. See issue:
-	// https://github.com/gravitational/teleport/issues/15645
-	sizeBallast := maxSize/8 + out.Size()
+	// Use 10% max size ballast + message size without custom fields.
+	sizeBallast := maxSize/10 + out.Size()
 	maxSize -= sizeBallast
 
 	// Check how many custom fields are set.
