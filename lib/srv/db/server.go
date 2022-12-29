@@ -274,7 +274,7 @@ type monitoredDatabases struct {
 	// cloud are databases detected by cloud watchers.
 	cloud types.Databases
 	// mu protects access to the fields.
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func (m *monitoredDatabases) setResources(databases types.Databases) {
@@ -289,9 +289,20 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
+func (m *monitoredDatabases) isCloud(database types.Database) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for i := range m.cloud {
+		if m.cloud[i] == database {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return append(append(m.static, m.resources...), m.cloud...).AsResources().ToMap()
 }
 

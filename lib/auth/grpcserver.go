@@ -3402,7 +3402,9 @@ func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.Databas
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database.SetOrigin(types.OriginDynamic)
+	if database.Origin() == "" {
+		database.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3415,7 +3417,9 @@ func (g *GRPCServer) UpdateDatabase(ctx context.Context, database *types.Databas
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database.SetOrigin(types.OriginDynamic)
+	if database.Origin() == "" {
+		database.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.UpdateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}

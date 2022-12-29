@@ -48,6 +48,16 @@ var (
 	}
 )
 
+// IsAWSMatcherType checks if matcher type is a valid AWS matcher.
+func IsAWSMatcherType(matcherType string) bool {
+	return len(makeAWSFetcherFuncs[matcherType]) > 0
+}
+
+// IsAzureMatcherType checks if matcher type is a valid Azure matcher.
+func IsAzureMatcherType(matcherType string) bool {
+	return len(makeAzureFetcherFuncs[matcherType]) > 0
+}
+
 // MakeAWSFetchers creates new AWS database fetchers.
 func MakeAWSFetchers(clients cloud.AWSClients, matchers []services.AWSMatcher) (result []common.Fetcher, err error) {
 	for _, matcher := range matchers {
