@@ -2769,9 +2769,9 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 		return trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().OIDC {
-		// TODO(zmb3): ideally we would wrap ErrREquiresEnterprise here, but
+		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing messasge in this case
+		// and we want tctl to display a clean user-facing message in this case
 		return trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
@@ -2850,9 +2850,6 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if !modules.GetModules().Features().SAML {
-		// TODO(zmb3): ideally we would wrap ErrREquiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing messasge in this case
 		return trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
