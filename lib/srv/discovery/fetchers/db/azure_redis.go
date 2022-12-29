@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
@@ -24,10 +24,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // newAzureRedisFetcher creates a fetcher for Azure Redis.
-func newAzureRedisFetcher(config azureFetcherConfig) (Fetcher, error) {
+func newAzureRedisFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*armredis.ResourceInfo, azure.RedisClient](config, &azureRedisPlugin{})
 }
 
