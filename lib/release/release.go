@@ -94,7 +94,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 	resp, err := c.client.Get(ctx, c.client.Endpoint(types.EnterpriseReleaseEndpoint), nil)
 	if err != nil {
-		log.WithError(err).Error()
+		log.WithError(err).Error("failed to retrieve releases from release server")
 		return nil, trace.Wrap(err)
 	}
 
@@ -112,9 +112,9 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	responseReleases := []*types.Release{}
+	var responseReleases []*types.Release
 	for _, r := range releases {
-		releaseAssets := []*types.Asset{}
+		var releaseAssets []*types.Asset
 		for _, a := range r.Assets {
 			releaseAssets = append(releaseAssets, &types.Asset{
 				Arch:        a.Arch,

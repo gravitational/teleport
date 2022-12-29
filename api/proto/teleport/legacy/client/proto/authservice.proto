@@ -1783,7 +1783,7 @@ message GetLicenseResponse {
 
 // ListReleasesResponse is a response from ListReleases
 message ListReleasesResponse {
-  repeated types.Release releases = 1 [(gogoproto.jsontag) = "assets"];
+  repeated types.Release releases = 1 [(gogoproto.jsontag) = "releases"];
 }
 
 // GenerateTokenRequest is a request to generate auth token.

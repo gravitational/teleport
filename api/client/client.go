@@ -3001,5 +3001,5 @@ func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesReques
 		return nil, trail.FromGRPC(err)
 	}
 
-	return resp.Releases, err
+	return resp.Releases, nil
 }
