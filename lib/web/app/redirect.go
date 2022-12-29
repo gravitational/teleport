@@ -56,6 +56,7 @@ const js = `
         var params = new URLSearchParams(url.search);
         var searchParts = window.location.search.split('=');
         var stateValue = params.get("state");
+        var subjectValue = params.get("subject");
         var path = params.get("path");
 
         // this utility is used to check if a passed in path param is a full URL (which we dont want)
@@ -78,6 +79,7 @@ const js = `
         const data = {
           state_value: stateValue,
           cookie_value: hashParts[1],
+          subject_cookie_value: subjectValue,
         };
 
         fetch('/x-teleport-auth', {

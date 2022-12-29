@@ -77,6 +77,8 @@ type CreateAppSessionRequest resolveAppParams
 type CreateAppSessionResponse struct {
 	// CookieValue is the application session cookie value.
 	CookieValue string `json:"value"`
+	// SubjectCookieValue is the application session subject cookie token.
+	SubjectCookieValue string `json:"subject"`
 	// FQDN is application FQDN.
 	FQDN string `json:"fqdn"`
 }
@@ -218,8 +220,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return &CreateAppSessionResponse{
-		CookieValue: ws.GetName(),
-		FQDN:        result.FQDN,
+		CookieValue:        ws.GetName(),
+		SubjectCookieValue: ws.GetBearerToken(),
+		FQDN:               result.FQDN,
 	}, nil
 }
 
