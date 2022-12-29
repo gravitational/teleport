@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
@@ -258,6 +259,12 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
+	AdditionalReadyEvents []string
+
+	// InstanceMetadataClient specifies the instance metadata client.
+	InstanceMetadataClient cloud.InstanceMetadata
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -1358,6 +1365,8 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.

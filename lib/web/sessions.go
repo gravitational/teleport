@@ -501,10 +501,17 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		SessionID: c.cfg.Session.GetName(),
 	})
 
-	// If looking up the session in the cache or backend succeeds, then
-	// it by definition must not have expired yet.
-	if err == nil {
+	switch {
+	case err == nil:
+		// If looking up the session in the cache or backend succeeds, then
+		// it by definition must not have expired yet.
 		return false
+	case trace.IsNotFound(err):
+		// If the session doesn't exist in the cache or backend, then it
+		// was removed during user logout, expire the session immediately.
+		return true
+	default:
+		c.cfg.Log.WithError(err).Debug("Failed to query web session.")
 	}
 
 	// If the session has no expiry time, then also by definition it
@@ -514,9 +521,6 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		return false
 	}
 
-	if !trace.IsNotFound(err) {
-		c.cfg.Log.WithError(err).Debug("Failed to query web session.")
-	}
 	// Give the session some time to linger so existing users of the context
 	// have successfully disposed of them.
 	// If we remove the session immediately, a stale copy might still use the
@@ -542,15 +546,19 @@ type sessionCacheOptions struct {
 	sessionLingeringThreshold time.Duration
 }
 
-// newSessionCache returns new instance of the session cache
-func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
+// newSessionCache creates a [sessionCache] from the provided [config] and
+// launches a goroutine that runs until [ctx] is completed which
+// periodically purges invalid sessions.
+func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionCache, error) {
 	clusterName, err := config.proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if config.clock == nil {
 		config.clock = clockwork.NewRealClock()
 	}
+
 	cache := &sessionCache{
 		clusterName:               clusterName.GetClusterName(),
 		proxyClient:               config.proxyClient,
@@ -564,8 +572,10 @@ func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
 		clock:                     config.clock,
 		sessionLingeringThreshold: config.sessionLingeringThreshold,
 	}
+
 	// periodically close expired and unused sessions
-	go cache.expireSessions()
+	go cache.expireSessions(ctx)
+
 	return cache, nil
 }
 
@@ -605,14 +615,23 @@ func (s *sessionCache) Close() error {
 	return s.closer.Close()
 }
 
-func (s *sessionCache) expireSessions() {
+func (s *sessionCache) ActiveSessions() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.sessions)
+}
+
+func (s *sessionCache) expireSessions(ctx context.Context) {
 	ticker := s.clock.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.Chan():
-			s.clearExpiredSessions(context.TODO())
+			s.clearExpiredSessions(ctx)
 		case <-s.closer.C:
 			return
 		}
