@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
@@ -75,6 +76,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+	c.AzureMatchers = services.SimplifyAzureMatchers(c.AzureMatchers)
 	return nil
 }
 
@@ -96,7 +98,7 @@ type Server struct {
 	// azureWatcher periodically retrieves Azure virtual machines.
 	azureWatcher *server.Watcher
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
-	kubeFetchers []fetchers.Fetcher
+	kubeFetchers []common.Fetcher
 }
 
 // New initializes a discovery Server

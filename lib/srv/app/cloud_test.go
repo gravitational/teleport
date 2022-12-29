@@ -165,7 +165,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 					},
 					Expires: test.expiresAt,
 				},
@@ -269,7 +269,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 					},
 					Expires: time.Now().Add(24 * time.Hour),
 				},

@@ -48,7 +48,7 @@ IBM Services required to run Teleport in High Availability:
 
 - [IBM Cloud: Virtual Servers with Instance Groups](#ibm-cloud-virtual-servers-with-instance-groups)
 - [Storage: Database for etcd](#storage-database-for-etcd)
-- [Storage: IBM Cloud File Storage](#storage-ibm-cloud-file-storage)
+- [Storage: IBM Cloud Object Storage](#storage-ibm-cloud-object-storage)
 - [Network Services: Cloud DNS](#network-ibm-cloud-dns-services)
 
 Other things needed:
@@ -110,18 +110,13 @@ teleport:
     prefix: '/teleport/'
 ```
 
-### Storage: IBM Cloud File Storage
+### Storage: IBM Cloud Object Storage
 
-We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-storage) to store Teleport recorded sessions.
+We recommend using [IBM Cloud Object Storage](https://www.ibm.com/cloud/object-storage) to store Teleport recorded sessions.
 
-1. Create New File Storage Resource. [IBM Catalog - File Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/file-storage)
-
-   1a. We recommend using `Standard`
-
+1. Create New Object Storage Resource. [IBM Catalog - Object Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/object-storage)
 2. Create a new bucket.
-
 3. Set up [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
-
 4. Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
 
 When setting up `audit_sessions_uri` use `s3://` session prefix.
