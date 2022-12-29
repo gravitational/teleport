@@ -523,14 +523,17 @@ func (a *Server) SetOIDCService(svc OIDCService) {
 	a.oidcAuthService = svc
 }
 
+// SetLicense sets the license
 func (a *Server) SetLicense(license *liblicense.License) {
 	a.license = license
 }
 
+// SetReleaseService sets the release service
 func (a *Server) SetReleaseService(svc release.Client) {
 	a.releaseService = svc
 }
 
+// CloseContext returns the close context
 func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
@@ -4279,7 +4282,8 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
 }
 
-func (a *Server) GetLicense(ctx context.Context, req *proto.SubmitUsageEventRequest) (string, error) {
+// GetLicense return the license used the star the teleport enterprise auth server
+func (a *Server) GetLicense(ctx context.Context) (string, error) {
 	if a.license == nil {
 		return "", trace.NotFound("license not found")
 	}
