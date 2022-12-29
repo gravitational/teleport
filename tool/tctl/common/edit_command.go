@@ -18,18 +18,24 @@ package common
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // EditCommand implements the `tctl edit` command for modifying
@@ -86,6 +92,11 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		return true, trace.Wrap(err, "could not get resource %v: %v", rc.ref.String(), err)
 	}
 
+	originalSum, err := checksum(f.Name())
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+
 	args := strings.Fields(editor())
 	editorCmd := exec.CommandContext(ctx, args[0], append(args[1:], f.Name())...)
 	editorCmd.Stdin = os.Stdin
@@ -98,7 +109,25 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		return true, trace.BadParameter("skipping resource update, editor did not complete successfully: %v", err)
 	}
 
-	// TODO(zmb3): consider skipping this step if the file hasn't changed
+	newSum, err := checksum(f.Name())
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+
+	// nothing to do if the resource was not modified
+	if changed := newSum != originalSum; !changed {
+		return true, nil
+	}
+
+	newName, err := resourceName(f.Name())
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+
+	if e.ref.Name != newName {
+		return true, trace.NotImplemented("renaming resources is not supported with tctl edit")
+	}
+
 	if err := rc.Create(ctx, client); err != nil {
 		return true, trace.Wrap(err)
 	}
@@ -114,4 +143,36 @@ func editor() string {
 		}
 	}
 	return "vi"
+}
+
+func checksum(filename string) (string, error) {
+	f, err := utils.OpenFile(filename)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func resourceName(filename string) (string, error) {
+	f, err := utils.OpenFile(filename)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer f.Close()
+
+	decoder := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+
+	var raw services.UnknownResource
+	if err := decoder.Decode(&raw); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return raw.GetName(), nil
 }
