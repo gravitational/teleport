@@ -56,7 +56,7 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 			return nil, fmt.Errorf(
 				"github enterprise server joining: %w",
 				ErrRequiresEnterprise,
-				)
+			)
 		}
 	}
 
