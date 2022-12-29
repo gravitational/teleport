@@ -22,13 +22,14 @@ Teleport cluster. If you need to apply different recording configuration to
 different sets of resources, we recommend setting up [Trusted Clusters](/docs/management/admin/trustedclusters/)
 with their own recording configurations.
 
-<Admonition type="note" title="Desktop Access">
-Desktop Sessions are always recorded at Teleport's Windows Desktop Service
-since there is no Teleport software running on the "node" (desktop).
+<Admonition type="note">
+Windows, Database, and Kubernetes Sessions are always recorded at the host running
+the Teleport service for this session type, since there is no Teleport software
+running on the "node" (desktop, database, or Kubernetes cluster).
 
-For this reason, Teleport Desktop Access treats `node` and `proxy` identically
-(perform synchronous desktop recording) and `node-sync` and `proxy-sync` identically
-(perform asynchronous desktop recording).
+For this reason, Teleport Windows, Database, and Kubernetes Access treats `node`
+and `proxy` identically (perform synchronous recording) and `node-sync` and
+`proxy-sync` identically (perform asynchronous recording).
 </Admonition>
 
 ## Record at Node
