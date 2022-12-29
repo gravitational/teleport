@@ -411,19 +411,20 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q).AddUserMessage("OIDC provider returned error: %v [%v]", errDesc, errParam)
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q)
+		return nil, trace.WithUserMessage(oauthErr, "OIDC provider returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
-		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "code query param must be set", q).AddUserMessage("Invalid parameters received from OIDC provider.")
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "code query param must be set", q)
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from OIDC provider.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
-		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "missing state query param", q).AddUserMessage("Invalid parameters received from OIDC provider.")
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "missing state query param", q)
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from OIDC provider.")
 	}
 	diagCtx.requestID = stateToken
 
@@ -485,8 +486,8 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	log.Debugf("OIDC user %q expires at: %v.", ident.Email, ident.ExpiresAt)
 
 	if len(connector.GetClaimsToRoles()) == 0 {
-		return nil, trace.BadParameter("no claims to roles mapping, check connector documentation").
-			AddUserMessage("Claims-to-roles mapping is empty, SSO user will never have any roles.")
+		badParamErr := trace.BadParameter("no claims to roles mapping, check connector documentation")
+		return nil, trace.WithUserMessage(badParamErr, "Claims-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
 	diagCtx.info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
