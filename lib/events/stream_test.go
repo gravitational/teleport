@@ -160,17 +160,17 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 	tests := []struct {
 		name      string
 		event     events.AuditEvent
-		expectErr bool
+		errAssertion require.ErrorAssertionFunc
 	}{
 		{
 			name:      "large trimmable event is trimmed",
 			event:     makeQueryEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
-			expectErr: false,
+			errAssertion: require.NoError,
 		},
 		{
 			name:      "large untrimmable event returns error",
 			event:     makeAccessRequestEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
-			expectErr: true,
+			errAssertion: require.Error,
 		},
 	}
 
