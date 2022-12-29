@@ -381,6 +381,122 @@ $ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
 $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
 ```
 
+### tsh proxy db
+
+Start a local TLS proxy for database connections when using Teleport with TLS
+Routing enabled. Clients can connect to a Teleport-registered database through
+the local proxy.
+
+```code
+$ tsh proxy db [<flags>] <db>
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cert-file` | none | string | Path to the certificate file for configuring TLS on the local proxy.|
+| `--cluster` | none | string | The name of the Teleport cluster to connect to. |
+| `--key-file` | none | string | Path to the private key file for configuring TLS on the local proxy.|
+| `--db-name` | none | string | Optional database name to log in to. |
+| `--db-user` | none | string | Optional database user to log in as. |
+| `--port` | none | string | Source port used by the local proxy.|
+| `--tunnel` | none | Boolean | Open an authenticated tunnel using a database's client certificate so clients don't need to authenticate. |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+Proxy a DB connection to a named database
+```code
+$ tsh proxy db <db>
+```
+
+Proxy a connection to mysql db on local port 10700:
+```code
+$ tsh proxy db --port 10700  mysql-db
+# Started DB proxy on 127.0.0.1:10700
+
+# Use following credentials to connect to the mysql-db proxy:
+#  ca_file=/Users/jeff/.tsh/keys/teleport.example.com/cas/teleport.example.com.pem
+#  cert_file=/Users/jeff/.tsh/keys/teleport.example.com/jeff-db/tele1c/mysql-db-x509.pem
+#  key_file=/Users/jeff/.tsh/keys/teleport.example.com/jeff
+```
+
+Proxy a connection to mysql db with no credentials required:
+```code
+$ tsh proxy db --tunnel mysql-db
+Started authenticated tunnel for the MySQL database "mysql-db" in cluster "teleport.example.com" on 127.0.0.1:49415.
+
+Use the following command to connect to the database:
+  $ mysql --port 49415 --host localhost --protocol TCP
+```
+
+### tsh proxy ssh
+
+Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
+This is typically used as part of the SSH client configuration to use `ssh` as a client 
+through Teleport.  See the [OpenSSH Guide](../server-access/guides/openssh.mdx) guide
+on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
+within a `ProxyCommand` directive.
+
+```code
+$ tsh proxy ssh [<flags>] <[user@]host>
+```
+
+#### Arguments
+- `<[user@]host>` Remote hostname and the login to use
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | Teleport Cluster | The name of the Teleport cluster to connect to.|
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+Run the following command to generate an OpenSSH client configuration:
+
+```code
+$ tsh config
+```
+
+This command produces the following configuration: 
+
+```
+# Common flags for all example.com hosts
+Host *.example.com example.com
+    UserKnownHostsFile "/Users/jeff/.tsh/known_hosts"
+    IdentityFile "/Users/jeff/.tsh/keys/enterprise.teleportdemo.com/jeff"
+    CertificateFile "/Users/jeff/.tsh/keys/example.com/jeff-ssh/example.com-cert.pub"
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
+
+# Flags for all example.com hosts except the proxy
+Host *.example.com !example.com
+    Port 3022
+    ProxyCommand "/usr/local/bin/tsh" proxy ssh --cluster=example.com --proxy=example.com %r@%h:%p
+```
+
+This output should be placed into the default SSH Config for environment, `~/.ssh/config` for Mac/Linux or
+`.ssh\config` in the Windows User home directory. You can use this as a standalone SSH config file too.
+
+When you run an `ssh` command against a host with a subdomain of your Proxy
+Service's domain, this SSH configuration will use the `ProxyCommand` to run `tsh
+proxy ssh`:
+
+```code
+$ ssh myuser@node1.example.com
+```
+
 ### tsh proxy app
 
 Starts a local TLS proxy for Application Access connections.
@@ -400,7 +516,7 @@ $ tsh proxy app [<flags>] <app>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--port` | none | port number | Specify the source port for the local proxy |
+| `-p, --port` | none | port number | Specify the source port for the local proxy |
 
 #### [Global Flags](#tsh-global-flags)
 
@@ -415,6 +531,45 @@ $ tsh proxy app <app>
 $ tsh proxy --port 10700 app grafana &
 # Proxying connections to grafana on 127.0.0.1:10700
 $ curl http://127.0.0.1:10700/api/users
+```
+
+### tsh proxy aws
+
+Start a local proxy for AWS access. The user must already be logged in to at
+least one AWS application via Teleport before the proxy can start.
+
+```code
+$ tsh proxy aws [<flags>] 
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | Currently logged in AWS app | string | Optional name of the AWS application (as shown in `tsh apps ls`) to use if logged in to multiple |
+| `-p, --port` | none | port number | Specify the source port for the local proxy |
+| ` -e, --endpoint-url` | HTTP Proxy | Endpoint URL | Run the local proxy to serve as an AWS endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
+| `-f, --format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the AWS proxy |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```code
+# Proxy a connection to AWS with the default settings
+$ tsh apps login awsapp
+$ tsh proxy aws
+# Set env variables from output
+$ aws s3 ls
+
+# Proxying connections to AWS on 127.0.0.1:10700 to app awsapp2
+$ tsh apps logins awsapp2
+$ tsh proxy aws --port=10700 --app=awsapp2
+# Set env variables from output
+$ aws s3 ls
 ```
 
 ### tsh scp
@@ -2163,7 +2318,7 @@ The primary commands for `tbot` are as follows:
 | `tbot start` | Starts the Machine ID client `tbot`, fetching and writing certificates to disk at a set interval. |
 | `tbot init` | Initialize a certificate destination directory for writes from a separate bot user, configuring either file or POSIX ACL permissions. |
 | `tbot db` | Connects to databases using native clients and queries database information. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
-| `tbot proxy` | Allows for access to Teleport resources on a cluster using TLS routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
+| `tbot proxy` | Allows for access to Teleport resources on a cluster using TLS Routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
 
 ### tbot start
 
@@ -2297,7 +2452,7 @@ Additionally, be aware of the following limitations of `tbot db`:
 
 ### tbot proxy
 
-Allows for access to Teleport resources via a local TLS proxy in single-port mode.
+Allows for access to Teleport resources via a local TLS proxy in TLS Routing mode.
 The `tbot proxy` command acts as a wrapper for `tsh proxy` to provide local proxy functionality for various protocols.
 
 Note that `tsh` must be installed to make use of this command.
