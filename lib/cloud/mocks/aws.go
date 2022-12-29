@@ -17,6 +17,7 @@ limitations under the License.
 package mocks
 
 import (
+	"context"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"

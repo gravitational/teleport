@@ -65,7 +65,7 @@ func TestUsers(t *testing.T) {
 	mdbMock.AddMockUser(memoryDBUser("charlie", "acl2", "acl3"), managedTags)
 
 	// CosmosDB users mock.
-	cosMock := &cloud.AzureCosmosDatabaseAccountsMock{Key: "random-key"}
+	cosMock := &mocks.AzureCosmosDatabaseAccountsMock{Key: "random-key"}
 
 	db1 := mustCreateElastiCacheDatabase(t, "db1", "group1")
 	db2 := mustCreateElastiCacheDatabase(t, "db2", "group2")

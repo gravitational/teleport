@@ -211,7 +211,7 @@ func (e *Engine) getCosmosDBConnectionString(ctx context.Context, sessionCtx *co
 	case "readwrite":
 		cosmosUser = string(armcosmos.KeyKindPrimary)
 	default:
-		return connstring.ConnString{}, trace.BadParameter("unable to connect using user %q")
+		return connstring.ConnString{}, trace.BadParameter("unable to connect using user %q", sessionCtx.DatabaseUser)
 	}
 
 	pass, err := e.Users.GetPassword(ctx, sessionCtx.Database, cosmosUser)

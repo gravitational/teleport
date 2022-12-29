@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -355,7 +355,7 @@ func TestCosmosMongoAuth(t *testing.T) {
 			withAzureCosmosMongo("incorrect-token", "invalid-one")(t, ctx, testCtx),
 		},
 		NoStart: true,
-		CosmosDatabaseAccountsClient: &cloud.AzureCosmosDatabaseAccountsMock{
+		CosmosDatabaseAccountsClient: &mocks.AzureCosmosDatabaseAccountsMock{
 			Key: azureToken,
 		},
 	})
