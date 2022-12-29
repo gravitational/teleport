@@ -1164,7 +1164,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
@@ -1296,7 +1296,7 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		// send the status back to the client when forwarding mode is enabled
 		if err := proxy.sendStatus(err); err != nil {

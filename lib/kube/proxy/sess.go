@@ -313,6 +313,9 @@ type session struct {
 
 	// eventsWaiter is used to wait for events to be emitted when a session is closed.
 	eventsWaiter sync.WaitGroup
+
+	streamContext       context.Context
+	streamContextCancel context.CancelFunc
 }
 
 // newSession creates a new session in pending mode.
@@ -335,7 +338,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
-
+	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
 	s := &session{
 		ctx:                            ctx,
 		forwarder:                      forwarder,
@@ -356,6 +359,8 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
+		streamContext:                  streamContext,
+		streamContextCancel:            streamContextCancel,
 	}
 
 	s.io.OnWriteError = s.disconnectPartyOnErr
@@ -546,7 +551,7 @@ func (s *session) launch() error {
 	}
 
 	s.io.On()
-	if err = executor.Stream(options); err != nil {
+	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
 	}
@@ -1062,7 +1067,6 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
-
 		s.BroadcastMessage("Closing session...")
 
 		s.io.Close()
@@ -1079,6 +1083,7 @@ func (s *session) Close() error {
 			}
 		}
 		recorder := s.recorder
+		s.streamContextCancel()
 		s.mu.Unlock()
 
 		if recorder != nil {
