@@ -853,4 +853,8 @@ const (
 	// IAMInviteTokenName is the name of the default Teleport IAM
 	// token to use when templating the script to be executed.
 	IAMInviteTokenName = "aws-discovery-iam-token"
+
+	// SSHDConfigPath is the path to the sshd config file to modify
+	// when using the agentless installer
+	SSHDConfigPath = "/etc/ssh/sshd_config"
 )

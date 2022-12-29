@@ -11,24 +11,24 @@
   # adding the key apt shows a key signing error when installing teleport.
   LEGACY_UBUNTU=false
   if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
-	  LEGACY_UBUNTU=true
+    LEGACY_UBUNTU=true
   fi
 
   if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
-	if [ "$LEGACY_UBUNTU" = true ]; then
-		curl -o /tmp/teleport-pubkey.asc https://deb.releases.teleport.dev/teleport-pubkey.asc
-		cat /tmp/teleport-pubkey.asc | sudo apt-key add -
-		echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list
-		rm /tmp/teleport-pubkey.asc
-	else
-		sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
-			 -o /usr/share/keyrings/teleport-archive-keyring.asc
-		echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" |  sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
-	fi
+    if [ "$LEGACY_UBUNTU" = true ]; then
+      curl -o /tmp/teleport-pubkey.asc https://deb.releases.teleport.dev/teleport-pubkey.asc
+      cat /tmp/teleport-pubkey.asc | sudo apt-key add -
+      echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list
+      rm /tmp/teleport-pubkey.asc
+    else
+      sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+        -o /usr/share/keyrings/teleport-archive-keyring.asc
+      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+    fi
     sudo apt-get update
     sudo apt-get install -y teleport
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
-	if [ "$ID" = "rhel" ]; then
+    if [ "$ID" = "rhel" ]; then
       VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
     fi
     sudo yum-config-manager --add-repo \
@@ -42,12 +42,12 @@
   IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
   PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4)
 
-  sudo /usr/bin/teleport join \
-	   --openssh-config=/etc/ssh/sshd_config \
-	   --join-method=iam \
-	   --token="$1" \
-	   --proxy-server="{{ .PublicProxyAddr }}" \
-	   --additional-principals="$PUBLIC_IP" \
-	   --restart-sshd
+  sudo /usr/bin/teleport join openssh \
+    --openssh-config="${SSHD_CONFIG}" \
+    --join-method=iam \
+    --token="$1" \
+    --proxy-server="{{ .PublicProxyAddr }}" \
+    --additional-principals="$PUBLIC_IP" \
+    --restart-sshd
 
 ) 9>/var/lock/teleport_install.lock

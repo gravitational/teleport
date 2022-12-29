@@ -73,7 +73,7 @@ func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients 
 				return nil, trace.Wrap(err)
 			}
 
-			fetcher, err := newEC2InstanceFetcher(ec2FetcherConfig{
+			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
 				Matcher:   matcher,
 				Region:    region,
 				Document:  matcher.SSM.DocumentName,
@@ -103,10 +103,9 @@ type ec2InstanceFetcher struct {
 	Region       string
 	DocumentName string
 	Parameters   map[string]string
-	handler      func(*ec2InstanceFetcher, *ec2.Reservation, []Instances)
 }
 
-func newEC2InstanceFetcher(cfg ec2FetcherConfig) (*ec2InstanceFetcher, error) {
+func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	tagFilters := []*ec2.Filter{{
 		Name:   aws.String(AWSInstanceStateName),
 		Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
@@ -143,7 +142,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) (*ec2InstanceFetcher, error) {
 		DocumentName: cfg.Document,
 		Parameters:   parameters,
 	}
-	return &fetcherConfig, nil
+	return &fetcherConfig
 }
 
 // GetInstances fetches all EC2 instances matching configured filters.

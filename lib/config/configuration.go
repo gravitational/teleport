@@ -446,7 +446,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.Discovery.Enabled() {
-		applyDiscoveryConfig(fc, cfg)
+		if err := applyDiscoveryConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -1163,22 +1165,21 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	return nil
 }
 
-func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
+func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	for _, matcher := range fc.Discovery.AWSMatchers {
+		installParams, err := matcher.InstallParams.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			services.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
-				Params: services.InstallerParams{
-					JoinMethod:      matcher.InstallParams.JoinParams.Method,
-					JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-					ScriptName:      matcher.InstallParams.ScriptName,
-					InstallTeleport: matcher.InstallParams.InstallTeleport,
-					SSHDConfig:      matcher.InstallParams.SSHDConfig,
-				},
-				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+				Params:  installParams,
+				SSM:     &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
@@ -1207,6 +1208,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 		)
 	}
 
+	return nil
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
