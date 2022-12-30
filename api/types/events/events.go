@@ -19,11 +19,17 @@ package events
 import "github.com/gogo/protobuf/proto"
 
 func trimN(s string, n int) string {
-	if n <= 0 {
-		return s
-	}
-	if len(s) > n {
-		return s[:n]
+	// Starting at 2 to leave room for quotes at the begging and end.
+	charCount := 2
+	for i, r := range s {
+		// Make sure we always have room to add an escape character if necessary.
+		if charCount+1 > n {
+			return s[:i]
+		}
+		if r == rune('"') || r == '\\' {
+			charCount++
+		}
+		charCount++
 	}
 	return s
 }
@@ -36,7 +42,7 @@ func maxSizePerField(maxLength, customFields int) int {
 }
 
 // TrimToMaxSize trims the DatabaseSessionQuery message content. The maxSize is used to calculate
-// per-filed max size where only user input message fields DatabaseQuery and DatabaseQueryParameters are taken into
+// per-field max size where only user input message fields DatabaseQuery and DatabaseQueryParameters are taken into
 // account.
 func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
