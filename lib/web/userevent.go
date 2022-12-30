@@ -51,11 +51,14 @@ type createPreUserEventRequest struct {
 	// Username token is set for unauthenticated event requests
 	Username string `json:"username"`
 
-	// Alert is a banner click event property
+	// Alert is the alert clicked via the UI banner
+	// Alert is only set for bannerClick events
 	Alert string `json:"alert"`
-	// MfaType is a register challenge submit event property
+	// MfaType is the type of MFA used
+	// MfaType is only set for registerChallenge events
 	MfaType string `json:"mfa_type"`
-	// LoginFlow is a register challenge submit event property
+	// LoginFlow is the login flow used
+	// LoginFlow is only set for registerChallenge events
 	LoginFlow string `json:"login_flow"`
 }
 

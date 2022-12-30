@@ -94,4 +94,5 @@ message UsageEventOneOf {
     UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 10;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
+  reserved "ui_onboard_get_started_click";
 }
