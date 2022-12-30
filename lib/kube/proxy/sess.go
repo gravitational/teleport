@@ -448,11 +448,11 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 		return
 	}
 
-	wasConnected, leveErr := s.leave(id)
-	if leveErr != nil {
-		s.log.WithError(leveErr).Errorf("Failed to disconnect party %v from the session.", idString)
+	wasActive, leaveErr := s.leave(id)
+	if leaveErr != nil {
+		s.log.WithError(leaveErr).Errorf("Failed to disconnect party %v from the session.", idString)
 	}
-	if wasConnected {
+	if wasActive {
 		// log the error only if it was the reason for the user disconnection.
 		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
 	}
@@ -992,7 +992,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		return false, nil
 	}
 	// Waits until the function execution ends to release the parties waitgroup.
-	// It used to prevent the session to terminate the events emitter before
+	// It's used to prevent the session to terminate the events emitter before
 	// the session leave event is emitted.
 	defer s.partiesWg.Done()
 	delete(s.parties, id)

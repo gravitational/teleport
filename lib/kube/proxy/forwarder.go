@@ -1672,14 +1672,14 @@ type clusterSession struct {
 	// A HTTP2 configured transport does not work with connections that are going to be
 	// upgraded to SPDY, like in the cases of exec, port forward...
 	upgradeToHTTP2 bool
-	// cancel is the conn monitor cancel function.
-	cancel context.CancelFunc
+	// monitorCancel is the conn monitor monitorCancel function.
+	monitorCancel context.CancelFunc
 }
 
 // close cancels the connection monitor context if available.
 func (s *clusterSession) close() {
-	if s.cancel != nil {
-		s.cancel()
+	if s.monitorCancel != nil {
+		s.monitorCancel()
 	}
 }
 
@@ -1701,7 +1701,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	}
 
 	ctx, cancel := context.WithCancel(s.parent.ctx)
-	s.cancel = cancel
+	s.monitorCancel = cancel
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
