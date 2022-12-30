@@ -11600,7 +11600,7 @@ type Release struct {
 	NotesMD string `protobuf:"bytes,1,opt,name=NotesMD,proto3" json:"notes_md"`
 	// Product is the release product, teleport or teleport-ent
 	Product string `protobuf:"bytes,2,opt,name=Product,proto3" json:"product"`
-	// ReleaseId is the ID of the product
+	// ReleaseID is the ID of the product
 	ReleaseID string `protobuf:"bytes,3,opt,name=ReleaseID,proto3" json:"release_id"`
 	// Status is the status of the release
 	Status string `protobuf:"bytes,4,opt,name=Status,proto3" json:"status"`
@@ -11662,7 +11662,7 @@ type Asset struct {
 	AssetSize int64 `protobuf:"varint,6,opt,name=AssetSize,proto3" json:"asset_size"`
 	// DisplaySize is the human-readable size of the asset
 	DisplaySize string `protobuf:"bytes,7,opt,name=DisplaySize,proto3" json:"display_size"`
-	// ReleaseID is a list of releases that have the asset included
+	// ReleaseIDs is a list of releases that have the asset included
 	ReleaseIDs []string `protobuf:"bytes,8,rep,name=ReleaseIDs,proto3" json:"release_ids"`
 	// PublicURL is the public URL used to download the asset
 	PublicURL            string   `protobuf:"bytes,9,opt,name=PublicURL,proto3" json:"public_url"`
