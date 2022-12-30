@@ -31,21 +31,25 @@ type Provisioner interface {
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
+	// CreateToken adds provisioning tokens for the auth server
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
 	// GetToken finds and returns token by id
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
 	// DeleteToken deletes provisioning token
+	// Imlementations must guarantee that this returns trace.NotFound error if the token doesn't exist
 	DeleteToken(ctx context.Context, token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens
 	DeleteAllTokens() error
 
 	// GetTokens returns all non-expired tokens
-	GetTokens(ctx context.Context, opts ...MarshalOption) ([]types.ProvisionToken, error)
+	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token
-// or panics, used in testes
+// or panics, used in tests
 func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
 	t, err := types.NewProvisionToken(token, roles, expires)
 	if err != nil {

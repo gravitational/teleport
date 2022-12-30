@@ -18,30 +18,26 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
@@ -56,23 +52,20 @@ func NewTunnelAuthDialer(config TunnelAuthDialerConfig) (*TunnelAuthDialer, erro
 
 // TunnelAuthDialerConfig specifies TunnelAuthDialer configuration.
 type TunnelAuthDialerConfig struct {
-	// ProxyAddr is the address of the proxy
-	ProxyAddr string
+	// Resolver retrieves the address of the proxy
+	Resolver Resolver
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// InsecureSkipTLSVerify is whether to skip certificate validation.
+	InsecureSkipTLSVerify bool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
-	if c.ProxyAddr == "" {
-		return trace.BadParameter("missing proxy address")
+	if c.Resolver == nil {
+		return trace.BadParameter("missing tunnel address resolver")
 	}
-	parsedAddr, err := utils.ParseAddr(c.ProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	c.ProxyAddr = utils.ReplaceUnspecifiedHost(parsedAddr, defaults.HTTPListenPort)
 	return nil
 }
 
@@ -83,34 +76,41 @@ type TunnelAuthDialer struct {
 }
 
 // DialContext dials auth server via SSH tunnel
-func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
-	var opts []proxy.DialerOptionFunc
-
-	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
-	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
-	if err != nil {
-		// If TLS Routing is disabled the address is the proxy reverse tunnel
-		// address thus the ping call will always fail.
-		t.Log.Debugf("Failed to ping web proxy %q addr: %v", t.ProxyAddr, err)
-	} else if resp.Proxy.TLSRoutingEnabled {
-		opts = append(opts, proxy.WithALPNDialer())
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
 	}
 
-	dialer := proxy.DialerFromEnvironment(t.ProxyAddr, opts...)
-	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
+	addr, mode, err := t.Resolver(ctx)
+	if err != nil {
+		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	if mode == types.ProxyListenerMode_Multiplex {
+		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}))
+	}
+
+	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
+	sconn, err := dialer.Dial(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Build a net.Conn over the tunnel. Make this an exclusive connection:
 	// close the net.Conn as well as the channel upon close.
-	conn, _, err := sshutils.ConnectProxyTransport(sconn.Conn, &sshutils.DialReq{
-		Address: RemoteAuthServer,
-	}, true)
+	conn, _, err := sshutils.ConnectProxyTransport(
+		sconn.Conn,
+		&sshutils.DialReq{
+			Address: RemoteAuthServer,
+		},
+		true,
+	)
 	if err != nil {
-		err2 := sconn.Close()
-		return nil, trace.NewAggregate(err, err2)
+		return nil, trace.NewAggregate(err, sconn.Close())
 	}
 	return conn, nil
 }
@@ -136,6 +136,7 @@ type transport struct {
 	log          logrus.FieldLogger
 	closeContext context.Context
 	authClient   auth.ProxyAccessPoint
+	authServers  []string
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request
 
@@ -147,7 +148,7 @@ type transport struct {
 	kubeDialAddr utils.NetAddr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
-	sconn ssh.Conn
+	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server
@@ -189,8 +190,6 @@ func (p *transport) start() {
 		return
 	}
 
-	var servers []string
-
 	// Parse and extract the dial request from the client.
 	dreq := parseDialReq(req.Payload)
 	if err := dreq.CheckAndSetDefaults(); err != nil {
@@ -199,23 +198,22 @@ func (p *transport) start() {
 	}
 	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
 
+	// directAddress will hold the address of the node to dial to, if we don't
+	// have a tunnel for it.
+	var directAddress string
+
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {
 	// Connect to an Auth Server.
 	case RemoteAuthServer:
-		authServers, err := p.authClient.GetAuthServers()
-		if err != nil {
-			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
+		if len(p.authServers) == 0 {
+			p.log.Errorf("connection rejected: no auth servers configured")
+			p.reply(req, false, []byte("no auth servers configured"))
+
 			return
 		}
-		if len(authServers) == 0 {
-			p.log.Warn("No auth servers registered in the cluster.")
-			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
-			return
-		}
-		for _, as := range authServers {
-			servers = append(servers, as.GetAddr())
-		}
+
+		directAddress = utils.ChooseRandomString(p.authServers)
 	// Connect to the Kubernetes proxy.
 	case LocalKubernetes:
 		switch p.component {
@@ -249,7 +247,7 @@ func (p *transport) start() {
 				return
 			}
 			p.log.Debugf("Forwarding connection to %q", p.kubeDialAddr.Addr)
-			servers = append(servers, p.kubeDialAddr.Addr)
+			directAddress = p.kubeDialAddr.Addr
 		}
 
 	// LocalNode requests are for the single server running in the agent pool.
@@ -280,15 +278,16 @@ func (p *transport) start() {
 		// If this is a proxy and not an SSH node, try finding an inbound
 		// tunnel from the SSH node by dreq.ServerID. We'll need to forward
 		// dreq.Address as well.
-		fallthrough
+		directAddress = dreq.Address
 	default:
-		servers = append(servers, dreq.Address)
+		// Not a special address; could be empty.
+		directAddress = dreq.Address
 	}
 
 	// Get a connection to the target address. If a tunnel exists with matching
 	// search names, connection over the tunnel is returned. Otherwise a direct
 	// net.Dial is performed.
-	conn, useTunnel, err := p.getConn(servers, dreq)
+	conn, useTunnel, err := p.getConn(directAddress, dreq)
 	if err != nil {
 		errorMessage := fmt.Sprintf("connection rejected: %v", err)
 		fmt.Fprint(p.channel.Stderr(), errorMessage)
@@ -299,6 +298,9 @@ func (p *transport) start() {
 	// Dial was successful.
 	if err := req.Reply(true, []byte("Connected.")); err != nil {
 		p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
+		if err := conn.Close(); err != nil {
+			p.log.Errorf("Failed closing connection: %v", err)
+		}
 		return
 	}
 	p.log.Debugf("Successfully dialed to %v %q, start proxying.", dreq.Address, dreq.ServerID)
@@ -362,7 +364,7 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 // getConn checks if the local site holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
-func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bool, error) {
+func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
 	p.log.Debugf("Attempting to dial through tunnel with server ID %q.", r.ServerID)
@@ -372,19 +374,23 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications should never occur over a direct dial, return right away.
-		if r.ConnType == types.AppTunnel {
-			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
+		// Connections to applications and databases should never occur over
+		// a direct dial, return right away.
+		switch r.ConnType {
+		case types.AppTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+		case types.DatabaseTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}
 
 		errTun := err
-		p.log.Debugf("Attempting to dial directly %v.", servers)
-		conn, err = p.directDial(servers, r.ServerID)
+		p.log.Debugf("Attempting to dial directly %q.", addr)
+		conn, err = p.directDial(addr)
 		if err != nil {
 			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", errTun, err)
 		}
 
-		p.log.Debugf("Returning direct dialed connection to %v.", servers)
+		p.log.Debugf("Returning direct dialed connection to %q.", addr)
 		return conn, false, nil
 	}
 
@@ -427,18 +433,19 @@ func (p *transport) reply(req *ssh.Request, ok bool, msg []byte) {
 	}
 }
 
-// directDial attempst to directly dial to the target host.
-func (p *transport) directDial(servers []string, serverID string) (net.Conn, error) {
-	var errors []error
-
-	for _, addr := range servers {
-		conn, err := net.Dial("tcp", addr)
-		if err == nil {
-			return newEmitConn(p.closeContext, conn, p.emitter, strings.Split(serverID, ".")[0]), nil
-		}
-
-		errors = append(errors, err)
+// directDial attempts to directly dial to the target host.
+func (p *transport) directDial(addr string) (net.Conn, error) {
+	if addr == "" {
+		return nil, trace.BadParameter("no address to dial")
 	}
 
-	return nil, trace.NewAggregate(errors...)
+	d := net.Dialer{
+		Timeout: apidefaults.DefaultDialTimeout,
+	}
+	conn, err := d.DialContext(p.closeContext, "tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
 }

@@ -19,28 +19,40 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	t.Parallel()
 
+	resolverFn := func(addr string) Resolver {
+		return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+			return &utils.NetAddr{
+				Addr:        addr,
+				AddrNetwork: "tcp",
+				Path:        "",
+			}, types.ProxyListenerMode_Separate, nil
+		}
+	}
+
 	var newAgentPoolErr error
 	w := &RemoteClusterTunnelManager{
 		pools: make(map[remoteClusterKey]*AgentPool),
-		newAgentPool: func(ctx context.Context, cluster, addr string) (*AgentPool, error) {
+		newAgentPool: func(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error) {
 			return &AgentPool{
-				cfg:    AgentPoolConfig{Cluster: cluster, ProxyAddr: addr},
-				cancel: func() {},
+				AgentPoolConfig: AgentPoolConfig{Cluster: cluster, Resolver: resolverFn(addr)},
+				cancel:          func() {},
 			}, newAgentPoolErr
 		},
 	}
-	defer w.Close()
+	t.Cleanup(func() { require.NoError(t, w.Close()) })
 
 	tests := []struct {
 		desc              string
@@ -61,7 +73,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				mustNewReverseTunnel(t, "cluster-a", []string{"addr-a"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
-				{cluster: "cluster-a", addr: "addr-a"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
+				{cluster: "cluster-a", addr: "addr-a"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-a")}},
 			},
 			assertErr: require.NoError,
 		},
@@ -71,9 +83,9 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				mustNewReverseTunnel(t, "cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
-				{cluster: "cluster-a", addr: "addr-a"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
-				{cluster: "cluster-a", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-b"}},
-				{cluster: "cluster-a", addr: "addr-c"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
+				{cluster: "cluster-a", addr: "addr-a"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-a")}},
+				{cluster: "cluster-a", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-b")}},
+				{cluster: "cluster-a", addr: "addr-c"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-c")}},
 			},
 			assertErr: require.NoError,
 		},
@@ -83,7 +95,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				mustNewReverseTunnel(t, "cluster-b", []string{"addr-b"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
-				{cluster: "cluster-b", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
+				{cluster: "cluster-b", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-b", Resolver: resolverFn("addr-b")}},
 			},
 			assertErr: require.NoError,
 		},
@@ -94,10 +106,10 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				mustNewReverseTunnel(t, "cluster-b", []string{"addr-b"}),
 			},
 			wantPools: map[remoteClusterKey]*AgentPool{
-				{cluster: "cluster-a", addr: "addr-a"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
-				{cluster: "cluster-a", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-b"}},
-				{cluster: "cluster-a", addr: "addr-c"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
-				{cluster: "cluster-b", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
+				{cluster: "cluster-a", addr: "addr-a"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-a")}},
+				{cluster: "cluster-a", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-b")}},
+				{cluster: "cluster-a", addr: "addr-c"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-c")}},
+				{cluster: "cluster-b", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-b", Resolver: resolverFn("addr-b")}},
 			},
 			assertErr: require.NoError,
 		},
@@ -105,10 +117,10 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 			desc:              "GetReverseTunnels error, keep existing pools",
 			reverseTunnelsErr: errors.New("nah"),
 			wantPools: map[remoteClusterKey]*AgentPool{
-				{cluster: "cluster-a", addr: "addr-a"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
-				{cluster: "cluster-a", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-b"}},
-				{cluster: "cluster-a", addr: "addr-c"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
-				{cluster: "cluster-b", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
+				{cluster: "cluster-a", addr: "addr-a"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-a")}},
+				{cluster: "cluster-a", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-b")}},
+				{cluster: "cluster-a", addr: "addr-c"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-c")}},
+				{cluster: "cluster-b", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-b", Resolver: resolverFn("addr-b")}},
 			},
 			assertErr: require.Error,
 		},
@@ -121,16 +133,16 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 			},
 			newAgentPoolErr: errors.New("nah"),
 			wantPools: map[remoteClusterKey]*AgentPool{
-				{cluster: "cluster-a", addr: "addr-a"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
-				{cluster: "cluster-a", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-b"}},
-				{cluster: "cluster-a", addr: "addr-c"}: {cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
-				{cluster: "cluster-b", addr: "addr-b"}: {cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
+				{cluster: "cluster-a", addr: "addr-a"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-a")}},
+				{cluster: "cluster-a", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-b")}},
+				{cluster: "cluster-a", addr: "addr-c"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-a", Resolver: resolverFn("addr-c")}},
+				{cluster: "cluster-b", addr: "addr-b"}: {AgentPoolConfig: AgentPoolConfig{Cluster: "cluster-b", Resolver: resolverFn("addr-b")}},
 			},
 			assertErr: require.Error,
 		},
 	}
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			w.cfg.AuthClient = mockAuthClient{
@@ -148,8 +160,17 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				// Tweaks to get comparison working with our complex types.
 				cmp.AllowUnexported(remoteClusterKey{}),
 				cmp.Comparer(func(a, b *AgentPool) bool {
+					aAddr, aMode, aErr := a.AgentPoolConfig.Resolver(context.Background())
+					bAddr, bMode, bErr := b.AgentPoolConfig.Resolver(context.Background())
+					if aAddr != bAddr && aMode != bMode && aErr != bErr {
+						return false
+					}
+
 					// Only check the supplied configs of AgentPools.
-					return cmp.Equal(a.cfg, b.cfg)
+					return cmp.Equal(
+						a.AgentPoolConfig,
+						b.AgentPoolConfig,
+						cmpopts.IgnoreFields(AgentPoolConfig{}, "Resolver"))
 				}),
 			))
 		})
@@ -163,7 +184,7 @@ type mockAuthClient struct {
 	reverseTunnelsErr error
 }
 
-func (c mockAuthClient) GetReverseTunnels(...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (c mockAuthClient) GetReverseTunnels(context.Context, ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return c.reverseTunnels, c.reverseTunnelsErr
 }
 

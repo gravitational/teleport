@@ -19,16 +19,15 @@ package alpnproxyauth
 import (
 	"context"
 	"io"
-	"math/rand"
 	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -38,16 +37,14 @@ type sitesGetter interface {
 	GetSites() ([]reversetunnel.RemoteSite, error)
 }
 
-type authGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-	GetAuthServers() ([]types.Server, error)
-}
-
 // NewAuthProxyDialerService create new instance of AuthProxyDialerService.
-func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, accessPoint authGetter) *AuthProxyDialerService {
+func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, localClusterName string, authServers []string, jwtSigner multiplexer.PROXYSigner, signingCert []byte) *AuthProxyDialerService {
 	return &AuthProxyDialerService{
 		reverseTunnelServer: reverseTunnelServer,
-		accessPoint:         accessPoint,
+		localClusterName:    localClusterName,
+		authServers:         authServers,
+		jwtSigner:           jwtSigner,
+		signingCert:         signingCert,
 	}
 }
 
@@ -55,7 +52,10 @@ func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, accessPoint auth
 // cluster name and ALPN set to teleport-auth protocol.
 type AuthProxyDialerService struct {
 	reverseTunnelServer sitesGetter
-	accessPoint         authGetter
+	localClusterName    string
+	authServers         []string
+	jwtSigner           multiplexer.PROXYSigner
+	signingCert         []byte
 }
 
 func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.Conn, connInfo alpnproxy.ConnectionInfo) error {
@@ -69,6 +69,20 @@ func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 	defer authConn.Close()
+
+	// We'll write signed PROXY header to the outgoing connection to securely
+	// propagate observed client ip to the auth server.
+	if s.jwtSigner != nil && s.signingCert != nil {
+		b, err := multiplexer.GetSignedPROXYHeader(conn.RemoteAddr(), conn.LocalAddr(), s.localClusterName, s.signingCert, s.jwtSigner)
+		if err != nil {
+			return trace.Wrap(err, "could not create signed PROXY header")
+		}
+		_, err = authConn.Write(b)
+		if err != nil {
+			return trace.Wrap(err, "could not write PROXY line to remote connection")
+		}
+	}
+
 	if err := s.proxyConn(ctx, conn, authConn); err != nil {
 		return trace.Wrap(err)
 	}
@@ -92,11 +106,7 @@ func getClusterName(info alpnproxy.ConnectionInfo) (string, error) {
 }
 
 func (s *AuthProxyDialerService) dialAuthServer(ctx context.Context, clusterNameFromSNI string) (net.Conn, error) {
-	clusterName, err := s.accessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if clusterName.GetClusterName() == clusterNameFromSNI {
+	if clusterNameFromSNI == s.localClusterName {
 		return s.dialLocalAuthServer(ctx)
 	}
 	if s.reverseTunnelServer != nil {
@@ -106,19 +116,19 @@ func (s *AuthProxyDialerService) dialAuthServer(ctx context.Context, clusterName
 }
 
 func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.Conn, error) {
-	authServers, err := s.accessPoint.GetAuthServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(authServers) == 0 {
+	if len(s.authServers) == 0 {
 		return nil, trace.NotFound("empty auth servers list")
 	}
-	//TODO(smallinksy) Better support for HA. Add dial retry on auth network errors.
-	authServerIndex := rand.Intn(len(authServers))
-	conn, err := net.Dial("tcp", authServers[authServerIndex].GetAddr())
+
+	addr := utils.ChooseRandomString(s.authServers)
+	d := &net.Dialer{
+		Timeout: defaults.DefaultDialTimeout,
+	}
+	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return conn, nil
 }
 

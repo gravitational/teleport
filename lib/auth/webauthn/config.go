@@ -17,11 +17,11 @@ limitations under the License.
 package webauthn
 
 import (
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
+	wan "github.com/go-webauthn/webauthn/webauthn"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	wan "github.com/duo-labs/webauthn/webauthn"
 )
 
 const (
@@ -29,23 +29,44 @@ const (
 	defaultIcon        = ""
 )
 
-func newWebAuthn(cfg *types.Webauthn, rpID, origin string) (*wan.WebAuthn, error) {
+// webAuthnParams groups the parameters necessary for the creation of
+// wan.WebAuthn instances.
+type webAuthnParams struct {
+	cfg                     *types.Webauthn
+	rpID                    string
+	origin                  string
+	requireResidentKey      bool
+	requireUserVerification bool
+}
+
+func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 	attestation := protocol.PreferNoAttestation
-	if len(cfg.AttestationAllowedCAs) > 0 || len(cfg.AttestationDeniedCAs) > 0 {
+	if len(p.cfg.AttestationAllowedCAs) > 0 || len(p.cfg.AttestationDeniedCAs) > 0 {
 		attestation = protocol.PreferDirectAttestation
 	}
-	rrk := false
+
+	residentKeyRequirement := protocol.ResidentKeyRequirementDiscouraged
+	if p.requireResidentKey {
+		residentKeyRequirement = protocol.ResidentKeyRequirementRequired
+	}
+
+	// Default to "discouraged", otherwise some browsers may do needless PIN
+	// prompts.
+	userVerification := protocol.VerificationDiscouraged
+	if p.requireUserVerification {
+		userVerification = protocol.VerificationRequired
+	}
+
 	return wan.New(&wan.Config{
-		RPID:                  rpID,
-		RPOrigin:              origin,
+		RPID:                  p.rpID,
+		RPOrigin:              p.origin,
 		RPDisplayName:         defaultDisplayName,
 		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
-			RequireResidentKey: &rrk,
-			// Do not ask for PIN (or other verifications), users already go through
-			// password authn.
-			UserVerification: protocol.VerificationDiscouraged,
+			RequireResidentKey: &p.requireResidentKey,
+			ResidentKey:        residentKeyRequirement,
+			UserVerification:   userVerification,
 		},
 		Timeout: int(defaults.WebauthnChallengeTimeout.Milliseconds()),
 	})

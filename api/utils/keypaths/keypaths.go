@@ -34,10 +34,16 @@ const (
 	fileNameKnownHosts = "known_hosts"
 	// fileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
 	fileExtTLSCert = "-x509.pem"
+	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
+	fileNameTLSCerts = "certs.pem"
 	// fileExtCert is the suffix/extension of a file where an SSH Cert is stored.
 	fileExtSSHCert = "-cert.pub"
+	// fileExtPPK is the suffix/extension of a file where an SSH keypair is stored in PuTTY PPK format.
+	fileExtPPK = ".ppk"
 	// fileExtPub is the extension of a file where a public key is stored.
 	fileExtPub = ".pub"
+	// fileExtLocalCA is the extension of a file where a self-signed localhost CA cert is stored.
+	fileExtLocalCA = "-localca.pem"
 	// appDirSuffix is the suffix of a sub-directory where app TLS certs are stored.
 	appDirSuffix = "-app"
 	// db DirSuffix is the suffix of a sub-directory where db TLS certs are stored.
@@ -58,8 +64,9 @@ const (
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
-//    │   ├── foo                      --> RSA Private Key for user "foo"
+//    │   ├── foo                      --> Private Key for user "foo"
 //    │   ├── foo.pub                  --> Public Key
+//    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
 //    │   ├── foo-ssh                  --> SSH certs for user "foo"
 //    │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
@@ -68,6 +75,7 @@ const (
 //    │   │   ├── root                 --> Database access certs for cluster "root"
 //    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
 //    │   │   │   └── appB-x509.pem    --> TLS cert for app service "appB"
+//    │   │   │   └── appB-localca.pem --> Self-signed localhost CA cert for app service "appB"
 //    │   │   └── leaf                 --> Database access certs for cluster "leaf"
 //    │   │       └── appC-x509.pem    --> TLS cert for app service "appC"
 //    │   ├── foo-db                   --> App access certs for user "foo"
@@ -129,11 +137,11 @@ func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtTLSCert)
 }
 
-// SSHCAsPath returns the path to the users's SSH CA's certificates
+// PublicKeyPath returns the path to the users's public key
 // for the given proxy.
 //
 // <baseDir>/keys/<proxy>/<username>.pub
-func SSHCAsPath(baseDir, proxy, username string) string {
+func PublicKeyPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtPub)
 }
 
@@ -142,6 +150,14 @@ func SSHCAsPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/cas
 func CAsDir(baseDir, proxy string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), casDir)
+}
+
+// TLSCAsPath returns the path to the users's TLS CA's certificates
+// for the given proxy.
+// <baseDir>/keys/<proxy>/certs.pem
+// DELETE IN 10.0. Deprecated
+func TLSCAsPath(baseDir, proxy string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameTLSCerts)
 }
 
 // TLSCAsPathCluster returns the path to the specified cluster's CA directory.
@@ -158,18 +174,20 @@ func SSHDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+sshDirSuffix)
 }
 
+// PPKFilePath returns the path to the user's PuTTY PPK-formatted keypair
+// for the given proxy and cluster.
+//
+// <baseDir>/keys/<proxy>/<username>.ppk
+func PPKFilePath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtPPK)
+}
+
 // SSHCertPath returns the path to the users's SSH certificate
 // for the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-ssh/<cluster>-cert.pub
 func SSHCertPath(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(SSHDir(baseDir, proxy, username), cluster+fileExtSSHCert)
-}
-
-// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
-// DELETE IN 8.0.0
-func OldSSHCertPath(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtSSHCert)
 }
 
 // AppDir returns the path to the user's app directory
@@ -194,6 +212,14 @@ func AppCertDir(baseDir, proxy, username, cluster string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-x509.pem
 func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtTLSCert)
+}
+
+// AppLocalCAPath returns the path to a self-signed localhost CA for the given
+// proxy, cluster, and app.
+//
+// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
+func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
+	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
 }
 
 // DatabaseDir returns the path to the user's database directory

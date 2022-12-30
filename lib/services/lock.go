@@ -19,11 +19,11 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // LockInForceAccessDenied is an AccessDenied error returned when a lock
@@ -35,8 +35,7 @@ func LockInForceAccessDenied(lock types.Lock) error {
 		s += ": " + msg
 	}
 	err := trace.AccessDenied(s)
-	err.AddField("lock-in-force", lock)
-	return err
+	return trace.WithField(err, "lock-in-force", lock)
 }
 
 // StrictLockingModeAccessDenied is an AccessDenied error returned when strict

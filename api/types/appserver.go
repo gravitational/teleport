@@ -18,12 +18,13 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
-
-	"github.com/gravitational/teleport/api"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // AppServer represents a single proxied web app.
@@ -50,6 +51,8 @@ type AppServer interface {
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -73,51 +76,6 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		HostID:   hostID,
 		App:      app,
 	})
-}
-
-// NewLegacyAppServer creates legacy app server object. Used in tests.
-//
-// DELETE IN 9.0.
-func NewLegacyAppServer(app *AppV3, hostname, hostID string) (Server, error) {
-	return NewServer(hostID, KindAppServer,
-		ServerSpecV2{
-			Hostname: hostname,
-			Apps: []*App{
-				{
-					Name:         app.GetName(),
-					URI:          app.GetURI(),
-					PublicAddr:   app.GetPublicAddr(),
-					StaticLabels: app.GetStaticLabels(),
-				},
-			},
-		})
-}
-
-// NewAppServersV3FromServer creates a list of app servers from Server resource.
-//
-// DELETE IN 9.0.
-func NewAppServersV3FromServer(server Server) (result []AppServer, err error) {
-	for _, legacyApp := range server.GetApps() {
-		app, err := NewAppV3FromLegacyApp(legacyApp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		appServer, err := NewAppServerV3(Metadata{
-			Name:    app.GetName(),
-			Expires: server.GetMetadata().Expires,
-		}, AppServerSpecV3{
-			Version:  server.GetTeleportVersion(),
-			Hostname: server.GetHostname(),
-			HostID:   server.GetName(),
-			Rotation: server.GetRotation(),
-			App:      app,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result = append(result, appServer)
-	}
-	return result, nil
 }
 
 // GetVersion returns the database server resource version.
@@ -263,6 +221,16 @@ func (s *AppServerV3) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
 }
 
+// GetProxyID returns a list of proxy ids this server is connected to.
+func (s *AppServerV3) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.App`.
 // * Dynamic labels from `Spec.App.Spec`.
@@ -284,6 +252,16 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 	return CombineLabels(staticLabels, dynamicLabels)
 }
 
+// GetStaticLabels returns the app server static labels.
+func (s *AppServerV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the app server static labels.
+func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
+}
+
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
 	return proto.Clone(s).(*AppServerV3)
@@ -303,8 +281,76 @@ func (s AppServers) Len() int { return len(s) }
 
 // Less compares app servers by name and host ID.
 func (s AppServers) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+	switch {
+	case s[i].GetName() < s[j].GetName():
+		return true
+	case s[i].GetName() > s[j].GetName():
+		return false
+	default:
+		return s[i].GetHostID() < s[j].GetHostID()
+	}
 }
 
 // Swap swaps two app servers.
 func (s AppServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s AppServers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	// We assume sorting by type AppServer, we are really
+	// wanting to sort its contained resource Application.
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetApp().GetName(), s[j].GetApp().GetName(), isDesc)
+		})
+	case ResourceSpecDescription:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetApp().GetDescription(), s[j].GetApp().GetDescription(), isDesc)
+		})
+	case ResourceSpecPublicAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetApp().GetPublicAddr(), s[j].GetApp().GetPublicAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindAppServer)
+	}
+
+	return nil
+}
+
+// AsResources returns app servers as type resources with labels.
+func (s AppServers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s AppServers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetName())
+		}
+	case ResourceSpecDescription:
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetDescription())
+		}
+	case ResourceSpecPublicAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetPublicAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindAppServer)
+	}
+
+	return vals, nil
+}

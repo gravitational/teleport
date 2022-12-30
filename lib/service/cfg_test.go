@@ -22,13 +22,13 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -60,20 +60,21 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.Equal(t, config.KEXAlgorithms, []string{
+		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
 		"ecdh-sha2-nistp384",
 		"ecdh-sha2-nistp521",
+		"diffie-hellman-group14-sha256",
 	})
 	require.Equal(t, config.MACAlgorithms, []string{
 		"hmac-sha2-256-etm@openssh.com",
 		"hmac-sha2-256",
 	})
-	require.Nil(t, config.CASignatureAlgorithm)
 
 	// auth section
 	auth := config.Auth
-	require.Equal(t, auth.SSHAddr, localAuthAddr)
+	require.Equal(t, auth.ListenAddr, localAuthAddr)
 	require.Equal(t, auth.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, auth.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
 	require.Equal(t, config.Auth.StorageConfig.Type, lite.GetName())
@@ -92,8 +93,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Misc levers and dials
 	require.Equal(t, config.RotationConnectionInterval, defaults.HighResPollingPeriod)
-	require.Equal(t, config.RestartThreshold.Amount, defaults.MaxConnectionErrorsBeforeRestart)
-	require.Equal(t, config.RestartThreshold.Time, defaults.ConnectionErrorMeasurementPeriod)
 }
 
 // TestCheckApp validates application configuration.
@@ -197,41 +196,11 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "invalid database name",
+			desc: "fails services.ValidateDatabase",
 			inDatabase: Database{
 				Name:     "??--++",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-			},
-			outErr: true,
-		},
-		{
-			desc: "invalid database protocol",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: "unknown",
-				URI:      "localhost:5432",
-			},
-			outErr: true,
-		},
-		{
-			desc: "invalid database uri",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost",
-			},
-			outErr: true,
-		},
-		{
-			desc: "invalid database CA cert",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-				TLS: DatabaseTLS{
-					CACert: []byte("cert"),
-				},
 			},
 			outErr: true,
 		},
@@ -282,17 +251,76 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "MongoDB connection string",
+			desc: "SQL Server correct configuration",
 			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolMongoDB,
-				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: false,
+		},
+		{
+			desc: "SQL Server missing keytab",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain: "test-domain",
+					SPN:    "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing AD domain",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing SPN",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "MySQL with server version",
+			inDatabase: Database{
+				Name:     "mysql-foo",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				MySQL: MySQLOptions{
+					ServerVersion: "8.0.31",
+				},
 			},
 			outErr: false,
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
 			err := test.inDatabase.CheckAndSetDefaults()
 			if test.outErr {
 				require.Error(t, err)
@@ -370,43 +398,43 @@ func TestHostLabelMatching(t *testing.T) {
 		{
 			desc:      "single rule matches all",
 			hostnames: []string{"foo", "foo.bar", "127.0.0.1", "test.example.com"},
-			rules:     HostLabelRules{HostLabelRule{Regexp: matchAllRule, Labels: map[string]string{"foo": "bar"}}},
+			rules:     NewHostLabelRules(HostLabelRule{Regexp: matchAllRule, Labels: map[string]string{"foo": "bar"}}),
 			expected:  map[string]string{"foo": "bar"},
 		},
 		{
 			desc:      "only one rule matches",
 			hostnames: []string{"db.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`^db\.example\.com$`), Labels: map[string]string{"role": "db"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`^app\.example\.com$`), Labels: map[string]string{"role": "app"}},
-			},
+			),
 			expected: map[string]string{"role": "db"},
 		},
 		{
 			desc:      "all rules match",
 			hostnames: []string{"test.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"foo": "bar"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"baz": "quux"}},
-			},
+			),
 			expected: map[string]string{"foo": "bar", "baz": "quux"},
 		},
 		{
 			desc:      "no rules match",
 			hostnames: []string{"test.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`\.xyz$`), Labels: map[string]string{"foo": "bar"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`\.xyz$`), Labels: map[string]string{"baz": "quux"}},
-			},
+			),
 			expected: map[string]string{},
 		},
 		{
 			desc:      "conflicting rules, last one wins",
 			hostnames: []string{"test.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"test": "one"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`^test\.`), Labels: map[string]string{"test": "two"}},
-			},
+			),
 			expected: map[string]string{"test": "two"},
 		},
 	} {

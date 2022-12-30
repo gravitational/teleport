@@ -26,10 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -37,10 +33,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
 
 // Config structure represents DynamoDB configuration as appears in `storage` section
@@ -122,15 +125,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	Config
-	backend.NoMigrations
-	svc              *dynamodb.DynamoDB
-	streams          *dynamodbstreams.DynamoDBStreams
-	clock            clockwork.Clock
-	buf              *backend.CircularBuffer
-	ctx              context.Context
-	cancel           context.CancelFunc
-	watchStarted     context.Context
-	signalWatchStart context.CancelFunc
+	svc     dynamodbiface.DynamoDBAPI
+	streams dynamodbstreamsiface.DynamoDBStreamsAPI
+	clock   clockwork.Clock
+	buf     *backend.CircularBuffer
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
 
@@ -204,28 +202,22 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
 
-	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
-
 	defer l.Debug("AWS session is created.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
+
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
 	)
-	closeCtx, cancel := context.WithCancel(ctx)
-	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
-		Entry:            l,
-		Config:           *cfg,
-		clock:            clockwork.NewRealClock(),
-		buf:              buf,
-		ctx:              closeCtx,
-		cancel:           cancel,
-		watchStarted:     watchStarted,
-		signalWatchStart: signalWatchStart,
+		Entry:  l,
+		Config: *cfg,
+		clock:  clockwork.NewRealClock(),
+		buf:    buf,
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -258,8 +250,16 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	b.session.Config.HTTPClient = httpClient
 
 	// create DynamoDB service:
-	b.svc = dynamodb.New(b.session)
-	b.streams = dynamodbstreams.New(b.session)
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b.svc = svc
+	streams, err := dynamometrics.NewStreamsMetricsAPI(dynamometrics.Backend, dynamodbstreams.New(b.session))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b.streams = streams
 
 	// check if the table exists?
 	ts, err := b.getTableStatus(ctx, b.TableName)
@@ -279,13 +279,13 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// Enable TTL on table.
-	err = b.turnOnTimeToLive(ctx)
+	err = TurnOnTimeToLive(ctx, b.svc, b.TableName, ttlKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Turn on DynamoDB streams, needed to implement events.
-	err = b.turnOnStreams(ctx)
+	err = TurnOnStreams(ctx, b.svc, b.TableName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -363,6 +363,10 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
+	if limit <= 0 {
+		limit = backend.DefaultRangeLimit
+	}
+
 	result, err := b.getAllRecords(ctx, startKey, endKey, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -383,6 +387,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
 	var result getResult
+
 	// this code is being extra careful here not to introduce endless loop
 	// by some unfortunate series of events
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
@@ -391,7 +396,9 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 			return nil, trace.Wrap(err)
 		}
 		result.records = append(result.records, re.records...)
-		if len(result.records) >= limit || len(re.lastEvaluatedKey) == 0 {
+		// If the limit was exceeded or there are no more records to fetch return the current result
+		// otherwise updated lastEvaluatedKey and proceed with obtaining new records.
+		if (limit != 0 && len(result.records) >= limit) || len(re.lastEvaluatedKey) == 0 {
 			if len(result.records) == backend.DefaultRangeLimit {
 				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 			}
@@ -503,7 +510,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		"#v": aws.String("Value"),
 	})
 	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
-		":prev": &dynamodb.AttributeValue{
+		":prev": {
 			B: expected.Value,
 		},
 	})
@@ -584,7 +591,6 @@ func (b *Backend) setClosed() {
 // and releases associated resources
 func (b *Backend) Close() error {
 	b.setClosed()
-	b.cancel()
 	return b.buf.Close()
 }
 
@@ -744,12 +750,12 @@ func (b *Backend) getRecords(ctx context.Context, startKey, endKey string, limit
 
 // isExpired returns 'true' if the given object (record) has a TTL and
 // it's due.
-func (r *record) isExpired() bool {
+func (r *record) isExpired(now time.Time) bool {
 	if r.Expires == nil {
 		return false
 	}
 	expiryDateUTC := time.Unix(*r.Expires, 0).UTC()
-	return time.Now().UTC().After(expiryDateUTC)
+	return now.UTC().After(expiryDateUTC)
 }
 
 func removeDuplicates(elements []record) []record {
@@ -868,7 +874,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", string(key))
 	}
 	// Check if key expired, if expired delete it
-	if r.isExpired() {
+	if r.isExpired(b.clock.Now()) {
 		if err := b.deleteKey(ctx, key); err != nil {
 			b.Warnf("Failed deleting expired key %q: %v", key, err)
 		}

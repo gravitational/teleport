@@ -20,15 +20,15 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // EventsService implements service to watch for events
@@ -105,6 +105,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 		case types.KindWebSession:
 			switch kind.SubKind {
+			case types.KindSnowflakeSession:
+				parser = newSnowflakeSessionParser()
 			case types.KindAppSession:
 				parser = newAppSessionParser()
 			case types.KindWebSession:
@@ -116,10 +118,14 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWebTokenParser()
 		case types.KindRemoteCluster:
 			parser = newRemoteClusterParser()
+		case types.KindKubeServer:
+			parser = newKubeServerParser()
 		case types.KindKubeService:
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
+		case types.KindDatabaseService:
+			parser = newDatabaseServiceParser()
 		case types.KindDatabase:
 			parser = newDatabaseParser()
 		case types.KindApp:
@@ -132,6 +138,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopServicesParser()
 		case types.KindWindowsDesktop:
 			parser = newWindowsDesktopsParser()
+		case types.KindInstaller:
+			parser = newInstallerParser()
+		case types.KindKubernetesCluster:
+			parser = newKubeClusterParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -227,7 +237,7 @@ func (w *watcher) Events() <-chan types.Event {
 	return w.eventsC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (w *watcher) Done() <-chan struct{} {
 	return w.backendWatcher.Done()
 }
@@ -861,6 +871,17 @@ func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
 	return parseServer(event, types.KindAppServer)
 }
 
+func newSnowflakeSessionParser() *webSessionParser {
+	return &webSessionParser{
+		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		hdr: types.ResourceHeader{
+			Kind:    types.KindWebSession,
+			SubKind: types.KindSnowflakeSession,
+			Version: types.V2,
+		},
+	}
+}
+
 func newAppSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
@@ -934,6 +955,43 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newKubeServerParser() *kubeServerParser {
+	return &kubeServerParser{
+		baseParser: newBaseParser(backend.Key(kubeServersPrefix)),
+	}
+}
+
+type kubeServerParser struct {
+	baseParser
+}
+
+func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.KubernetesServerV3{
+			Kind:    types.KindKubeServer,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID, // Pass host ID via description field for the cache.
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalKubeServer(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newKubeServiceParser() *kubeServiceParser {
 	return &kubeServiceParser{
 		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
@@ -977,6 +1035,55 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 	case types.OpPut:
 		return services.UnmarshalDatabaseServer(
 			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDatabaseServiceParser() *databaseServiceParser {
+	return &databaseServiceParser{
+		baseParser: newBaseParser(backend.Key(databaseServicePrefix)),
+	}
+}
+
+type databaseServiceParser struct {
+	baseParser
+}
+
+func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDatabaseService, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalDatabaseService(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newKubeClusterParser() *kubeClusterParser {
+	return &kubeClusterParser{
+		baseParser: newBaseParser(backend.Key(kubernetesPrefix)),
+	}
+}
+
+type kubeClusterParser struct {
+	baseParser
+}
+
+func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindKubernetesCluster, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -1151,7 +1258,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1176,7 +1283,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
 	}
 }
 
@@ -1187,13 +1294,57 @@ type windowsDesktopsParser struct {
 func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindWindowsDesktop, types.V3, 0)
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindWindowsDesktop,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID, // pass ID via description field for the cache
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktop(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+type installerParser struct {
+	baseParser
+}
+
+func newInstallerParser() *installerParser {
+	return &installerParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
+	}
+}
+
+func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindInstaller, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return h, nil
+	case types.OpPut:
+		inst, err := services.UnmarshalInstaller(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return inst, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

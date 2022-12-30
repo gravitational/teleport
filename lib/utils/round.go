@@ -20,9 +20,10 @@ const (
 // Round returns the nearest integer, rounding half away from zero.
 //
 // Special cases are:
-//  Round(±0) = ±0
-//  Round(±Inf) = ±Inf
-//  Round(NaN) = NaN
+//
+//	Round(±0) = ±0
+//	Round(±Inf) = ±Inf
+//	Round(NaN) = NaN
 //
 // Note: Copied from Go standard library to support Go 1.9.7 releases. This
 // function was added in the standard library in Go 1.10.

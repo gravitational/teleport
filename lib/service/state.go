@@ -21,11 +21,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 type componentStateEnum byte
@@ -69,7 +70,7 @@ type componentState struct {
 
 // newProcessState returns a new FSM that tracks the state of the Teleport process.
 func newProcessState(process *TeleportProcess) (*processState, error) {
-	err := utils.RegisterPrometheusCollectors(stateGauge)
+	err := metrics.RegisterPrometheusCollectors(stateGauge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,7 +89,7 @@ func (f *processState) update(event Event) {
 
 	component, ok := event.Payload.(string)
 	if !ok {
-		f.process.log.Errorf("TeleportDegradedEvent broadcasted without component name, this is a bug!")
+		f.process.log.Errorf("%v broadcasted without component name, this is a bug!", event.Name)
 		return
 	}
 	s, ok := f.states[component]
@@ -118,7 +119,7 @@ func (f *processState) update(event Event) {
 			s.recoveryTime = f.process.Clock.Now()
 			f.process.log.Infof("Teleport component %q is recovering from a degraded state.", component)
 		case stateRecovering:
-			if f.process.Clock.Now().Sub(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
+			if f.process.Clock.Since(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
 				s.state = stateOK
 				f.process.log.Infof("Teleport component %q has recovered from a degraded state.", component)
 			}

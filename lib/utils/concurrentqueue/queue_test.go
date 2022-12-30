@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,8 +49,8 @@ func TestOrdering(t *testing.T) {
 		for i := 0; i < testItems; i++ {
 			itm := <-q.Pop()
 			val, ok := itm.(int)
-			require.True(t, ok)
-			require.Equal(t, i, val)
+			assert.True(t, ok)
+			assert.Equal(t, i, val)
 		}
 	}()
 

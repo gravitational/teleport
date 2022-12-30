@@ -18,24 +18,28 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 )
 
 const (
-	gomodcacheDir = ".gomodcache-ci"
-	nonrootUID    = 1000
-	nonrootGID    = 1000
+	goCachesRootName = "gocache"
+	nonrootUID       = 1000
+	nonrootGID       = 1000
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
@@ -46,44 +50,6 @@ func main() {
 	}
 }
 
-type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	skipChown    bool
-}
-
-func parseCommandLine() (commandlineArgs, error) {
-	args := commandlineArgs{}
-
-	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
-	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
-	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
-
-	flag.Parse()
-
-	if args.workspace == "" {
-		return args, trace.Errorf("workspace path must be set")
-	}
-
-	var err error
-	args.workspace, err = filepath.Abs(args.workspace)
-	if err != nil {
-		return args, trace.Wrap(err, "Unable to resole absolute path to workspace")
-	}
-
-	if args.targetBranch == "" {
-		return args, trace.Errorf("target branch must be set")
-	}
-
-	if args.commitSHA == "" {
-		return args, trace.Errorf("commit must be set")
-	}
-
-	return args, nil
-}
-
 // innerMain parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
 func innerMain() error {
@@ -92,23 +58,54 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
-	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
+	// If a github deploy key location was supplied...
+	var deployKey []byte
+	if args.githubKeySrc != "" {
+		// fetch the deployment key from the GCB secret manager
+		log.Infof("Fetching deploy key from %s", args.githubKeySrc)
+		deployKey, err = secrets.Fetch(context.Background(), args.githubKeySrc)
+		if err != nil {
+			return trace.Wrap(err, "failed fetching deploy key")
+		}
+	}
 
-	log.Println("Analysing code changes")
+	if !args.skipUnshallow {
+		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer unshallowCancel()
+		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+		if err != nil {
+			return trace.Wrap(err, "unshallow failed")
+		}
+	}
+
+	goCacheRoot := filepath.Join(os.TempDir(), goCachesRootName)
+	env := map[string]string{
+		"GOCACHE":    filepath.Join(goCacheRoot, "go-build"),
+		"GOMODCACHE": filepath.Join(goCacheRoot, "pkg"),
+	}
+
+	log.Println("Analyzing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
 
-	hasOnlyDocChanges := ch.Docs && (!ch.Code)
-	if hasOnlyDocChanges {
+	if !ch.Code {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
 
+	// From this point on, whatever happens we want to upload any artifacts
+	// produced by the build
+	defer func() {
+		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+	}()
+
 	log.Printf("Running root-only integration tests...")
-	err = runRootIntegrationTests(args.workspace, gomodcache)
+	err = runRootIntegrationTests(args.workspace, env)
 	if err != nil {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
@@ -127,7 +124,7 @@ func innerMain() error {
 		}
 
 		log.Printf("Reconfiguring module cache for nonroot user")
-		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
+		err = chownR(goCacheRoot, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring module cache")
 		}
@@ -139,15 +136,16 @@ func innerMain() error {
 	// diagnostic warnings that would pollute the build log and just confuse
 	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
+	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+	defer etcdSvc.Stop()
 
 	log.Printf("Running nonroot integration tests...")
-	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)
+	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, env)
 	if err != nil {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
@@ -157,12 +155,13 @@ func innerMain() error {
 	return nil
 }
 
-func runRootIntegrationTests(workspace string, env ...string) error {
+func runRootIntegrationTests(workspace string, env map[string]string) error {
 	// Run root integration tests
 	cmd := exec.Command("make", "rdpclient", "integration-root")
 	cmd.Dir = workspace
-	if len(env) > 0 {
-		cmd.Env = append(os.Environ(), env...)
+	cmd.Env = os.Environ()
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%v=%v", k, v))
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -170,10 +169,13 @@ func runRootIntegrationTests(workspace string, env ...string) error {
 	return cmd.Run()
 }
 
-func runNonrootIntegrationTests(workspace string, uid, gid int, env ...string) error {
+func runNonrootIntegrationTests(workspace string, uid, gid int, env map[string]string) error {
 	cmd := exec.Command("make", "integration")
 	cmd.Dir = workspace
-	cmd.Env = append(append(os.Environ(), "TELEPORT_ETCD_TEST=yes"), env...)
+	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%v=%v", k, v))
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

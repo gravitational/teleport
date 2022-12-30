@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,87 +17,128 @@ limitations under the License.
 package proxy
 
 import (
-	"fmt"
-	"os"
+	"context"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/utils/socks"
 )
 
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	os.Exit(m.Run())
-}
+// TestDialProxy tests the dialing mechanism of HTTP and SOCKS proxies.
+func TestDialProxy(t *testing.T) {
+	ctx := context.Background()
+	dest := "remote-ip:3080"
 
-func TestGetProxyAddress(t *testing.T) {
-	type env struct {
-		name string
-		val  string
-	}
-	var tests = []struct {
-		info       string
-		env        []env
-		targetAddr string
-		proxyAddr  string
+	cases := []struct {
+		proxy      func(chan error, net.Listener)
+		scheme     string
+		assertDial require.ErrorAssertionFunc
 	}{
 		{
-			info:       "valid, can be raw host:port",
-			env:        []env{{name: "http_proxy", val: "proxy:1234"}},
-			proxyAddr:  "proxy:1234",
-			targetAddr: "192.168.1.1:3030",
+			proxy:      serveSOCKSProxy,
+			scheme:     "socks5",
+			assertDial: require.NoError,
 		},
 		{
-			info:       "valid, raw host:port works for https",
-			env:        []env{{name: "HTTPS_PROXY", val: "proxy:1234"}},
-			proxyAddr:  "proxy:1234",
-			targetAddr: "192.168.1.1:3030",
+			proxy:      serveHTTPProxy,
+			scheme:     "http",
+			assertDial: require.NoError,
 		},
 		{
-			info:       "valid, correct full url",
-			env:        []env{{name: "https_proxy", val: "https://proxy:1234"}},
-			proxyAddr:  "proxy:1234",
-			targetAddr: "192.168.1.1:3030",
-		},
-		{
-			info:       "valid, http endpoint can be set in https_proxy",
-			env:        []env{{name: "https_proxy", val: "http://proxy:1234"}},
-			proxyAddr:  "proxy:1234",
-			targetAddr: "192.168.1.1:3030",
-		},
-		{
-			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches domain",
-			env: []env{
-				{name: "https_proxy", val: "http://proxy:1234"},
-				{name: "no_proxy", val: "proxy"}},
-			proxyAddr:  "",
-			targetAddr: "proxy:1234",
-		},
-		{
-			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches ip",
-			env: []env{
-				{name: "https_proxy", val: "http://proxy:1234"},
-				{name: "no_proxy", val: "192.168.1.1"}},
-			proxyAddr:  "",
-			targetAddr: "192.168.1.1:1234",
-		},
-		{
-			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches subdomain",
-			env: []env{
-				{name: "https_proxy", val: "http://proxy:1234"},
-				{name: "no_proxy", val: ".example.com"}},
-			proxyAddr:  "",
-			targetAddr: "bla.example.com:1234",
+			proxy:      func(errChan chan error, l net.Listener) { close(errChan) },
+			scheme:     "unknown",
+			assertDial: require.Error,
 		},
 	}
 
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("%v: %v", i, tt.info), func(t *testing.T) {
-			for _, env := range tt.env {
-				t.Setenv(env.name, env.val)
+	for _, tc := range cases {
+		t.Run(tc.scheme, func(t *testing.T) {
+			errChan := make(chan error, 1)
+			l, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				require.NoError(t, l.Close())
+				err := <-errChan
+				require.NoError(t, err)
+			})
+
+			go tc.proxy(errChan, l)
+
+			proxyURL, err := url.Parse(tc.scheme + "://" + l.Addr().String())
+			require.NoError(t, err)
+
+			conn, err := client.DialProxy(ctx, proxyURL, dest)
+			tc.assertDial(t, err)
+
+			if conn != nil {
+				result := make([]byte, len(dest))
+				_, err = io.ReadFull(conn, result)
+				require.NoError(t, err)
+				require.Equal(t, string(result), dest)
 			}
-			p := getProxyAddress(tt.targetAddr)
-			require.Equal(t, tt.proxyAddr, p)
 		})
+	}
+}
+
+// serveSOCKSProxy starts a limited SOCKS proxy on the supplied listener.
+// It performs the SOCKS5 handshake then writes back the requested remote address.
+func serveSOCKSProxy(errChan chan error, l net.Listener) {
+	defer close(errChan)
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				errChan <- trace.Wrap(err)
+			}
+			return
+		}
+
+		go func(conn net.Conn) {
+			defer conn.Close()
+
+			write := func(msg string) {
+				if _, err := conn.Write([]byte(msg)); err != nil {
+					errChan <- trace.Wrap(err)
+					return
+				}
+			}
+
+			if remoteAddr, err := socks.Handshake(conn); err != nil {
+				write(err.Error())
+			} else {
+				write(remoteAddr)
+			}
+		}(conn)
+	}
+}
+
+// serveHTTPProxy starts a limited HTTP proxy on the supplied listener.
+// It performs the HTTP handshake then writes back the requested remote address.
+func serveHTTPProxy(errChan chan error, l net.Listener) {
+	defer close(errChan)
+
+	s := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodConnect {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(r.Host))
+			} else {
+				http.Error(w, "handshake error", http.StatusBadRequest)
+			}
+		}),
+	}
+
+	if err := s.Serve(l); !errors.Is(err, net.ErrClosed) {
+		errChan <- trace.Wrap(err)
 	}
 }

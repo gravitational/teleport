@@ -20,19 +20,20 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync/atomic"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // MakeTestClient returns MongoDB client connection according to the provided
@@ -51,7 +52,8 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.
 				SetHeartbeatInterval(500 * time.Millisecond).
-				SetServerSelectionTimeout(5 * time.Second),
+				// Setting load balancer disables the topology selection logic.
+				SetLoadBalanced(true),
 		}, opts...)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -72,7 +74,8 @@ type TestServer struct {
 	port     string
 	log      logrus.FieldLogger
 
-	wireVersion int
+	wireVersion      int
+	activeConnection int32
 }
 
 // TestServerOption allows to set test server options.
@@ -86,16 +89,14 @@ func TestServerWireVersion(wireVersion int) TestServerOption {
 }
 
 // NewTestServer returns a new instance of a test MongoDB server.
-func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
-	address := "localhost:0"
-	if config.Address != "" {
-		address = config.Address
-	}
-	listener, err := net.Listen("tcp", address)
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (svr *TestServer, err error) {
+	err = config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, port, err := net.SplitHostPort(listener.Addr().String())
+	defer config.CloseOnError(&err)
+
+	port, err := config.Port()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -110,7 +111,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 	server := &TestServer{
 		cfg: config,
 		// MongoDB uses regular TLS handshake so standard TLS listener will work.
-		listener: tls.NewListener(listener, tlsConfig),
+		listener: tls.NewListener(config.Listener, tlsConfig),
 		port:     port,
 		log:      log,
 	}
@@ -137,6 +138,8 @@ func (s *TestServer) Serve() error {
 		go func() {
 			defer s.log.Debug("Connection done.")
 			defer conn.Close()
+			atomic.AddInt32(&s.activeConnection, 1)
+			defer atomic.AddInt32(&s.activeConnection, -1)
 			if err := s.handleConnection(conn); err != nil {
 				if !utils.IsOKNetworkError(err) {
 					s.log.Errorf("Failed to handle connection: %v.",
@@ -257,6 +260,11 @@ func (s *TestServer) Port() string {
 	return s.port
 }
 
+// GetActiveConnectionsCount returns the current value of activeConnection counter.
+func (s *TestServer) GetActiveConnectionsCount() int32 {
+	return atomic.LoadInt32(&s.activeConnection)
+}
+
 // Close closes the server listener.
 func (s *TestServer) Close() error {
 	return s.listener.Close()
@@ -283,6 +291,7 @@ func makeIsMasterReply(wireVersion int) ([]byte, error) {
 		"ok":             1,
 		"maxWireVersion": wireVersion,
 		"compression":    []string{"zlib"},
+		"serviceId":      primitive.NewObjectID(),
 	})
 }
 

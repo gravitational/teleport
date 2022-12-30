@@ -1,0 +1,75 @@
+name: Build CI Buildbox Images
+run-name: Build CI Buildbox Images
+on:
+  push:
+    paths:
+      - build.assets/Dockerfile
+      - build.assets/Dockerfile-centos7
+      - build.assets/Makefile
+      - build.assets/images.mk
+    branches:
+      - master
+      - branch/**
+
+env:
+  REGISTRY: ghcr.io
+  BUILDBOX_BASE_NAME: ghcr.io/gravitational/teleport-buildbox
+
+jobs:
+  buildbox:
+    name: Build Ubuntu Buildbox
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # We need to keep env vars in sync, so, we can't use standard build actions
+      - name: Build buildbox image
+        run: cd build.assets && make buildbox
+
+      - name: Docker push the latest built image
+        run: docker push $(docker images -a --format '{{.Repository}}:{{.Tag}}'| head -1)
+
+  buildbox-centos7:
+    name: Build CentOS 7 Buildbox
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # We need to keep env vars in sync, so, we can't use standard build actions
+      - name: Build buildbox image
+        run: cd build.assets && make buildbox-centos7
+
+      - name: Docker push the latest built image
+        run: docker push $(docker images -a --format '{{.Repository}}:{{.Tag}}'| head -1)

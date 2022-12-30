@@ -5,6 +5,9 @@ PRO_LICENSE ?= ../e/fixtures/license-pro.pem
 # whether to look for enterprise or pro license
 MODE ?= enterprise
 
+# include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
+include ../build.assets/images.mk
+
 #
 # Default target starts two Teleport clusters
 #
@@ -82,7 +85,7 @@ check-license:
 
 .PHONY: build
 build:
-	docker build -t teleport:latest .
+	docker build --build-arg BUILDBOX=$(BUILDBOX) -t teleport:latest .
 
 .PHONY: clean
 clean:

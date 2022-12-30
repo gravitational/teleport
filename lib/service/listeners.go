@@ -23,76 +23,82 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// listenerType identifies different registered listeners in
+// ListenerType identifies different registered listeners in
 // process.registeredListeners.
-type listenerType string
+type ListenerType string
 
 var (
-	listenerAuthSSH    = listenerType(teleport.ComponentAuth)
-	listenerNodeSSH    = listenerType(teleport.ComponentNode)
-	listenerProxySSH   = listenerType(teleport.Component(teleport.ComponentProxy, "ssh"))
-	listenerDiagnostic = listenerType(teleport.ComponentDiagnostic)
-	listenerProxyKube  = listenerType(teleport.Component(teleport.ComponentProxy, "kube"))
-	listenerKube       = listenerType(teleport.ComponentKube)
+	ListenerAuth       = ListenerType(teleport.ComponentAuth)
+	ListenerNodeSSH    = ListenerType(teleport.ComponentNode)
+	ListenerProxySSH   = ListenerType(teleport.Component(teleport.ComponentProxy, "ssh"))
+	ListenerDiagnostic = ListenerType(teleport.ComponentDiagnostic)
+	ListenerProxyKube  = ListenerType(teleport.Component(teleport.ComponentProxy, "kube"))
+	ListenerKube       = ListenerType(teleport.ComponentKube)
 	// Proxy can use the same listener for tunnels and web interface
 	// (multiplexing the requests).
-	listenerProxyTunnelAndWeb = listenerType(teleport.Component(teleport.ComponentProxy, "tunnel", "web"))
-	listenerProxyWeb          = listenerType(teleport.Component(teleport.ComponentProxy, "web"))
-	listenerProxyTunnel       = listenerType(teleport.Component(teleport.ComponentProxy, "tunnel"))
-	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
-	listenerProxyPostgres     = listenerType(teleport.Component(teleport.ComponentProxy, "postgres"))
-	listenerProxyMongo        = listenerType(teleport.Component(teleport.ComponentProxy, "mongo"))
-	listenerMetrics           = listenerType(teleport.ComponentMetrics)
-	listenerWindowsDesktop    = listenerType(teleport.ComponentWindowsDesktop)
+	ListenerProxyTunnelAndWeb = ListenerType(teleport.Component(teleport.ComponentProxy, "tunnel", "web"))
+	ListenerProxyWeb          = ListenerType(teleport.Component(teleport.ComponentProxy, "web"))
+	ListenerProxyTunnel       = ListenerType(teleport.Component(teleport.ComponentProxy, "tunnel"))
+	ListenerProxyMySQL        = ListenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
+	ListenerProxyPostgres     = ListenerType(teleport.Component(teleport.ComponentProxy, "postgres"))
+	ListenerProxyMongo        = ListenerType(teleport.Component(teleport.ComponentProxy, "mongo"))
+	ListenerProxyPeer         = ListenerType(teleport.Component(teleport.ComponentProxy, "peer"))
+	ListenerMetrics           = ListenerType(teleport.ComponentMetrics)
+	ListenerWindowsDesktop    = ListenerType(teleport.ComponentWindowsDesktop)
 )
 
-// AuthSSHAddr returns auth server SSH endpoint, if configured and started.
-func (process *TeleportProcess) AuthSSHAddr() (*utils.NetAddr, error) {
-	return process.registeredListenerAddr(listenerAuthSSH)
+// AuthAddr returns auth server endpoint, if configured and started.
+func (process *TeleportProcess) AuthAddr() (*utils.NetAddr, error) {
+	return process.registeredListenerAddr(ListenerAuth)
 }
 
 // NodeSSHAddr returns the node SSH endpoint, if configured and started.
 func (process *TeleportProcess) NodeSSHAddr() (*utils.NetAddr, error) {
-	return process.registeredListenerAddr(listenerNodeSSH)
+	return process.registeredListenerAddr(ListenerNodeSSH)
 }
 
 // ProxySSHAddr returns the proxy SSH endpoint, if configured and started.
 func (process *TeleportProcess) ProxySSHAddr() (*utils.NetAddr, error) {
-	return process.registeredListenerAddr(listenerProxySSH)
+	return process.registeredListenerAddr(ListenerProxySSH)
 }
 
 // DiagnosticAddr returns the diagnostic endpoint, if configured and started.
 func (process *TeleportProcess) DiagnosticAddr() (*utils.NetAddr, error) {
-	return process.registeredListenerAddr(listenerDiagnostic)
+	return process.registeredListenerAddr(ListenerDiagnostic)
 }
 
 // ProxyKubeAddr returns the proxy kubernetes endpoint, if configured and
 // started.
 func (process *TeleportProcess) ProxyKubeAddr() (*utils.NetAddr, error) {
-	return process.registeredListenerAddr(listenerProxyKube)
+	return process.registeredListenerAddr(ListenerProxyKube)
 }
 
 // ProxyWebAddr returns the proxy web interface endpoint, if configured and
 // started.
 func (process *TeleportProcess) ProxyWebAddr() (*utils.NetAddr, error) {
-	addr, err := process.registeredListenerAddr(listenerProxyTunnelAndWeb)
+	addr, err := process.registeredListenerAddr(ListenerProxyTunnelAndWeb)
 	if err == nil {
 		return addr, nil
 	}
-	return process.registeredListenerAddr(listenerProxyWeb)
+	return process.registeredListenerAddr(ListenerProxyWeb)
 }
 
 // ProxyTunnelAddr returns the proxy reverse tunnel endpoint, if configured and
 // started.
 func (process *TeleportProcess) ProxyTunnelAddr() (*utils.NetAddr, error) {
-	addr, err := process.registeredListenerAddr(listenerProxyTunnelAndWeb)
+	addr, err := process.registeredListenerAddr(ListenerProxyTunnelAndWeb)
 	if err == nil {
 		return addr, nil
 	}
-	return process.registeredListenerAddr(listenerProxyTunnel)
+	return process.registeredListenerAddr(ListenerProxyTunnel)
 }
 
-func (process *TeleportProcess) registeredListenerAddr(typ listenerType) (*utils.NetAddr, error) {
+// ProxyTunnelAddr returns the proxy peer address, if configured and started.
+func (process *TeleportProcess) ProxyPeerAddr() (*utils.NetAddr, error) {
+	return process.registeredListenerAddr(ListenerProxyPeer)
+}
+
+func (process *TeleportProcess) registeredListenerAddr(typ ListenerType) (*utils.NetAddr, error) {
 	process.Lock()
 	defer process.Unlock()
 

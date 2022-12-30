@@ -19,12 +19,41 @@ resource "aws_route53_record" "proxy" {
   }
 }
 
+// Route53 record connects proxy network load balancer with wildcard
+// letsencrypt
+resource "aws_route53_record" "proxy_wildcard" {
+  zone_id = data.aws_route53_zone.proxy.zone_id
+  name    = "*.${var.route53_domain}"
+  type    = "A"
+  count   = var.add_wildcard_route53_record && !var.use_acm ? 1 : 0
+
+  alias {
+    name                   = aws_lb.proxy.dns_name
+    zone_id                = aws_lb.proxy.zone_id
+    evaluate_target_health = true
+  }
+}
+
 // ACM (ALB)
 resource "aws_route53_record" "proxy_acm" {
   zone_id = data.aws_route53_zone.proxy.zone_id
   name    = var.route53_domain
   type    = "A"
   count   = var.use_acm ? 1 : 0
+
+  alias {
+    name                   = aws_lb.proxy_acm[0].dns_name
+    zone_id                = aws_lb.proxy_acm[0].zone_id
+    evaluate_target_health = true
+  }
+}
+
+// ACM (ALB) Wildcard
+resource "aws_route53_record" "proxy_acm_wildcard" {
+  zone_id = data.aws_route53_zone.proxy.zone_id
+  name    = "*.${var.route53_domain}"
+  type    = "A"
+  count   = var.add_wildcard_route53_record && var.use_acm ? 1 : 0
 
   alias {
     name                   = aws_lb.proxy_acm[0].dns_name

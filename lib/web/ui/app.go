@@ -18,11 +18,10 @@ package ui
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // App describes an application
@@ -44,7 +43,7 @@ type App struct {
 	// AWSConsole if true, indicates that the app represents AWS management console.
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
-	AWSRoles []utils.AWSRole `json:"awsRoles,omitempty"`
+	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -66,15 +65,7 @@ func MakeApps(c MakeAppsConfig) []App {
 	result := []App{}
 	for _, teleApp := range c.Apps {
 		fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, teleApp)
-		labels := []Label{}
-		for name, value := range teleApp.GetAllLabels() {
-			labels = append(labels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		sort.Sort(sortedLabels(labels))
+		labels := makeLabels(teleApp.GetAllLabels())
 
 		app := App{
 			Name:        teleApp.GetName(),
@@ -88,7 +79,7 @@ func MakeApps(c MakeAppsConfig) []App {
 		}
 
 		if teleApp.IsAWSConsole() {
-			app.AWSRoles = utils.FilterAWSRoles(c.Identity.AWSRoleARNs,
+			app.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
 				teleApp.GetAWSAccountID())
 		}
 

@@ -23,14 +23,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 )
-
-type mockEmitter struct{}
-
-func (e *mockEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return nil
-}
 
 func TestEmitConnTeleport(t *testing.T) {
 	server, client := net.Pipe()
@@ -38,8 +32,7 @@ func TestEmitConnTeleport(t *testing.T) {
 
 	go server.Write([]byte(msg))
 
-	emitter := mockEmitter{}
-	conn := newEmitConn(context.Background(), client, &emitter, "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 	n, err := conn.Read(buffer)
 	require.NoError(t, err)
@@ -53,8 +46,7 @@ func TestEmitConnNotTeleport(t *testing.T) {
 
 	go server.Write([]byte(msg))
 
-	emitter := mockEmitter{}
-	conn := newEmitConn(context.Background(), client, &emitter, "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 	n, err := conn.Read(buffer)
 	require.NoError(t, err)
@@ -72,8 +64,7 @@ func TestEmitConnTeleportSmallReads(t *testing.T) {
 		}
 	}()
 
-	emitter := mockEmitter{}
-	conn := newEmitConn(context.Background(), client, &emitter, "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 
 	for _, chunk := range chunks {
@@ -96,8 +87,7 @@ func TestEmitConnNotTeleportSmallReads(t *testing.T) {
 		}
 	}()
 
-	emitter := mockEmitter{}
-	conn := newEmitConn(context.Background(), client, &emitter, "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 
 	for _, chunk := range chunks {
@@ -107,5 +97,4 @@ func TestEmitConnNotTeleportSmallReads(t *testing.T) {
 	}
 
 	require.True(t, conn.emitted)
-
 }

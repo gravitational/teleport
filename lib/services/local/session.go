@@ -19,12 +19,13 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // GetAppSession gets an application web session.
@@ -44,9 +45,115 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSes
 	return session, nil
 }
 
+// GetSnowflakeSession gets an application web session.
+func (s *IdentityService) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	if err := req.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := s.Get(ctx, backend.Key(snowflakePrefix, sessionsPrefix, req.SessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := services.UnmarshalWebSession(item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
 // GetAppSessions gets all application web sessions.
 func (s *IdentityService) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
 	startKey := backend.Key(appsPrefix, sessionsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]types.WebSession, len(result.Items))
+	for i, item := range result.Items {
+		session, err := services.UnmarshalWebSession(item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = session
+	}
+	return out, nil
+}
+
+// maxPageSize is the maximum number of app sessions allowed in a page
+// returned by ListAppSessions
+const maxPageSize = 200
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	keyPrefix := []string{appsPrefix, sessionsPrefix}
+
+	rangeStart := backend.Key(append(keyPrefix, pageToken)...)
+	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+
+	// Increment pageSize to allow for the extra item represented by nextKey.
+	// We skip this item in the results below.
+	limit := pageSize + 1
+	var out []types.WebSession
+
+	if user == "" {
+		// no filter provided get the range directly
+		result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		out = make([]types.WebSession, 0, len(result.Items))
+		for _, item := range result.Items {
+			session, err := services.UnmarshalWebSession(item.Value)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			out = append(out, session)
+		}
+	} else {
+		// iterate over the sessions to filter only those matching the provided user
+		if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
+			for _, item := range items {
+				if len(out) == limit {
+					break
+				}
+
+				session, err := services.UnmarshalWebSession(item.Value)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+
+				if session.GetUser() == user {
+					out = append(out, session)
+				}
+			}
+
+			return len(out) == limit, nil
+		}); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	var nextKey string
+	if len(out) > pageSize {
+		nextKey = backend.GetPaginationKey(out[len(out)-1])
+		// Truncate the last item that was used to determine next row existence.
+		out = out[:pageSize]
+	}
+
+	return out, nextKey, nil
+}
+
+// GetSnowflakeSessions gets all Snowflake web sessions.
+func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	startKey := backend.Key(snowflakePrefix, sessionsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -81,6 +188,24 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.We
 	return nil
 }
 
+// UpsertSnowflakeSession creates a Snowflake web session.
+func (s *IdentityService) UpsertSnowflakeSession(ctx context.Context, session types.WebSession) error {
+	value, err := services.MarshalWebSession(session)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(snowflakePrefix, sessionsPrefix, session.GetName()),
+		Value:   value,
+		Expires: session.GetExpiryTime(),
+	}
+
+	if _, err = s.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // DeleteAppSession removes an application web session.
 func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
@@ -89,9 +214,53 @@ func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.Delete
 	return nil
 }
 
+// DeleteSnowflakeSession removes a Snowflake web session.
+func (s *IdentityService) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSnowflakeSessionRequest) error {
+	if err := s.Delete(ctx, backend.Key(snowflakePrefix, sessionsPrefix, req.SessionID)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteUserAppSessions removes all application web sessions for a particular user.
+func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	var token string
+
+	for {
+		sessions, nextToken, err := s.ListAppSessions(ctx, maxPageSize, token, req.Username)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, session := range sessions {
+			err := s.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: session.GetName()})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		token = nextToken
+	}
+
+	return nil
+}
+
 // DeleteAllAppSessions removes all application web sessions.
 func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 	startKey := backend.Key(appsPrefix, sessionsPrefix)
+	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+func (s *IdentityService) DeleteAllSnowflakeSessions(ctx context.Context) error {
+	startKey := backend.Key(snowflakePrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -116,12 +285,8 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	if session != nil {
-		return session, nil
-	}
-	// DELETE IN 7.x:
-	// Return web sessions from a legacy path under /web/users/<user>/sessions/<id>
-	return getLegacyWebSession(ctx, r.backend, req.User, req.SessionID)
+
+	return session, trace.Wrap(err)
 }
 
 // List gets all regular web sessions.
@@ -290,33 +455,10 @@ type webTokens struct {
 	log     logrus.FieldLogger
 }
 
-// DELETE in 7.x.
-// getLegacySession returns the web session for the specified user/sessionID
-// under a legacy path /web/users/<user>/sessions/<id>
-func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, sessionID string) (types.WebSession, error) {
-	item, err := backend.Get(ctx, legacyWebSessionKey(user, sessionID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := services.UnmarshalWebSession(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// this is for backwards compatibility to ensure we
-	// always have these values
-	session.SetUser(user)
-	session.SetName(sessionID)
-	return session, nil
-}
-
 func webSessionKey(sessionID string) (key []byte) {
 	return backend.Key(webPrefix, sessionsPrefix, sessionID)
 }
 
 func webTokenKey(token string) (key []byte) {
 	return backend.Key(webPrefix, tokensPrefix, token)
-}
-
-func legacyWebSessionKey(user, sessionID string) (key []byte) {
-	return backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sessionID)
 }

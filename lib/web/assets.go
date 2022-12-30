@@ -26,8 +26,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-
-	"github.com/kardianos/osext"
 )
 
 // NewDebugFileSystem returns the HTTP file system implementation rooted
@@ -35,7 +33,7 @@ import (
 func NewDebugFileSystem(assetsPath string) (http.FileSystem, error) {
 	assetsToCheck := []string{"index.html", "/app"}
 	if assetsPath == "" {
-		exePath, err := osext.ExecutableFolder()
+		exePath, err := executableFolder()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -62,34 +60,12 @@ func NewDebugFileSystem(assetsPath string) (http.FileSystem, error) {
 	return http.Dir(assetsPath), nil
 }
 
-const (
-	webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
-	webAssetsReadError    = "failure reading web assets from the binary"
-)
-
-func readZipArchive(r io.ReaderAt, size int64) (ResourceMap, error) {
-	zreader, err := zip.NewReader(r, size)
+func executableFolder() (string, error) {
+	p, err := os.Executable()
 	if err != nil {
-		// this often happens when teleport is launched without the web assets
-		// zip file attached to the binary. for launching it in such mode
-		// set DEBUG environment variable to 1
-		if err == zip.ErrFormat {
-			return nil, trace.NotFound(webAssetsMissingError)
-		}
-		return nil, trace.NotFound("%s %v", webAssetsReadError, err)
+		return "", trace.Wrap(err)
 	}
-	entries := make(ResourceMap)
-	for _, file := range zreader.File {
-		if file.FileInfo().IsDir() {
-			continue
-		}
-		entries[file.Name] = file
-	}
-	// no entries found?
-	if len(entries) == 0 {
-		return nil, trace.Wrap(os.ErrInvalid)
-	}
-	return entries, nil
+	return filepath.Dir(filepath.Clean(p)), nil
 }
 
 // resource struct implements http.File interface on top of zip.File object

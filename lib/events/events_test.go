@@ -22,9 +22,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 // TestJSON tests JSON marshal events
@@ -144,7 +145,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session command event",
-			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
+			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"ip-172-31-11-148","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
 			event: apievents.SessionCommand{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -156,6 +157,7 @@ func TestJSON(t *testing.T) {
 				},
 				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
+					ServerHostname:  "ip-172-31-11-148",
 					ServerNamespace: "default",
 				},
 				SessionMetadata: apievents.SessionMetadata{
@@ -178,7 +180,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session network event",
-			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","cluster_name":"example","operation":0,"action":1}`,
+			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","cluster_name":"example","operation":0,"action":1}`,
 			event: apievents.SessionNetwork{
 				Metadata: apievents.Metadata{
 					Index:       0,
@@ -190,6 +192,7 @@ func TestJSON(t *testing.T) {
 				},
 				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
+					ServerHostname:  "ip-172-31-11-148",
 					ServerNamespace: "default",
 				},
 				SessionMetadata: apievents.SessionMetadata{
@@ -214,7 +217,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session disk event",
-			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
+			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
 			event: apievents.SessionDisk{
 				Metadata: apievents.Metadata{
 					Index:       175,
@@ -226,6 +229,7 @@ func TestJSON(t *testing.T) {
 				},
 				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
+					ServerHostname:  "ip-172-31-11-148",
 					ServerNamespace: "default",
 				},
 				SessionMetadata: apievents.SessionMetadata{
@@ -486,7 +490,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "desktop session start",
-			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","success":true,"proto":"tdp","sid":"test-session","addr.local":"192.168.1.100:39887","addr.remote":"[::1]:34902","with_mfa":"mfa-device","code":"TDP00I","event":"windows.desktop.session.start","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
+			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","login":"Administrator","success":true,"proto":"tdp","sid":"test-session","addr.local":"192.168.1.100:39887","addr.remote":"[::1]:34902","with_mfa":"mfa-device","code":"TDP00I","event":"windows.desktop.session.start","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_name":"test-desktop","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
 			event: apievents.WindowsDesktopSessionStart{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -499,6 +503,7 @@ func TestJSON(t *testing.T) {
 				UserMetadata: apievents.UserMetadata{
 					User:         "foo",
 					Impersonator: "bar",
+					Login:        "Administrator",
 				},
 				SessionMetadata: apievents.SessionMetadata{
 					WithMFA:   "mfa-device",
@@ -513,6 +518,7 @@ func TestJSON(t *testing.T) {
 					Success: true,
 				},
 				WindowsDesktopService: "00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8",
+				DesktopName:           "test-desktop",
 				DesktopAddr:           "[::1]:34902",
 				Domain:                "test.example.com",
 				WindowsUser:           "Administrator",
@@ -521,7 +527,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "desktop session end",
-			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","sid":"test-session","with_mfa":"mfa-device","code":"TDP01I","event":"windows.desktop.session.end","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
+			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","login":"Administrator","participants":["foo"],"recorded":false,"sid":"test-session","with_mfa":"mfa-device","code":"TDP01I","event":"windows.desktop.session.end","time":"2020-04-23T18:22:35.35Z","session_start":"2020-04-23T18:22:35.35Z","session_stop":"2020-04-23T18:26:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_name":"desktop1","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
 			event: apievents.WindowsDesktopSessionEnd{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -532,6 +538,7 @@ func TestJSON(t *testing.T) {
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
+					Login:        "Administrator",
 					User:         "foo",
 					Impersonator: "bar",
 				},
@@ -540,15 +547,221 @@ func TestJSON(t *testing.T) {
 					SessionID: "test-session",
 				},
 				WindowsDesktopService: "00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8",
+				DesktopName:           "desktop1",
 				DesktopAddr:           "[::1]:34902",
 				Domain:                "test.example.com",
 				WindowsUser:           "Administrator",
 				DesktopLabels:         map[string]string{"env": "production"},
+				Participants:          []string{"foo"},
+				StartTime:             time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+				EndTime:               time.Date(2020, 04, 23, 18, 26, 35, 350*int(time.Millisecond), time.UTC),
+			},
+		},
+		{
+			name: "MySQL statement prepare",
+			json: `{"cluster_name":"test-cluster","code":"TMY00I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.prepare","query":"select 1","sid":"test-session","time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementPrepare{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementPrepareEvent,
+					Code:        MySQLStatementPrepareCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				Query: "select 1",
+			},
+		},
+		{
+			name: "MySQL statement execute",
+			json: `{"cluster_name":"test-cluster","code":"TMY01I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementExecute{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementExecuteEvent,
+					Code:        MySQLStatementExecuteCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+			},
+		},
+		{
+			name: "MySQL statement send long data",
+			json: `{"cluster_name":"test-cluster","code":"TMY02I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","data_size":55,"db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.send_long_data","parameter_id":5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementSendLongData{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementSendLongDataEvent,
+					Code:        MySQLStatementSendLongDataCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				ParameterID: 5,
+				StatementID: 222,
+				DataSize:    55,
+			},
+		},
+		{
+			name: "MySQL statement close",
+			json: `{"cluster_name":"test-cluster","code":"TMY03I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.close","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementClose{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementCloseEvent,
+					Code:        MySQLStatementCloseCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+			},
+		},
+		{
+			name: "MySQL statement reset",
+			json: `{"cluster_name":"test-cluster","code":"TMY04I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.reset","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementReset{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementResetEvent,
+					Code:        MySQLStatementResetCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+			},
+		},
+		{
+			name: "MySQL statement fetch",
+			json: `{"cluster_name":"test-cluster","code":"TMY05I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.fetch","rows_count": 5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementFetch{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementFetchEvent,
+					Code:        MySQLStatementFetchCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+				RowsCount:   5,
+			},
+		},
+		{
+			name: "MySQL statement bulk execute",
+			json: `{"cluster_name":"test-cluster","code":"TMY06I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.bulk_execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementBulkExecute{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementBulkExecuteEvent,
+					Code:        MySQLStatementBulkExecuteCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
 			},
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			outJSON, err := utils.FastMarshal(tc.event)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.json, string(outJSON))

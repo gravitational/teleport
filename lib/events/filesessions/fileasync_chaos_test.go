@@ -23,22 +23,20 @@ package filesessions
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/gravitational/trace"
 )
 
 // TestChaosUpload introduces failures in all stages of the async
@@ -47,7 +45,6 @@ import (
 // Data race detector slows down the test significantly (10x+),
 // that is why the test is skipped when tests are running with
 // `go test -race` flag or `go test -short` flag
-//
 func TestChaosUpload(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping chaos test in short mode.")
@@ -65,37 +62,34 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanDir, err := ioutil.TempDir("", "teleport-streams")
-	require.NoError(t, err)
-	defer os.RemoveAll(scanDir)
+	scanDir := t.TempDir()
+	corruptedDir := t.TempDir()
 
-	terminateConnection := atomic.NewUint64(0)
-	failCreateAuditStream := atomic.NewUint64(0)
-	failResumeAuditStream := atomic.NewUint64(0)
+	var terminateConnection, failCreateAuditStream, failResumeAuditStream atomic.Uint64
 
 	faultyStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: streamer,
 		OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-			if event.GetIndex() > 700 && terminateConnection.Inc() < 5 {
+			if event.GetIndex() > 700 && terminateConnection.Add(1) < 5 {
 				log.Debugf("Terminating connection at event %v", event.GetIndex())
 				return trace.ConnectionProblem(nil, "connection terminated")
 			}
 			return nil
 		},
 		OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
-			if failCreateAuditStream.Inc() < 5 {
+			if failCreateAuditStream.Add(1) < 5 {
 				return nil, trace.ConnectionProblem(nil, "failed to create stream")
 			}
 			return streamer.CreateAuditStream(ctx, sid)
 		},
 		OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
-			resumed := failResumeAuditStream.Inc()
+			resumed := failResumeAuditStream.Add(1)
 			if resumed < 5 {
 				// for the first 5 resume attempts, simulate nework failure
 				return nil, trace.ConnectionProblem(nil, "failed to resume stream")
 			} else if resumed >= 5 && resumed < 8 {
 				// for the next several resumes, lose checkpoint file for the stream
-				files, err := ioutil.ReadDir(scanDir)
+				files, err := os.ReadDir(scanDir)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -118,15 +112,14 @@ func TestChaosUpload(t *testing.T) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		Context:    ctx,
-		ScanDir:    scanDir,
-		ScanPeriod: scanPeriod,
-		Streamer:   faultyStreamer,
-		Clock:      clock,
-		AuditLog:   &events.DiscardAuditLog{},
+		ScanDir:      scanDir,
+		CorruptedDir: corruptedDir,
+		ScanPeriod:   scanPeriod,
+		Streamer:     faultyStreamer,
+		Clock:        clock,
 	})
 	require.NoError(t, err)
-	go uploader.Serve()
+	go uploader.Serve(ctx)
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
 
@@ -174,11 +167,7 @@ func TestChaosUpload(t *testing.T) {
 	scansCh := make(chan error, parallelStreams)
 	for i := 0; i < parallelStreams; i++ {
 		go func() {
-			if err := uploader.uploadCompleter.CheckUploads(ctx); err != nil {
-				scansCh <- trace.Wrap(err)
-				return
-			}
-			_, err := uploader.Scan()
+			_, err := uploader.Scan(ctx)
 			scansCh <- trace.Wrap(err)
 		}()
 	}
@@ -207,7 +196,7 @@ func TestChaosUpload(t *testing.T) {
 
 	for i := 0; i < parallelStreams; i++ {
 		// do scans to catch remaining uploads
-		_, err = uploader.Scan()
+		_, err = uploader.Scan(ctx)
 		require.NoError(t, err)
 
 		// wait for the upload events

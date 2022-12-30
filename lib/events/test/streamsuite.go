@@ -16,15 +16,14 @@ package test
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/stretchr/testify/require"
 )
 
 // StreamParams configures parameters of a stream test suite
@@ -105,7 +104,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	err = stream.Complete(ctx)
 	require.Nil(t, err)
 
-	f, err := ioutil.TempFile("", string(sid))
+	f, err := os.CreateTemp("", string(sid))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -172,7 +171,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	err = stream.Complete(ctx)
 	require.Nil(t, err, "Complete after resume should succeed")
 
-	f, err := ioutil.TempFile("", string(sid))
+	f, err := os.CreateTemp("", string(sid))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()

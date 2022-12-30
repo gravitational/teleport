@@ -18,17 +18,19 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -57,8 +59,6 @@ type AuthPreference interface {
 	IsSecondFactorEnforced() bool
 	// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
 	IsSecondFactorTOTPAllowed() bool
-	// IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
-	IsSecondFactorU2FAllowed() bool
 	// IsSecondFactorWebauthnAllowed checks if users are allowed to register
 	// Webauthn devices.
 	IsSecondFactorWebauthnAllowed() bool
@@ -80,9 +80,16 @@ type AuthPreference interface {
 	// SetWebauthn sets the Webauthn configuration settings.
 	SetWebauthn(*Webauthn)
 
-	// GetRequireSessionMFA returns true when all sessions in this cluster
-	// require an MFA check.
-	GetRequireSessionMFA() bool
+	// GetAllowPasswordless returns if passwordless is allowed by cluster
+	// settings.
+	GetAllowPasswordless() bool
+	// SetAllowPasswordless sets the value of the allow passwordless setting.
+	SetAllowPasswordless(b bool)
+
+	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
+	GetRequireMFAType() RequireMFAType
+	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -104,6 +111,10 @@ type AuthPreference interface {
 	// SetLockingMode sets the cluster-wide locking mode default.
 	SetLockingMode(constants.LockingMode)
 
+	// GetDeviceTrust returns the cluster device trust settings, or nil if no
+	// explicit configurations are present.
+	GetDeviceTrust() *DeviceTrust
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -114,7 +125,7 @@ func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 }
 
 // NewAuthPreferenceFromConfigFile is a convenience method to create
-// AuthPreferenceV2 labelled as originating from config file.
+// AuthPreferenceV2 labeled as originating from config file.
 func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 	return newAuthPreferenceWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,
@@ -233,22 +244,14 @@ func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 	switch sf := c.GetSecondFactor(); sf {
 	case constants.SecondFactorOff:
 		return "" // Nothing to suggest.
-	case constants.SecondFactorOTP, constants.SecondFactorU2F, constants.SecondFactorWebauthn:
-		return sf // If using a single method, then that is what it should be.
+	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
+		return sf // Single method.
 	case constants.SecondFactorOn, constants.SecondFactorOptional:
 		// In order of preference:
 		// 1. WebAuthn (public-key based)
-		// 2. U2F (public-key based, deprecated by WebAuthn)
-		// 3. OTP
-		//
-		// Presently, some configurations here are impossible to reach (U2F is
-		// always required and WebAuthn always exists as a consequence).
-		// Nevertheless, we make an effort to gracefully handle those situations.
-		if w, err := c.GetWebauthn(); err == nil && !w.Disabled {
+		// 2. OTP
+		if _, err := c.GetWebauthn(); err == nil {
 			return constants.SecondFactorWebauthn
-		}
-		if _, err := c.GetU2F(); err == nil {
-			return constants.SecondFactorU2F
 		}
 		return constants.SecondFactorOTP
 	default:
@@ -269,34 +272,15 @@ func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
 		c.Spec.SecondFactor == constants.SecondFactorOn
 }
 
-// IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
-func (c *AuthPreferenceV2) IsSecondFactorU2FAllowed() bool {
-	// Is U2F configured?
-	switch _, err := c.GetU2F(); {
-	case trace.IsNotFound(err): // OK, expected to happen in some cases.
-		return false
-	case err != nil:
-		log.WithError(err).Warnf("Got unexpected error when reading U2F config")
-		return false
-	}
-
-	// Are second factor settings in accordance?
-	return c.Spec.SecondFactor == constants.SecondFactorU2F ||
-		c.Spec.SecondFactor == constants.SecondFactorOptional ||
-		c.Spec.SecondFactor == constants.SecondFactorOn
-}
-
 // IsSecondFactorWebauthnAllowed checks if users are allowed to register
 // Webauthn devices.
 func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	// Is Webauthn configured and enabled?
-	switch webConfig, err := c.GetWebauthn(); {
+	switch _, err := c.GetWebauthn(); {
 	case trace.IsNotFound(err): // OK, expected to happen in some cases.
 		return false
 	case err != nil:
 		log.WithError(err).Warnf("Got unexpected error when reading Webauthn config")
-		return false
-	case webConfig.Disabled: // OK, fallback to U2F in use.
 		return false
 	}
 
@@ -342,10 +326,29 @@ func (c *AuthPreferenceV2) SetWebauthn(w *Webauthn) {
 	c.Spec.Webauthn = w
 }
 
-// GetRequireSessionMFA returns true when all sessions in this cluster require
-// an MFA check.
-func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
-	return c.Spec.RequireSessionMFA
+func (c *AuthPreferenceV2) GetAllowPasswordless() bool {
+	return c.Spec.AllowPasswordless != nil && c.Spec.AllowPasswordless.Value
+}
+
+func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
+	c.Spec.AllowPasswordless = NewBoolOption(b)
+}
+
+// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
+func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
+	return c.Spec.RequireMFAType
+}
+
+// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	switch c.Spec.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return keys.PrivateKeyPolicyHardwareKey
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -388,6 +391,15 @@ func (c *AuthPreferenceV2) SetLockingMode(mode constants.LockingMode) {
 	c.Spec.LockingMode = mode
 }
 
+// GetDeviceTrust returns the cluster device trust settings, or nil if no
+// explicit configurations are present.
+func (c *AuthPreferenceV2) GetDeviceTrust() *DeviceTrust {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.DeviceTrust
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -401,6 +413,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// DELETE IN 13.0.0
+	c.CheckSetRequireSessionMFA()
 
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
@@ -421,23 +436,29 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.SetOrigin(OriginDynamic)
 	}
 
-	// make sure type makes sense
 	switch c.Spec.Type {
-	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
+	case constants.Local:
+		if !c.Spec.AllowLocalAuth.Value {
+			log.Warn("Ignoring local_auth=false when authentication.type=local")
+			c.Spec.AllowLocalAuth.Value = true
+		}
+	case constants.OIDC, constants.SAML, constants.Github:
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
-	// make sure second factor makes sense
-	switch sf := c.Spec.SecondFactor; sf {
+	if c.Spec.SecondFactor == constants.SecondFactorU2F {
+		log.Warnf(`` +
+			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
+			`Please update your configuration to use WebAuthn. ` +
+			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+		c.Spec.SecondFactor = constants.SecondFactorWebauthn
+	}
+
+	// Make sure second factor makes sense.
+	sf := c.Spec.SecondFactor
+	switch sf {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
-	case constants.SecondFactorU2F:
-		if c.Spec.U2F == nil {
-			return trace.BadParameter("missing required U2F configuration for second factor type %q", sf)
-		}
-		if err := c.Spec.U2F.Check(); err != nil {
-			return trace.Wrap(err)
-		}
 	case constants.SecondFactorWebauthn:
 		// If U2F is present validate it, we can derive Webauthn from it.
 		if c.Spec.U2F != nil {
@@ -449,11 +470,8 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 				c.Spec.Webauthn = &Webauthn{}
 			}
 		}
-		switch {
-		case c.Spec.Webauthn == nil:
+		if c.Spec.Webauthn == nil {
 			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
-		case c.Spec.Webauthn.Disabled:
-			return trace.BadParameter("disabled webauthn configuration not allowed for second factor type %q", sf)
 		}
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
@@ -462,13 +480,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		// The following scenarios are allowed for "on" and "optional":
 		// - Webauthn is configured (preferred)
 		// - U2F is configured, Webauthn derived from it (U2F-compat mode)
-		// - U2F is configured, Webauthn is disabled (fallback mode)
 
-		switch {
-		case c.Spec.Webauthn == nil && c.Spec.U2F == nil:
+		if c.Spec.U2F == nil && c.Spec.Webauthn == nil {
 			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
-		case c.Spec.Webauthn != nil && c.Spec.Webauthn.Disabled && c.Spec.U2F == nil:
-			return trace.BadParameter("missing u2f configuration with disabled webauthn not allowed for second factor %q", sf)
 		}
 
 		// Is U2F configured?
@@ -490,13 +504,58 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
+	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
+	hasWebauthn := sf == constants.SecondFactorWebauthn ||
+		sf == constants.SecondFactorOn ||
+		sf == constants.SecondFactorOptional
+	switch {
+	case c.Spec.AllowPasswordless == nil:
+		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)
+	case !hasWebauthn && c.Spec.AllowPasswordless.Value:
+		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
+	}
+
+	// Validate connector name for type=local.
+	if c.Spec.Type == constants.Local {
+		switch connectorName := c.Spec.ConnectorName; connectorName {
+		case "", constants.LocalConnector: // OK
+		case constants.PasswordlessConnector:
+			if !c.Spec.AllowPasswordless.Value {
+				return trace.BadParameter("invalid local connector %q, passwordless not allowed by cluster settings", connectorName)
+			}
+		default:
+			return trace.BadParameter("invalid local connector %q", connectorName)
+		}
+	}
+
 	switch c.Spec.LockingMode {
 	case constants.LockingModeBestEffort, constants.LockingModeStrict:
 	default:
 		return trace.BadParameter("locking mode %q not supported", c.Spec.LockingMode)
 	}
 
+	if dt := c.Spec.DeviceTrust; dt != nil {
+		switch dt.Mode {
+		case "": // OK, "default" mode. Varies depending on OSS or Enterprise.
+		case constants.DeviceTrustModeOff,
+			constants.DeviceTrustModeOptional,
+			constants.DeviceTrustModeRequired: // OK.
+		default:
+			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
+		}
+	}
+
 	return nil
+}
+
+// RequireSessionMFA must be checked/set when communicating with an old server or client.
+// DELETE IN 13.0.0
+func (c *AuthPreferenceV2) CheckSetRequireSessionMFA() {
+	if c.Spec.RequireMFAType != RequireMFAType_OFF {
+		c.Spec.RequireSessionMFA = c.Spec.RequireMFAType.IsSessionMFARequired()
+	} else if c.Spec.RequireSessionMFA {
+		c.Spec.RequireMFAType = RequireMFAType_SESSION
+	}
 }
 
 // String represents a human readable version of authentication settings.
@@ -507,9 +566,6 @@ func (c *AuthPreferenceV2) String() string {
 func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
-	}
-	if len(u.Facets) == 0 {
-		return trace.BadParameter("u2f configuration missing facets")
 	}
 	for _, ca := range u.DeviceAttestationCAs {
 		if err := isValidAttestationCert(ca); err != nil {
@@ -553,7 +609,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	// AttestationAllowedCAs.
 	switch {
 	case u != nil && len(u.DeviceAttestationCAs) > 0 && len(w.AttestationAllowedCAs) == 0 && len(w.AttestationDeniedCAs) == 0:
-		log.Infof("WebAuthn: using U2F device attestion CAs as allowed CAs")
+		log.Infof("WebAuthn: using U2F device attestation CAs as allowed CAs")
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {
@@ -684,4 +740,112 @@ func (d *MFADevice) MarshalJSON() ([]byte, error) {
 
 func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
+}
+
+// IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
+func (r RequireMFAType) IsSessionMFARequired() bool {
+	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+}
+
+// MarshalJSON marshals RequireMFAType to boolean or string.
+func (r *RequireMFAType) MarshalYAML() (interface{}, error) {
+	val, err := r.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing RequireMFAType from boolean or alias.
+func (r *RequireMFAType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = r.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalJSON marshals RequireMFAType to boolean or string.
+func (r *RequireMFAType) MarshalJSON() ([]byte, error) {
+	val, err := r.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing RequireMFAType from boolean or alias.
+func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = r.decode(val)
+	return trace.Wrap(err)
+}
+
+const (
+	RequireMFATypeHardwareKeyString      = "hardware_key"
+	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
+)
+
+// encode RequireMFAType into a string or boolean. This is necessary for
+// backwards compatibility with the json/yaml tag "require_session_mfa",
+// which used to be a boolean.
+func (r *RequireMFAType) encode() (interface{}, error) {
+	switch *r {
+	case RequireMFAType_OFF:
+		return false, nil
+	case RequireMFAType_SESSION:
+		return true, nil
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return RequireMFATypeHardwareKeyString, nil
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return RequireMFATypeHardwareKeyTouchString, nil
+	default:
+		return nil, trace.BadParameter("RequireMFAType invalid value %v", *r)
+	}
+}
+
+// decode RequireMFAType from a string or boolean. This is necessary for
+// backwards compatibility with the json/yaml tag "require_session_mfa",
+// which used to be a boolean.
+func (r *RequireMFAType) decode(val interface{}) error {
+	switch v := val.(type) {
+	case string:
+		switch v {
+		case RequireMFATypeHardwareKeyString:
+			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
+		case RequireMFATypeHardwareKeyTouchString:
+			*r = RequireMFAType_HARDWARE_KEY_TOUCH
+		case "":
+			// default to off
+			*r = RequireMFAType_OFF
+		default:
+			// try parsing as a boolean
+			switch strings.ToLower(v) {
+			case "yes", "yeah", "y", "true", "1", "on":
+				*r = RequireMFAType_SESSION
+			case "no", "nope", "n", "false", "0", "off":
+				*r = RequireMFAType_OFF
+			default:
+				return trace.BadParameter("RequireMFAType invalid value %v", val)
+			}
+		}
+	case bool:
+		if v {
+			*r = RequireMFAType_SESSION
+		} else {
+			*r = RequireMFAType_OFF
+		}
+	default:
+		return trace.BadParameter("RequireMFAType invalid type %T", val)
+	}
+	return nil
 }

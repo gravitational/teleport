@@ -22,16 +22,18 @@ import (
 	"io"
 	"time"
 
-	"github.com/gravitational/teleport"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+// AsyncBufferSize is a default buffer size for async emitters
+const AsyncBufferSize = 1024
 
 // AsyncEmitterConfig provides parameters for emitter
 type AsyncEmitterConfig struct {
@@ -47,7 +49,7 @@ func (c *AsyncEmitterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Inner")
 	}
 	if c.BufferSize == 0 {
-		c.BufferSize = defaults.AsyncBufferSize
+		c.BufferSize = AsyncBufferSize
 	}
 	return nil
 }
@@ -159,6 +161,7 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 
 // EmitAuditEvent emits audit event
 func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	auditEmitEvent.Inc()
 	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
 		AuditFailedEmit.Inc()
@@ -181,10 +184,10 @@ func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, u
 	if event.GetType() == "" {
 		return trace.BadParameter("missing mandatory event type field")
 	}
-	if event.GetCode() == "" && event.GetType() != SessionPrintEvent {
+	if event.GetCode() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
 		return trace.BadParameter("missing mandatory event code field for %v event", event.GetType())
 	}
-	if event.GetID() == "" && event.GetType() != SessionPrintEvent {
+	if event.GetID() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
 		event.SetID(uid.New())
 	}
 	if event.GetTime().IsZero() {
@@ -194,68 +197,6 @@ func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, u
 		event.SetClusterName(clusterName)
 	}
 	return nil
-}
-
-// DiscardStream returns a stream that discards all events
-type DiscardStream struct {
-}
-
-// Write discards data
-func (*DiscardStream) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-// Status returns a channel that always blocks
-func (*DiscardStream) Status() <-chan apievents.StreamStatus {
-	return nil
-}
-
-// Done returns channel closed when streamer is closed
-// should be used to detect sending errors
-func (*DiscardStream) Done() <-chan struct{} {
-	return nil
-}
-
-// Close flushes non-uploaded flight stream data without marking
-// the stream completed and closes the stream instance
-func (*DiscardStream) Close(ctx context.Context) error {
-	return nil
-}
-
-// Complete does nothing
-func (*DiscardStream) Complete(ctx context.Context) error {
-	return nil
-}
-
-// EmitAuditEvent discards audit event
-func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding stream event: %v", event)
-	return nil
-}
-
-// NewDiscardEmitter returns a no-op discard emitter
-func NewDiscardEmitter() *DiscardEmitter {
-	return &DiscardEmitter{}
-}
-
-// DiscardEmitter discards all events
-type DiscardEmitter struct {
-}
-
-// EmitAuditEvent discards audit event
-func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding event: %v", event)
-	return nil
-}
-
-// CreateAuditStream creates a stream that discards all events
-func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	return &DiscardStream{}, nil
-}
-
-// ResumeAuditStream resumes a stream that discards all events
-func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	return &DiscardStream{}, nil
 }
 
 // NewWriterEmitter returns a new instance of emitter writing to writer
@@ -558,9 +499,8 @@ func (t *TeeStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEve
 		errors = append(errors, err)
 	}
 	// Forward session events except the ones that pollute global logs
-	// terminal resize, print, disk access and app session request events.
 	switch event.GetType() {
-	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
+	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, DesktopRecordingEvent, "":
 		return trace.NewAggregate(errors...)
 	}
 	if err := t.emitter.EmitAuditEvent(ctx, event); err != nil {

@@ -27,16 +27,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api"
-	"github.com/gravitational/teleport/build.assets/gomod"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/mod/modfile"
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/build.assets/gomod"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func init() {
@@ -52,10 +52,17 @@ func main() {
 		buildFlags = os.Args[1:]
 	}
 
-	// the api module import path should only be updated on releases
-	newVersion := semver.New(api.Version)
-	if newVersion.PreRelease != "" {
-		exitWithMessage("the current API version (%v) is not a release, continue without updating", newVersion)
+	newVersion, err := semver.NewVersion(api.Version)
+	if err != nil {
+		exitWithError(trace.Wrap(err, "invalid semver version"), nil)
+	}
+
+	// check the version's prelease section, and exit if it is a
+	// non beta/alpha pre release.
+	switch newVersion.PreRelease.Slice()[0] {
+	case "", "alpha", "beta":
+	default:
+		exitWithMessage("the current API version (%v) is not a release or alpha/beta pre-release, continue without updating", newVersion)
 	}
 
 	// get the current api module import path

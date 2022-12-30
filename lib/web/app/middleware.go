@@ -21,10 +21,10 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // withRouterAuth authenticates requests then hands the request to a
@@ -65,6 +65,12 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 // address of the proxy is set.
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
 	if h.c.WebPublicAddr == "" {
+		// The error below tends to be swallowed by the Web UI, so log a warning for
+		// admins as well.
+		h.log.Error("" +
+			"Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
+			"Please contact your Teleport cluster administrator or refer to " +
+			"https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service.")
 		return trace.BadParameter("public address of the proxy is not set")
 	}
 	addr, err := utils.ParseAddr(r.Host)
@@ -84,6 +90,9 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	if p.awsRole != "" {
 		urlQuery.Add("awsrole", p.awsRole)
 	}
+	if p.path != "" {
+		urlQuery.Add("path", p.path)
+	}
 
 	u := url.URL{
 		Scheme:   "https",
@@ -100,6 +109,7 @@ type launcherURLParams struct {
 	publicAddr  string
 	stateToken  string
 	awsRole     string
+	path        string
 }
 
 // makeRouterHandler creates a httprouter.Handle.

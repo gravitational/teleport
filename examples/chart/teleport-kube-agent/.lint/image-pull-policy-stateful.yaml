@@ -1,0 +1,7 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster-name
+storage:
+  enabled: true
+  storageClassName: "aws-gp2"
+imagePullPolicy: Always

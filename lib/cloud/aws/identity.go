@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-
 	"github.com/gravitational/trace"
 )
 
@@ -37,6 +36,8 @@ type Identity interface {
 	GetAccountID() string
 	// GetPartition returns the AWS partition the identity resides in.
 	GetPartition() string
+	// GetType returns the identity resource type.
+	GetType() string
 	// Stringer provides textual representation of identity.
 	fmt.Stringer
 }
@@ -84,6 +85,11 @@ func (i identityBase) GetPartition() string {
 	return i.arn.Partition
 }
 
+// GetType returns the identity resource type.
+func (i identityBase) GetType() string {
+	return strings.Split(i.arn.Resource, "/")[0]
+}
+
 // String returns the AWS identity ARN.
 func (i identityBase) String() string {
 	return i.arn.String()
@@ -96,10 +102,17 @@ func GetIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (Iden
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parsedARN, err := arn.Parse(aws.StringValue(out.Arn))
+
+	return IdentityFromArn(aws.StringValue(out.Arn))
+}
+
+// IdentityFromArn returns an `Identity` interface based on the provided ARN.
+func IdentityFromArn(arnString string) (Identity, error) {
+	parsedARN, err := arn.Parse(arnString)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	parts := strings.Split(parsedARN.Resource, "/")
 	switch parts[0] {
 	case "role", "assumed-role":
@@ -115,6 +128,7 @@ func GetIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (Iden
 			},
 		}, nil
 	}
+
 	return Unknown{
 		identityBase: identityBase{
 			arn: parsedARN,

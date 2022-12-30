@@ -136,6 +136,3 @@ func (s *Wrapper) CloseWatchers() {
 func (s *Wrapper) Clock() clockwork.Clock {
 	return s.backend.Clock()
 }
-
-// Migrate runs the necessary data migrations for this backend.
-func (s *Wrapper) Migrate(ctx context.Context) error { return s.backend.Migrate(ctx) }

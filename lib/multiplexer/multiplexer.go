@@ -20,25 +20,34 @@ limitations under the License.
 // mux, _ := multiplexer.New(Config{Listener: listener})
 // mux.SSH() // returns listener getting SSH connections
 // mux.TLS() // returns listener getting TLS connections
-//
 package multiplexer
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+type CertAuthorityGetter interface {
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+}
 
 // Config is a multiplexer config
 type Config struct {
@@ -52,10 +61,14 @@ type Config struct {
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
-	// EnableProxyProtocol enables proxy protocol
-	EnableProxyProtocol bool
+	// EnableExternalProxyProtocol enables proxy protocol from external (unsigned) sources
+	EnableExternalProxyProtocol bool
 	// ID is an identifier used for debugging purposes
 	ID string
+	// CertAuthorityGetter is used to get CA to verify singed PROXY headers sent internally by teleport
+	CertAuthorityGetter CertAuthorityGetter
+	// LocalClusterName set the local cluster for the multiplexer, it's used in PROXY headers verification.
+	LocalClusterName string
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -100,14 +113,13 @@ type Mux struct {
 	sync.RWMutex
 	*log.Entry
 	Config
-	listenerClosed bool
-	sshListener    *Listener
-	tlsListener    *Listener
-	dbListener     *Listener
-	context        context.Context
-	cancel         context.CancelFunc
-	waitContext    context.Context
-	waitCancel     context.CancelFunc
+	sshListener *Listener
+	tlsListener *Listener
+	dbListener  *Listener
+	context     context.Context
+	cancel      context.CancelFunc
+	waitContext context.Context
+	waitCancel  context.CancelFunc
 }
 
 // SSH returns listener that receives SSH connections
@@ -140,12 +152,6 @@ func (m *Mux) DB() net.Listener {
 	return m.dbListener
 }
 
-func (m *Mux) isClosed() bool {
-	m.RLock()
-	defer m.RUnlock()
-	return m.listenerClosed
-}
-
 func (m *Mux) closeListener() {
 	m.Lock()
 	defer m.Unlock()
@@ -154,10 +160,6 @@ func (m *Mux) closeListener() {
 	if m.Listener == nil {
 		return
 	}
-	if m.listenerClosed {
-		return
-	}
-	m.listenerClosed = true
 	m.Listener.Close()
 }
 
@@ -178,9 +180,6 @@ func (m *Mux) Wait() {
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
 	defer m.waitCancel()
-	backoffTimer := time.NewTicker(5 * time.Second)
-	defer backoffTimer.Stop()
-
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
@@ -191,14 +190,15 @@ func (m *Mux) Serve() error {
 			go m.detectAndForward(conn)
 			continue
 		}
-		if m.isClosed() {
+		if utils.IsUseOfClosedNetworkError(err) {
+			<-m.context.Done()
 			return nil
 		}
 		select {
-		case <-backoffTimer.C:
-			m.Debugf("backoff on accept error: %v", trace.DebugReport(err))
 		case <-m.context.Done():
 			return nil
+		case <-time.After(5 * time.Second):
+			m.WithError(err).Debugf("Backoff on accept error.")
 		}
 	}
 }
@@ -230,7 +230,8 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	connWrapper, err := detect(conn, m.EnableProxyProtocol)
+
+	connWrapper, err := m.detect(conn)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
 			m.Warning(trace.DebugReport(err))
@@ -255,38 +256,92 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	select {
-	case listener.connC <- connWrapper:
-	case <-m.context.Done():
-		connWrapper.Close()
+	listener.HandleConnection(m.context, connWrapper)
+}
+
+type PROXYSigner interface {
+	SignPROXY(p jwt.PROXYSignParams) (string, error)
+}
+
+func getTCPAddr(a net.Addr) net.TCPAddr {
+	addr, ok := a.(*net.TCPAddr)
+	if ok { // Hot path
+		return *addr
+	}
+
+	parsedAddr := utils.FromAddr(a)
+	return net.TCPAddr{
+		IP:   net.ParseIP(parsedAddr.Host()),
+		Port: parsedAddr.Port(-1),
 	}
 }
 
-func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
+func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer PROXYSigner) ([]byte, error) {
+	sAddr := getTCPAddr(sourceAddress)
+	dAddr := getTCPAddr(destinationAddress)
+	if sAddr.Port < 0 || dAddr.Port < 0 {
+		return nil, trace.BadParameter("could not parse port (source:%q, destination: %q)",
+			sourceAddress.String(), destinationAddress.String())
+	}
+
+	signature, err := signer.SignPROXY(jwt.PROXYSignParams{
+		SourceAddress:      sourceAddress.String(),
+		DestinationAddress: destinationAddress.String(),
+		ClusterName:        clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "could not sign jwt token for PROXY line")
+	}
+
+	protocol := TCP4
+	if sAddr.IP.To4() == nil {
+		protocol = TCP6
+	}
+	pl := ProxyLine{
+		Protocol:    protocol,
+		Source:      sAddr,
+		Destination: dAddr,
+	}
+	err = pl.AddSignature([]byte(signature), signingCert)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not add signature to proxy line")
+	}
+
+	b, err := pl.Bytes()
+	if err != nil {
+		return nil, trace.Wrap(err, "could not get bytes from proxy line")
+	}
+
+	return b, nil
+}
+
+// maxDetectionPasses sets Maximum amount of passes to detect final protocol to account
+// for 1 unsigned header, 1 signed header and the final protocol itself
+const maxDetectionPasses = 3
+
+// detect finds out a type of the connection and returns wrapper that support PROXY protocol
+// We pass `casGetter` as function instead of certs themselves, so it could be called only if it's needed.
+func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	reader := bufio.NewReader(conn)
 
-	// the first attempt is to parse optional proxy
-	// protocol line that is injected by load balancers
-	// before actual protocol traffic flows.
-	// if the first attempt encounters proxy it
-	// goes to the second pass to do protocol detection
+	// Before actual protocol traffic flows, we try to parse optional PROXY protocol headers,
+	// that can be injected by load balancers or our own proxies. There can be multiple PROXY
+	// headers. After they are parsed, last pass does the actual protocol detection itself.
+	// We allow only one unsigned PROXY header from external sources, if it's enabled, and one
+	// signed header from our own proxies, which take precedence.
 	var proxyLine *ProxyLine
-	for i := 0; i < 2; i++ {
-		bytes, err := reader.Peek(8)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to peek connection")
-		}
-
-		proto, err := detectProto(bytes)
+	for i := 0; i < maxDetectionPasses; i++ {
+		proto, err := detectProto(reader)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		switch proto {
 		case ProtoProxy:
-			if !enableProxyProtocol {
+			if !m.EnableExternalProxyProtocol {
 				return nil, trace.BadParameter("proxy protocol support is disabled")
 			}
+			// We allow only one unsigned proxy line
 			if proxyLine != nil {
 				return nil, trace.BadParameter("duplicate proxy line")
 			}
@@ -294,6 +349,54 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			// repeat the cycle to detect the protocol
+		case ProtoProxyV2:
+			newProxyLine, err := ReadProxyLineV2(reader)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
+			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {
+				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
+				if err != nil && !errors.Is(err, ErrNonLocalCluster) {
+					return nil, trace.Wrap(err, "could not verify PROXY signature")
+				}
+			}
+
+			// If proxy line is signed and successfully verified and there's no already signed proxy header,
+			// we accept, otherwise reject
+			if newProxyLine.IsVerified {
+				if proxyLine != nil && proxyLine.IsVerified {
+					return nil, trace.BadParameter("duplicate signed proxy line")
+				}
+
+				proxyLine = newProxyLine
+				continue
+			}
+
+			// TODO(anton): fail instead of ignoring when we add full propagation infrastructure.
+			// If proxy line was signed but was not successfully verified we ignore it
+			if m.CertAuthorityGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
+				continue
+			}
+
+			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
+			if !m.EnableExternalProxyProtocol {
+				return nil, trace.BadParameter("external proxy protocol support is disabled")
+			}
+
+			// If current proxy line was signed and verified, it takes precedence over new not signed proxy line
+			if proxyLine != nil && proxyLine.IsVerified {
+				continue
+			}
+
+			// We allow only one unsigned proxy line
+			if proxyLine != nil {
+				return nil, trace.BadParameter("duplicate unsigned proxy line")
+			}
+
+			proxyLine = newProxyLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP:
 			return &Conn{
@@ -326,6 +429,8 @@ const (
 	ProtoSSH
 	// ProtoProxy is a HAProxy proxy line protocol
 	ProtoProxy
+	// ProtoProxyV2 is a HAProxy binary protocol
+	ProtoProxyV2
 	// ProtoHTTP is HTTP protocol
 	ProtoHTTP
 	// ProtoPostgres is PostgreSQL wire protocol
@@ -338,6 +443,7 @@ var protocolStrings = map[Protocol]string{
 	ProtoTLS:      "TLS",
 	ProtoSSH:      "SSH",
 	ProtoProxy:    "Proxy",
+	ProtoProxyV2:  "ProxyV2",
 	ProtoHTTP:     "HTTP",
 	ProtoPostgres: "Postgres",
 }
@@ -349,9 +455,11 @@ func (p Protocol) String() string {
 }
 
 var (
-	proxyPrefix = []byte{'P', 'R', 'O', 'X', 'Y'}
-	sshPrefix   = []byte{'S', 'S', 'H'}
-	tlsPrefix   = []byte{0x16}
+	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
+	proxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	sshPrefix        = []byte{'S', 'S', 'H'}
+	tlsPrefix        = []byte{0x16}
+	proxyHelloPrefix = []byte(sshutils.ProxyHelloSignature)
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -368,45 +476,81 @@ var (
 	// separate plain connection, but we're detecting it anyway so it at
 	// least appears in the logs as "unsupported" for debugging.
 	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
+	// postgresGSSEncRequest is sent first by a Postgres client
+	// to check whether the server supports GSS encryption.
+	// It is currently unsupported and our postgres engine will always respond 'N'
+	// for "not supported".
+	postgresGSSEncRequest = []byte{0x0, 0x0, 0x0, 0x8, 0x4, 0xd2, 0x16, 0x30}
 )
 
-// isHTTP returns true if the first 3 bytes of the prefix indicate
+var httpMethods = [...][]byte{
+	[]byte("GET"),
+	[]byte("POST"),
+	[]byte("PUT"),
+	[]byte("DELETE"),
+	[]byte("HEAD"),
+	[]byte("CONNECT"),
+	[]byte("OPTIONS"),
+	[]byte("TRACE"),
+	[]byte("PATCH"),
+}
+
+// isHTTP returns true if the first few bytes of the prefix indicate
 // the use of an HTTP method.
 func isHTTP(in []byte) bool {
-	methods := [...][]byte{
-		[]byte("GET"),
-		[]byte("POST"),
-		[]byte("PUT"),
-		[]byte("DELETE"),
-		[]byte("HEAD"),
-		[]byte("CONNECT"),
-		[]byte("OPTIONS"),
-		[]byte("TRACE"),
-		[]byte("PATCH"),
-	}
-	for _, verb := range methods {
-		// we only get 3 bytes, so can only compare the first 3 bytes of each verb
-		if bytes.HasPrefix(verb, in[:3]) {
+	for _, verb := range httpMethods {
+		if bytes.HasPrefix(in, verb) {
 			return true
 		}
 	}
 	return false
 }
 
-func detectProto(in []byte) (Protocol, error) {
+// detectProto tries to determine the network protocol used from the first
+// few bytes of a connection.
+func detectProto(r *bufio.Reader) (Protocol, error) {
+	// read the first 8 bytes without advancing the reader, some connections
+	// won't send more than 8 bytes at first
+	in, err := r.Peek(8)
+	if err != nil {
+		return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+	}
+
 	switch {
-	// reader peeks only 3 bytes, slice the longer proxy prefix
-	case bytes.HasPrefix(in, proxyPrefix[:3]):
+	case bytes.HasPrefix(in, proxyPrefix):
 		return ProtoProxy, nil
+	case bytes.HasPrefix(in, proxyV2Prefix[:8]):
+		// if the first 8 bytes matches the first 8 bytes of the proxy
+		// protocol v2 magic bytes, read more of the connection so we can
+		// ensure all magic bytes match
+		in, err = r.Peek(len(proxyV2Prefix))
+		if err != nil {
+			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+		}
+		if bytes.HasPrefix(in, proxyV2Prefix) {
+			return ProtoProxyV2, nil
+		}
+	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
+		// Support for SSH connections opened with the ProxyHelloSignature for
+		// Teleport to Teleport connections.
+		in, err = r.Peek(len(proxyHelloPrefix))
+		if err != nil {
+			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+		}
+		if bytes.HasPrefix(in, proxyHelloPrefix) {
+			return ProtoSSH, nil
+		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):
 		return ProtoTLS, nil
 	case isHTTP(in):
 		return ProtoHTTP, nil
-	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
+	case bytes.HasPrefix(in, postgresSSLRequest),
+		bytes.HasPrefix(in, postgresCancelRequest),
+		bytes.HasPrefix(in, postgresGSSEncRequest):
 		return ProtoPostgres, nil
-	default:
-		return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
 	}
+
+	return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
 }

@@ -18,18 +18,16 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // NewWriterLog returns a new instance of writer log
@@ -55,36 +53,6 @@ func (w *WriterLog) Close() error {
 	return w.w.Close()
 }
 
-// EmitAuditEventLegacy emits audit event
-func (w *WriterLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	err := UpdateEventFields(event, fields, w.clock, w.newUID)
-	if err != nil {
-		log.Error(err)
-		// even in case of error, prefer to log incomplete event
-		// rather than to log nothing
-	}
-	// line is the text to be logged
-	line, err := json.Marshal(fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.w.Write(line)
-	return trace.ConvertSystemError(err)
-}
-
-// DELETE IN: 2.7.0
-// This method is no longer necessary as nodes and proxies >= 2.7.0
-// use UploadSessionRecording method.
-// PostSessionSlice sends chunks of recorded session to the event log
-func (w *WriterLog) PostSessionSlice(SessionSlice) error {
-	return trace.NotImplemented("not implemented")
-}
-
-// UploadSessionRecording uploads session recording to the audit server
-func (w *WriterLog) UploadSessionRecording(r SessionRecording) error {
-	return trace.NotImplemented("not implemented")
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.
@@ -97,10 +65,7 @@ func (w *WriterLog) GetSessionChunk(namespace string, sid session.ID, offsetByte
 // Returns all events that happen during a session sorted by time
 // (oldest first).
 //
-// after tells to use only return events after a specified cursor Id
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+// after is used to return events after a specified cursor ID
 func (w *WriterLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
@@ -117,26 +82,20 @@ func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eve
 }
 
 // SearchSessionEvents is a flexible way to find session events.
-// Only session.end events are returned by this function.
+// Only session.end and windows.desktop.session.end events are returned by this function.
 // This is used to find completed sessions.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
 	return nil, "", trace.NotImplemented("not implemented")
 }
 
-// WaitForDelivery waits for resources to be released and outstanding requests to
-// complete after calling Close method
-func (w *WriterLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (w *WriterLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented(loggerClosedMessage)
+	e <- trace.NotImplemented("not implemented")
 	return c, e
 }

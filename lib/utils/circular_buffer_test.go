@@ -25,6 +25,8 @@ import (
 )
 
 func TestNewCircularBuffer(t *testing.T) {
+	t.Parallel()
+
 	buff, err := NewCircularBuffer(-1)
 	require.Error(t, err)
 	require.Nil(t, buff)
@@ -36,6 +38,8 @@ func TestNewCircularBuffer(t *testing.T) {
 }
 
 func TestCircularBuffer_Data(t *testing.T) {
+	t.Parallel()
+
 	buff, err := NewCircularBuffer(5)
 	require.NoError(t, err)
 

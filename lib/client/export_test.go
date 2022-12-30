@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,14 +14,5 @@
 
 package client
 
-// PasswordFromConsoleFn exports passwordFromConsoleFn for tests.
-var PasswordFromConsoleFn = &passwordFromConsoleFn
-
-// PromptOTP exports promptOTP for tests.
-var PromptOTP = &promptOTP
-
-// PromptU2F exports promptU2F for tests.
-var PromptU2F = &promptU2F
-
-// PromptWebauthn exports promptWebauthn for tests.
-var PromptWebauthn = &promptWebauthn
+var DTAuthnRunCeremony = &dtAuthnRunCeremony
+var HasTouchIDCredentials = &hasTouchIDCredentials
