@@ -399,6 +399,8 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
   ];
+  // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+  string ExternalID = 10 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
 
 // SecretStore contains secret store configurations.
