@@ -28,7 +28,7 @@ const (
 	// the default release server address
 	ReleaseServerEnvVar = "RELEASE_SERVER_HOSTPORT"
 
-	// enterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
+	// EnterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
 	// releases on the release server
 	EnterpriseReleaseEndpoint = "teleport-ent"
 
