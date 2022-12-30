@@ -152,8 +152,8 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		log.Infof("Negotiated protocol %v.", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
-		conn.Close()
-		return nil, trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
+		err = trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
+		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
 	// count the streams client asked for, starting with 1
@@ -176,8 +176,7 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 
 	proxy, err := handler.waitForStreams(ctx, streamCh, expectedStreams, expired.C)
 	if err != nil {
-		conn.Close()
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
 	proxy.conn = conn
@@ -201,6 +200,10 @@ type remoteCommandProxy struct {
 func (s *remoteCommandProxy) Close() error {
 	if s.conn != nil {
 		return s.conn.Close()
+	}
+	// if resize queue is available release its goroutines to prevent stream leaks.
+	if s.resizeQueue != nil {
+		s.resizeQueue.Close()
 	}
 	return nil
 }
@@ -303,7 +306,7 @@ func (t *termQueue) Next() *remotecommand.TerminalSize {
 	}
 }
 
-func (t *termQueue) Done() {
+func (t *termQueue) Close() {
 	t.cancel()
 }
 
