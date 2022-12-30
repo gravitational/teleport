@@ -1689,6 +1689,47 @@ TODO(lxea): replace links with actual docs once merged
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
+## Documentation
+
+Checks should be performed on the version of documentation corresponding to the
+major release we're testing for. For example, for Teleport 12 release use
+`branch/v12` branch and make sure to select "Version 12.0" in the documentation
+version switcher.
+
+- [ ] Verify installation instructions are accurate:
+  - [ ] Self-hosted: https://goteleport.com/docs/installation
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/downloads/?scope=cloud
+
+- [ ] Verify getting started instructions are accurate:
+  - [ ] OSS: https://goteleport.com/docs/deploy-a-cluster/open-source/
+  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/?scope=cloud
+  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/?scope=enterprise
+
+- [ ] Verify upcoming releases page is accurate:
+  - [ ] https://goteleport.com/docs/preview/upcoming-releases/?scope=enterprise
+  - [ ] Only exists for the default docs version.
+
+- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release:
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1128
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1176-L1186
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1146-L1153
+
+- [ ] Verify that all necessary documentation for the release was backported to release branch:
+  - [ ] Diff between master and release branch and make sure there are no missed PRs
+
+- [ ] Verify deprecated Teleport versions are added to the older versions page
+  - [ ] https://goteleport.com/docs/older-versions/
+
+- [ ] Verify `gravitational/docs` version configuration:
+  - [ ] Verify latest version in `gravitational/docs/config.json`
+  - [ ] Verify `gravitational/docs/.gitmodules` contains latest release
+
+- [ ] Verify changelog is up-to-date and complete for the default docs version:
+  - [ ] https://goteleport.com/docs/changelog/
+
+- [ ] Verify supported versions table in FAQ:
+  - [ ] https://goteleport.com/docs/faq/#supported-versions
 
 ## Resources
 
