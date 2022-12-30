@@ -11,7 +11,7 @@ on:
       - '/go.sum'
       - 'operator/**'
       - 'api/types/**'
-      - 'lib/tbot/**
+      - 'lib/tbot/**'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
 
