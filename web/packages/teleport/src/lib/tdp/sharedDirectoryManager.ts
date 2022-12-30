@@ -153,8 +153,8 @@ export class SharedDirectoryManager {
     }
 
     const file = await fileHandle.createWritable({ keepExistingData: true });
-    file.write({ type: 'write', position: Number(offset), data });
-    file.close(); // Needed to actually write data to disk.
+    await file.write({ type: 'write', position: Number(offset), data });
+    await file.close(); // Needed to actually write data to disk.
 
     return data.length;
   }
