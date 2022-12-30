@@ -18,7 +18,9 @@ package prehog.v1alpha;
 
 import "google/protobuf/timestamp.proto";
 
-message ConnectLoginEvent {
+option go_package = "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha";
+
+message ConnectUserLoginEvent {
   // anonymized
   string cluster_name = 1;
   // anonymized
@@ -29,7 +31,7 @@ message ConnectLoginEvent {
   string connect_version = 6;
 }
 
-message ConnectProtocolRunEvent {
+message ConnectProtocolUseEvent {
   // anonymized
   string cluster_name = 1;
   // anonymized
@@ -75,19 +77,20 @@ message ConnectUserJobRoleUpdateEvent {
 }
 
 message SubmitConnectEventRequest {
-  // "connect.{{uuid}}"
+  // UUID
   string distinct_id = 1;
 
+  // optional, will default to the ingest time if unset
   google.protobuf.Timestamp timestamp = 2;
 
   oneof event {
-    ConnectLoginEvent connect_login = 3;
-    ConnectProtocolRunEvent connect_protocol_run = 4;
-    ConnectAccessRequestCreateEvent connect_access_request_create = 5;
-    ConnectAccessRequestReviewEvent connect_access_request_review = 6;
-    ConnectAccessRequestAssumeRoleEvent connect_access_request_assume_role = 7;
-    ConnectFileTransferRunEvent connect_file_transfer_run_event = 8;
-    ConnectUserJobRoleUpdateEvent connect_user_job_role_update_event = 9;
+    ConnectUserLoginEvent user_login = 3;
+    ConnectProtocolUseEvent protocol_use = 4;
+    ConnectAccessRequestCreateEvent access_request_create = 5;
+    ConnectAccessRequestReviewEvent access_request_review = 6;
+    ConnectAccessRequestAssumeRoleEvent access_request_assume_role = 7;
+    ConnectFileTransferRunEvent file_transfer_run = 8;
+    ConnectUserJobRoleUpdateEvent user_job_role_update = 9;
   }
 }
 

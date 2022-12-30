@@ -340,14 +340,14 @@ interface ITerminalServiceService_ITransferFile extends grpc.MethodDefinition<v1
     responseSerialize: grpc.serialize<v1_service_pb.FileTransferProgress>;
     responseDeserialize: grpc.deserialize<v1_service_pb.FileTransferProgress>;
 }
-interface ITerminalServiceService_IReportEvent extends grpc.MethodDefinition<v1_usage_events_pb.ReportEventRequest, v1_usage_events_pb.EventReportedResponse> {
+interface ITerminalServiceService_IReportEvent extends grpc.MethodDefinition<v1_usage_events_pb.ReportUsageEventRequest, v1_service_pb.EmptyResponse> {
     path: "/teleport.terminal.v1.TerminalService/ReportEvent";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<v1_usage_events_pb.ReportEventRequest>;
-    requestDeserialize: grpc.deserialize<v1_usage_events_pb.ReportEventRequest>;
-    responseSerialize: grpc.serialize<v1_usage_events_pb.EventReportedResponse>;
-    responseDeserialize: grpc.deserialize<v1_usage_events_pb.EventReportedResponse>;
+    requestSerialize: grpc.serialize<v1_usage_events_pb.ReportUsageEventRequest>;
+    requestDeserialize: grpc.deserialize<v1_usage_events_pb.ReportUsageEventRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
 }
 
 export const TerminalServiceService: ITerminalServiceService;
@@ -385,7 +385,7 @@ export interface ITerminalServiceServer {
     loginPasswordless: grpc.handleBidiStreamingCall<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
     logout: grpc.handleUnaryCall<v1_service_pb.LogoutRequest, v1_service_pb.EmptyResponse>;
     transferFile: grpc.handleServerStreamingCall<v1_service_pb.FileTransferRequest, v1_service_pb.FileTransferProgress>;
-    reportEvent: grpc.handleUnaryCall<v1_usage_events_pb.ReportEventRequest, v1_usage_events_pb.EventReportedResponse>;
+    reportEvent: grpc.handleUnaryCall<v1_usage_events_pb.ReportUsageEventRequest, v1_service_pb.EmptyResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -484,9 +484,9 @@ export interface ITerminalServiceClient {
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     transferFile(request: v1_service_pb.FileTransferRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
     transferFile(request: v1_service_pb.FileTransferRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
-    reportEvent(request: v1_usage_events_pb.ReportEventRequest, callback: (error: grpc.ServiceError | null, response: v1_usage_events_pb.EventReportedResponse) => void): grpc.ClientUnaryCall;
-    reportEvent(request: v1_usage_events_pb.ReportEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_usage_events_pb.EventReportedResponse) => void): grpc.ClientUnaryCall;
-    reportEvent(request: v1_usage_events_pb.ReportEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_usage_events_pb.EventReportedResponse) => void): grpc.ClientUnaryCall;
+    reportEvent(request: v1_usage_events_pb.ReportUsageEventRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    reportEvent(request: v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    reportEvent(request: v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -585,7 +585,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public transferFile(request: v1_service_pb.FileTransferRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
     public transferFile(request: v1_service_pb.FileTransferRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
-    public reportEvent(request: v1_usage_events_pb.ReportEventRequest, callback: (error: grpc.ServiceError | null, response: v1_usage_events_pb.EventReportedResponse) => void): grpc.ClientUnaryCall;
-    public reportEvent(request: v1_usage_events_pb.ReportEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_usage_events_pb.EventReportedResponse) => void): grpc.ClientUnaryCall;
-    public reportEvent(request: v1_usage_events_pb.ReportEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_usage_events_pb.EventReportedResponse) => void): grpc.ClientUnaryCall;
+    public reportEvent(request: v1_usage_events_pb.ReportUsageEventRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public reportEvent(request: v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public reportEvent(request: v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
 }

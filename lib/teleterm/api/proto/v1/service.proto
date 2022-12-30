@@ -126,7 +126,7 @@ service TerminalService {
   // TransferFile sends a request to download/upload a file
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
   // ReportEvent sends usage event
-  rpc ReportEvent(ReportEventRequest) returns (EventReportedResponse);
+  rpc ReportEvent(ReportUsageEventRequest) returns (EmptyResponse);
 }
 
 message EmptyResponse {}

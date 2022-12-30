@@ -21,10 +21,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (h *Handler) ReportEvent(ctx context.Context, req *api.ReportEventRequest) (*api.EventReportedResponse, error) {
+func (h *Handler) ReportEvent(ctx context.Context, req *api.ReportUsageEventRequest) (*api.EmptyResponse, error) {
 	if err := h.DaemonService.ReportUsageEvent(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.EventReportedResponse{}, nil
+	return &api.EmptyResponse{}, nil
 }
