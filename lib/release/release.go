@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClientConfig contains configuration for the release client
@@ -121,7 +122,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 				OS:          a.OS,
 				SHA256:      a.SHA256,
 				AssetSize:   a.Size,
-				DisplaySize: byteCount(a.Size),
+				DisplaySize: utils.ByteCount(a.Size),
 				ReleaseIDs:  a.ReleaseIDs,
 				PublicURL:   a.PublicURL,
 			})
@@ -138,21 +139,6 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	}
 
 	return responseReleases, err
-}
-
-// byteCount converts a size in bytes to a human-readable string.
-func byteCount(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 // GetServerAddr returns the release server address from the environment
