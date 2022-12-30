@@ -4,6 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
       # Deprecated APIs, requires manual changes.
       # TODO(xacrimon): Update Firestore and solve deprecations.
@@ -43,6 +45,8 @@ updates:
     directory: "/api"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
       # TODO(codingllama): Allow /x/crypto updates after upstream patch.
       - dependency-name: golang.org/x/crypto
@@ -58,6 +62,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
@@ -68,6 +74,8 @@ updates:
     directory: "/lib/srv/desktop/rdp/rdpclient"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
