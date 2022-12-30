@@ -132,7 +132,7 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 
 	if err := conn.Handshake(); err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			l.log.WithError(err).Debug("Handshake failed.")
+			l.log.WithError(err).Warn("Handshake failed.")
 		}
 		conn.Close()
 		return
