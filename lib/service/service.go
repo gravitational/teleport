@@ -951,6 +951,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		ServerID: cfg.HostUUID,
 		Version:  teleport.Version,
 		Services: process.getInstanceRoles(),
+		Hostname: cfg.Hostname,
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
