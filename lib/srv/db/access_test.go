@@ -1973,6 +1973,8 @@ type agentParams struct {
 	GCPSQL *mocks.GCPSQLAdminClientMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
+	// CADownloader defines the CA downloader.
+	CADownloader CADownloader
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
 	// AWSMatchers is a list of AWS databases matchers.
@@ -1994,6 +1996,11 @@ func (p *agentParams) setDefaults(c *testContext) {
 					},
 				},
 			},
+		}
+	}
+	if p.CADownloader == nil {
+		p.CADownloader = &fakeDownloader{
+			cert: []byte(fixtures.TLSCACertPEM),
 		}
 	}
 
@@ -2072,9 +2079,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 				Emitter: c.emitter,
 			})
 		},
-		CADownloader: &fakeDownloader{
-			cert: []byte(fixtures.TLSCACertPEM),
-		},
+		CADownloader:  p.CADownloader,
 		OnReconcile:   p.OnReconcile,
 		LockWatcher:   lockWatcher,
 		CloudClients:  p.CloudClients,
