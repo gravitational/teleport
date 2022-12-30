@@ -60,8 +60,6 @@ func MakeTestClient(_ context.Context, config common.TestClientConfig, opts ...C
 		}}),
 		Region: aws.String("local"),
 	}))
-	httpClient := http.DefaultClient
-	httpClient.Timeout = 5 * time.Second
 	dynamoClient := dynamodb.New(provider, &aws.Config{
 		Endpoint:   aws.String("http://" + config.Address),
 		MaxRetries: aws.Int(0), // disable automatic retries in tests
