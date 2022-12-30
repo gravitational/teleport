@@ -30,6 +30,7 @@ import (
 	mathrand "math/rand"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -2343,6 +2344,24 @@ func TestAddMFADeviceSync(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:       "invalid device name length",
+			deviceName: strings.Repeat("A", mfaDeviceNameMaxLen+1),
+			wantErr:    true,
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
+				require.NoError(t, err)
+
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					TokenID:        privExToken.GetName(),
+					NewDeviceName:  deviceName,
+					NewMFAResponse: webauthnRes,
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -2350,7 +2369,8 @@ func TestAddMFADeviceSync(t *testing.T) {
 			res, err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
 			switch {
 			case tc.wantErr:
-				require.True(t, trace.IsAccessDenied(err))
+				expectedErr := trace.IsAccessDenied(err) || trace.IsBadParameter(err)
+				require.True(t, expectedErr)
 			default:
 				require.NoError(t, err)
 				require.Equal(t, tc.deviceName, res.GetDevice().GetName())

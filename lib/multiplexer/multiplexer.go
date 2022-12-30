@@ -293,8 +293,12 @@ func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterNam
 		return nil, trace.Wrap(err, "could not sign jwt token for PROXY line")
 	}
 
+	protocol := TCP4
+	if sAddr.IP.To4() == nil {
+		protocol = TCP6
+	}
 	pl := ProxyLine{
-		Protocol:    TCP4,
+		Protocol:    protocol,
 		Source:      sAddr,
 		Destination: dAddr,
 	}

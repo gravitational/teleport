@@ -18,18 +18,30 @@ package db
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestInitCACert verifies automatic download of root certs for cloud databases.
@@ -206,24 +218,161 @@ func TestInitCACertCaching(t *testing.T) {
 
 	// Initialize RDS cert for the first time.
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
-	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
+	require.Equal(t, int64(1), databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 
 	// Reset it and initialize again, it should already be downloaded.
 	rds.SetStatusCA("")
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
-	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
+	require.Equal(t, int64(2), databaseServer.cfg.CADownloader.(*fakeDownloader).count)
+}
+
+// TestUpdateCACerts given a cloud-hosted database, update the cached CA files
+// when the CA version changes.
+func TestUpdateCACerts(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	rds, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+
+	initialCA := generateDatabaseCA(t)
+	caDownloader := &fakeDownloader{
+		cert:    initialCA,
+		version: []byte("initial"),
+	}
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:    []types.Database{rds},
+		NoStart:      true,
+		CADownloader: caDownloader,
+	})
+
+	// Initialize the CA certs as normal.
+	require.NoError(t, databaseServer.initCACert(ctx, rds))
+	require.Equal(t, string(initialCA), rds.GetStatusCA())
+
+	// Change CA version and content in the downloader.
+	updatedCA := generateDatabaseCA(t)
+	caDownloader.cert = updatedCA
+	caDownloader.version = []byte("second-version")
+
+	// Trigger the update.
+	newCAContents, err := databaseServer.getCACerts(ctx, rds)
+	require.NoError(t, err)
+	require.Equal(t, updatedCA, newCAContents)
+
+	// Fetch CA certificate from the cached files.
+	cached, err := databaseServer.getCACerts(ctx, rds)
+	require.NoError(t, err)
+	require.Equal(t, updatedCA, cached)
+}
+
+// TestCARenewer given a list of started databases, renew their CA every 24 hour
+// ensuring only the CA that have changed contents are updated.
+func TestCARenewer(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	rds, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+
+	initialCA := generateDatabaseCA(t)
+	caDownloader := &fakeDownloader{
+		cert:    initialCA,
+		version: []byte("initial"),
+	}
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:    []types.Database{rds},
+		NoStart:      true,
+		CADownloader: caDownloader,
+	})
+
+	// Initialize the CA certs as normal.
+	require.NoError(t, databaseServer.initCACert(ctx, rds))
+	require.Equal(t, string(initialCA), rds.GetStatusCA())
+
+	// Start the database CA renewer.
+	renewerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	caRenewerChan := make(chan struct{})
+	go func() {
+		databaseServer.startCARenewer(renewerCtx)
+		caRenewerChan <- struct{}{}
+	}()
+
+	// Change CA version and content in the downloader.
+	updatedCA := generateDatabaseCA(t)
+	caDownloader.cert = updatedCA
+	caDownloader.version = []byte("second-version")
+
+	// Trigger the CA renews by advancing in time.
+	testCtx.clock.Advance(caRenewInterval)
+
+	// Check if the database status CA is updated with new contents.
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt64(&caDownloader.count) == 2
+	}, 5*time.Second, time.Second, "failed to wait the CA download")
+
+	// Advance another time to trigger another renew.
+	testCtx.clock.Advance(caRenewInterval)
+
+	// Wait until renewer is gone to check database CA contents. This avoids,
+	// test race condition.
+	cancel()
+	require.Eventually(t, func() bool {
+		select {
+		case <-caRenewerChan:
+			return true
+		default:
+			return false
+		}
+	}, 5*time.Second, time.Second, "failed waiting CA renewer to stop")
+
+	// Assert download counts and database CA contents.
+	require.Equal(t, string(updatedCA), rds.GetStatusCA())
+	require.Equal(t, int64(2), atomic.LoadInt64(&caDownloader.count))
+}
+
+func generateDatabaseCA(t *testing.T) []byte {
+	t.Helper()
+	_, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+	return caCert
 }
 
 type fakeDownloader struct {
 	// cert is the cert to return as downloaded one.
 	cert []byte
 	// count keeps track of how many times the downloader has been invoked.
-	count int
+	count int64
+	// version is the CA version returned when GetVersion is called.
+	version []byte
 }
 
-func (d *fakeDownloader) Download(context.Context, types.Database, string) ([]byte, error) {
-	d.count++
-	return d.cert, nil
+func (d *fakeDownloader) Download(context.Context, types.Database, string) ([]byte, []byte, error) {
+	atomic.AddInt64(&d.count, 1)
+	return d.cert, d.version, nil
+}
+
+func (d *fakeDownloader) GetVersion(_ context.Context, _ types.Database, _ string) ([]byte, error) {
+	if d.version == nil {
+		return nil, trace.NotImplemented("GetVersion not implemented")
+	}
+
+	return d.version, nil
 }
 
 type setupTLSTestCfg struct {
@@ -567,4 +716,231 @@ func TestRedshiftCAURLForDatabase(t *testing.T) {
 			require.Equal(t, expectURL, redshiftCAURLForDatabase(database))
 		})
 	}
+}
+
+func TestCADownloaderGetVersion(t *testing.T) {
+	ctx := context.Background()
+
+	// Given databases that have CA certs downloaded from a public CDN, the
+	// downloader should return the CA version or a not implemented error.
+	t.Run("from URL", func(t *testing.T) {
+		t.Parallel()
+
+		rds, err := types.NewDatabaseV3(types.Metadata{
+			Name: "rds",
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			AWS:      types.AWS{Region: "us-east-1"},
+		})
+		require.NoError(t, err)
+
+		for _, tc := range []struct {
+			desc              string
+			database          types.Database
+			hint              string
+			version           []byte
+			supportEtag       bool
+			expectError       require.ErrorAssertionFunc
+			expectedHTTPCalls int32
+		}{
+			{
+				desc:              "support to ETag",
+				database:          rds,
+				version:           []byte("rds-test-cert"),
+				supportEtag:       true,
+				expectError:       require.NoError,
+				expectedHTTPCalls: 1,
+			},
+			{
+				desc:        "without support to ETag returns error",
+				database:    rds,
+				supportEtag: false,
+				expectError: func(t require.TestingT, err error, _ ...interface{}) {
+					require.Error(t, err)
+					require.True(t, trace.IsNotImplemented(err), "expected trace.NotImplementedError but received %T", err)
+				},
+				expectedHTTPCalls: 1,
+			},
+		} {
+			t.Run(tc.desc, func(t *testing.T) {
+				var httpCalls int32
+
+				// Start the CA CDN server.
+				ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tc.supportEtag {
+						w.Header().Set("ETag", string(tc.version))
+					}
+					w.WriteHeader(http.StatusOK)
+					atomic.AddInt32(&httpCalls, 1)
+				}))
+				defer ts.Close()
+
+				downloader := &realDownloader{
+					httpClient: &http.Client{
+						Transport: &http.Transport{
+							TLSClientConfig: &tls.Config{
+								InsecureSkipVerify: true,
+							},
+							// Replace DialContext to always hit the test server.
+							DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+								return (&net.Dialer{}).DialContext(ctx, network, strings.TrimPrefix(ts.URL, "https://"))
+							},
+						},
+					},
+				}
+
+				version, err := downloader.GetVersion(ctx, tc.database, "")
+				tc.expectError(t, err)
+				require.Equal(t, tc.version, version)
+				require.Equal(t, tc.expectedHTTPCalls, atomic.LoadInt32(&httpCalls))
+			})
+		}
+	})
+
+	// Given a CloudSQL database, the downloader should return an error because
+	// it is not supported.
+	t.Run("from CloudSQL", func(t *testing.T) {
+		cloudSQL, err := types.NewDatabaseV3(types.Metadata{
+			Name: "cloud-sql",
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			GCP:      types.GCPCloudSQL{InstanceID: "instance-id", ProjectID: "project-id"},
+		})
+		require.NoError(t, err)
+
+		downloader := &realDownloader{}
+		_, err = downloader.GetVersion(ctx, cloudSQL, "")
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), "expected trace.NotImplementedError but received %T", err)
+	})
+}
+func TestCADownloaderDownload(t *testing.T) {
+	ctx := context.Background()
+
+	// Given databases that have CA certs downloaded from a public CDN, the
+	// downloader should return the CA contents and version.
+	t.Run("from URL", func(t *testing.T) {
+		t.Parallel()
+
+		rds, err := types.NewDatabaseV3(types.Metadata{
+			Name: "rds",
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			AWS:      types.AWS{Region: "us-east-1"},
+		})
+		require.NoError(t, err)
+
+		// Calculate the resource version using sha256 of the CA cert.
+		certContents := []byte("rds-test-cert")
+		sum := sha256.Sum256(certContents)
+
+		for _, tc := range []struct {
+			desc              string
+			database          types.Database
+			cert              []byte
+			hint              string
+			version           []byte
+			supportEtag       bool
+			statusCode        int
+			expectError       require.ErrorAssertionFunc
+			expectedHTTPCalls int32
+		}{
+			{
+				desc:              "version from ETag",
+				database:          rds,
+				cert:              []byte("rds-test-cert"),
+				version:           []byte("rds-test-version"),
+				supportEtag:       true,
+				statusCode:        http.StatusOK,
+				expectError:       require.NoError,
+				expectedHTTPCalls: 1,
+			},
+			{
+				desc:              "version from contents",
+				database:          rds,
+				cert:              certContents,
+				version:           sum[:],
+				supportEtag:       false,
+				statusCode:        http.StatusOK,
+				expectError:       require.NoError,
+				expectedHTTPCalls: 1,
+			},
+			{
+				desc:              "download failure",
+				database:          rds,
+				supportEtag:       false,
+				statusCode:        http.StatusInternalServerError,
+				expectError:       require.Error,
+				expectedHTTPCalls: 1,
+			},
+		} {
+			t.Run(tc.desc, func(t *testing.T) {
+				var httpCalls int32
+
+				// Start the CA CDN server.
+				ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tc.supportEtag {
+						w.Header().Set("ETag", string(tc.version))
+					}
+					w.WriteHeader(tc.statusCode)
+					w.Write(tc.cert)
+					atomic.AddInt32(&httpCalls, 1)
+				}))
+				defer ts.Close()
+
+				downloader := &realDownloader{
+					httpClient: &http.Client{
+						Transport: &http.Transport{
+							TLSClientConfig: &tls.Config{
+								InsecureSkipVerify: true,
+							},
+							// Replace DialContext to always hit the test server.
+							DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+								return (&net.Dialer{}).DialContext(ctx, network, strings.TrimPrefix(ts.URL, "https://"))
+							},
+						},
+					},
+				}
+
+				contents, version, err := downloader.Download(ctx, tc.database, "")
+				tc.expectError(t, err)
+				require.Equal(t, tc.cert, contents)
+				require.Equal(t, tc.version, version)
+				require.Equal(t, tc.expectedHTTPCalls, atomic.LoadInt32(&httpCalls))
+			})
+		}
+	})
+
+	// Given a CloudSQL database, the downloader should return the database
+	// certificate.
+	t.Run("from CloudSQL", func(t *testing.T) {
+		cloudSQL, err := types.NewDatabaseV3(types.Metadata{
+			Name: "cloud-sql",
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			GCP:      types.GCPCloudSQL{InstanceID: "instance-id", ProjectID: "project-id"},
+		})
+		require.NoError(t, err)
+
+		certContents := []byte("cloud-sql-test-cert")
+		fingerPrint := []byte("cert-fingerprint")
+		downloader := &realDownloader{
+			sqlAdminClient: &mocks.GCPSQLAdminClientMock{
+				DatabaseInstance: &sqladmin.DatabaseInstance{
+					ServerCaCert: &sqladmin.SslCert{
+						Cert:            string(certContents),
+						Sha1Fingerprint: string(fingerPrint),
+					},
+				},
+			},
+		}
+		contents, version, err := downloader.Download(ctx, cloudSQL, "")
+		require.NoError(t, err)
+		require.Equal(t, certContents, contents)
+		require.Equal(t, fingerPrint, version)
+	})
 }

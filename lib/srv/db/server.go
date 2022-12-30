@@ -654,6 +654,9 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// Start the cloud-based databases CA renewer.
+	go s.startCARenewer(ctx)
+
 	return nil
 }
 
