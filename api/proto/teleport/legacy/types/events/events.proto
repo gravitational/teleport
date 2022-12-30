@@ -75,6 +75,9 @@ message UserMetadata {
   // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
   string AWSRoleARN = 4 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
 
+  // AzureIdentity is the Azure identity to assume when accessing Azure API.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+
   // AccessRequests are the IDs of access requests created by the user
   repeated string AccessRequests = 5 [(gogoproto.jsontag) = "access_requests,omitempty"];
 }
@@ -380,6 +383,143 @@ message DesktopClipboardSend {
   string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // Length is the number of bytes of data sent.
   int32 Length = 6 [(gogoproto.jsontag) = "length"];
+}
+
+// DesktopSharedDirectoryStart is emitted when Teleport
+// successfully begins sharing a new directory to a remote desktop.
+message DesktopSharedDirectoryStart {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the directory sharing initialization was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+}
+
+// DesktopSharedDirectoryRead is emitted when Teleport
+// attempts to read from a file in a shared directory at
+// the behest of the remote desktop.
+message DesktopSharedDirectoryRead {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the read was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+  // Path is the path within the shared directory where the file is located.
+  string Path = 9 [(gogoproto.jsontag) = "file_path"];
+  // Length is the number of bytes read.
+  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
+  // Offset is the offset the bytes were read from.
+  uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
+}
+
+// DesktopSharedDirectoryWrite is emitted when Teleport
+// attempts to write to a file in a shared directory at
+// the behest of the remote desktop.
+message DesktopSharedDirectoryWrite {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the write was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+  // Path is the path within the shared directory where the file is located.
+  string Path = 9 [(gogoproto.jsontag) = "file_path"];
+  // Length is the number of bytes written.
+  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
+  // Offset is the offset the bytes were written to.
+  uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
 }
 
 // SessionReject event happens when a user hits a session control restriction.
@@ -2817,7 +2957,7 @@ message CertificateCreate {
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
-// certificiate's generation counter fails to validate, possibly indicating a
+// certificate's generation counter fails to validate, possibly indicating a
 // stolen certificate and an invalid renewal attempt.
 message RenewableCertificateGenerationMismatch {
   // Metadata is a common event metadata.
@@ -2832,6 +2972,65 @@ message RenewableCertificateGenerationMismatch {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotJoin records a bot join event.
+message BotJoin {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // BotName is the name of the bot which has joined.
+  string BotName = 3 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // Method is the event field indicating what join method was used.
+  string Method = 4 [(gogoproto.jsontag) = "method,omitempty"];
+  // TokenName is the name of the provision token used to join.
+  string TokenName = 5 [(gogoproto.jsontag) = "token_name,omitempty"];
+  // Attributes is a map of attributes received from the join method provider.
+  google.protobuf.Struct Attributes = 6 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// InstanceJoin records an instance join event.
+message InstanceJoin {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // HostID is the unique host ID of the instance which attempted to join.
+  string HostID = 3 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // NodeName is the name of the instance which attempted to join.
+  string NodeName = 4 [(gogoproto.jsontag) = "node_name,omitempty"];
+  // Role is the role that the node requested when attempting to join.
+  string Role = 5 [(gogoproto.jsontag) = "role,omitempty"];
+  // Method is the event field indicating what join method was used.
+  string Method = 6 [(gogoproto.jsontag) = "method,omitempty"];
+  // TokenName is the name of the token used to join. This will be omitted
+  // for the 'token' join method where the token name is a secret value.
+  string TokenName = 7 [(gogoproto.jsontag) = "token_name,omitempty"];
+  // Attributes is a map of attributes received from the join method provider.
+  google.protobuf.Struct Attributes = 8 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 
@@ -2957,13 +3156,17 @@ message OneOf {
     events.KubernetesClusterDelete KubernetesClusterDelete = 98;
     events.SSMRun SSMRun = 99;
     events.ElasticsearchRequest ElasticsearchRequest = 100;
-    // Cassandra audit events.
     events.CassandraBatch CassandraBatch = 101;
     events.CassandraPrepare CassandraPrepare = 102;
     events.CassandraRegister CassandraRegister = 103;
     events.CassandraExecute CassandraExecute = 104;
-    // DynamoDB audit events.
     events.AppSessionDynamoDBRequest AppSessionDynamoDBRequest = 105;
+    events.DesktopSharedDirectoryStart DesktopSharedDirectoryStart = 106;
+    events.DesktopSharedDirectoryRead DesktopSharedDirectoryRead = 107;
+    events.DesktopSharedDirectoryWrite DesktopSharedDirectoryWrite = 108;
+    events.DynamoDBRequest DynamoDBRequest = 109;
+    events.BotJoin BotJoin = 110;
+    events.InstanceJoin InstanceJoin = 111;
   }
 }
 
@@ -2995,9 +3198,7 @@ message SessionUpload {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
-  // ID is a unique event identifier
-  string UID = 4 [(gogoproto.jsontag) = "uid,omitempty"];
+  reserved 4;
 
   // URL is where the url the session event data upload is at
   string SessionURL = 5 [(gogoproto.jsontag) = "url"];
@@ -3075,6 +3276,17 @@ message Identity {
     (gogoproto.jsontag) = "allowed_resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // PreviousIdentityExpires is the expiry time of the identity/cert that this
+  // identity/cert was derived from. It is used to determine a session's hard
+  // deadline in cases where both require_session_mfa and disconnect_expired_cert
+  // are enabled. See https://github.com/gravitational/teleport/issues/18544.
+  google.protobuf.Timestamp PreviousIdentityExpires = 23 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "prev_identity_expires"
+  ];
+  // AzureIdentities is a list of allowed Azure identities user can assume.
+  repeated string AzureIdentities = 24 [(gogoproto.jsontag) = "azure_identities,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -3089,6 +3301,8 @@ message RouteToApp {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is the AWS role to assume when accessing AWS API.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
+  // AzureIdentity is the Azure identity ot assume when accessing Azure API.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -3693,6 +3907,50 @@ message ElasticsearchRequest {
 
   // Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
   string Query = 12 [(gogoproto.jsontag) = "query"];
+}
+
+// DynamoDBRequest is emitted when a user executes a DynamoDB request via database-access.
+message DynamoDBRequest {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  uint32 StatusCode = 5 [(gogoproto.jsontag) = "status_code"];
+  // Path is relative path in the URL.
+  string Path = 6 [(gogoproto.jsontag) = "path"];
+  // RawQuery are the encoded query values.
+  string RawQuery = 7 [(gogoproto.jsontag) = "raw_query"];
+  // Method is the request HTTP method, like GET/POST/DELETE/etc.
+  string Method = 8 [(gogoproto.jsontag) = "method"];
+  // Target is the API target in the X-Amz-Target header.
+  string Target = 9 [(gogoproto.jsontag) = "target"];
+  // Body is the HTTP request json body.
+  // The Struct type is a wrapper around protobuf/types.Struct and is used to marshal the JSON body correctly.
+  google.protobuf.Struct Body = 10 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // AppSessionDynamoDBRequest is emitted when a user executes a DynamoDB request via app access.

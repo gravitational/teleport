@@ -1,7 +1,7 @@
 Teleport's Access Request plugins authenticate to your Teleport cluster as a
-user with permissions to list and read Access Requests. This way,
-plugins can retrieve Access Requests from the Teleport Auth Service and present
-them to reviewers.
+user with permissions to list and read Access Requests. This way, plugins can
+retrieve Access Requests from the Teleport Auth Service and present them to
+reviewers.
 
 Define a user and role called `access-plugin` by adding the following content to
 a file called `access-plugin.yaml`:
@@ -65,28 +65,7 @@ Create the `access-plugin-impersonator` role:
 $ tctl create -f access-plugin-impersonator.yaml
 ```
 
-Retrieve your user definition:
+(!docs/pages/includes/add-role-to-user.mdx role="access-plugin-impersonator"!)
 
-```code
-$ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
-$ tctl get users/${TELEPORT_USER?} > myuser.yaml
-```
-
-Edit `myuser.yaml` to include the role you just created:
-
-```diff
-  roles:
-   - access
-   - auditor
-   - editor
-+  - access-plugin-impersonator
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f myuser.yaml
-```
-
-Log out of your Teleport cluster and log in again. You will now be able to
-generate signed certificates for the `access-plugin` role and user.
+You will now be able to generate signed certificates for the `access-plugin`
+role and user.

@@ -36,6 +36,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -223,19 +225,42 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	return nil
 }
 
+// dialSSHProxy opens a net.Conn to the proxy on either the ALPN or SSH
+// port, this connection can then be used to initiate a SSH client.
+// If the HTTPS_PROXY is configured, then this is used to open the connection
+// to the proxy.
 func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyParams) (net.Conn, error) {
+	// if sp.tlsRouting is true, remoteProxyAddr is the ALPN listener port.
+	// if it is false, then remoteProxyAddr is the SSH proxy port.
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+	httpsProxy := proxy.GetProxyURL(remoteProxyAddr)
 
-	if !sp.tlsRouting {
-		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
+	// If HTTPS_PROXY is configured, we need to open a TCP connection via
+	// the specified HTTPS Proxy, otherwise, we can just open a plain TCP
+	// connection.
+	var tcpConn net.Conn
+	var err error
+	if httpsProxy != nil {
+		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return conn, nil
+	} else {
+		tcpConn, err = (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
+	// If TLS routing is not enabled, just return the TCP connection
+	if !sp.tlsRouting {
+		return tcpConn, nil
+	}
+
+	// Otherwise, we need to upgrade the TCP connection to a TLS connection.
 	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
 	if err != nil {
+		tcpConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -245,12 +270,13 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		ServerName:         sp.proxyHost,
 	}
-
-	conn, err := (&tls.Dialer{Config: tlsConfig}).DialContext(ctx, "tcp", remoteProxyAddr)
-	if err != nil {
+	tlsConn := tls.Client(tcpConn, tlsConfig)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
-	return conn, nil
+
+	return tlsConn, nil
 }
 
 func proxySubsystemName(userHost, cluster string) string {
@@ -353,12 +379,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
-		return trace.Wrap(err)
+
+	// Some protocols require the --tunnel flag, e.g. Snowflake, DynamoDB.
+	if !cf.LocalProxyTunnel && requiresLocalProxyTunnel(routeToDatabase.Protocol) {
+		return trace.BadParameter(formatDbCmdUnsupportedWithCondition(cf, routeToDatabase, "without the --tunnel flag"))
 	}
 
-	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
-		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
+	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
+		return trace.Wrap(err)
 	}
 
 	rootCluster, err := client.RootClusterName(cf.Context)
@@ -681,6 +709,43 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	return nil
 }
 
+// onProxyCommandAzure creates local proxes for Azure apps.
+func onProxyCommandAzure(cf *CLIConf) error {
+	azApp, err := pickActiveAzureApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = azApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := azApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close Azure app.")
+		}
+	}()
+
+	envVars, err := azApp.GetEnvVars()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	templateData := map[string]interface{}{
+		"envVars":    envVars,
+		"format":     cf.Format,
+		"randomPort": cf.LocalProxyPort == "",
+	}
+
+	if err = azureHTTPSProxyTemplate.Execute(os.Stdout, templateData); err != nil {
+		return trace.Wrap(err)
+	}
+
+	<-cf.Context.Done()
+	return nil
+}
+
 // loadAppCertificate loads the app certificate for the provided app.
 func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
@@ -801,9 +866,38 @@ func envVarCommand(format, key, value string) (string, error) {
 	}
 }
 
+// requiresLocalProxyTunnel returns whether the given protocol requires a local proxy with the --tunnel flag.
+func requiresLocalProxyTunnel(protocol string) bool {
+	switch protocol {
+	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
+		return true
+	default:
+		return false
+	}
+}
+
 var awsTemplateFuncs = template.FuncMap{
 	"envVarCommand": envVarCommand,
 }
+
+var azureTemplateFuncs = template.FuncMap{
+	"envVarCommand": envVarCommand,
+}
+
+// azureHTTPSProxyTemplate is the message that gets printed to a user when an
+// HTTPS proxy is started.
+var azureHTTPSProxyTemplate = template.Must(template.New("").Funcs(azureTemplateFuncs).Parse(
+	`Started Azure proxy on {{.envVars.HTTPS_PROXY}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+{{- $fmt := .format }}
+{{ range $key, $value := .envVars}}
+  {{envVarCommand $fmt $key $value}}
+{{- end}}
+
+`))
 
 // awsHTTPSProxyTemplate is the message that gets printed to a user when an
 // HTTPS proxy is started.

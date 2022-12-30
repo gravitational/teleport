@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // awsConfig is the config for the client that configures IAM for AWS databases.
@@ -167,25 +168,24 @@ func (r *awsClient) enableIAMAuthForRDS(ctx context.Context) error {
 
 // ensureIAMPolicy adds database connect permissions to the agent's policy.
 func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
-	resources := r.cfg.database.GetIAMResources()
-	if len(resources) == 0 {
-		return nil
+	dbIAM, placeholders, err := dbiam.GetAWSPolicyDocument(r.cfg.database)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	action := r.cfg.database.GetIAMAction()
 	var changed bool
-	for _, resource := range resources {
-		if policy.Ensure(awslib.EffectAllow, action, resource) {
+	dbIAM.ForEach(func(effect, action, resource string) {
+		if policy.Ensure(effect, action, resource) {
 			r.log.Debugf("Permission %q for %q is already part of policy.", action, resource)
 		} else {
 			r.log.Debugf("Adding permission %q for %q to policy.", action, resource)
 			changed = true
 		}
-	}
+	})
 	if !changed {
 		return nil
 	}
@@ -193,24 +193,28 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(placeholders) > 0 {
+		r.log.Warnf("Please make sure the database agent has the IAM permissions to fetch cloud metadata, or make sure these values are set in the static config. Placeholders %q are found when configuring the IAM policy for database %v.",
+			placeholders, r.cfg.database.GetName())
+	}
 	return nil
 }
 
 // deleteIAMPolicy deletes IAM access policy from the identity this agent is running as.
 func (r *awsClient) deleteIAMPolicy(ctx context.Context) error {
-	resources := r.cfg.database.GetIAMResources()
-	if len(resources) == 0 {
-		return nil
+	dbIAM, _, err := dbiam.GetAWSPolicyDocument(r.cfg.database)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	action := r.cfg.database.GetIAMAction()
-	for _, resource := range resources {
-		policy.Delete(awslib.EffectAllow, action, resource)
-	}
+	dbIAM.ForEach(func(effect, action, resource string) {
+		policy.Delete(effect, action, resource)
+	})
 	// If policy is empty now, delete it as IAM policy can't be empty.
 	if len(policy.Statements) == 0 {
 		return r.detachIAMPolicy(ctx)

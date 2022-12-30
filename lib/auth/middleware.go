@@ -30,6 +30,7 @@ import (
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -164,10 +165,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 	cfg.TLS.NextProtos = []string{http2.NextProtoTLS}
 
+	securityHeaderHandler := httplib.MakeSecurityHeaderHandler(limiter)
+	tracingHandler := httplib.MakeTracingHandler(securityHeaderHandler, teleport.ComponentAuth)
+
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
+			Handler:           tracingHandler,
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
@@ -342,6 +346,7 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 	// Account recovery RPCs.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
+		"/proto.AuthService/ChangePassword",
 		"/proto.AuthService/GetAccountRecoveryToken",
 		"/proto.AuthService/StartAccountRecovery",
 		"/proto.AuthService/VerifyAccountRecovery":
@@ -382,8 +387,18 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsInfo.State))
 	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
-	return context.WithValue(ctx, ContextUser, user), nil
+	ctx = context.WithValue(ctx, ContextUser, user)
+	return ctx, nil
+}
+
+func certFromConnState(state *tls.ConnectionState) *x509.Certificate {
+	if state == nil || len(state.PeerCertificates) != 1 {
+		return nil
+	}
+	return state.PeerCertificates[0]
 }
 
 // withAuthenticatedUserUnaryInterceptor is a gRPC unary server interceptor
@@ -502,7 +517,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// of certificates issued for kubernetes usage by proxy, can not be used
 	// against auth server. Later on we can extend more
 	// advanced cert usage, but for now this is the safest option.
-	if len(identity.Usage) != 0 && !apiutils.StringSlicesEqual(a.AcceptedUsage, identity.Usage) {
+	if len(identity.Usage) != 0 && !slices.Equal(a.AcceptedUsage, identity.Usage) {
 		log.Warningf("Restricted certificate of user %q with usage %v rejected while accessing the auth endpoint with acceptable usage %v.",
 			identity.Username, identity.Usage, a.AcceptedUsage)
 		return nil, trace.AccessDenied("access denied: invalid client certificate")
@@ -593,10 +608,6 @@ func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
 
 // ServeHTTP serves HTTP requests
 func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	baseContext := r.Context()
-	if baseContext == nil {
-		baseContext = context.TODO()
-	}
 	if r.TLS == nil {
 		trace.WriteError(w, trace.AccessDenied("missing authentication"))
 		return
@@ -608,8 +619,10 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// determine authenticated user based on the request parameters
-	requestWithContext := r.WithContext(context.WithValue(baseContext, ContextUser, user))
-	a.Handler.ServeHTTP(w, requestWithContext)
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(r.TLS))
+	ctx = context.WithValue(ctx, ContextUser, user)
+	a.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // WrapContextWithUser enriches the provided context with the identity information
@@ -622,12 +635,15 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
-	user, err := a.GetUser(conn.ConnectionState())
+	tlsState := conn.ConnectionState()
+	user, err := a.GetUser(tlsState)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	requestWithContext := context.WithValue(ctx, ContextUser, user)
-	return requestWithContext, nil
+
+	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsState))
+	ctx = context.WithValue(ctx, ContextUser, user)
+	return ctx, nil
 }
 
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.

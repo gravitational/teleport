@@ -18,9 +18,13 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -33,6 +37,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	grpcCredentials, err := createGRPCCredentials(cfg.Addr, cfg.CertsDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                cfg.HomeDir,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
@@ -42,16 +51,18 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
+		Storage:                         storage,
+		CreateTshdEventsClientCredsFunc: grpcCredentials.tshdEvents,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	apiServer, err := apiserver.New(apiserver.Config{
-		HostAddr: cfg.Addr,
-		Daemon:   daemonService,
-		CertsDir: cfg.CertsDir,
+		HostAddr:        cfg.Addr,
+		Daemon:          daemonService,
+		TshdServerCreds: grpcCredentials.tshd,
+		ListeningC:      cfg.ListeningC,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -84,4 +95,53 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	return nil
+}
+
+type grpcCredentials struct {
+	tshd       grpc.ServerOption
+	tshdEvents daemon.CreateTshdEventsClientCredsFunc
+}
+
+func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCredentials, error) {
+	shouldUseMTLS := strings.HasPrefix(tshdServerAddress, "tcp://")
+
+	if !shouldUseMTLS {
+		return &grpcCredentials{
+			tshd: grpc.Creds(nil),
+			tshdEvents: func() (grpc.DialOption, error) {
+				return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+			},
+		}, nil
+	}
+
+	rendererCertPath := filepath.Join(certsDir, rendererCertFileName)
+	tshdCertPath := filepath.Join(certsDir, tshdCertFileName)
+	tshdKeyPair, err := generateAndSaveCert(tshdCertPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// rendererCertPath will be read on an incoming client connection so we can assume that at this
+	// point the renderer process has saved its public key under that path.
+	tshdCreds, err := createServerCredentials(tshdKeyPair, rendererCertPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// To create client creds, we need to read the server cert. However, at this point we'd need to
+	// wait for the Electron app to save the cert under rendererCertPath.
+	//
+	// Instead of waiting for it, we're going to capture the logic in a function that's going to be
+	// called after the Electron app calls UpdateTshdEventsServerAddress of the Terminal service.
+	// Since this calls the gRPC server hosted by tsh, we can assume that by this point the Electron
+	// app has saved the cert to disk – without the cert, it wouldn't be able to call the tsh server.
+	createTshdEventsClientCredsFunc := func() (grpc.DialOption, error) {
+		creds, err := createClientCredentials(tshdKeyPair, rendererCertPath)
+		return creds, trace.Wrap(err, "could not create tshd events client credentials")
+	}
+
+	return &grpcCredentials{
+		tshd:       tshdCreds,
+		tshdEvents: createTshdEventsClientCredsFunc,
+	}, nil
 }

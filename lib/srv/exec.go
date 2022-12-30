@@ -32,11 +32,11 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -364,6 +364,11 @@ func (e *remoteExec) PID() int {
 	return 0
 }
 
+// emitExecAuditEvent emits either an SCP or exec event based on the
+// command run.
+//
+// Note: to ensure that the event is recorded ctx.session must be used
+// instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
 	serverMeta := apievents.ServerMetadata{
@@ -436,13 +441,14 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 				scpEvent.Code = events.SCPDownloadCode
 			}
 		}
-		if err := ctx.srv.EmitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
+		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit scp event.")
 		}
 	} else {
 		execEvent := &apievents.Exec{
 			Metadata: apievents.Metadata{
-				Type: events.ExecEvent,
+				Type:        events.ExecEvent,
+				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata:     serverMeta,
 			SessionMetadata:    sessionMeta,
@@ -455,7 +461,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		} else {
 			execEvent.Code = events.ExecCode
 		}
-		if err := ctx.srv.EmitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
+		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit exec event.")
 		}
 	}
@@ -531,7 +537,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 	// Look for the -t flag, it indicates that an upload occurred. The other
 	// flags do no matter for now.
 	action := events.SCPActionDownload
-	if apiutils.SliceContainsStr(parts, "-t") {
+	if slices.Contains(parts, "-t") {
 		action = events.SCPActionUpload
 	}
 

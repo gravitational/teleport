@@ -219,10 +219,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -324,6 +325,15 @@ spec:
                               description: Value is a claim value to match.
                               type: string
                           type: object
+                        type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
@@ -567,10 +577,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -672,6 +683,15 @@ spec:
                               description: Value is a claim value to match.
                               type: string
                           type: object
+                        type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
@@ -877,8 +897,8 @@ spec:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
                     use as an array at the field path .status.conditions.  For example,
-                    type FooStatus struct{ // Represents the observations of a foo's
-                    current state. // Known .status.conditions.type are: \"Available\",
+                    \n type FooStatus struct{ // Represents the observations of a
+                    foo's current state. // Known .status.conditions.type are: \"Available\",
                     \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
                     // +listType=map // +listMapKey=type Conditions []metav1.Condition
                     `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"

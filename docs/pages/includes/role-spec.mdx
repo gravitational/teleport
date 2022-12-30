@@ -258,7 +258,7 @@ spec:
         modes: ['moderator', 'observer']
 
     # rules allow a user holding this role to modify other resources
-    # matching expressions below
+    # matching the expressions below
     # supported resources:
     # role               - role resource
     # user               - user resource
@@ -268,7 +268,7 @@ spec:
     # saml               - connector resource
     # github             - GitHub connector resource
     #
-    # trusted_cluster    - trusted cluster resource
+    # trusted_cluster    - Trusted Cluster resource
     # remote_cluster     - remote cluster resource
     #
     # access_request     - Access Request resource
@@ -282,11 +282,12 @@ spec:
     # lock                  - lock resource.
     # network_restrictions  - restrictions for SSH sessions
     #
-    # auth_server           - auth server resource
-    # proxy                 - proxy resource
+    # auth_server           - Auth Service resource
+    # proxy                 - Proxy Service resource
     # node                  - SSH node resource
-    # app_server            - application server resource
-    # db_server             - database proxy server resource
+    # app                   - application resource
+    # db                    - database  resource
+    # kube_cluster          - Kubernetes cluster resource
     # token                 - provisioning token resource
     # cert_authority        - certificate authority resource
     #

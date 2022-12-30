@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -205,6 +206,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	} else if params.JoinMethod == types.JoinMethodCircleCI {
 		params.IDToken, err = circleci.GetIDToken(os.Getenv)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if params.JoinMethod == types.JoinMethodKubernetes {
+		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, os.ReadFile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -1,3 +1,4 @@
+{{- if .Values.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -32,6 +33,12 @@ rules:
   - teleportroles/status
   - teleportusers
   - teleportusers/status
+  - teleportgithubconnectors
+  - teleportgithubconnectors/status
+  - teleportoidcconnectors
+  - teleportoidcconnectors/status
+  - teleportsamlconnectors
+  - teleportsamlconnectors/status
   verbs:
   - get
   - list
@@ -54,4 +61,5 @@ rules:
   - events
   verbs:
   - create
-{{ end }}
+{{- end -}}
+{{- end -}}

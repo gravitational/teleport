@@ -69,9 +69,9 @@ type Statement struct {
 	// Effect is the statement effect such as Allow or Deny.
 	Effect string `json:"Effect"`
 	// Actions is a list of actions.
-	Actions []string `json:"Action"`
+	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
-	Resources []string `json:"Resource"`
+	Resources SliceOrString `json:"Resource"`
 }
 
 // ParsePolicyDocument returns parsed AWS IAM policy document.
@@ -90,9 +90,10 @@ func ParsePolicyDocument(document string) (*PolicyDocument, error) {
 }
 
 // NewPolicyDocument returns new empty AWS IAM policy document.
-func NewPolicyDocument() *PolicyDocument {
+func NewPolicyDocument(statements ...*Statement) *PolicyDocument {
 	return &PolicyDocument{
-		Version: PolicyVersion,
+		Version:    PolicyVersion,
+		Statements: statements,
 	}
 }
 
@@ -166,6 +167,58 @@ func (p *PolicyDocument) Marshal() (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// ForEach loops through each action and resource of each statement.
+func (p *PolicyDocument) ForEach(fn func(effect, action, resource string)) {
+	for _, statement := range p.Statements {
+		for _, action := range statement.Actions {
+			for _, resource := range statement.Resources {
+				fn(statement.Effect, action, resource)
+			}
+		}
+	}
+}
+
+// SliceOrString defines a type that can be either a single string or a slice.
+//
+// For example, these types can be either a single string or a slice:
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_action.html
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
+type SliceOrString []string
+
+// UnmarshalJSON implements json.Unmarshaller.
+func (s *SliceOrString) UnmarshalJSON(bytes []byte) error {
+	// Check if input is a slice of strings.
+	var slice []string
+	sliceErr := json.Unmarshal(bytes, &slice)
+	if sliceErr == nil {
+		*s = slice
+		return nil
+	}
+
+	// Check if input is a single string.
+	var str string
+	strErr := json.Unmarshal(bytes, &str)
+	if strErr == nil {
+		*s = []string{str}
+		return nil
+	}
+
+	// Failed both format.
+	return trace.NewAggregate(sliceErr, strErr)
+}
+
+// MarshalJSON implements json.Marshaler.
+func (s SliceOrString) MarshalJSON() ([]byte, error) {
+	switch len(s) {
+	case 0:
+		return json.Marshal([]string{})
+	case 1:
+		return json.Marshal(s[0])
+	default:
+		return json.Marshal([]string(s))
+	}
 }
 
 // Policies set of IAM Policy helper functions defined as an interface to make

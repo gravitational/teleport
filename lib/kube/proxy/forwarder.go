@@ -46,11 +46,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kubeexec "k8s.io/client-go/util/exec"
@@ -75,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -431,7 +434,11 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		return nil, trace.AccessDenied("access denied: only mutual TLS authentication is supported")
 	}
 	clientCert := peers[0]
-	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientCert.NotAfter)
+	clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientIdentity)
 	if err != nil {
 		f.log.Warn(err.Error())
 		if trace.IsAccessDenied(err) {
@@ -535,14 +542,14 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 	}
 }
 
-func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
-	roles := ctx.Checker
+func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity) (*authContext, error) {
+	roles := authCtx.Checker
 
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
-	identity := ctx.Identity.GetIdentity()
+	identity := authCtx.Identity.GetIdentity()
 	teleportClusterName := identity.RouteToCluster
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
@@ -591,14 +598,14 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// By default, if no kubernetes_users is set (which will be a majority),
 	// user will impersonate themselves, which is the backwards-compatible behavior.
 	if len(kubeUsers) == 0 {
-		kubeUsers = append(kubeUsers, ctx.User.GetName())
+		kubeUsers = append(kubeUsers, authCtx.User.GetName())
 	}
 
 	// KubeSystemAuthenticated is a builtin group that allows
 	// any user to access common API methods, e.g. discovery methods
 	// required for initial client usage, without it, restricted user's
 	// kubectl clients will not work
-	if !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
+	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
 
@@ -665,16 +672,22 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.Wrap(err)
 	}
 
-	authCtx := &authContext{
-		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		sessionTTL:        sessionTTL,
-		Context:           ctx,
-		kubeGroups:        utils.StringsSet(kubeGroups),
-		kubeUsers:         utils.StringsSet(kubeUsers),
-		kubeClusterLabels: kubeLabels,
-		recordingConfig:   recordingConfig,
-		kubeCluster:       kubeCluster,
-		certExpires:       certExpires,
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authContext{
+		clientIdleTimeout:     roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		sessionTTL:            sessionTTL,
+		Context:               authCtx,
+		kubeGroups:            utils.StringsSet(kubeGroups),
+		kubeUsers:             utils.StringsSet(kubeUsers),
+		kubeClusterLabels:     kubeLabels,
+		recordingConfig:       recordingConfig,
+		kubeCluster:           kubeCluster,
+		certExpires:           clientIdentity.Expires,
+		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, clientIdentity),
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -682,19 +695,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
-	}
-
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	disconnectExpiredCert := roles.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if !certExpires.IsZero() && disconnectExpiredCert {
-		authCtx.disconnectExpiredCert = certExpires
-	}
-
-	return authCtx, nil
+	}, nil
 }
 
 // kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
@@ -801,13 +802,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 // async streamer buffers the events to disk and uploads the events later
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
-		f.log.Debugf("Using sync streamer for session.")
+		f.log.Debug("Using sync streamer for session.")
 		return f.cfg.AuthClient, nil
 	}
-	f.log.Debugf("Using async streamer for session.")
+	f.log.Debug("Using async streamer for session.")
 	dir := filepath.Join(
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace,
+		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(dir)
 	if err != nil {
@@ -842,9 +843,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	session := f.sessions[sessionID]
-	f.mu.Unlock()
+	session := f.getSession(sessionID)
 	if session == nil {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -864,9 +863,9 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		party := newParty(*ctx, stream.Mode, client)
 		go func() {
 			<-stream.Done()
-			session.mu.Lock()
-			defer session.mu.Unlock()
-			session.leave(party.ID)
+			if err := session.leave(party.ID); err != nil {
+				f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+			}
 		}()
 
 		err = session.join(party)
@@ -884,6 +883,32 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	return nil, nil
+}
+
+// getSession retrieves the session from in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) getSession(id uuid.UUID) *session {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sessions[id]
+}
+
+// setSession sets the session into in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) setSession(id uuid.UUID, sess *session) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions[id] = sess
+}
+
+// deleteSession removes a session.
+// This method locks f.mu.
+func (f *Forwarder) deleteSession(id uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.sessions, id)
 }
 
 // remoteJoin forwards a join request to a remote cluster.
@@ -1140,7 +1165,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
@@ -1247,18 +1272,18 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	f.sessions[session.id] = session
-	f.mu.Unlock()
+	f.setSession(session.id, session)
 	err = session.join(party)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	<-party.closeC
-	f.mu.Lock()
-	delete(f.sessions, session.id)
-	f.mu.Unlock()
+
+	if err := session.leave(party.ID); err != nil {
+		f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+	}
+
 	return nil, nil
 }
 
@@ -1272,7 +1297,7 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		// send the status back to the client when forwarding mode is enabled
 		if err := proxy.sendStatus(err); err != nil {
@@ -1358,6 +1383,17 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	}
 	f.log.Debugf("Done %v.", request)
 	return nil, nil
+}
+
+// runPortForwarding checks if the request contains WebSocket upgrade headers and
+// decides which protocol the client expects.
+// Go client uses SPDY while other clients still require WebSockets.
+// This function will run until the end of the execution of the request.
+func runPortForwarding(req portForwardRequest) error {
+	if wsstream.IsWebSocketRequest(req.httpRequest) {
+		return trace.Wrap(runPortForwardingWebSocket(req))
+	}
+	return trace.Wrap(runPortForwardingHTTPStreams(req))
 }
 
 const (
@@ -1517,7 +1553,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-	rw := newResponseStatusRecorder(w)
+	rw := httplib.NewResponseStatusRecorder(w)
 	sess.forwarder.ServeHTTP(rw, req)
 
 	if sess.noAuditEvents {
@@ -1541,7 +1577,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		},
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
-		ResponseCode:              int32(rw.getStatus()),
+		ResponseCode:              int32(rw.Status()),
 		KubernetesClusterMetadata: ctx.eventClusterMeta(),
 	}
 	r := parseResourcePath(req.URL.Path)
@@ -2072,46 +2108,4 @@ func (f *Forwarder) removeKubeDetails(name string) {
 		oldDetails.Close()
 	}
 	delete(f.clusterDetails, name)
-}
-
-type responseStatusRecorder struct {
-	http.ResponseWriter
-	flusher http.Flusher
-	status  int
-}
-
-func newResponseStatusRecorder(w http.ResponseWriter) *responseStatusRecorder {
-	rec := &responseStatusRecorder{ResponseWriter: w}
-	if flusher, ok := w.(http.Flusher); ok {
-		rec.flusher = flusher
-	}
-	return rec
-}
-
-func (r *responseStatusRecorder) WriteHeader(status int) {
-	r.status = status
-	r.ResponseWriter.WriteHeader(status)
-}
-
-// Flush optionally flushes the inner ResponseWriter if it supports that.
-// Otherwise, Flush is a noop.
-//
-// Flush is optionally used by github.com/gravitational/oxy/forward to flush
-// pending data on streaming HTTP responses (like streaming pod logs).
-//
-// Without this, oxy/forward will handle streaming responses by accumulating
-// ~32kb of response in a buffer before flushing it.
-func (r *responseStatusRecorder) Flush() {
-	if r.flusher != nil {
-		r.flusher.Flush()
-	}
-}
-
-func (r *responseStatusRecorder) getStatus() int {
-	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
-	// explicitly called.
-	if r.status == 0 {
-		return http.StatusOK
-	}
-	return r.status
 }

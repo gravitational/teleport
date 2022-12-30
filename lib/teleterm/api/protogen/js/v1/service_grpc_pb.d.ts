@@ -16,6 +16,7 @@ import * as v1_kube_pb from "../v1/kube_pb";
 import * as v1_server_pb from "../v1/server_pb";
 
 interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
+    updateTshdEventsServerAddress: ITerminalServiceService_IUpdateTshdEventsServerAddress;
     listRootClusters: ITerminalServiceService_IListRootClusters;
     listLeafClusters: ITerminalServiceService_IListLeafClusters;
     getAllDatabases: ITerminalServiceService_IGetAllDatabases;
@@ -49,6 +50,15 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     transferFile: ITerminalServiceService_ITransferFile;
 }
 
+interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<v1_service_pb.UpdateTshdEventsServerAddressRequest, v1_service_pb.UpdateTshdEventsServerAddressResponse> {
+    path: "/teleport.terminal.v1.TerminalService/UpdateTshdEventsServerAddress";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.UpdateTshdEventsServerAddressRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.UpdateTshdEventsServerAddressRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.UpdateTshdEventsServerAddressResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.UpdateTshdEventsServerAddressResponse>;
+}
 interface ITerminalServiceService_IListRootClusters extends grpc.MethodDefinition<v1_service_pb.ListClustersRequest, v1_service_pb.ListClustersResponse> {
     path: "/teleport.terminal.v1.TerminalService/ListRootClusters";
     requestStream: false;
@@ -332,6 +342,7 @@ interface ITerminalServiceService_ITransferFile extends grpc.MethodDefinition<v1
 export const TerminalServiceService: ITerminalServiceService;
 
 export interface ITerminalServiceServer {
+    updateTshdEventsServerAddress: grpc.handleUnaryCall<v1_service_pb.UpdateTshdEventsServerAddressRequest, v1_service_pb.UpdateTshdEventsServerAddressResponse>;
     listRootClusters: grpc.handleUnaryCall<v1_service_pb.ListClustersRequest, v1_service_pb.ListClustersResponse>;
     listLeafClusters: grpc.handleUnaryCall<v1_service_pb.ListLeafClustersRequest, v1_service_pb.ListClustersResponse>;
     getAllDatabases: grpc.handleUnaryCall<v1_service_pb.GetAllDatabasesRequest, v1_service_pb.GetAllDatabasesResponse>;
@@ -366,6 +377,9 @@ export interface ITerminalServiceServer {
 }
 
 export interface ITerminalServiceClient {
+    updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
     listRootClusters(request: v1_service_pb.ListClustersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
@@ -462,6 +476,9 @@ export interface ITerminalServiceClient {
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
     constructor(address: string, credentials: grpc.ChannelCredentials, options?: object);
+    public updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    public updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    public updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
     public listRootClusters(request: v1_service_pb.ListClustersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;

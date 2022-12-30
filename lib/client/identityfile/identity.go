@@ -98,8 +98,10 @@ const (
 type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
-var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla}
+var KnownFileFormats = FormatList{
+	FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
+	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla,
+}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
@@ -158,6 +160,9 @@ type WriteConfig struct {
 	// KubeProxyAddr is the public address of the proxy with its kubernetes
 	// port. KubeProxyAddr is only used when Format is FormatKubernetes.
 	KubeProxyAddr string
+	// KubeClusterName is the Kubernetes Cluster name.
+	// KubeClusterName is only used when Format is FormatKubernetes.
+	KubeClusterName string
 	// KubeTLSServerName is the SNI host value passed to the server.
 	KubeTLSServerName string
 	// KubeStoreAllCAs stores the CAs of all clusters in kubeconfig, instead
@@ -344,15 +349,23 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
-		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		// If the user does not want to override,  it will merge the previous kubeconfig
+		// with the new entry.
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil && !trace.IsAlreadyExists(err) {
 			return nil, trace.Wrap(err)
+		} else if err == nil {
+			// Clean up the existing file, if it exists.
+			// This is used when the user wants to overwrite an existing kubeconfig.
+			// Without it, kubeconfig.Update would try to parse it and merge in new
+			// credentials.
+			if err := writer.Remove(cfg.OutputPath); err != nil && !os.IsNotExist(err) {
+				return nil, trace.Wrap(err)
+			}
 		}
-		// Clean up the existing file, if it exists.
-		//
-		// kubeconfig.Update would try to parse it and merge in new
-		// credentials, which is not what we want.
-		if err := writer.Remove(cfg.OutputPath); err != nil && !os.IsNotExist(err) {
-			return nil, trace.Wrap(err)
+
+		var kubeCluster []string
+		if len(cfg.KubeClusterName) > 0 {
+			kubeCluster = []string{cfg.KubeClusterName}
 		}
 
 		if err := kubeconfig.Update(cfg.OutputPath, kubeconfig.Values{
@@ -360,6 +373,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
 			TLSServerName:       cfg.KubeTLSServerName,
+			KubeClusters:        kubeCluster,
 		}, cfg.KubeStoreAllCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -494,7 +508,7 @@ func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {
 		return trace.Wrap(err)
 	}
 	if !overwrite {
-		return trace.Errorf("not overwriting destination files %s", strings.Join(existingFiles, ", "))
+		return trace.AlreadyExists("not overwriting destination files %s", strings.Join(existingFiles, ", "))
 	}
 	return nil
 }

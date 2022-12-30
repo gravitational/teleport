@@ -73,11 +73,11 @@ New-GPO -Name $ACCESS_GPO_NAME | New-GPLink -Target $DOMAIN_DN
 $CERT = [System.Convert]::FromBase64String($TELEPORT_CA_CERT_BLOB_BASE64)
 Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\SystemCertificates\Root\Certificates\$TELEPORT_CA_CERT_SHA1" -ValueName "Blob" -Type Binary -Value $CERT
 
+$TeleportPEMFile = $env:TEMP + "\teleport.pem"
+Write-Output $TELEPORT_CA_CERT_PEM | Out-File -FilePath $TeleportPEMFile
 
-Write-Output $TELEPORT_CA_CERT_PEM | Out-File -FilePath teleport.pem
-
-certutil -dspublish -f teleport.pem RootCA
-certutil -dspublish -f teleport.pem NTAuthCA
+certutil -dspublish -f $TeleportPEMFile RootCA
+certutil -dspublish -f $TeleportPEMFile NTAuthCA
 certutil -pulse
 
 $ACCESS_SECURITY_TEMPLATE=@'
@@ -121,29 +121,34 @@ Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Type String -Key "HKEY_LOCAL_MACHINE
 Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "fDenyTSConnections" -Type DWORD -Value 0
 Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "UserAuthentication" -Type DWORD -Value 0
 
+# Disable "Always prompt for password upon connection"
+Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "fPromptForPassword" -Type DWORD -Value 0
 
 # # Step 5/7. Export your LDAP CA certificate
-certutil "-ca.cert" windows.der
-certutil -encode windows.der windows.pem
+$WindowsDERFile = $env:TEMP + "\windows.der"
+$WindowsPEMFile = $env:TEMP + "\windows.pem"
+certutil "-ca.cert" $WindowsDERFile 
+certutil -encode $WindowsDERFile $WindowsPEMFile
 
 gpupdate.exe /force
 
-$CA_CERT_PEM = Get-Content -Path windows.pem
+$CA_CERT_PEM = Get-Content -Path $WindowsPEMFile
 $CA_CERT_YAML = $CA_CERT_PEM | ForEach-Object { "        " + $_  } | Out-String
 
 
 $NET_BIOS_NAME = (Get-ADDomain).NetBIOSName
 $LDAP_USERNAME = "$NET_BIOS_NAME\$SAM_ACCOUNT_NAME"
+$LDAP_USER_SID=(Get-ADUser -Identity $SAM_ACCOUNT_NAME).SID.Value
 
 $COMPUTER_NAME = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Name
 $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
 $LDAP_ADDR="$COMPUTER_IP" + ":636"
 
-$DESKTOP_ACCESS_CONFIG_YAML=@'
+$DESKTOP_ACCESS_CONFIG_YAML=@"
 version: v3
 teleport:
-  auth_token: {0}
-  proxy_server: {1}
+  auth_token: $TELEPORT_PROVISION_TOKEN
+  proxy_server: $TELEPORT_PROXY_PUBLIC_ADDR
 
 auth_service:
   enabled: no
@@ -155,18 +160,19 @@ proxy_service:
 windows_desktop_service:
   enabled: yes
   ldap:
-    addr:     '{2}'
-    domain:   '{3}'
-    username: '{4}'
-    server_name: '{5}'
+    addr:     '$LDAP_ADDR'
+    domain:   '$DOMAIN_NAME'
+    username: '$LDAP_USERNAME'
+    sid: '$LDAP_USER_SID'
+    server_name: '$COMPUTER_NAME'
     insecure_skip_verify: false
     ldap_ca_cert: |
-{6}
+$CA_CERT_YAML
   discovery:
     base_dn: '*'
   labels:
-    teleport.internal/resource-id: {7}
-'@ -f $TELEPORT_PROVISION_TOKEN, $TELEPORT_PROXY_PUBLIC_ADDR, $LDAP_ADDR, $DOMAIN_NAME, $LDAP_USERNAME, $COMPUTER_NAME, $CA_CERT_YAML, $TELEPORT_INTERNAL_RESOURCE_ID
+    teleport.internal/resource-id: $TELEPORT_INTERNAL_RESOURCE_ID
+"@
 
 $OUTPUT=@'
 
@@ -192,8 +198,8 @@ if ($host.name -match 'ISE')
 
 Write-Output $OUTPUT
 
-# cleanup files that were created duing execution of this script
-Remove-Item teleport.pem -Recurse
-Remove-Item windows.der -Recurse
-Remove-Item windows.pem -Recurse
+# cleanup files that were created during execution of this script
+Remove-Item $TeleportPEMFile -Recurse
+Remove-Item $WindowsDERFile -Recurse
+Remove-Item $WindowsPEMFile -Recurse
 

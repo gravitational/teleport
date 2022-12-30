@@ -30,7 +30,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -138,10 +137,10 @@ func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 		cfg.UID = utils.NewRealUID()
 	}
 	if cfg.BackoffTimeout == 0 {
-		cfg.BackoffTimeout = defaults.AuditBackoffTimeout
+		cfg.BackoffTimeout = AuditBackoffTimeout
 	}
 	if cfg.BackoffDuration == 0 {
-		cfg.BackoffDuration = defaults.NetworkBackoffDuration
+		cfg.BackoffDuration = NetworkBackoffDuration
 	}
 	if cfg.MakeEvents == nil {
 		cfg.MakeEvents = bytesToSessionPrintEvents
@@ -528,7 +527,7 @@ func (a *AuditWriter) recoverStream() error {
 }
 
 func (a *AuditWriter) closeStream(stream apievents.Stream) {
-	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkRetryDuration)
+	ctx, cancel := context.WithTimeout(a.cfg.Context, NetworkRetryDuration)
 	defer cancel()
 	if err := stream.Close(ctx); err != nil {
 		a.log.WithError(err).Debug("Failed to close stream.")
@@ -539,7 +538,7 @@ func (a *AuditWriter) completeStream(stream apievents.Stream) {
 	// Cannot use the configured context because it's the server's and when the server
 	// is requested to close (and hence the context is canceled), the stream will not be able
 	// to complete
-	ctx, cancel := context.WithTimeout(context.Background(), defaults.NetworkBackoffDuration)
+	ctx, cancel := context.WithTimeout(context.Background(), NetworkBackoffDuration)
 	defer cancel()
 	if err := stream.Complete(ctx); err != nil {
 		a.log.WithError(err).Warning("Failed to complete stream.")
@@ -548,15 +547,15 @@ func (a *AuditWriter) completeStream(stream apievents.Stream) {
 
 func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: defaults.NetworkRetryDuration,
-		Max:  defaults.NetworkBackoffDuration,
+		Step: NetworkRetryDuration,
+		Max:  NetworkBackoffDuration,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var resumedStream apievents.Stream
 	start := time.Now()
-	for i := 0; i < defaults.FastAttempts; i++ {
+	for i := 0; i < FastAttempts; i++ {
 		var streamType string
 		if a.lastStatus == nil {
 			// The stream was either never created or has failed to receive the

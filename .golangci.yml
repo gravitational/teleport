@@ -6,6 +6,10 @@ issues:
     - linters:
       - revive
       text: "exported: exported const"
+    # TODO(hugoShaka): Remove once https://github.com/dominikh/go-tools/issues/1294 is fixed
+    - linters:
+      - unused
+      path: 'operator/controllers/resources/(.+)_controller_test\.go'
     # TODO(codingllama): Remove ignore after the new golangci-lint image lands.
     # For some reason this particular files causes problems between different
     # goimports versions.
@@ -27,6 +31,7 @@ linters:
     - govet
     - ineffassign
     - misspell
+    - nolintlint
     - revive
     - staticcheck
     - unconvert
@@ -40,6 +45,7 @@ linters-settings:
     - io/ioutil: 'use "io" or "os" packages instead'
     - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
     - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
+    - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
     - go.uber.org/atomic: 'use "sync/atomic" instead'
   misspell:
     locale: US
@@ -50,10 +56,14 @@ linters-settings:
       - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
     skip-generated: true # Skip generated files.
     custom-order: true # Required for "sections" to take effect.
+  nolintlint:
+    allow-unused: true # Enabled because of conditional builds / build tags.
+    require-explanation: true
+    require-specific: true
 output:
   uniq-by-line: false
 
 run:
   skip-dirs-use-default: false
   timeout: 5m
-  go: '1.18'
+  go: '1.19'

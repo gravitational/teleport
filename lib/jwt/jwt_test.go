@@ -66,6 +66,51 @@ func TestSignAndVerify(t *testing.T) {
 	require.Equal(t, claims.Roles, []string{"foo", "bar"})
 }
 
+// TestPublicOnlyVerifyAzure checks that a non-signing key used to validate a JWT
+// can be created. Azure version.
+func TestPublicOnlyVerifyAzure(t *testing.T) {
+	publicBytes, privateBytes, err := GenerateKeyPair()
+	require.NoError(t, err)
+	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	require.NoError(t, err)
+	publicKey, err := utils.ParsePublicKey(publicBytes)
+	require.NoError(t, err)
+
+	// Create a new key that can sign and verify tokens.
+	key, err := New(&Config{
+		PrivateKey:  privateKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+
+	// Sign a token with the new key.
+	token, err := key.SignAzureToken(AzureTokenClaims{
+		TenantID: "dummy-tenant-id",
+		Resource: "my-resource",
+	})
+	require.NoError(t, err)
+
+	// Create a new key that can only verify tokens and make sure the token
+	// values match the expected values.
+	key, err = New(&Config{
+		PublicKey:   publicKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	claims, err := key.VerifyAzureToken(token)
+	require.NoError(t, err)
+	require.Equal(t, AzureTokenClaims{
+		TenantID: "dummy-tenant-id",
+		Resource: "my-resource",
+	}, *claims)
+
+	// Make sure this key returns an error when trying to sign.
+	_, err = key.SignAzureToken(*claims)
+	require.Error(t, err)
+}
+
 // TestPublicOnlyVerify checks that a non-signing key used to validate a JWT
 // can be created.
 func TestPublicOnlyVerify(t *testing.T) {
@@ -123,6 +168,81 @@ func TestPublicOnlyVerify(t *testing.T) {
 		URI:      "http://127.0.0.1:8080",
 	})
 	require.Error(t, err)
+}
+
+func TestKey_SignAndVerifyPROXY(t *testing.T) {
+	_, privateBytes, err := GenerateKeyPair()
+	require.NoError(t, err)
+	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+	const clusterName = "teleport-test"
+
+	// Create a new key that can sign and verify tokens.
+	key, err := New(&Config{
+		PrivateKey:  privateKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+		Clock:       clock,
+	})
+	require.NoError(t, err)
+	source := "1.2.3.4:555"
+	destination := "4.3.2.1:666:"
+
+	// Sign a token with the new key.
+	token, err := key.SignPROXY(PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+	})
+	require.NoError(t, err)
+
+	// Successfully verify
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.NoError(t, err)
+
+	// Check that if params don't match verification fails
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName + "1",
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "invalid issuer")
+
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      destination,
+		DestinationAddress: source,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "invalid subject")
+
+	// Rewind clock backward and verify that token is not valid yet
+	clock.Advance(time.Minute * -2)
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "token not valid yet")
+
+	// Advance clock and verify that token is expired now
+	clock.Advance(time.Minute*2 + expirationPROXY*2)
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "token is expired")
 }
 
 // TestExpiry checks that token expiration works.

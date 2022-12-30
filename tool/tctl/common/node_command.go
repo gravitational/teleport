@@ -174,7 +174,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 
 			pingResponse, err := client.Ping(ctx)
 			if err != nil {
-				log.Debugf("unnable to ping auth client: %s.", err.Error())
+				log.Debugf("unable to ping auth client: %s.", err.Error())
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {
@@ -208,7 +208,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 	return nil
 }
 
-// ListActive retreives the list of nodes who recently sent heartbeats to
+// ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
@@ -244,7 +244,7 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
-		if err := coll.writeYaml(os.Stdout); err != nil {
+		if err := coll.writeYAML(os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:

@@ -99,7 +99,7 @@ func TestAzureWatcher(t *testing.T) {
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
 			},
-			wantVMs: []string{"vm1", "vm2"},
+			wantVMs: []string{"vm1", "vm2", "vm5"},
 		},
 		{
 			name: "filter by location",

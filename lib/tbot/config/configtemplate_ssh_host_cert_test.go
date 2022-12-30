@@ -35,6 +35,7 @@ type mockHostCertAuth struct {
 }
 
 func (m *mockHostCertAuth) GenerateHostCert(
+	ctx context.Context,
 	key []byte, hostID, nodeName string, principals []string,
 	clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {

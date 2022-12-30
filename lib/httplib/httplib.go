@@ -19,7 +19,6 @@ limitations under the License.
 package httplib
 
 import (
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"mime"
@@ -60,10 +59,41 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 	return MakeHandlerWithErrorWriter(fn, trace.WriteError)
 }
 
+// MakeSecurityHeaderHandler returns a new httprouter.Handle func that wraps the provided handler func
+// with one that will ensure the headers from SetDefaultSecurityHeaders are applied.
+func MakeSecurityHeaderHandler(h http.Handler) http.Handler {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		SetDefaultSecurityHeaders(w.Header())
+
+		h.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(handler)
+}
+
 // MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
 // with one that will add a tracing span for each request.
 func MakeTracingHandler(h http.Handler, component string) http.Handler {
-	return otelhttp.NewHandler(h, component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
+	// Wrap the provided handler with one that will inject
+	// any propagated tracing context provided via a query parameter
+	// if there isn't already a header containing tracing context.
+	// This is required for scenarios using web sockets as headers
+	// cannot be modified to inject the tracing context.
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		// ensure headers have priority over query parameters
+		if r.Header.Get(tracing.TraceParent) != "" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		traceParent := r.URL.Query()[tracing.TraceParent]
+		if len(traceParent) > 0 {
+			r.Header.Add(tracing.TraceParent, traceParent[0])
+		}
+
+		h.ServeHTTP(w, r)
+	}
+
+	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
@@ -72,6 +102,8 @@ func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httproute
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
+		// ensure that default security headers are set
+		SetDefaultSecurityHeaders(w.Header())
 
 		out, err := fn(w, r, p)
 		if err != nil {
@@ -84,17 +116,14 @@ func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httproute
 	}
 }
 
-// MakeStdHandler returns a new http.Handle func from http.HandlerFunc
-func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
-	return MakeStdHandlerWithErrorWriter(fn, trace.WriteError)
-}
-
 // MakeStdHandlerWithErrorWriter returns a http.HandlerFunc from the
 // StdHandlerFunc, and sends all errors to ErrorWriter.
 func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
+		// ensure that default security headers are set
+		SetDefaultSecurityHeaders(w.Header())
 
 		out, err := fn(w, r)
 		if err != nil {
@@ -152,11 +181,7 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 	if err != nil {
 		var uErr *url.Error
 		if errors.As(err, &uErr) && uErr.Err != nil {
-			var hostnameErr x509.HostnameError
-			if errors.As(uErr.Err, &hostnameErr) {
-				return nil, trace.ConnectionProblem(uErr.Err, uErr.Error())
-			}
-			return nil, trace.ConnectionProblem(uErr.Err, "error parsing URL")
+			return nil, trace.ConnectionProblem(uErr.Err, "")
 		}
 		var nErr net.Error
 		if errors.As(err, &nErr) && nErr.Timeout() {
@@ -220,4 +245,52 @@ func SafeRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) er
 	}
 	http.Redirect(w, r, parsedURL.RequestURI(), http.StatusFound)
 	return nil
+}
+
+// ResponseStatusRecorder is an http.ResponseWriter that records the response status code.
+type ResponseStatusRecorder struct {
+	http.ResponseWriter
+	flusher http.Flusher
+	status  int
+}
+
+// NewResponseStatusRecorder makes and returns a ResponseStatusRecorder.
+func NewResponseStatusRecorder(w http.ResponseWriter) *ResponseStatusRecorder {
+	rec := &ResponseStatusRecorder{ResponseWriter: w}
+	if flusher, ok := w.(http.Flusher); ok {
+		rec.flusher = flusher
+	}
+	return rec
+}
+
+// WriteHeader sends an HTTP response header with the provided
+// status code and save the status code in the recorder.
+func (r *ResponseStatusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+// Flush optionally flushes the inner ResponseWriter if it supports that.
+// Otherwise, Flush is a noop.
+//
+// Flush is optionally used by github.com/gravitational/oxy/forward to flush
+// pending data on streaming HTTP responses (like streaming pod logs).
+//
+// Without this, oxy/forward will handle streaming responses by accumulating
+// ~32kb of response in a buffer before flushing it.
+func (r *ResponseStatusRecorder) Flush() {
+	if r.flusher != nil {
+		r.flusher.Flush()
+	}
+}
+
+// Status returns the recorded status after WriteHeader is called, or StatusOK if WriteHeader hasn't been called
+// explicitly.
+func (r *ResponseStatusRecorder) Status() int {
+	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
+	// explicitly called.
+	if r.status == 0 {
+		return http.StatusOK
+	}
+	return r.status
 }

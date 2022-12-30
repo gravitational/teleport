@@ -13,7 +13,7 @@
 // limitations under the License.
 
 fn main() {
-    // the cwd of build scripts is the root of the crate
+    // the cwd of build scripts is the root of the crate.
     let bindings = cbindgen::Builder::new()
         .with_crate(".")
         .with_language(cbindgen::Language::C)
@@ -21,7 +21,7 @@ fn main() {
         .unwrap();
 
     // atomically swap the header in place, just in case there's multiple
-    // compilations at the same time
+    // compilations at the same time.
     let out = tempfile::NamedTempFile::new_in(".").unwrap();
     bindings.write(&out);
 

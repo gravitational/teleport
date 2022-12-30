@@ -399,8 +399,12 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	p.rw.Lock()
 	defer p.rw.Unlock()
 	p.current = newCurrent
+	// only emit an empty proxy list if the collector has already been initialized
+	// to prevent an empty slice being sent out on creation of the watcher
+	if len(proxies) > 0 || (len(proxies) == 0 && p.isInitialized()) {
+		p.broadcastUpdate(ctx)
+	}
 	p.defineCollectorAsInitialized()
-	p.broadcastUpdate(ctx)
 	return nil
 }
 
@@ -460,6 +464,15 @@ func (p *proxyCollector) broadcastUpdate(ctx context.Context) {
 // sync
 func (p *proxyCollector) initializationChan() <-chan struct{} {
 	return p.initializationC
+}
+
+func (p *proxyCollector) isInitialized() bool {
+	select {
+	case <-p.initializationC:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *proxyCollector) notifyStale() {}

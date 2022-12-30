@@ -28,10 +28,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 )
@@ -397,7 +397,7 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 	}
 
 	// If the key matches "/sensitiveprefix/keyname", mask the key.
-	if len(parts) == 3 && len(parts[0]) == 0 && apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
+	if len(parts) == 3 && len(parts[0]) == 0 && slices.Contains(sensitivePrefixes, parts[1]) {
 		parts[2] = string(MaskKeyName(parts[2]))
 	}
 
@@ -408,8 +408,10 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 // sensitive values.
 var sensitiveBackendPrefixes = []string{
 	"tokens",
-	"resetpasswordtokens",
-	"adduseru2fchallenges",
+	"usertoken",
+	// Global passwordless challenges, keyed by challenge, as per
+	// https://github.com/gravitational/teleport/blob/01775b73f138ff124ff0351209d629bb01836869/lib/services/local/users.go#L1510.
+	"sessionData",
 	"access_requests",
 }
 

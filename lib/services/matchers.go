@@ -19,14 +19,29 @@ package services
 import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
 // ResourceMatcher matches cluster resources.
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels types.Labels
+}
+
+// ResourceMatchersToTypes converts []]services.ResourceMatchers into []*types.ResourceMatcher
+func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
+	out := make([]*types.DatabaseResourceMatcher, len(in))
+	for i, resMatcher := range in {
+		resMatcher := resMatcher
+		out[i] = &types.DatabaseResourceMatcher{
+			Labels: &resMatcher.Labels,
+		}
+	}
+	return out
 }
 
 // AWSSSM provides options to use when executing SSM documents
@@ -70,10 +85,56 @@ type AzureMatcher struct {
 	ResourceGroups []string
 	// Types are Azure resource types to match, for example "mysql" or "postgres".
 	Types []string
-	// Regions are Azure regions to query for databases.
+	// Regions are Azure regions to query for resources.
 	Regions []string
 	// ResourceTags are Azure tags to match.
 	ResourceTags types.Labels
+}
+
+// GCPMatcher matches GCP resources.
+type GCPMatcher struct {
+	// Types are GKE resource types to match: "gke".
+	Types []string `yaml:"types,omitempty"`
+	// Locations are GCP locations to search resources for.
+	Locations []string `yaml:"locations,omitempty"`
+	// Tags are GCP labels to match.
+	Tags types.Labels `yaml:"tags,omitempty"`
+	// ProjectIDs are the GCP project IDs where the resources are deployed.
+	ProjectIDs []string `yaml:"project_ids,omitempty"`
+}
+
+// SimplifyAzureMatchers returns simplified Azure Matchers.
+// Selectors are deduplicated, wildcard in a selector reduces the selector
+// to just the wildcard, and defaults are applied.
+func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
+	result := make([]AzureMatcher, 0, len(matchers))
+	for _, m := range matchers {
+		subs := apiutils.Deduplicate(m.Subscriptions)
+		groups := apiutils.Deduplicate(m.ResourceGroups)
+		regions := apiutils.Deduplicate(m.Regions)
+		ts := apiutils.Deduplicate(m.Types)
+		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
+			subs = []string{types.Wildcard}
+		}
+		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
+			groups = []string{types.Wildcard}
+		}
+		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
+			regions = []string{types.Wildcard}
+		} else {
+			for i, region := range regions {
+				regions[i] = azureutils.NormalizeLocation(region)
+			}
+		}
+		result = append(result, AzureMatcher{
+			Subscriptions:  subs,
+			ResourceGroups: groups,
+			Regions:        regions,
+			Types:          ts,
+			ResourceTags:   m.ResourceTags,
+		})
+	}
+	return result
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
@@ -118,7 +179,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster:
+	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster, types.KindDatabaseService:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -276,6 +337,8 @@ const (
 	AWSMatcherRDSProxy = "rdsproxy"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
+	// AWSMatcherRedshiftServerless is the AWS matcher type for Redshift Serverless databases.
+	AWSMatcherRedshiftServerless = "redshift-serverless"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
 	AWSMatcherElastiCache = "elasticache"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
@@ -288,4 +351,6 @@ const (
 	AzureMatcherPostgres = "postgres"
 	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
 	AzureMatcherRedis = "redis"
+	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
+	AzureMatcherSQLServer = "sqlserver"
 )

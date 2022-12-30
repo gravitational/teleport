@@ -17,6 +17,7 @@ limitations under the License.
 package keystore
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"encoding/json"
@@ -25,11 +26,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
+
+var pkcs11Prefix = []byte("pkcs11:")
 
 // PKCS11Config is used to pass PKCS11 HSM client configuration parameters.
 type PKCS11Config struct {
@@ -62,7 +64,7 @@ type pkcs11KeyStore struct {
 	log      logrus.FieldLogger
 }
 
-func NewPKCS11KeyStore(config *PKCS11Config) (KeyStore, error) {
+func newPKCS11KeyStore(config *PKCS11Config, logger logrus.FieldLogger) (*pkcs11KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
 		Path:       config.Path,
 		TokenLabel: config.TokenLabel,
@@ -74,10 +76,12 @@ func NewPKCS11KeyStore(config *PKCS11Config) (KeyStore, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	logger = logger.WithFields(logrus.Fields{trace.Component: "PKCS11KeyStore"})
+
 	return &pkcs11KeyStore{
 		ctx:      ctx,
 		hostUUID: config.HostUUID,
-		log:      logrus.WithFields(logrus.Fields{trace.Component: "PKCS11KeyStore"}),
+		log:      logger,
 	}, nil
 }
 
@@ -119,7 +123,7 @@ func (p *pkcs11KeyStore) findUnusedID() (uuid.UUID, error) {
 // generateRSA creates a new RSA private key and returns its identifier and a
 // crypto.Signer. The returned identifier can be passed to getSigner later to
 // get the same crypto.Signer.
-func (p *pkcs11KeyStore) generateRSA() ([]byte, crypto.Signer, error) {
+func (p *pkcs11KeyStore) generateRSA(ctx context.Context, options ...RSAKeyOption) ([]byte, crypto.Signer, error) {
 	p.log.Debug("Creating new HSM keypair")
 	id, err := p.findUnusedID()
 	if err != nil {
@@ -144,193 +148,48 @@ func (p *pkcs11KeyStore) generateRSA() ([]byte, crypto.Signer, error) {
 }
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
-func (p *pkcs11KeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
-	keyType := KeyType(rawKey)
-	switch keyType {
-	case types.PrivateKeyType_PKCS11:
-		keyID, err := parseKeyID(rawKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if keyID.HostID != p.hostUUID {
-			return nil, trace.NotFound("given pkcs11 key is for host: %q, but this host is: %q", keyID.HostID, p.hostUUID)
-		}
-		pkcs11ID, err := keyID.pkcs11Key()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer, err := p.ctx.FindKeyPair(pkcs11ID, []byte(p.hostUUID))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if signer == nil {
-			return nil, trace.NotFound("failed to find keypair for given id")
-		}
-		return signer, nil
-	case types.PrivateKeyType_RAW:
-		return nil, trace.BadParameter("cannot get raw signer from PKCS11 KeyStore")
+func (p *pkcs11KeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+	if t := keyType(rawKey); t != types.PrivateKeyType_PKCS11 {
+		return nil, trace.BadParameter("pkcs11KeyStore cannot get signer for key type %s", t.String())
 	}
-	return nil, trace.BadParameter("unrecognized key type %s", keyType.String())
-}
-
-func (p *pkcs11KeyStore) selectTLSKeyPair(keySet types.CAKeySet) (*types.TLSKeyPair, error) {
-	for _, keyPair := range keySet.TLS {
-		if keyPair.KeyType == types.PrivateKeyType_PKCS11 {
-			keyID, err := parseKeyID(keyPair.Key)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if keyID.HostID != p.hostUUID {
-				continue
-			}
-			return keyPair, nil
-		}
-	}
-	return nil, trace.NotFound("no local PKCS#11 TLS key pairs found in CA")
-}
-
-// GetTLSCertAndSigner selects the local TLS keypair and returns the raw TLS cert and crypto.Signer.
-func (p *pkcs11KeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
-	keyPair, err := p.selectTLSKeyPair(ca.GetActiveKeys())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	signer, err := p.getSigner(keyPair.Key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return keyPair.Cert, signer, nil
-}
-
-func (p *pkcs11KeyStore) selectSSHKeyPair(keySet types.CAKeySet) (*types.SSHKeyPair, error) {
-	for _, keyPair := range keySet.SSH {
-		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
-			keyID, err := parseKeyID(keyPair.PrivateKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if keyID.HostID != p.hostUUID {
-				continue
-			}
-			return keyPair, nil
-		}
-	}
-	return nil, trace.NotFound("no local PKCS#11 SSH key pairs found in CA")
-}
-
-// GetSSHSigner selects the local SSH keypair and returns an ssh.Signer.
-func (p *pkcs11KeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
-	keyPair, err := p.selectSSHKeyPair(ca.GetActiveKeys())
+	keyID, err := parseKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	signer, err := p.getSigner(keyPair.PrivateKey)
+	if keyID.HostID != p.hostUUID {
+		return nil, trace.NotFound("given pkcs11 key is for host: %q, but this host is: %q", keyID.HostID, p.hostUUID)
+	}
+	pkcs11ID, err := keyID.pkcs11Key()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	signer, err := p.ctx.FindKeyPair(pkcs11ID, []byte(p.hostUUID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshSigner, nil
-}
-
-// GetJWTSigner returns the active jwt signer used to sign tokens.
-func (p *pkcs11KeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
-	keyPairs := ca.GetActiveKeys().JWT
-	for _, keyPair := range keyPairs {
-		if keyPair.PrivateKeyType == types.PrivateKeyType_PKCS11 {
-			keyID, err := parseKeyID(keyPair.PrivateKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if keyID.HostID != p.hostUUID {
-				continue
-			}
-			signer, err := p.getSigner(keyPair.PrivateKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return signer, nil
-		}
+	if signer == nil {
+		return nil, trace.NotFound("failed to find keypair for given id")
 	}
-	return nil, trace.NotFound("no local PKCS#11 JWT key pairs found in %s CA for %q", ca.GetType(), ca.GetClusterName())
+	return signer, nil
 }
 
-// NewSSHKeyPair creates and returns a new HSM-backed SSHKeyPair.
-func (p *pkcs11KeyStore) NewSSHKeyPair() (*types.SSHKeyPair, error) {
-	return newSSHKeyPair(p)
-}
-
-// NewTLSKeyPair creates and returns a new HSM-backed TLSKeyPair.
-func (p *pkcs11KeyStore) NewTLSKeyPair(clusterName string) (*types.TLSKeyPair, error) {
-	return newTLSKeyPair(p, clusterName)
-}
-
-// NewJWTKeyPair creates and returns a new HSM-backed JWTKeyPair.
-func (p *pkcs11KeyStore) NewJWTKeyPair() (*types.JWTKeyPair, error) {
-	return newJWTKeyPair(p)
-}
-
-func (p *pkcs11KeyStore) keySetHasLocalKeys(keySet types.CAKeySet) bool {
-	for _, sshKeyPair := range keySet.SSH {
-		if sshKeyPair.PrivateKeyType != types.PrivateKeyType_PKCS11 {
-			continue
-		}
-		keyID, err := parseKeyID(sshKeyPair.PrivateKey)
-		if err != nil {
-			p.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
-			continue
-		}
-		if keyID.HostID == p.hostUUID {
-			return true
-		}
+// canSignWithKey returns true if the given key is PKCS11 and was created by
+// this host. If the HSM is disconnected or the key material has been deleted
+// the error will not be detected here but when the first signature is
+// attempted.
+func (p *pkcs11KeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+	if keyType != types.PrivateKeyType_PKCS11 {
+		return false, nil
 	}
-	for _, tlsKeyPair := range keySet.TLS {
-		if tlsKeyPair.KeyType != types.PrivateKeyType_PKCS11 {
-			continue
-		}
-		keyID, err := parseKeyID(tlsKeyPair.Key)
-		if err != nil {
-			p.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
-			continue
-		}
-		if keyID.HostID == p.hostUUID {
-			return true
-		}
+	keyID, err := parseKeyID(raw)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
-	for _, jwtKeyPair := range keySet.JWT {
-		if jwtKeyPair.PrivateKeyType != types.PrivateKeyType_PKCS11 {
-			continue
-		}
-		keyID, err := parseKeyID(jwtKeyPair.PrivateKey)
-		if err != nil {
-			p.log.WithError(err).Warnf("Failed to parse PKCS#11 key ID")
-			continue
-		}
-		if keyID.HostID == p.hostUUID {
-			return true
-		}
-	}
-	return false
-}
-
-// HasLocalActiveKeys returns true if the given CA has any active keys that
-// are usable with this KeyStore.
-func (p *pkcs11KeyStore) HasLocalActiveKeys(ca types.CertAuthority) bool {
-	return p.keySetHasLocalKeys(ca.GetActiveKeys())
-}
-
-// HasLocalAdditionalKeys returns true if the given CA has any additional
-// trusted keys that are usable with this KeyStore.
-func (p *pkcs11KeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
-	return p.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys())
+	return keyID.HostID == p.hostUUID, nil
 }
 
 // deleteKey deletes the given key from the HSM
-func (p *pkcs11KeyStore) deleteKey(rawKey []byte) error {
+func (p *pkcs11KeyStore) deleteKey(_ context.Context, rawKey []byte) error {
 	keyID, err := parseKeyID(rawKey)
 	if err != nil {
 		return trace.Wrap(err)
@@ -355,15 +214,14 @@ func (p *pkcs11KeyStore) deleteKey(rawKey []byte) error {
 // DeleteUnusedKeys deletes all keys from the KeyStore if they are:
 // 1. Labeled by this KeyStore when they were created
 // 2. Not included in the argument usedKeys
-func (p *pkcs11KeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
+func (p *pkcs11KeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte) error {
 	p.log.Debug("Deleting unused keys from HSM")
 	var usedPublicKeys []*rsa.PublicKey
 	for _, usedKey := range usedKeys {
-		keyType := KeyType(usedKey)
-		if keyType != types.PrivateKeyType_PKCS11 {
+		if keyType(usedKey) != types.PrivateKeyType_PKCS11 {
 			continue
 		}
-		signer, err := p.getSigner(usedKey)
+		signer, err := p.getSigner(ctx, usedKey)
 		if trace.IsNotFound(err) {
 			// key is for different host, or truly not found in HSM. Either
 			// way, it won't be deleted below.
@@ -408,41 +266,6 @@ func (p *pkcs11KeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 	return nil
 }
 
-// GetAdditionalTrustedSSHSigner selects the local SSH keypair from the CA
-// AdditionalTrustedKeys and returns an ssh.Signer.
-func (p *pkcs11KeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
-	keyPair, err := p.selectSSHKeyPair(ca.GetAdditionalTrustedKeys())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	signer, err := p.getSigner(keyPair.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshSigner, err := ssh.NewSignerFromSigner(signer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sshSigner, nil
-}
-
-// GetAdditionalTrustedTLSCertAndSigner selects the local TLS keypair from the
-// CA AdditionalTrustedKeys and returns the PEM-encoded TLS cert and a
-// crypto.Signer.
-func (p *pkcs11KeyStore) GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
-	keyPair, err := p.selectTLSKeyPair(ca.GetAdditionalTrustedKeys())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	signer, err := p.getSigner(keyPair.Key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return keyPair.Cert, signer, nil
-}
-
 type keyID struct {
 	HostID string `json:"host_id"`
 	KeyID  string `json:"key_id"`
@@ -467,7 +290,7 @@ func (k keyID) pkcs11Key() ([]byte, error) {
 
 func parseKeyID(key []byte) (keyID, error) {
 	var keyID keyID
-	if KeyType(key) != types.PrivateKeyType_PKCS11 {
+	if keyType(key) != types.PrivateKeyType_PKCS11 {
 		return keyID, trace.BadParameter("unable to parse invalid pkcs11 key")
 	}
 	// strip pkcs11: prefix

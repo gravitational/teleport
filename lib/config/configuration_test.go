@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -371,6 +373,16 @@ func TestConfigReading(t *testing.T) {
 					},
 					ResourceGroups: []string{"group1"},
 					Subscriptions:  []string{"sub1"},
+				},
+			},
+			GCPMatchers: []GCPMatcher{
+				{
+					Types:     []string{"gke"},
+					Locations: []string{"uswest1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					ProjectIDs: []string{"p1", "p2"},
 				},
 			},
 		},
@@ -768,6 +780,9 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, types.AgentMesh, tunnelStrategyType)
 	require.Equal(t, types.DefaultAgentMeshTunnelStrategy(), cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
 
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
@@ -890,6 +905,9 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 
 	require.False(t, cfg.Auth.Enabled)
 	require.Empty(t, cfg.Auth.PublicAddrs)
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
 	require.False(t, cfg.Proxy.Enabled)
 	require.Empty(t, cfg.Proxy.PublicAddrs)
 	require.False(t, cfg.SSH.Enabled)
@@ -900,6 +918,100 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
+}
+
+// TestApplyConfigNoneEnabled makes sure that if the auth file configuration
+// does not have `cluster_auth_preference`, `cluster_networking_config` and
+// `session_recording` fields, then they all have the origin label as defaults.
+func TestApplyDefaultAuthResources(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(DefaultAuthResourcesConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomAuthPreference makes sure that if the auth file configuration
+// has a `cluster_auth_preference` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomAuthPreference(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomAuthPreferenceConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.Preference.Origin())
+	require.True(t, cfg.Auth.Preference.GetDisconnectExpiredCert())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomAuthPreferenceWithMOTD makes sure that if the auth file configuration
+// has only the `message_of_the_day` `cluster_auth_preference` field, then it will have
+// the origin label as defaults (instead of config-file).
+func TestApplyCustomAuthPreferenceWithMOTD(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(AuthPreferenceConfigWithMOTDString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, "welcome!", cfg.Auth.Preference.GetMessageOfTheDay())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomNetworkingConfig makes sure that if the auth file configuration
+// has a `cluster_networking_config` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomNetworkingConfig(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomNetworkingConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, 10*time.Second, cfg.Auth.NetworkingConfig.GetWebIdleTimeout())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomSessionRecordingConfig makes sure that if the auth file configuration
+// has a `session_recording` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomSessionRecordingConfig(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomSessionRecordingConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.SessionRecordingConfig.Origin())
+	require.True(t, cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys())
 }
 
 // TestPostgresPublicAddr makes sure Postgres proxy public address default
@@ -1401,6 +1513,17 @@ func makeConfigFixture() string {
 		},
 	}
 
+	conf.Discovery.GCPMatchers = []GCPMatcher{
+		{
+			Types:     []string{"gke"},
+			Locations: []string{"uswest1"},
+			Tags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+			ProjectIDs: []string{"p1", "p2"},
+		},
+	}
+
 	// proxy-service:
 	conf.Proxy.EnabledFlag = "yes"
 	conf.Proxy.ListenAddress = "tcp://proxy"
@@ -1581,7 +1704,7 @@ ssh_service:
 		}
 		cfg := service.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		require.NoError(t, err, comment)
 		require.Equal(t, tt.outPermitUserEnvironment, cfg.SSH.PermitUserEnvironment, comment)
 	}
@@ -1648,7 +1771,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 			cfg := service.MakeDefaultConfig()
 
 			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
-			require.NoError(t, Configure(&CommandLineFlags{}, cfg))
+			require.NoError(t, Configure(&CommandLineFlags{}, cfg, false))
 
 			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
 		})
@@ -1662,7 +1785,7 @@ func TestDebugFlag(t *testing.T) {
 	}
 	cfg := service.MakeDefaultConfig()
 	require.False(t, cfg.Debug)
-	err := Configure(&clf, cfg)
+	err := Configure(&clf, cfg, false)
 	require.NoError(t, err)
 	require.True(t, cfg.Debug)
 }
@@ -1711,7 +1834,7 @@ func TestMergingCAPinConfig(t *testing.T) {
 			}
 			cfg := service.MakeDefaultConfig()
 			require.Empty(t, cfg.CAPins)
-			err := Configure(&clf, cfg)
+			err := Configure(&clf, cfg, false)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.want, cfg.CAPins)
 		})
@@ -1795,7 +1918,7 @@ func TestFIPS(t *testing.T) {
 		service.ApplyDefaults(cfg)
 		service.ApplyFIPSDefaults(cfg)
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		if tt.outError {
 			require.Error(t, err, comment)
 		} else {
@@ -2106,7 +2229,7 @@ app_service:
 		}
 		cfg := service.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg)
+		err := Configure(&clf, cfg, false)
 		require.Equal(t, err != nil, tt.outError, tt.inComment)
 	}
 }
@@ -2115,71 +2238,161 @@ app_service:
 // in on the command line.
 func TestAppsCLF(t *testing.T) {
 	tests := []struct {
-		desc      string
-		inRoles   string
-		inAppName string
-		inAppURI  string
-		outError  error
+		desc             string
+		inRoles          string
+		inAppName        string
+		inAppURI         string
+		inAppCloud       string
+		inLegacyAppFlags bool
+		outApps          []service.App
+		requireError     require.ErrorAssertionFunc
 	}{
 		{
 			desc:      "role provided, valid name and uri",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  nil,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "http://localhost:8080",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
 		},
 		{
-			desc:      "role provided, name not provided",
+			desc:             "role provided, name not provided, uri not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "",
+			inAppURI:         "",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, name not provided, uri not provided, regular flags",
+			inRoles:   defaults.RoleApp,
+			inAppName: "",
+			inAppURI:  "",
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
+			},
+		},
+		{
+			desc:             "role provided, name not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "",
+			inAppURI:         "http://localhost:8080",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name (--app-name) is required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, name not provided, regular flags",
 			inRoles:   defaults.RoleApp,
 			inAppName: "",
 			inAppURI:  "http://localhost:8080",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name)")
+			},
 		},
 		{
-			desc:      "role provided, uri not provided",
+			desc:             "role provided, uri not provided, legacy flags",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "foo",
+			inAppURI:         "",
+			inLegacyAppFlags: true,
+			outApps:          nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "URI (--app-uri) flag is required to join application proxy to the cluster")
+			},
+		},
+		{
+			desc:      "role provided, uri not provided, regular flags",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
+			},
 		},
 		{
 			desc:      "valid name and uri",
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  nil,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "http://localhost:8080",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
+		},
+		{
+			desc:       "valid name and cloud",
+			inAppName:  "foo",
+			inAppCloud: types.CloudGCP,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "cloud://GCP",
+					Cloud:         "GCP",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
 		},
 		{
 			desc:      "invalid name",
 			inAppName: "-foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name")
+			},
 		},
 		{
 			desc:      "missing uri",
 			inAppName: "foo",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "missing application \"foo\" URI")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			clf := CommandLineFlags{
-				Roles:   tt.inRoles,
-				AppName: tt.inAppName,
-				AppURI:  tt.inAppURI,
+				Roles:    tt.inRoles,
+				AppName:  tt.inAppName,
+				AppURI:   tt.inAppURI,
+				AppCloud: tt.inAppCloud,
 			}
 			cfg := service.MakeDefaultConfig()
-			err := Configure(&clf, cfg)
-			if err != nil {
-				require.IsType(t, err, tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
-			if tt.outError != nil {
-				return
-			}
-			require.True(t, cfg.Apps.Enabled)
-			require.Len(t, cfg.Apps.Apps, 1)
+			err := Configure(&clf, cfg, tt.inLegacyAppFlags)
+			tt.requireError(t, err)
+			require.Equal(t, tt.outApps, cfg.Apps.Apps)
 		})
 	}
 }
@@ -2254,7 +2467,7 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2274,7 +2487,7 @@ db_service:
 			clf := CommandLineFlags{
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
-			err := Configure(&clf, service.MakeDefaultConfig())
+			err := Configure(&clf, service.MakeDefaultConfig(), false)
 			if tt.outError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.outError)
@@ -2339,7 +2552,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseName:     "foo",
 				DatabaseProtocol: defaults.ProtocolPostgres,
 			},
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2509,6 +2722,34 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "AWS DynamoDB",
+			inFlags: CommandLineFlags{
+				DatabaseName:          "ddb",
+				DatabaseProtocol:      defaults.ProtocolDynamoDB,
+				DatabaseURI:           "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:  "123456789012",
+				DatabaseAWSExternalID: "12345678901234",
+				DatabaseAWSRegion:     "us-east-1",
+			},
+			outDatabase: service.Database{
+				Name:     "ddb",
+				Protocol: defaults.ProtocolDynamoDB,
+				URI:      "dynamodb.us-east-1.amazonaws.com",
+				AWS: service.DatabaseAWS{
+					Region:     "us-east-1",
+					AccountID:  "123456789012",
+					ExternalID: "12345678901234",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2517,7 +2758,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			t.Parallel()
 
 			config := service.MakeDefaultConfig()
-			err := Configure(&tt.inFlags, config)
+			err := Configure(&tt.inFlags, config, false)
 			if tt.outError != "" {
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
@@ -2690,7 +2931,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "correct config",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2711,7 +2952,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "correct config with pin file",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2732,7 +2973,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pin and pin path configured",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						Pin:     "oops",
 						PinPath: securePinFilePath,
 					},
@@ -2744,7 +2985,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pkcs11 world writable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: worldWritablePKCS11LibPath,
 					},
 				},
@@ -2758,7 +2999,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pin file world-readable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						PinPath: worldReadablePinFilePath,
 					},
 				},
@@ -2767,6 +3008,45 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				"HSM pin file (%s) must not be world-readable",
 				worldReadablePinFilePath,
 			),
+		},
+		{
+			name: "correct gcp config",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			want: keystore.Config{
+				GCPKMS: keystore.GCPKMSConfig{
+					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+					ProtectionLevel: "HSM",
+				},
+			},
+		},
+		{
+			name: "gcp config no protection level",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing: "/projects/my-project/locations/global/keyRings/my-keyring",
+					},
+				},
+			},
+			errMessage: "must set protection_level in ca_key_params.gcp_kms",
+		},
+		{
+			name: "gcp config no keyring",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			errMessage: "must set keyring in ca_key_params.gcp_kms",
 		},
 	}
 
@@ -2944,6 +3224,62 @@ teleport:
 			require.NoError(t, err)
 			require.Equal(t, tc.expectToken, token)
 			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
+		})
+	}
+}
+
+func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
+	tests := []struct {
+		name        string
+		buildType   string
+		deviceTrust *DeviceTrust
+		wantErr     bool
+	}{
+		{
+			name:      "ok: OSS Mode=off",
+			buildType: modules.BuildOSS,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeOff,
+			},
+		},
+		{
+			name:      "nok: OSS Mode=required",
+			buildType: modules.BuildOSS,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+			wantErr: true,
+		},
+		{
+			name:      "ok: Enterprise Mode=required",
+			buildType: modules.BuildEnterprise,
+			deviceTrust: &DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: test.buildType,
+			})
+
+			defaultCfg := service.MakeDefaultConfig()
+			err := ApplyFileConfig(&FileConfig{
+				Auth: Auth{
+					Service: Service{
+						EnabledFlag: "yes",
+					},
+					Authentication: &AuthenticationConfig{
+						DeviceTrust: test.deviceTrust,
+					},
+				},
+			}, defaultCfg)
+			if test.wantErr {
+				assert.Error(t, err, "ApplyFileConfig mismatch")
+			} else {
+				assert.NoError(t, err, "ApplyFileConfig mismatch")
+			}
 		})
 	}
 }
