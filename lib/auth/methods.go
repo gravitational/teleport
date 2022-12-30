@@ -34,6 +34,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// maxUserAgentLen is the maximum length of a user agent that will be logged.
+	// There is no current consensus on what the maximum length of a User-Agent
+	// should be and there were reports of extremely large UAs especially from
+	// older versions of IE. 2048 was picked because it still allowed for very
+	// large UAs but keeps from causing logging issues. For reference Nginx
+	// defaults to 4k or 8k header size limits for ALL headers so 2k seems more
+	// than sufficient.
+	maxUserAgentLen = 2048
+)
+
 // AuthenticateUserRequest is a request to authenticate interactive user
 type AuthenticateUserRequest struct {
 	// Username is a username
@@ -120,7 +131,11 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	}
 	if req.ClientMetadata != nil {
 		event.RemoteAddr = req.ClientMetadata.RemoteAddr
-		event.UserAgent = req.ClientMetadata.UserAgent
+		if len(req.ClientMetadata.UserAgent) > maxUserAgentLen {
+			event.UserAgent = req.ClientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
+		} else {
+			event.UserAgent = req.ClientMetadata.UserAgent
+		}
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
