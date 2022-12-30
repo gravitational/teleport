@@ -36,7 +36,7 @@ const (
 	testMaxBufferSize = 10
 	testRetryAttempts = 2
 	testSubmitDelay   = time.Second * 1
-	testMaxBatchAge   = time.Second * 30
+	testMaxBatchAge   = time.Second * 5
 )
 
 type TestEvent struct {
