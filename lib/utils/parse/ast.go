@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Node is a node in the Node.
+// Node is a node in the AST.
 type Node interface {
 	// Str returns the string value if the node is StrNode.
 	Str() *string
@@ -35,7 +35,7 @@ type Node interface {
 	Eval(varValue *string) (string, error)
 }
 
-// StrNode encodes a string expression.
+// StrNode encodes a string literal.
 type StrNode struct {
 	value string
 }
