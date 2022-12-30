@@ -54,9 +54,9 @@ const (
 	// to avoid spamming the prehog instance.
 	submitDelay = time.Second * 1
 
-	// submitDelay is a mandatory delay added to each batch submission
-	// to avoid spamming the prehog instance.
-	retryAttempts = 1
+	// usageReporterRetryAttempts is the max number of attempts that
+	// should be made to submit a particular event before it's dropped
+	retryAttempts = 2
 )
 
 func NewConnectUsageReporter(ctx context.Context) (*usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], error) {
