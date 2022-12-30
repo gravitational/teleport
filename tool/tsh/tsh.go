@@ -2536,7 +2536,13 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	for _, a := range active {
 		if a.ServiceName == name {
 			name = formatActiveDB(a)
-			connect = formatDatabaseConnectCommand(clusterFlag, a)
+			switch a.Protocol {
+			case defaults.ProtocolDynamoDB:
+				// DynamoDB does not support "tsh db connect", so print the proxy command instead.
+				connect = formatDatabaseProxyCommand(clusterFlag, a)
+			default:
+				connect = formatDatabaseConnectCommand(clusterFlag, a)
+			}
 		}
 	}
 
