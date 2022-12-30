@@ -310,18 +310,18 @@ type TeleportUsageReporter struct {
 	clock       clockwork.Clock
 }
 
-func (tur *TeleportUsageReporter) AnonymizeAndSubmit(events ...UsageAnonymizable) error {
+func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...UsageAnonymizable) error {
 	for _, e := range events {
-		req := e.Anonymize(tur.anonymizer)
-		req.Timestamp = timestamppb.New(tur.clock.Now())
-		req.ClusterName = tur.anonymizer.AnonymizeString(tur.clusterName.GetClusterName())
-		tur.usageReporter.AddEventsToQueue(&req)
+		req := e.Anonymize(t.anonymizer)
+		req.Timestamp = timestamppb.New(t.clock.Now())
+		req.ClusterName = t.anonymizer.AnonymizeString(t.clusterName.GetClusterName())
+		t.usageReporter.AddEventsToQueue(&req)
 	}
 	return nil
 }
 
-func (tur *TeleportUsageReporter) Run(ctx context.Context) {
-	tur.usageReporter.Run(ctx)
+func (t *TeleportUsageReporter) Run(ctx context.Context) {
+	t.usageReporter.Run(ctx)
 }
 
 func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.SubmitFunc[prehogapi.SubmitEventRequest]) (*TeleportUsageReporter, error) {
