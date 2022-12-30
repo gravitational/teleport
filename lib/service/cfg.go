@@ -869,6 +869,8 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	ExternalID string
 	// RedshiftServerless contains AWS Redshift Serverless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless
 }
@@ -1029,8 +1031,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ServerVersion: d.MySQL.ServerVersion,
 		},
 		AWS: types.AWS{
-			AccountID: d.AWS.AccountID,
-			Region:    d.AWS.Region,
+			AccountID:  d.AWS.AccountID,
+			ExternalID: d.AWS.ExternalID,
+			Region:     d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
 			},
