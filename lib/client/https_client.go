@@ -36,40 +36,27 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func NewInsecureWebClient() *http.Client {
-	// Because Teleport clients can't be configured (yet), they take the default
-	// list of cipher suites from Go.
-	tlsConfig := utils.TLSConfig(nil)
-	transport := http.Transport{
-		TLSClientConfig: tlsConfig,
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		},
-	}
+func newClient(insecure bool, pool *x509.CertPool, extraHeaders map[string]string) *http.Client {
 	return &http.Client{
 		Transport: otelhttp.NewTransport(
-			apiproxy.NewHTTPFallbackRoundTripper(&transport, true /* insecure */),
+			apiproxy.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
 		),
 	}
 }
 
-func newClientWithPool(pool *x509.CertPool) *http.Client {
+func httpTransport(insecure bool, pool *x509.CertPool) *http.Transport {
 	// Because Teleport clients can't be configured (yet), they take the default
 	// list of cipher suites from Go.
 	tlsConfig := utils.TLSConfig(nil)
+	tlsConfig.InsecureSkipVerify = insecure
 	tlsConfig.RootCAs = pool
 
-	return &http.Client{
-		Transport: otelhttp.NewTransport(
-			&http.Transport{
-				TLSClientConfig: tlsConfig,
-				Proxy: func(req *http.Request) (*url.URL, error) {
-					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-				},
-			},
-			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-		),
+	return &http.Transport{
+		TLSClientConfig: tlsConfig,
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
 	}
 }
 
