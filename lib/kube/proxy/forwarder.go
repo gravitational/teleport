@@ -1677,9 +1677,9 @@ type clusterSession struct {
 }
 
 // close cancels the connection monitor context if available.
-func (c *clusterSession) close() {
-	if c.cancel != nil {
-		c.cancel()
+func (s *clusterSession) close() {
+	if s.cancel != nil {
+		s.cancel()
 	}
 }
 
