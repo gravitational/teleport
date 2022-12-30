@@ -116,7 +116,7 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 	// nothing to do if the resource was not modified
 	if newSum == originalSum {
-		fmt.Println("edit cancelled, no changes made")
+		fmt.Println("edit canceled, no changes made")
 		return true, nil
 	}
 
