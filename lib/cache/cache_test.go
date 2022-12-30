@@ -24,10 +24,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -36,15 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
+
+const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -65,17 +68,20 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS          services.UsersService
-	accessS         services.Access
-	dynamicAccessS  services.DynamicAccessCore
-	presenceS       services.Presence
-	appSessionS     services.AppSession
-	restrictions    services.Restrictions
-	apps            services.Apps
-	databases       services.Databases
-	webSessionS     types.WebSessionInterface
-	webTokenS       types.WebTokenInterface
-	windowsDesktops services.WindowsDesktops
+	usersS            services.UsersService
+	accessS           services.Access
+	dynamicAccessS    services.DynamicAccessCore
+	presenceS         services.Presence
+	appSessionS       services.AppSession
+	snowflakeSessionS services.SnowflakeSession
+	restrictions      services.Restrictions
+	apps              services.Apps
+	kubernetes        services.Kubernetes
+	databases         services.Databases
+	databaseServices  services.DatabaseServices
+	webSessionS       types.WebSessionInterface
+	webTokenS         types.WebTokenInterface
+	windowsDesktops   services.WindowsDesktops
 }
 
 func (t *testPack) Close() {
@@ -165,7 +171,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -182,10 +188,13 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
 	p.appSessionS = local.NewIdentityService(p.backend)
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
+	p.snowflakeSessionS = local.NewIdentityService(p.backend)
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
+	p.kubernetes = local.NewKubernetesService(p.backend)
 	p.databases = local.NewDatabasesService(p.backend)
+	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 
 	return p, nil
@@ -200,25 +209,28 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		WebSession:       p.webSessionS,
+		WebToken:         p.webTokenS,
+		SnowflakeSession: p.snowflakeSessionS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -226,8 +238,9 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 
 	select {
 	case event := <-p.eventsC:
+
 		if event.Type != WatcherStarted {
-			return nil, trace.CompareFailed("%q != %q", event.Type, WatcherStarted)
+			return nil, trace.CompareFailed("%q != %q %s", event.Type, WatcherStarted, event)
 		}
 	case <-time.After(time.Second):
 		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
@@ -237,6 +250,8 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 
 // TestCA tests certificate authorities
 func TestCA(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 	ctx := context.Background()
@@ -272,6 +287,8 @@ func TestCA(t *testing.T) {
 // verifies that all watchers of the cache will be closed
 // if the underlying watcher to the target backend is closed
 func TestWatchers(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -384,6 +401,8 @@ func TestWatchers(t *testing.T) {
 }
 
 func TestNodeCAFiltering(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	p := newTestPack(t, ForAuth)
@@ -402,22 +421,24 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
-		Events:          p.cache,
-		Trust:           p.cache.trustCache,
-		ClusterConfig:   p.cache.clusterConfigCache,
-		Provisioner:     p.cache.provisionerCache,
-		Users:           p.cache.usersCache,
-		Access:          p.cache.accessCache,
-		DynamicAccess:   p.cache.dynamicAccessCache,
-		Presence:        p.cache.presenceCache,
-		Restrictions:    p.cache.restrictionsCache,
-		Apps:            p.cache.appsCache,
-		Databases:       p.cache.databasesCache,
-		AppSession:      p.cache.appSessionCache,
-		WebSession:      p.cache.webSessionCache,
-		WebToken:        p.cache.webTokenCache,
-		WindowsDesktops: p.cache.windowsDesktopsCache,
-		Backend:         nodeCacheBackend,
+		Events:           p.cache,
+		Trust:            p.cache.trustCache,
+		ClusterConfig:    p.cache.clusterConfigCache,
+		Provisioner:      p.cache.provisionerCache,
+		Users:            p.cache.usersCache,
+		Access:           p.cache.accessCache,
+		DynamicAccess:    p.cache.dynamicAccessCache,
+		Presence:         p.cache.presenceCache,
+		Restrictions:     p.cache.restrictionsCache,
+		Apps:             p.cache.appsCache,
+		Kubernetes:       p.cache.kubernetesCache,
+		Databases:        p.cache.databasesCache,
+		DatabaseServices: p.cache.databaseServicesCache,
+		AppSession:       p.cache.appSessionCache,
+		WebSession:       p.cache.webSessionCache,
+		WebToken:         p.cache.webTokenCache,
+		WindowsDesktops:  p.cache.windowsDesktopsCache,
+		Backend:          nodeCacheBackend,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
@@ -506,13 +527,27 @@ func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
 	}
 }
 
+func unexpectedEvent(t *testing.T, eventsC <-chan Event, unexpectedEvent string) {
+	timeC := time.After(time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == unexpectedEvent {
+				t.Fatalf("Received unexpected event: %s", unexpectedEvent)
+			}
+		case <-timeC:
+			return
+		}
+	}
+}
+
 func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
 		// wait for watcher to restart
 		select {
 		case event := <-eventsC:
-			if apiutils.SliceContainsStr(skipEvents, event.Type) {
+			if slices.Contains(skipEvents, event.Type) {
 				continue
 			}
 			require.Equal(t, expectedEvent, event.Type)
@@ -526,6 +561,8 @@ func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, s
 // TestCompletenessInit verifies that flaky backends don't cause
 // the cache to return partial results during init.
 func TestCompletenessInit(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const caCount = 100
 	const inits = 20
@@ -553,25 +590,28 @@ func TestCompletenessInit(t *testing.T) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:         ctx,
-			Backend:         p.cacheBackend,
-			Events:          p.eventsS,
-			ClusterConfig:   p.clusterConfigS,
-			Provisioner:     p.provisionerS,
-			Trust:           p.trustS,
-			Users:           p.usersS,
-			Access:          p.accessS,
-			DynamicAccess:   p.dynamicAccessS,
-			Presence:        p.presenceS,
-			AppSession:      p.appSessionS,
-			WebSession:      p.webSessionS,
-			WebToken:        p.webTokenS,
-			Restrictions:    p.restrictions,
-			Apps:            p.apps,
-			Databases:       p.databases,
-			WindowsDesktops: p.windowsDesktops,
-			MaxRetryPeriod:  200 * time.Millisecond,
-			EventsC:         p.eventsC,
+			Context:          ctx,
+			Backend:          p.cacheBackend,
+			Events:           p.eventsS,
+			ClusterConfig:    p.clusterConfigS,
+			Provisioner:      p.provisionerS,
+			Trust:            p.trustS,
+			Users:            p.usersS,
+			Access:           p.accessS,
+			DynamicAccess:    p.dynamicAccessS,
+			Presence:         p.presenceS,
+			AppSession:       p.appSessionS,
+			WebSession:       p.webSessionS,
+			SnowflakeSession: p.snowflakeSessionS,
+			WebToken:         p.webTokenS,
+			Restrictions:     p.restrictions,
+			Apps:             p.apps,
+			Kubernetes:       p.kubernetes,
+			DatabaseServices: p.databaseServices,
+			Databases:        p.databases,
+			WindowsDesktops:  p.windowsDesktops,
+			MaxRetryPeriod:   200 * time.Millisecond,
+			EventsC:          p.eventsC,
 		}))
 		require.NoError(t, err)
 
@@ -597,6 +637,8 @@ func TestCompletenessInit(t *testing.T) {
 // TestCompletenessReset verifies that flaky backends don't cause
 // the cache to return partial results during reset.
 func TestCompletenessReset(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const caCount = 100
 	const resets = 20
@@ -611,25 +653,28 @@ func TestCompletenessReset(t *testing.T) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		WebSession:       p.webSessionS,
+		SnowflakeSession: p.snowflakeSessionS,
+		WebToken:         p.webTokenS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -657,90 +702,11 @@ func TestCompletenessReset(t *testing.T) {
 	}
 }
 
-// TestTombstones verifies that healthy caches leave tombstones
-// on closure, giving new caches the ability to start from a known
-// good state if the origin state is unavailable.
-func TestTombstones(t *testing.T) {
-	ctx := context.Background()
-	const caCount = 10
-	p := newTestPackWithoutCache(t)
-	t.Cleanup(p.Close)
-
-	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
-	}
-
-	var err error
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
-
-	require.NoError(t, p.cache.Close())
-	// wait for TombstoneWritten, ignoring all other event types
-	expectEvent(t, p.eventsC, TombstoneWritten)
-	// simulate bad connection to auth server
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
-	p.eventsS.closeWatchers()
-
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available despite the fact
-	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
-}
-
 // TestInitStrategy verifies that cache uses expected init strategy
 // of serving backend state when init is taking too long.
 func TestInitStrategy(t *testing.T) {
+	t.Parallel()
+
 	for i := 0; i < utils.GetIterations(); i++ {
 		initStrategy(t)
 	}
@@ -765,19 +731,16 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	ctx := context.Background()
 
 	for i := 0; i < nodeCount; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
 	}
 
 	b.ResetTimer()
@@ -793,61 +756,67 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 goos: linux
 goarch: amd64
 pkg: github.com/gravitational/teleport/lib/cache
-cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
-BenchmarkListMaxNodes-16    	       1	1136071399 ns/op
+cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
+BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
-func BenchmarkListMaxNodes(b *testing.B) {
-	benchListNodes(b, backend.DefaultRangeLimit, apidefaults.DefaultChunkSize)
-}
-
-func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
+func BenchmarkListResourcesWithSort(b *testing.B) {
 	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
 	require.NoError(b, err)
 	defer p.Close()
 
 	ctx := context.Background()
 
-	for i := 0; i < nodeCount; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
+	count := 100000
+	for i := 0; i < count; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		// Set some static and dynamic labels.
+		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
+		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
+			"version": {Result: "v8"},
+			"time":    {Result: "now"},
+		}
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
 	}
 
 	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
-		var nodes []types.Server
-		req := proto.ListNodesRequest{
-			Namespace: apidefaults.Namespace,
-			Limit:     int32(pageSize),
+	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
+		for _, totalCount := range []bool{true, false} {
+			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
+				for n := 0; n < b.N; n++ {
+					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindNode,
+						Namespace:    apidefaults.Namespace,
+						SortBy: types.SortBy{
+							IsDesc: true,
+							Field:  types.ResourceSpecHostname,
+						},
+						// Predicate is the more expensive filter.
+						PredicateExpression: `search("mac", "frontend") && labels.version == "v8"`,
+						Limit:               limit,
+						NeedTotalCount:      totalCount,
+					})
+					require.NoError(b, err)
+					require.Len(b, resp.Resources, int(limit))
+				}
+			})
 		}
-		for {
-			page, nextKey, err := p.cache.ListNodes(ctx, req)
-			require.NoError(b, err)
-			nodes = append(nodes, page...)
-			require.True(b, len(page) == pageSize || nextKey == "")
-			if nextKey == "" {
-				break
-			}
-			req.StartKey = nextKey
-		}
-		require.Len(b, nodes, nodeCount)
 	}
 }
 
 // TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
 func TestListResources_NodesTTLVariant(t *testing.T) {
+	t.Parallel()
+
 	const nodeCount = 100
 	const pageSize = 10
 	var err error
@@ -859,26 +828,29 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-		neverOK:         true, // ensure reads are never healthy
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		WebSession:       p.webSessionS,
+		WebToken:         p.webTokenS,
+		SnowflakeSession: p.snowflakeSessionS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
+		neverOK:          true, // ensure reads are never healthy
 	}))
 	require.NoError(t, err)
 
@@ -893,32 +865,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	allNodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, allNodes, nodeCount)
-
-	// DELETE IN 10.0.0 this block with ListNodes is replaced
-	// by the following block with ListResources test.
-	var nodes []types.Server
-	var startKey string
-	for {
-		page, nextKey, err := p.cache.ListNodes(ctx, proto.ListNodesRequest{
-			Namespace: apidefaults.Namespace,
-			Limit:     int32(pageSize),
-			StartKey:  startKey,
-		})
-		require.NoError(t, err)
-
-		if nextKey != "" {
-			require.Len(t, page, pageSize)
-		}
-
-		nodes = append(nodes, page...)
-
-		startKey = nextKey
-
-		if startKey == "" {
-			break
-		}
-	}
-	require.Len(t, nodes, nodeCount)
 
 	var resources []types.ResourceWithLabels
 	var listResourcesStartKey string
@@ -955,25 +901,28 @@ func initStrategy(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		SnowflakeSession: p.snowflakeSessionS,
+		WebSession:       p.webSessionS,
+		WebToken:         p.webTokenS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -1038,6 +987,8 @@ func initStrategy(t *testing.T) {
 
 // TestRecovery tests error recovery scenario
 func TestRecovery(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -1080,6 +1031,8 @@ func TestRecovery(t *testing.T) {
 
 // TestTokens tests static and dynamic tokens
 func TestTokens(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1144,6 +1097,8 @@ func TestTokens(t *testing.T) {
 }
 
 func TestAuthPreference(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1172,6 +1127,8 @@ func TestAuthPreference(t *testing.T) {
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1200,6 +1157,8 @@ func TestClusterNetworkingConfig(t *testing.T) {
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1228,6 +1187,8 @@ func TestSessionRecordingConfig(t *testing.T) {
 }
 
 func TestClusterAuditConfig(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1255,6 +1216,8 @@ func TestClusterAuditConfig(t *testing.T) {
 }
 
 func TestClusterName(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -1282,6 +1245,8 @@ func TestClusterName(t *testing.T) {
 
 // TestNamespaces tests caching of namespaces
 func TestNamespaces(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1342,6 +1307,8 @@ func TestNamespaces(t *testing.T) {
 
 // TestUsers tests caching of users
 func TestUsers(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
@@ -1402,6 +1369,8 @@ func TestUsers(t *testing.T) {
 
 // TestRoles tests caching of roles
 func TestRoles(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
@@ -1471,6 +1440,8 @@ func TestRoles(t *testing.T) {
 
 // TestReverseTunnels tests reverse tunnels caching
 func TestReverseTunnels(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1488,7 +1459,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetReverseTunnels()
+	out, err := p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1501,7 +1472,7 @@ func TestReverseTunnels(t *testing.T) {
 	err = p.presenceS.UpsertReverseTunnel(tunnel)
 	require.NoError(t, err)
 
-	out, err = p.presenceS.GetReverseTunnels()
+	out, err = p.presenceS.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	tunnel = out[0]
@@ -1513,7 +1484,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1529,13 +1500,15 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
 
 // TestTunnelConnections tests tunnel connections caching
 func TestTunnelConnections(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1610,6 +1583,8 @@ func TestTunnelConnections(t *testing.T) {
 
 // TestNodes tests nodes cache
 func TestNodes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	p := newPackForProxy(t)
@@ -1701,6 +1676,8 @@ func TestNodes(t *testing.T) {
 
 // TestProxies tests proxies cache
 func TestProxies(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1768,6 +1745,8 @@ func TestProxies(t *testing.T) {
 
 // TestAuthServers tests auth servers cache
 func TestAuthServers(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1835,6 +1814,8 @@ func TestAuthServers(t *testing.T) {
 
 // TestRemoteClusters tests remote clusters caching
 func TestRemoteClusters(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
@@ -1905,75 +1886,73 @@ func TestRemoteClusters(t *testing.T) {
 	require.Empty(t, out)
 }
 
-// TestAppServers tests that CRUD operations are replicated from the backend to
-// the cache.
-func TestAppServers(t *testing.T) {
-	p := newPackForProxy(t)
+// TestKubernetes tests that CRUD operations on kubernetes clusters resources are
+// replicated from the backend to the cache.
+func TestKubernetes(t *testing.T) {
+	t.Parallel()
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
-	// Upsert application into backend.
-	server := suite.NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
-	_, err := p.presenceS.UpsertAppServer(context.Background(), server)
+	ctx := context.Background()
+
+	// Create an cluster.
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "foo",
+	}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
 
-	// Check that the application is now in the backend.
-	out, err := p.presenceS.GetAppServers(context.Background(), apidefaults.Namespace)
+	err = p.kubernetes.CreateKubernetesCluster(ctx, cluster)
 	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv := out[0]
+
+	// Check that the cluster is now in the backend.
+	out, err := p.kubernetes.GetKubernetesClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	// Wait until the information has been replicated to the cache.
 	select {
 	case event := <-p.eventsC:
 		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
+		t.Fatal("timeout waiting for event")
 	}
 
-	// Make sure the cache has a single application in it.
-	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
+	// Make sure the cache has a single cluster in it.
+	out, err = p.kubernetes.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-	// Check that the value in the cache, value in the backend, and original
-	// services.App all exactly match.
-	srv.SetResourceID(out[0].GetResourceID())
-	server.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-	require.Empty(t, cmp.Diff(server, out[0]))
-
-	// Update the application and upsert it into the backend again.
-	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.presenceS.UpsertAppServer(context.Background(), srv)
+	// Update the cluster and upsert it into the backend again.
+	cluster.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	err = p.kubernetes.UpdateKubernetesCluster(ctx, cluster)
 	require.NoError(t, err)
 
-	// Check that the application is in the backend and only one exists (so an
+	// Check that the cluster is in the backend and only one exists (so an
 	// update occurred).
-	out, err = p.presenceS.GetAppServers(context.Background(), apidefaults.Namespace)
+	out, err = p.kubernetes.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv = out[0]
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	// Check that information has been replicated to the cache.
 	select {
 	case event := <-p.eventsC:
 		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
+		t.Fatal("timeout waiting for event")
 	}
 
-	// Make sure the cache has a single application in it.
-	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
+	// Make sure the cache has a single cluster in it.
+	out, err = p.cache.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-	// Check that the value in the cache, value in the backend, and original
-	// services.App all exactly match.
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// Remove all applications from the backend.
-	err = p.presenceS.DeleteAllAppServers(context.Background(), apidefaults.Namespace)
+	// Remove all clusters from the backend.
+	err = p.kubernetes.DeleteAllKubernetesClusters(ctx)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
@@ -1981,18 +1960,20 @@ func TestAppServers(t *testing.T) {
 	case event := <-p.eventsC:
 		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
+		t.Fatal("timeout waiting for event")
 	}
 
 	// Check that the cache is now empty.
-	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
+	out, err = p.kubernetes.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Empty(t, out)
+	require.Equal(t, 0, len(out))
 }
 
 // TestApplicationServers tests that CRUD operations on app servers are
 // replicated from the backend to the cache.
 func TestApplicationServers(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2075,6 +2056,8 @@ func TestApplicationServers(t *testing.T) {
 // TestApps tests that CRUD operations on application resources are
 // replicated from the backend to the cache.
 func TestApps(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2159,6 +2142,8 @@ func TestApps(t *testing.T) {
 // TestDatabaseServers tests that CRUD operations on database servers are
 // replicated from the backend to the cache.
 func TestDatabaseServers(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2243,9 +2228,124 @@ func TestDatabaseServers(t *testing.T) {
 	require.Equal(t, 0, len(out))
 }
 
+// TestDatabaseServices tests that CRUD operations on DatabaseServices are
+// replicated from the backend to the cache.
+func TestDatabaseServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	// Upsert DatabaseService into backend.
+	service, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name: uuid.NewString(),
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{Labels: &types.Labels{"env": []string{"prod"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = p.presenceS.UpsertDatabaseService(ctx, service)
+	require.NoError(t, err)
+
+	// Check that the DatabaseService is now in the backend.
+	listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single DatabaseService in it.
+	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the DatabaseService and upsert it into the backend again.
+	service.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertDatabaseService(context.Background(), service)
+	require.NoError(t, err)
+
+	// Check that the DatabaseService is in the backend and only one exists (so an
+	// update occurred).
+	listServicesResp, err = p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single DatabaseService in it.
+	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all DatabaseServices from the backend.
+	err = p.databaseServices.DeleteAllDatabaseServices(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, out)
+}
+
 // TestDatabases tests that CRUD operations on database resources are
 // replicated from the backend to the cache.
 func TestDatabases(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2329,8 +2429,14 @@ func TestDatabases(t *testing.T) {
 }
 
 func TestRelativeExpiry(t *testing.T) {
+	t.Parallel()
+
 	const checkInterval = time.Second
 	const nodeCount = int64(100)
+
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
 
 	ctx := context.Background()
 
@@ -2350,7 +2456,10 @@ func TestRelativeExpiry(t *testing.T) {
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
-		// Check that information has been replicated to the cache.
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -2394,7 +2503,99 @@ func TestRelativeExpiry(t *testing.T) {
 	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
 }
 
+func TestRelativeExpiryLimit(t *testing.T) {
+	const (
+		checkInterval = time.Second
+		nodeCount     = 100
+		expiryLimit   = 10
+	)
+
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.RelativeExpiryLimit = expiryLimit
+		c.Clock = clock
+		return ForProxy(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := 0; i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := 0; i < nodeCount; i++ {
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, nodeCount)
+
+	clock.Advance(time.Hour * 24)
+	for expired := nodeCount - expiryLimit; expired > 0; expired -= expiryLimit {
+		// get rid of events that were emitted before clock advanced
+		drainEvents(p.eventsC)
+		// wait for next relative expiry check to run
+		expectEvent(t, p.eventsC, RelativeExpiry)
+
+		// verify that the limit is respected.
+		nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, nodes, expired)
+
+		// advance clock to trigger next relative expiry check
+		clock.Advance(time.Hour * 24)
+	}
+}
+
+func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{{Kind: types.KindNode}}
+		return c
+	})
+	t.Cleanup(p.Close)
+
+	p2 := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{
+			{Kind: types.KindNamespace},
+			{Kind: types.KindNamespace},
+			{Kind: types.KindCertAuthority},
+		}
+		return c
+	})
+	t.Cleanup(p2.Close)
+
+	for i := 0; i < 2; i++ {
+		clock.Advance(time.Hour * 24)
+		drainEvents(p.eventsC)
+		expectEvent(t, p.eventsC, RelativeExpiry)
+
+		drainEvents(p2.eventsC)
+		unexpectedEvent(t, p2.eventsC, RelativeExpiry)
+	}
+}
+
 func TestCache_Backoff(t *testing.T) {
+	t.Parallel()
+
 	clock := clockwork.NewFakeClock()
 	p := newTestPack(t, func(c Config) Config {
 		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
@@ -2475,4 +2676,85 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+// TestCacheWatchKindExistsInEvents ensures that the watch kinds for each cache component are in sync
+// with proto Events delivered via WatchEvents. If a watch kind is added to a cache component, but it
+// doesn't exist in the proto Events definition, an error will cause the WatchEvents stream to be closed.
+// This causes the cache to reinitialize every time that an unknown message is received and can lead to
+// a permanently unhealthy cache.
+//
+// While this test will ensure that there are no issues for the current release, it does not guarantee
+// that this issue won't arise across releases.
+func TestCacheWatchKindExistsInEvents(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]Config{
+		"ForAuth":           ForAuth(Config{}),
+		"ForProxy":          ForProxy(Config{}),
+		"ForRemoteProxy":    ForRemoteProxy(Config{}),
+		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
+		"ForNode":           ForNode(Config{}),
+		"ForKubernetes":     ForKubernetes(Config{}),
+		"ForApps":           ForApps(Config{}),
+		"ForDatabases":      ForDatabases(Config{}),
+	}
+
+	events := map[string]types.Resource{
+		types.KindCertAuthority:           &types.CertAuthorityV2{},
+		types.KindClusterName:             &types.ClusterNameV2{},
+		types.KindClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
+		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		types.KindStaticTokens:            &types.StaticTokensV2{},
+		types.KindToken:                   &types.ProvisionTokenV2{},
+		types.KindUser:                    &types.UserV2{},
+		types.KindRole:                    &types.RoleV5{Version: types.V4},
+		types.KindNamespace:               &types.Namespace{},
+		types.KindNode:                    &types.ServerV2{},
+		types.KindProxy:                   &types.ServerV2{},
+		types.KindAuthServer:              &types.ServerV2{},
+		types.KindReverseTunnel:           &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:        &types.TunnelConnectionV2{},
+		types.KindAccessRequest:           &types.AccessRequestV3{},
+		types.KindAppServer:               &types.AppServerV3{},
+		types.KindApp:                     &types.AppV3{},
+		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
+		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindWebToken:                &types.WebTokenV3{},
+		types.KindRemoteCluster:           &types.RemoteClusterV3{},
+		types.KindKubeService:             &types.ServerV2{},
+		types.KindKubeServer:              &types.KubernetesServerV3{},
+		types.KindDatabaseService:         &types.DatabaseServiceV1{},
+		types.KindDatabaseServer:          &types.DatabaseServerV3{},
+		types.KindDatabase:                &types.DatabaseV3{},
+		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
+		types.KindLock:                    &types.LockV2{},
+		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
+		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+		types.KindInstaller:               &types.InstallerV1{},
+		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
+	}
+
+	for name, cfg := range cases {
+		t.Run(name, func(t *testing.T) {
+			for _, watch := range cfg.Watches {
+				resource, ok := events[watch.Kind]
+				require.True(t, ok, "missing event for kind %q", watch.Kind)
+
+				protoEvent, err := client.EventToGRPC(types.Event{
+					Type:     types.OpPut,
+					Resource: resource,
+				})
+				require.NoError(t, err)
+
+				event, err := client.EventFromGRPC(*protoEvent)
+				require.NoError(t, err)
+
+				require.Empty(t, cmp.Diff(resource, event.Resource))
+			}
+		})
+	}
 }

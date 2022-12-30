@@ -18,24 +18,9 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -44,7 +29,23 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -52,14 +53,13 @@ import (
 func TestReadIdentity(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	a := testauthority.NewWithClock(clock)
-	priv, pub, err := a.GenerateKeyPair("")
+	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
 	cert, err := a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
@@ -81,7 +81,6 @@ func TestReadIdentity(t *testing.T) {
 	expiryDate := clock.Now().Add(ttl)
 	bytes, err := a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
@@ -97,7 +96,7 @@ func TestReadIdentity(t *testing.T) {
 
 func TestBadIdentity(t *testing.T) {
 	a := testauthority.New()
-	priv, pub, err := a.GenerateKeyPair("")
+	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
@@ -109,7 +108,6 @@ func TestBadIdentity(t *testing.T) {
 	// missing authority domain
 	cert, err := a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "id2",
 		NodeName:      "",
@@ -125,7 +123,6 @@ func TestBadIdentity(t *testing.T) {
 	// missing host uuid
 	cert, err = a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
@@ -141,7 +138,6 @@ func TestBadIdentity(t *testing.T) {
 	// unrecognized role
 	cert, err = a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
@@ -185,7 +181,7 @@ func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurablePara
 		defaultRes := p.withDefaults(t, &conf)
 		authServer = initAuthServer(t, conf)
 
-		// Verify the stored resource is now labelled as originating from defaults.
+		// Verify the stored resource is now labeled as originating from defaults.
 		stored = p.getStored(t, authServer)
 		require.Equal(t, types.OriginDefaults, stored.Origin())
 		require.Empty(t, resourceDiff(defaultRes, stored))
@@ -296,7 +292,7 @@ func TestAuthPreference(t *testing.T) {
 			return conf.AuthPreference
 		},
 		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
-			conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+			conf.AuthPreference = newWebauthnAuthPreferenceConfigFromFile(t)
 			return conf.AuthPreference
 		},
 		setDynamic: func(t *testing.T, authServer *Server) {
@@ -445,69 +441,25 @@ func TestClusterName(t *testing.T) {
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
 }
 
-func TestCASigningAlg(t *testing.T) {
-	ctx := context.Background()
-	verifyCAs := func(auth *Server, alg string) {
-		hostCAs, err := auth.GetCertAuthorities(ctx, types.HostCA, false)
-		require.NoError(t, err)
-		for _, ca := range hostCAs {
-			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
-		}
-		userCAs, err := auth.GetCertAuthorities(ctx, types.UserCA, false)
-		require.NoError(t, err)
-		for _, ca := range userCAs {
-			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
-		}
-	}
-
-	// Start a new server without specifying a signing alg.
-	conf := setupConfig(t)
-	auth, err := Init(conf)
-	require.NoError(t, err)
-	defer auth.Close()
-	verifyCAs(auth, ssh.SigAlgoRSASHA2512)
-
-	require.NoError(t, auth.Close())
-
-	// Reset the auth server state.
-	conf.Backend, err = lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-	conf.DataDir = t.TempDir()
-
-	// Start a new server with non-default signing alg.
-	signingAlg := ssh.SigAlgoRSA
-	conf.CASigningAlg = &signingAlg
-	auth, err = Init(conf)
-	require.NoError(t, err)
-	defer auth.Close()
-	verifyCAs(auth, ssh.SigAlgoRSA)
-
-	// Start again, using a different alg. This should not change the existing
-	// CA.
-	signingAlg = ssh.SigAlgoRSASHA2256
-	auth, err = Init(conf)
-	require.NoError(t, err)
-	verifyCAs(auth, ssh.SigAlgoRSA)
-}
-
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole()}
+		services.NewPresetAuditorRole(),
+	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresets(as)
+		err := createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresets(as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -525,10 +477,10 @@ func TestPresets(t *testing.T) {
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
-		err := as.CreateRole(access)
+		err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = createPresets(as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -540,6 +492,93 @@ func TestPresets(t *testing.T) {
 		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+
+	// If a default allow rule is not present, ensure it gets added.
+	t.Run("AddDefaultAllowRules", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		access := services.NewPresetEditorRole()
+		rules := access.GetRules(types.Allow)
+
+		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
+		// ConnectionDiagnostic is part of the default allow rules
+		outdatedRules := []types.Rule{}
+		for _, r := range rules {
+			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
+				continue
+			}
+			outdatedRules = append(outdatedRules, r)
+		}
+		access.SetRules(types.Allow, outdatedRules)
+
+		err := as.CreateRole(ctx, access)
+		require.NoError(t, err)
+
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		out, err := as.GetRole(ctx, access.GetName())
+		require.NoError(t, err)
+
+		allowRules := out.GetRules(types.Allow)
+		require.Condition(t, func() (success bool) {
+			for _, r := range allowRules {
+				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
+					return true
+				}
+			}
+			return false
+		}, "missing default rule")
+	})
+
+	// Don't set a default allow rule if the resource is present in the role.
+	// Either as part of allowing or denying rules.
+	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		access := services.NewPresetEditorRole()
+		allowRules := access.GetRules(types.Allow)
+
+		// Create a new set of rules based on the Editor Role,
+		// setting a deny rule for a default allow rule
+		outdateAllowRules := []types.Rule{}
+		for _, r := range allowRules {
+			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
+				continue
+			}
+			outdateAllowRules = append(outdateAllowRules, r)
+		}
+		access.SetRules(types.Allow, outdateAllowRules)
+
+		// Explicitly deny Create to ConnectionDiagnostic
+		denyRules := access.GetRules(types.Deny)
+		denyConnectionDiagnosticRule := types.NewRule(types.KindConnectionDiagnostic, []string{types.VerbCreate})
+		denyRules = append(denyRules, denyConnectionDiagnosticRule)
+		access.SetRules(types.Deny, denyRules)
+
+		err := as.CreateRole(ctx, access)
+		require.NoError(t, err)
+
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		out, err := as.GetRole(ctx, access.GetName())
+		require.NoError(t, err)
+
+		allowRules = out.GetRules(types.Allow)
+		require.Condition(t, func() (success bool) {
+			for _, r := range allowRules {
+				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
+					return false
+				}
+			}
+			return true
+		}, "missing default rule")
 	})
 }
 
@@ -567,122 +606,24 @@ func setupConfig(t *testing.T) InitConfig {
 		StaticTokens:            types.DefaultStaticTokens(),
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
+		},
 	}
 }
 
-func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
+func newWebauthnAuthPreferenceConfigFromFile(t *testing.T) types.AuthPreference {
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorU2F,
-		U2F: &types.U2F{
-			AppID:  "foo",
-			Facets: []string{"bar", "baz"},
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
 	return ap
-}
-
-func TestMigrateCertAuthorities(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	as := newTestAuthServer(ctx, t)
-	clock := clockwork.NewFakeClock()
-	as.SetClock(clock)
-
-	for _, spec := range []types.CertAuthoritySpecV2{
-		{
-			Type:         types.HostCA,
-			ClusterName:  "localhost",
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     nil, // Rotation was never performed.
-		},
-		{
-			Type:         types.UserCA,
-			ClusterName:  "localhost",
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     &types.Rotation{State: types.RotationStateStandby},
-		},
-		{
-			Type:        types.JWTSigner,
-			ClusterName: "localhost",
-			JWTKeyPairs: []types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
-			Rotation:    &types.Rotation{State: types.RotationStateStandby},
-		},
-	} {
-		t.Run(fmt.Sprintf("create %v CA", spec.Type), func(t *testing.T) {
-			ca, err := types.NewCertAuthority(spec)
-			require.NoError(t, err)
-			// Do NOT use services.MarshalCertAuthority to keep all fields as-is.
-			enc, err := utils.FastMarshal(ca)
-			require.NoError(t, err)
-
-			_, err = as.bk.Put(ctx, backend.Item{
-				Key:   backend.Key("authorities", string(ca.GetType()), ca.GetName()),
-				Value: enc,
-			})
-			require.NoError(t, err)
-		})
-	}
-
-	err := migrateCertAuthorities(ctx, as)
-	require.NoError(t, err)
-
-	var caSpecs []types.CertAuthoritySpecV2
-	for _, typ := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		t.Run(fmt.Sprintf("verify %v CA", typ), func(t *testing.T) {
-			cas, err := as.GetCertAuthorities(ctx, typ, true)
-			require.NoError(t, err)
-			require.Len(t, cas, 1)
-			caSpecs = append(caSpecs, cas[0].(*types.CertAuthorityV2).Spec)
-		})
-	}
-	require.Empty(t, cmp.Diff(caSpecs, []types.CertAuthoritySpecV2{
-		{
-			Type:        types.HostCA,
-			ClusterName: "localhost",
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
-					PublicKey:  []byte(fixtures.SSHCAPublicKey),
-				}},
-				TLS: []*types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			},
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     nil,
-		},
-		{
-			Type:        types.UserCA,
-			ClusterName: "localhost",
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
-					PublicKey:  []byte(fixtures.SSHCAPublicKey),
-				}},
-				TLS: []*types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			},
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     &types.Rotation{State: types.RotationStateStandby},
-		},
-		{
-			Type:        types.JWTSigner,
-			ClusterName: "localhost",
-			ActiveKeys: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
-			},
-			JWTKeyPairs: []types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
-			Rotation:    &types.Rotation{State: types.RotationStateStandby},
-		},
-	}))
 }
 
 // Example resources generated using `tctl get all --with-secrets`.
@@ -737,6 +678,21 @@ spec:
   type: user
 sub_kind: user
 version: v2`
+	databaseCAYAML = `kind: cert_authority
+metadata:
+  id: 1640648663670001000
+  name: me.localhost
+spec:
+  active_keys:
+   tls:
+    - cert: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURpakNDQW5LZ0F3SUJBZ0lRRU9IcEhIZkZwZ28wUndQSVJhdkdpakFOQmdrcWhraUc5dzBCQVFzRkFEQmYKTVJVd0V3WURWUVFLRXd4dFpTNXNiMk5oYkdodmMzUXhGVEFUQmdOVkJBTVRERzFsTG14dlkyRnNhRzl6ZERFdgpNQzBHQTFVRUJSTW1NakkwTkRBMk5ESTNPREkyTWpJNE5UQXdOemMzTmpVeU16STVOak15TWpNeU56VXhORFl3CkhoY05NakV4TWpJM01qTTBOREl6V2hjTk16RXhNakkxTWpNME5ESXpXakJmTVJVd0V3WURWUVFLRXd4dFpTNXMKYjJOaGJHaHZjM1F4RlRBVEJnTlZCQU1UREcxbExteHZZMkZzYUc5emRERXZNQzBHQTFVRUJSTW1NakkwTkRBMgpOREkzT0RJMk1qSTROVEF3TnpjM05qVXlNekk1TmpNeU1qTXlOelV4TkRZd2dnRWlNQTBHQ1NxR1NJYjNEUUVCCkFRVUFBNElCRHdBd2dnRUtBb0lCQVFETFRrVFkzQ0NMVStNUllkbEMwM2NUTTR6MUpiRGoxYjFQRWdING9iSmwKRjl4NWtQbzhncWNEbmp5L0x5NHdKeUR2Q2xPMkw1T0k3UnYwa1hFUXoybUVEeExnbjJYRG9ZNUh5VFNOVkZHNgpvZ3BlYmhlUFN1aWl0RUNZYUZDZVZFTGNDa1Q0ZGpqRDlwOExNTnJ4MHRPOXdQU1o1OXBLZUxCOG90RFloOHRCCkcyb2EzSGIzTWt0RGxOY0svVE94RFNzRzUrQ2ljdktTa3QrV04xaXJJQ2pvZ2hWTzJGcForRkdxWUM0Y1EwbWMKM0NRaGJwY1o2VTRkWnpGdFJZVzZPYzNucHBOSkZKWXZSSTRIS1FWY0RCM2N4VkhNTUd5Rzc3aFRzdEwvd0RuaQo4U2s5eml4VzN4S2FvUnlrV2FuWno4eC9WdHNydXJqanNzNDV4NlRoem1VWkFnTUJBQUdqUWpCQU1BNEdBMVVkCkR3RUIvd1FFQXdJQnBqQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01CMEdBMVVkRGdRV0JCUmNKK2NRamFQWjZGbEIKcVhoYzYyWXZldGRpQWpBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQVdYNmxZdUhtMmQyMU41RDN1eUJJelFOdApKVFR3b0xnU3FQd09Tbk1EU0luSDkvMjBqZDNGUk9qakh1M3BQRkNLRmE4OVp0ekZxTHZsTjVOdlh2WHFuOXNKCkdudTYzSVo0TWtEZk9sSVZpWFhQWFF4YllHSkMxRVlVU28rTDdtUTY0VnN5UkFpTXdnbmVwMUxwSGhROGYzU2MKeEZoVkNybFJDMmUrNENBai8vOVZWaDdvTEdSMkNhM0xEcFc5VHFxYnB3MEh0QitNcFVqVWxCWnFVbzNVMm5HTQpia1VhSVZKcnNuYk1rYnNsUGQ2dWtVRDlVTHFuUmxJb3A4cjQ1VTdvYVBhR3g3QVFiWndzbGlsNVVJZlppRmlRCm5USk9kYnJHampVdXlRYkM4UUpZY3RhdENjbVBjZUlXMVVWWFVnZ2JsdXl4VjF1NWsyYzlSb1k2RzhiN0FRPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+      key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBeTA1RTJOd2dpMVBqRVdIWlF0TjNFek9NOVNXdzQ5VzlUeElCK0tHeVpSZmNlWkQ2ClBJS25BNTQ4dnk4dU1DY2c3d3BUdGkrVGlPMGI5SkZ4RU05cGhBOFM0SjlsdzZHT1I4azBqVlJSdXFJS1htNFgKajByb29yUkFtR2hRbmxSQzNBcEUrSFk0dy9hZkN6RGE4ZExUdmNEMG1lZmFTbml3ZktMUTJJZkxRUnRxR3R4Mgo5ekpMUTVUWEN2MHpzUTByQnVmZ29uTHlrcExmbGpkWXF5QW82SUlWVHRoYVdmaFJxbUF1SEVOSm5Od2tJVzZYCkdlbE9IV2N4YlVXRnVqbk41NmFUU1JTV0wwU09CeWtGWEF3ZDNNVlJ6REJzaHUrNFU3TFMvOEE1NHZFcFBjNHMKVnQ4U21xRWNwRm1wMmMvTWYxYmJLN3E0NDdMT09jZWs0YzVsR1FJREFRQUJBb0lCQVFDeXNLNXVkTHZkK2ZOQQpHZUtkaThQRENySS8zY3JsMWIwNFBEbWpVR3U5MHdVampEdUU1OGpuc3pMdFR3aW5waHlhUFZkcWI5S2FyTnkvClR2NHpxam14cXBZSys4Nno3ZEZpWXdSZm05YmgxUDZNRlBOOExIamdXTkhWb3dvSXYwS3NxQklLMTgzNDMxRFcKd3pBTkVDS3ZTMk14eXNqZ1g4ZXZKR092alZzbWN1SU1IWFljbVlORlo0dWpuTnc0dnVSWHhlYUtPY2ZWTGZ2ZwoxSWZMK05IYUh6UXI1YVoydkxST1NpdHVId2cvOFpZZ2hQcVFYLy92ak92M0FENzhXVGxINUZXWjExR0hoeCt1Ck9ZUXcwQ1lvTnNiV1UxeklwVTV0cHdCcDRGV0VlVy9jbTY5NXRBVVRlMzR1N3R1MlJJOVBZMEZDWVJ2ZkM2SUQKK2tDNjRFTEpBb0dCQVBSTEt5a0pjdHNGNngzN1liWXdmQm9ZK3V6YU4wV1o1d1RuRmVFaVp1ZzVVYWJUOTdqRApZTnpaYzQ0aitRbkxFUGVDak5tU1FhVHFxK2QvbUVjTnlXS244cVNFcXlOR0R6YlRXQ2tkMGtyWTVwcm9FVVJnClFqbWFwRHFNNEtOSm9jQ1RCS3lueHo2QzZ6ME9uSnhZM3lMdTdyYVBqeE9HTW5rcm9VMDhMVW56QW9HQkFOVU0KU2NsNGh1R0gxK3ZNL0RtenJoQ1NKbUZIcjE2QjhvWExaMHIyNmFKTnJVQ3AwYUFzV2FHd3JLZXZFcDkzRmg5Ygp3QlZYMHE0bXJ3cmZpTGpCYnRzdnlQM3l1ZWs5cWl6M2ZoMWIvZ0k2eWRKVFEzMEplQzB4UzUyRksvR2gwanEvCm43c2Y1bm5DbTlCRW01ZmdSeDFVUmVhOC9vL2M4cTNhbW94c0grdkRBb0dBZUVZUjU5QlpGZkJpQTQ3aVdwcWcKWHhEeGFXOCtTeXdzaTBOaWlFY3h0eCtSVGJ1S2VSTG9PNU5yeXcxMjdSVm5NeFM1Vjkwa0tKZkpMdDZwRUVKLwpaZTBlRDFXcUZHSEgxOHhSMlZ4dlRwNWZXdURxcjJsYzhaTnJTOUJVUU5CZHJMdzFUdlFEcW9rMlhBYzNuOW81CmNhK0ZJNmltWG94eGlTcXI3YVMwLzNVQ2dZQTJBWEJ1N3V1YUhocGcvc3h0UUJ2K3ZWMlhTVm11SmxpNUM4KzYKVkE3emdxZEpmZ0xTakl1SURrWW1GNTRyNkQ4bVlkYTJVbFhvcVl1endPaGlsVDRwdDlwR2JaSXRDdUdwbG05VQp0KzRTMko0eWY4TGEzbHlsY0JxUDZxTXlGR2c3VmpvQ2NGcTNRTnJJbDZ1dGV6L3JzbUlwMUh6Zk1RNGZmZ3V4ClR2Tmtpd0tCZ1FDbVhaSStvTUdQK3U4KzRVaGxjR01NYUNHZi92UVZLdVJYOHlOYVh1bUx6dk1Xajl0cVhpUzcKK1dQUlhuV01RSnd1QldYMzBTcWdFVVdDbjlzOGxWbzh2TVF4MmFtbXhhWkVEMGRoOHNMSkJDNXJoRmVqV29MbQp3cHg5MXR0S3JJODBKMDYyeW90SFpJYkRyQW1LSGZFeE85U1d4T1hUeFVMUGdvTlJVUW5qSnc9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+  additional_trusted_keys: {}
+  cluster_name: me.localhost
+  signing_alg: 3
+  type: db
+sub_kind: db
+version: v2`
 	jwtCAYAML = `kind: cert_authority
 metadata:
   id: 1630515580249460000
@@ -762,6 +718,7 @@ func TestInit_bootstrap(t *testing.T) {
 	hostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	userCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
 	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
+	dbCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
 
 	invalidHostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	invalidHostCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
@@ -769,51 +726,116 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidUserCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 	invalidJWTCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
-	invalidJWTCA.(*types.CertAuthorityV2).Spec.JWTKeyPairs = nil
+	invalidDBCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 
 	tests := []struct {
 		name         string
 		modifyConfig func(*InitConfig)
-		wantErr      bool
+		assertError  require.ErrorAssertionFunc
 	}{
 		{
 			// Issue https://github.com/gravitational/teleport/issues/7853.
 			name: "OK bootstrap CAs",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
 			},
+			assertError: require.NoError,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
 			},
-			wantErr: true,
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap User CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone(), dbCA.Clone())
 			},
-			wantErr: true,
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap JWT CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone(), dbCA.Clone())
 			},
-			wantErr: true,
+			assertError: require.Error,
+		},
+		{
+			name: "NOK bootstrap Database CA missing keys",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), invalidDBCA.Clone())
+			},
+			assertError: require.Error,
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
 			_, err := Init(cfg)
-			hasErr := err != nil
-			require.Equal(t, test.wantErr, hasErr, err)
+			test.assertError(t, err)
+		})
+	}
+}
+
+const (
+	userYAML = `kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  roles: ["admin"]`
+	tokenYAML = `kind: token
+version: v2
+metadata:
+  name: github-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: github-demo
+  github:
+    allow:
+      - repository: gravitational/example`
+)
+
+func TestInit_ApplyOnStartup(t *testing.T) {
+	t.Parallel()
+
+	user := resourceFromYAML(t, userYAML).(types.User)
+	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+
+	tests := []struct {
+		name         string
+		modifyConfig func(*InitConfig)
+		assertError  require.ErrorAssertionFunc
+	}{
+		{
+			name: "Apply unsupported resource",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "Apply ProvisionToken",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.NoError,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.modifyConfig(&cfg)
+
+			_, err := Init(cfg)
+			test.assertError(t, err)
 		})
 	}
 }
@@ -921,7 +943,7 @@ func TestIdentityChecker(t *testing.T) {
 			require.NoError(t, err)
 
 			dialer := proxy.DialerFromEnvironment(sshServer.Addr())
-			sconn, err := dialer.Dial("tcp", sshServer.Addr(), sshClientConfig)
+			sconn, err := dialer.Dial(ctx, "tcp", sshServer.Addr(), sshClientConfig)
 			if test.err {
 				require.Error(t, err)
 			} else {
@@ -930,4 +952,118 @@ func TestIdentityChecker(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitCreatesCertsIfMissing(t *testing.T) {
+	conf := setupConfig(t)
+	auth, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	ctx := context.Background()
+	for _, caType := range types.CertAuthTypes {
+		cert, err := auth.GetCertAuthorities(ctx, caType, false)
+		require.NoError(t, err)
+		require.Len(t, cert, 1)
+	}
+}
+
+func TestMigrateDatabaseCA(t *testing.T) {
+	conf := setupConfig(t)
+
+	// Create only HostCA and UserCA. DatabaseCA should be created on Init().
+	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
+	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
+
+	conf.Authorities = []types.CertAuthority{hostCA, userCA}
+
+	// Here is where migration happens.
+	auth, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	dbCAs, err := auth.GetCertAuthorities(context.Background(), types.DatabaseCA, true)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
+	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
+}
+
+func TestRotateDuplicatedCerts(t *testing.T) {
+	conf := setupConfig(t)
+
+	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
+	keygen := keygen.New(context.TODO())
+	privHost, _, err := keygen.GenerateKeyPair()
+	require.NoError(t, err)
+	privUser, _, err := keygen.GenerateKeyPair()
+	require.NoError(t, err)
+
+	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)
+	userCA := suite.NewTestCA(types.UserCA, "me.localhost", privUser)
+	// Create duplicated CAs
+	databaseCA := suite.NewTestCA(types.DatabaseCA, "me.localhost", privHost)
+	databaseCA.Spec.ActiveKeys = hostCA.Spec.ActiveKeys.Clone()
+
+	conf.Authorities = []types.CertAuthority{hostCA, userCA, databaseCA}
+
+	auth, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
+
+	ctx := context.Background()
+	// Rotate CAs.
+	for _, phase := range rotationPhases {
+		err = auth.RotateCertAuthority(ctx, RotateRequest{
+			Mode:        types.RotationModeManual,
+			TargetPhase: phase,
+			Type:        types.HostCA,
+		})
+		require.NoError(t, err)
+	}
+
+	newUserCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// UserCA should be untouched, as it was not the part of the rotate request, and it's unique.
+	require.Equal(t, userCA.Spec.ActiveKeys.TLS, newUserCA.GetActiveKeys().TLS)
+	require.Equal(t, userCA.Spec.ActiveKeys.SSH, newUserCA.GetActiveKeys().SSH)
+
+	newHostCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// HostCA should be rotated, as we requested for it.
+	require.NotEqual(t, hostCA.Spec.ActiveKeys.TLS, newHostCA.GetActiveKeys().TLS)
+	require.NotEqual(t, hostCA.Spec.ActiveKeys.SSH, newHostCA.GetActiveKeys().SSH)
+
+	newDatabaseCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// DatabaseCA should be rotated, as the key was the same as HostCA.
+	require.NotEqual(t, databaseCA.Spec.ActiveKeys.TLS, newDatabaseCA.GetActiveKeys().TLS)
+	require.NotEqual(t, databaseCA.Spec.ActiveKeys.SSH, newDatabaseCA.GetActiveKeys().SSH)
+
+	// HostCA and DatabaseCA should be different now.
+	require.NotEqual(t, newHostCA.GetActiveKeys().TLS, newDatabaseCA.GetActiveKeys().TLS)
+	require.NotEqual(t, newHostCA.GetActiveKeys().SSH, newDatabaseCA.GetActiveKeys().SSH)
 }

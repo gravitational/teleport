@@ -230,7 +230,8 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 					Protocol: "_",
 					URI:      "_",
 					GCP: GCPCloudSQL{
-						ProjectID: "_",
+						ProjectID:  "_",
+						InstanceID: "_",
 					},
 				})
 				require.NoError(t, err)
@@ -282,7 +283,9 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			name:             "desktop service",
 			searchNotDefined: true,
 			newResource: func() ResourceWithLabels {
-				desktopService, err := NewWindowsDesktopServiceV3("_", WindowsDesktopServiceSpecV3{
+				desktopService, err := NewWindowsDesktopServiceV3(Metadata{
+					Name: "foo",
+				}, WindowsDesktopServiceSpecV3{
 					Addr:            "_",
 					TeleportVersion: "_",
 				})
@@ -370,5 +373,28 @@ func TestResourcesWithLabels_ToMap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.r.ToMap(), tt.want)
 		})
+	}
+}
+
+func TestValidLabelKey(t *testing.T) {
+	for _, tc := range []struct {
+		label string
+		valid bool
+	}{
+		{
+			label: "1x/Y*_-",
+			valid: true,
+		},
+		{
+			label: "x:y",
+			valid: true,
+		},
+		{
+			label: "x\\y",
+			valid: false,
+		},
+	} {
+		isValid := IsValidLabelKey(tc.label)
+		require.Equal(t, tc.valid, isValid)
 	}
 }

@@ -22,11 +22,13 @@ import (
 	"testing"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPing(t *testing.T) {
@@ -48,25 +50,41 @@ func TestPing(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOptional,
 				U2F: &types.U2F{
-					AppID:  "https://example.com",
-					Facets: []string{"https://example.com"},
+					AppID: "https://example.com",
 				},
 				Webauthn: &types.Webauthn{
 					RPID: "example.com",
 				},
 			},
 			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
-				require.Equal(t, cap.GetType(), resp.Auth.Type)
-				require.Equal(t, cap.GetSecondFactor(), resp.Auth.SecondFactor)
-				require.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
+				assert.Equal(t, cap.GetType(), resp.Auth.Type)
+				assert.Equal(t, cap.GetSecondFactor(), resp.Auth.SecondFactor)
+				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
+				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
 
 				u2f, _ := cap.GetU2F()
 				require.NotNil(t, resp.Auth.U2F)
-				require.Equal(t, u2f.AppID, resp.Auth.U2F.AppID)
+				assert.Equal(t, u2f.AppID, resp.Auth.U2F.AppID)
 
 				webCfg, _ := cap.GetWebauthn()
 				require.NotNil(t, resp.Auth.Webauthn)
-				require.Equal(t, webCfg.RPID, resp.Auth.Webauthn.RPID)
+				assert.Equal(t, webCfg.RPID, resp.Auth.Webauthn.RPID)
+			},
+		},
+		{
+			name: "OK passwordless connector",
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+				ConnectorName: constants.PasswordlessConnector,
+			},
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
+				assert.True(t, resp.Auth.AllowPasswordless, "Auth.AllowPasswordless")
+				require.NotNil(t, resp.Auth.Local, "Auth.Local")
+				assert.Equal(t, constants.PasswordlessConnector, resp.Auth.Local.Name, "Auth.Local.Name")
 			},
 		},
 	}

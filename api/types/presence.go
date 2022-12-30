@@ -19,10 +19,10 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-
-	"github.com/gravitational/trace"
 )
 
 // Site represents a cluster of teleport nodes who collectively trust the same
@@ -76,7 +76,7 @@ type KeepAliver interface {
 	// KeepAlives allows to receive keep alives
 	KeepAlives() chan<- KeepAlive
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases

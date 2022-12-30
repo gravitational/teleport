@@ -46,17 +46,17 @@ type KubeCommand struct {
 func (c *KubeCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
-	kube := app.Command("kube", "Operate on registered kubernetes clusters.")
-	c.kubeList = kube.Command("ls", "List all kubernetes clusters registered with the cluster.")
+	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
+	c.kubeList = kube.Command("ls", "List all Kubernetes clusters registered with the cluster.")
 	c.kubeList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.kubeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
 // TryRun attempts to run subcommands like "kube ls".
-func (c *KubeCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.kubeList.FullCommand():
-		err = c.ListKube(client)
+		err = c.ListKube(ctx, client)
 	default:
 		return false, nil
 	}
@@ -65,8 +65,9 @@ func (c *KubeCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
-func (c *KubeCommand) ListKube(client auth.ClientI) error {
-	kubes, err := client.GetKubeServices(context.TODO())
+func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
+
+	kubes, err := client.GetKubernetesServers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

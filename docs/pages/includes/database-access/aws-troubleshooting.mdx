@@ -1,0 +1,26 @@
+### Certificate error
+
+If your `tsh db connect` error includes the following text, you likely have an RDS database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
+
+```code
+x509: certificate relies on legacy Common Name field, use SANs instead
+```
+
+AWS provides instructions to rotate your [SSL/TLS certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html).
+
+### No credential providers error
+
+If you see the error ` NoCredentialProviders: no valid providers in chain` in Database Service logs then Teleport
+is not detecting the required credentials to connect via AWS IAM permissions. Check whether
+the credentials or security role has been applied in the machine running the Teleport Database Service.
+
+### Timeout errors
+
+The Teleport Database Service needs connectivity to your database endpoints. That may require
+enabling inbound traffic on the database from the Database Service on the same VPC or routing rules from another VPC. Using the `nc`
+program you can verify connections to databases:
+
+```code
+nc -zv postgres-instance-1.sadas.us-east-1.rds.amazonaws.com 5432
+# Connection to postgres-instance-1.sadas.us-east-1.rds.amazonaws.com (172.31.24.172) 5432 port [tcp/postgresql] succeeded!
+```

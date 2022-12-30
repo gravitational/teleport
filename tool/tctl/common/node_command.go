@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -96,12 +97,12 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *NodeCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *NodeCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.nodeAdd.FullCommand():
-		err = c.Invite(client)
+		err = c.Invite(ctx, client)
 	case c.nodeList.FullCommand():
-		err = c.ListActive(client)
+		err = c.ListActive(ctx, client)
 
 	default:
 		return false, nil
@@ -115,7 +116,7 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:
@@ -134,20 +135,20 @@ Please note:
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (c *NodeCommand) Invite(client auth.ClientI) error {
+func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 	// parse --roles flag
 	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{Roles: roles, TTL: c.ttl, Token: c.token})
+	token, err := client.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: roles, TTL: proto.Duration(c.ttl), Token: c.token})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	localCAResponse, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -171,9 +172,9 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		} else {
 			authServer := authServers[0].GetAddr()
 
-			pingResponse, err := client.Ping(context.TODO())
+			pingResponse, err := client.Ping(ctx)
 			if err != nil {
-				log.Debugf("unnable to ping auth client: %s.", err.Error())
+				log.Debugf("unable to ping auth client: %s.", err.Error())
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {
@@ -207,11 +208,9 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 	return nil
 }
 
-// ListActive retreives the list of nodes who recently sent heartbeats to
+// ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (c *NodeCommand) ListActive(clt auth.ClientI) error {
-	ctx := context.TODO()
-
+func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -226,16 +225,10 @@ func (c *NodeCommand) ListActive(clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
-	// Underlying ListResources for nodes not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		nodes, err = clt.GetNodes(ctx, c.namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	case err != nil:
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	default:
 		nodes, err = types.ResourcesWithLabels(resources).AsServers()
@@ -251,7 +244,7 @@ func (c *NodeCommand) ListActive(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
-		if err := coll.writeYaml(os.Stdout); err != nil {
+		if err := coll.writeYAML(os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:

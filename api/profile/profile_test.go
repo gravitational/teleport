@@ -22,10 +22,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/profile"
 )
 
 // TestProfileBasics verifies basic profile operations such as
@@ -43,6 +43,8 @@ func TestProfileBasics(t *testing.T) {
 		DynamicForwardedPorts: []string{"localhost:8080"},
 		Dir:                   dir,
 		SiteName:              "example.com",
+		AuthConnector:         "passwordless",
+		MFAMode:               "auto",
 	}
 
 	// verify that profile name is proxy host component

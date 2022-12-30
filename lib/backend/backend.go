@@ -25,10 +25,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Forever means that object TTL will not expire unless deleted
@@ -118,11 +118,10 @@ type Batch interface {
 //
 // Here is an example of renewing object TTL:
 //
-// lease, err := backend.Create()
-// lease.Expires = time.Now().Add(time.Second)
-// Item TTL is extended
-// err = backend.KeepAlive(lease)
-//
+// item.Expires = time.Now().Add(10 * time.Second)
+// lease, err := backend.Create(ctx, item)
+// expires := time.Now().Add(20 * time.Second)
+// err = backend.KeepAlive(ctx, lease, expires)
 type Lease struct {
 	// Key is an object representing lease
 	Key []byte
@@ -161,7 +160,7 @@ type Watcher interface {
 	// Events returns channel with events
 	Events() <-chan Event
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases
@@ -269,6 +268,8 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	case types.AppServer:
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	case types.KubeServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
 	}
@@ -280,6 +281,8 @@ func GetPaginationKey(r types.Resource) string {
 	case types.DatabaseServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.AppServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.KubeServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.WindowsDesktop:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
@@ -372,6 +375,14 @@ const Separator = '/'
 // makes sure path always starts with Separator ("/")
 func Key(parts ...string) []byte {
 	return internalKey("", parts...)
+}
+
+// ExactKey is like Key, except a Separator is appended to the result
+// path of Key. This is to ensure range matching of a path will only
+// math child paths and not other paths that have the resulting path
+// as a prefix.
+func ExactKey(parts ...string) []byte {
+	return append(Key(parts...), Separator)
 }
 
 func internalKey(internalPrefix string, parts ...string) []byte {

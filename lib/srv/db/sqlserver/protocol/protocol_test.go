@@ -20,10 +20,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 	"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 )
 
 // TestReadPreLogin verifies Pre-Login packet parsing.
@@ -41,7 +41,7 @@ func TestWritePreLoginResponse(t *testing.T) {
 
 	packet, err := ReadPacket(b)
 	require.NoError(t, err)
-	require.Equal(t, PacketTypeResponse, packet.Type)
+	require.Equal(t, PacketTypeResponse, packet.Type())
 }
 
 // TestReadLogin7 verifies Login7 packet parsing.
@@ -58,4 +58,40 @@ func TestErrorResponse(t *testing.T) {
 
 	err := WriteErrorResponse(b, trace.AccessDenied("access denied"))
 	require.NoError(t, err)
+}
+
+// TestSQLBatch verifies SQLPatch packet parsing.
+func TestSQLBatch(t *testing.T) {
+	packet, err := ReadPacket(bytes.NewReader(fixtures.SQLBatch))
+	require.NoError(t, err)
+	r, err := ToSQLPacket(packet)
+	require.NoError(t, err)
+	require.Equal(t, r.Type(), PacketTypeSQLBatch)
+	p, ok := r.(*SQLBatch)
+	require.True(t, ok)
+	require.Equal(t, "\nselect 'foo' as 'bar'\n        ", p.SQLText)
+}
+
+// TestRPCClientRequestParam verifies RPC Request with param packet parsing.
+func TestRPCClientRequestParam(t *testing.T) {
+	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientRequestParam))
+	require.NoError(t, err)
+	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	r, err := ToSQLPacket(packet)
+	require.NoError(t, err)
+	p, ok := r.(*RPCRequest)
+	require.True(t, ok)
+	require.Equal(t, "select @@version", p.Parameters[0])
+}
+
+// TestRPCClientRequest verifies rpc request packet parsing.
+func TestRPCClientRequest(t *testing.T) {
+	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientRequest))
+	require.NoError(t, err)
+	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	r, err := ToSQLPacket(packet)
+	require.NoError(t, err)
+	p, ok := r.(*RPCRequest)
+	require.True(t, ok)
+	require.Equal(t, "foo3", p.ProcName)
 }

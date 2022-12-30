@@ -21,13 +21,13 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -81,6 +81,11 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 			require.Equal(t, webRegistration.Webauthn.RPID, credentialCreation.Response.RelyingParty.ID)
 			// Are we using the correct authenticator selection settings?
 			require.Equal(t, test.wantResidentKey, *credentialCreation.Response.AuthenticatorSelection.RequireResidentKey)
+			if test.wantResidentKey {
+				require.Equal(t, protocol.ResidentKeyRequirementRequired, credentialCreation.Response.AuthenticatorSelection.ResidentKey)
+			} else {
+				require.Equal(t, protocol.ResidentKeyRequirementDiscouraged, credentialCreation.Response.AuthenticatorSelection.ResidentKey)
+			}
 			require.Equal(t, test.wantUserVerification, credentialCreation.Response.AuthenticatorSelection.UserVerification)
 			// Did we record the SessionData in storage?
 			require.NotEmpty(t, identity.SessionData)
@@ -94,7 +99,12 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 			require.NoError(t, err)
 
 			// Finish is the final step in registration.
-			newDevice, err := webRegistration.Finish(ctx, user, test.deviceName, ccr)
+			newDevice, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             user,
+				DeviceName:       test.deviceName,
+				CreationResponse: ccr,
+				Passwordless:     test.passwordless,
+			})
 			require.NoError(t, err)
 			require.Equal(t, test.deviceName, newDevice.GetName())
 			// Did we get a proper WebauthnDevice?
@@ -297,6 +307,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 		user, deviceName string
 		createResp       func() *wanlib.CredentialCreationResponse
 		wantErr          string
+		passwordless     bool
 	}{
 		{
 			name:       "NOK user empty",
@@ -362,10 +373,29 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			},
 			wantErr: "validating challenge",
 		},
+		{
+			name:         "NOK passwordless on Finish but not on Begin",
+			user:         user,
+			deviceName:   "webauthn2",
+			passwordless: true,
+			createResp: func() *wanlib.CredentialCreationResponse {
+				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
+				require.NoError(t, err)
+				resp, err := key.SignCredentialCreation(webOrigin, cc)
+				require.NoError(t, err)
+				return resp
+			},
+			wantErr: "passwordless registration failed",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webRegistration.Finish(ctx, test.user, test.deviceName, test.createResp())
+			_, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             test.user,
+				DeviceName:       test.deviceName,
+				CreationResponse: test.createResp(),
+				Passwordless:     test.passwordless,
+			})
 			require.Error(t, err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
@@ -450,7 +480,11 @@ func TestRegistrationFlow_Finish_attestation(t *testing.T) {
 			ccr, err := dev.SignCredentialCreation(origin, cc)
 			require.NoError(t, err)
 
-			_, err = webRegistration.Finish(ctx, user, devName, ccr)
+			_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             user,
+				DeviceName:       devName,
+				CreationResponse: ccr,
+			})
 			if ok := err == nil; ok != test.wantOK {
 				t.Errorf("Finish returned err = %v, wantOK = %v", err, test.wantOK)
 			}

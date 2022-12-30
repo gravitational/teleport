@@ -24,14 +24,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestUpsertServer(t *testing.T) {
@@ -117,6 +117,7 @@ func TestUpsertServer(t *testing.T) {
 			require.NoError(t, err)
 			req := httptest.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader(body))
 			req.RemoteAddr = remoteAddr
+			req.Header.Add("Content-Type", "application/json")
 
 			_, err = new(APIServer).upsertServer(s, tt.role, req, httprouter.Params{httprouter.Param{Key: "namespace", Value: apidefaults.Namespace}})
 			tt.assertErr(t, err)

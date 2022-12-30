@@ -19,12 +19,14 @@ package db
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/cloud/watchers"
-
-	"github.com/gravitational/trace"
+	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
+	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -102,9 +104,18 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // startCloudWatcher starts fetching cloud databases according to the
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
-	watcher, err := watchers.NewWatcher(ctx, watchers.WatcherConfig{
-		AWSMatchers: s.cfg.AWSMatchers,
-		Clients:     s.cfg.CloudClients,
+	awsFetchers, err := dbfetchers.MakeAWSFetchers(s.cfg.CloudClients, s.cfg.AWSMatchers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	azureFechters, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
+		Fetchers: append(awsFetchers, azureFechters...),
+		Log:      logrus.WithField(trace.Component, "watcher:cloud"),
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -118,8 +129,13 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 		defer s.log.Debug("Cloud database watcher done.")
 		for {
 			select {
-			case databases := <-watcher.DatabasesC():
-				s.monitoredDatabases.setCloud(databases)
+			case resources := <-watcher.ResourcesC():
+				databases, err := resources.AsDatabases()
+				if err == nil {
+					s.monitoredDatabases.setCloud(databases)
+				} else {
+					s.log.WithError(err).Warnf("Failed to convert resources to databases.")
+				}
 				select {
 				case s.reconcileCh <- struct{}{}:
 				case <-ctx.Done():
@@ -171,8 +187,14 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 	if !ok {
 		return false
 	}
-	if database.IsRDS() || database.IsRedshift() {
+
+	// In the case of CloudOrigin CloudHosted resources the matchers should be skipped.
+	if cloudOrigin(resource) && database.IsCloudHosted() {
 		return true // Cloud fetchers return only matching databases.
 	}
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
+}
+
+func cloudOrigin(r types.ResourceWithLabels) bool {
+	return r.Origin() == types.OriginCloud
 }

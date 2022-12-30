@@ -1,5 +1,5 @@
 ARG BUILDBOX_VERSION
-FROM quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION
+FROM public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
 
 USER root
 

@@ -101,8 +101,30 @@ subjects:
   name: ${TELEPORT_SA}
   namespace: ${NAMESPACE}
 EOF
-# Get the service account token and CA cert.
+
+# Checks if secret entry was defined for Service account. If defined it means that Kubernetes server has a
+# version bellow 1.24, otherwise one must manually create the secret and bind it to the Service account to have a non expiring token.
+# After Kubernetes v1.24 Service accounts no longer generate automatic tokens/secrets.
+# We can use kubectl create token but the token has a expiration time.
+# https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.24.md#urgent-upgrade-notes
 SA_SECRET_NAME=$(kubectl get -n ${NAMESPACE} sa/${TELEPORT_SA} -o "jsonpath={.secrets[0]..name}")
+if [ -z $SA_SECRET_NAME ]
+then
+# Create the secret and bind it to the desired SA
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: ${TELEPORT_SA}
+  namespace: ${NAMESPACE}
+  annotations:
+    kubernetes.io/service-account.name: "${TELEPORT_SA}"
+EOF
+
+SA_SECRET_NAME=${TELEPORT_SA}
+fi
+
 # Note: service account token is stored base64-encoded in the secret but must
 # be plaintext in kubeconfig.
 SA_TOKEN=$(kubectl get -n ${NAMESPACE} secrets/${SA_SECRET_NAME} -o "jsonpath={.data['token']}" | base64 ${BASE64_DECODE_FLAG})

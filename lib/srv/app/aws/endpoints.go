@@ -50,10 +50,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/sso"
 	"github.com/aws/aws-sdk-go/service/ssooidc"
 	"github.com/aws/aws-sdk-go/service/timestreamquery"
-
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-
 	"github.com/gravitational/trace"
+
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // resolveEndpoint extracts the aws-service on and aws-region from the request
@@ -63,6 +63,16 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
+	forwardedHost := r.Header.Get("X-Forwarded-Host")
+	if awsapiutils.IsAWSEndpoint(forwardedHost) {
+		return &endpoints.ResolvedEndpoint{
+			URL:           "https://" + forwardedHost,
+			SigningRegion: awsAuthHeader.Region,
+			SigningName:   awsAuthHeader.Service,
+		}, nil
 	}
 
 	// aws-sdk-go maintains a mapping of service endpoints which can be looked
@@ -112,6 +122,22 @@ func endpointsIDFromSigningName(signingName string) string {
 	// If not found in the mapping, endpoints ID is expected to be the same as
 	// the signing name.
 	return signingName
+}
+
+func isDynamoDBEndpoint(re *endpoints.ResolvedEndpoint) bool {
+	// Some clients may sign some services with upper case letters. We use all
+	// lower cases in our mapping.
+	signingName := strings.ToLower(re.SigningName)
+	_, ok := dynamoDBSigningNames[signingName]
+	return ok
+}
+
+// dynamoDBSigningNames is a set of signing names used for DynamoDB APIs.
+var dynamoDBSigningNames = map[string]struct{}{
+	// signing name for dynamodb and dynamodbstreams API.
+	"dynamodb": {},
+	// signing name for dynamodb accelerator API.
+	"dax": {},
 }
 
 // signingNameToEndpointsID is a map of AWS services' signing names to their

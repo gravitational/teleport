@@ -71,14 +71,22 @@ type License interface {
 	// SetSupportsDesktopAccess sets desktop access support flag
 	SetSupportsDesktopAccess(Bool)
 
+	// GetTrial returns the trial flag.
+	//  Note: This is not applicable to Cloud licenses
+	GetTrial() Bool
+	// SetTrial sets the trial flag.
+	//  Note: This is not applicable to Cloud licenses
+	SetTrial(Bool)
+
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
-	// GetAccountID returns Account ID
+	// GetAccountID returns Account ID.
+	//  Note: This is not applicable to all Cloud licenses
 	GetAccountID() string
 }
 
-// NewLicense is a convenience method to to create LicenseV3.
+// NewLicense is a convenience method to create LicenseV3.
 func NewLicense(name string, spec LicenseSpecV3) (License, error) {
 	l := &LicenseV3{
 		Metadata: Metadata{
@@ -274,14 +282,24 @@ func (c *LicenseV3) SetSupportsDatabaseAccess(value Bool) {
 	c.Spec.SupportsDatabaseAccess = value
 }
 
-// GetSupportsDesktopAccess returns database access support flag
+// GetSupportsDesktopAccess returns desktop access support flag
 func (c *LicenseV3) GetSupportsDesktopAccess() Bool {
 	return c.Spec.SupportsDesktopAccess
 }
 
-// SetSupportsDesktopAccess sets database access support flag
+// SetSupportsDesktopAccess sets desktop access support flag
 func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
 	c.Spec.SupportsDesktopAccess = value
+}
+
+// GetTrial returns the trial flag
+func (c *LicenseV3) GetTrial() Bool {
+	return c.Spec.Trial
+}
+
+// SetTrial sets the trial flag
+func (c *LicenseV3) SetTrial(value Bool) {
+	c.Spec.Trial = value
 }
 
 // String represents a human readable version of license enabled features
@@ -289,6 +307,9 @@ func (c *LicenseV3) String() string {
 	var features []string
 	if !c.Expiry().IsZero() {
 		features = append(features, fmt.Sprintf("expires at %v", c.Expiry()))
+	}
+	if c.GetTrial() {
+		features = append(features, "is trial")
 	}
 	if c.GetReportsUsage() {
 		features = append(features, "reports usage")
@@ -341,4 +362,5 @@ type LicenseSpecV3 struct {
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
+	Trial Bool `json:"trial,omitempty"`
 }

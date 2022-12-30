@@ -25,10 +25,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // DynamicConfig is the configuration for dynamic labels.
@@ -165,4 +166,17 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 	defer l.mu.Unlock()
 
 	l.c.Labels[name] = value
+}
+
+// Importer is an interface for labels imported from an external source,
+// such as a cloud provider.
+type Importer interface {
+	// Get returns the current labels.
+	Get() map[string]string
+	// Apply adds the current labels to the provided resource's static labels.
+	Apply(r types.ResourceWithLabels)
+	// Sync blocks and synchronously updates the labels.
+	Sync(context.Context) error
+	// Start starts a loop that continually keeps the labels updated.
+	Start(context.Context)
 }

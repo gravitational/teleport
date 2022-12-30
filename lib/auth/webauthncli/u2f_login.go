@@ -22,11 +22,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/flynn/u2f/u2ftoken"
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -39,6 +39,9 @@ func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAs
 		return nil, trace.BadParameter("origin required")
 	case assertion == nil:
 		return nil, trace.BadParameter("assertion required")
+	case len(assertion.Response.AllowedCredentials) == 0 &&
+		assertion.Response.UserVerification == protocol.VerificationRequired:
+		return nil, trace.BadParameter("Passwordless not supported in U2F mode. Please install a recent version of tsh.")
 	case len(assertion.Response.Challenge) == 0:
 		return nil, trace.BadParameter("assertion challenge required")
 	case assertion.Response.RelyingPartyID == "":

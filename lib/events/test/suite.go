@@ -12,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package test
@@ -20,23 +19,24 @@ package test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 // UploadDownload tests uploads and downloads
@@ -83,20 +83,23 @@ type EventsSuite struct {
 }
 
 // EventPagination covers event search pagination.
-func (s *EventsSuite) EventPagination(c *check.C) {
+func (s *EventsSuite) EventPagination(t *testing.T) {
 	// This serves no special purpose except to make querying easier.
 	baseTime := time.Date(2019, time.May, 10, 14, 43, 0, 0, time.UTC)
 
 	names := []string{"bob", "jack", "daisy", "evan"}
 
 	for i, name := range names {
-		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-			events.LoginMethod:        events.LoginMethodSAML,
-			events.AuthAttemptSuccess: true,
-			events.EventUser:          name,
-			events.EventTime:          baseTime.Add(time.Second * time.Duration(i)),
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: name},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: baseTime.Add(time.Second * time.Duration(i)),
+			},
 		})
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 	}
 
 	toTime := baseTime.Add(time.Hour)
@@ -104,75 +107,116 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	var err error
 	var checkpoint string
 
-	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 100, types.EventOrderAscending, checkpoint)
 		return err
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(arr, check.HasLen, 4)
-	c.Assert(checkpoint, check.Equals, "")
+	require.NoError(t, err)
+	require.Len(t, arr, 4)
+	require.Equal(t, checkpoint, "")
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
-		c.Assert(err, check.IsNil)
-		c.Assert(arr, check.HasLen, 1)
+		require.NoError(t, err)
+		require.Len(t, arr, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
-		c.Assert(ok, check.Equals, true)
-		c.Assert(name, check.Equals, event.User)
+		require.True(t, ok)
+		require.Equal(t, name, event.User)
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
-		c.Assert(err, check.IsNil)
-		c.Assert(arr, check.HasLen, 0)
+		require.NoError(t, err)
+		require.Len(t, arr, 0)
 	}
-	c.Assert(checkpoint, check.Equals, "")
+	require.Equal(t, checkpoint, "")
 
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 2, types.EventOrderAscending, checkpoint)
-		c.Assert(err, check.IsNil)
-		c.Assert(arr, check.HasLen, 2)
+		require.NoError(t, err)
+		require.Len(t, arr, 2)
 		eventA, okA := arr[0].(*apievents.UserLogin)
 		eventB, okB := arr[1].(*apievents.UserLogin)
-		c.Assert(okA, check.Equals, true)
-		c.Assert(okB, check.Equals, true)
-		c.Assert(nameA, check.Equals, eventA.User)
-		c.Assert(nameB, check.Equals, eventB.User)
+		require.True(t, okA)
+		require.True(t, okB)
+		require.Equal(t, nameA, eventA.User)
+		require.Equal(t, nameB, eventB.User)
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
-		c.Assert(err, check.IsNil)
-		c.Assert(arr, check.HasLen, 0)
+		require.NoError(t, err)
+		require.Len(t, arr, 0)
 	}
-	c.Assert(checkpoint, check.Equals, "")
+	require.Equal(t, checkpoint, "")
 
 	for i := len(names) - 1; i >= 0; i-- {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
-		c.Assert(err, check.IsNil)
-		c.Assert(arr, check.HasLen, 1)
+		require.NoError(t, err)
+		require.Len(t, arr, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
-		c.Assert(ok, check.Equals, true)
-		c.Assert(names[i], check.Equals, event.User)
+		require.True(t, ok)
+		require.Equal(t, names[i], event.User)
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
-		c.Assert(err, check.IsNil)
-		c.Assert(arr, check.HasLen, 0)
+		require.NoError(t, err)
+		require.Len(t, arr, 0)
 	}
-	c.Assert(checkpoint, check.Equals, "")
+	require.Equal(t, checkpoint, "")
+
+	// This serves no special purpose except to make querying easier.
+	baseTime2 := time.Date(2019, time.August, 10, 14, 43, 47, 0, time.UTC)
+
+	for _, name := range names {
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: name},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: baseTime2,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+Outer:
+	for i := 0; i < len(names); i++ {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime2, baseTime2.Add(time.Second), apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
+		require.NoError(t, err)
+		require.Len(t, arr, 1)
+		event, ok := arr[0].(*apievents.UserLogin)
+		require.True(t, ok)
+		require.Equal(t, event.GetTime(), baseTime2)
+		require.True(t, slices.Contains(names, event.User))
+
+		for i, name := range names {
+			if name == event.User {
+				// delete name from list
+				copy(names[i:], names[i+1:])
+				names = names[:len(names)-1]
+				continue Outer
+			}
+		}
+
+		t.Fatalf("unexpected event: %#v", event)
+	}
 }
 
 // SessionEventsCRUD covers session events
-func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
+func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	// Bob has logged in
-	err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-		events.LoginMethod:        events.LoginMethodSAML,
-		events.AuthAttemptSuccess: true,
-		events.EventUser:          "bob",
-		events.EventTime:          s.Clock.Now().UTC(),
+	err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		Method:       events.LoginMethodSAML,
+		Status:       apievents.Status{Success: true},
+		UserMetadata: apievents.UserMetadata{User: "bob"},
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Time: s.Clock.Now().UTC(),
+		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// For eventually consistent queries
 	if s.QueryDelay != 0 {
@@ -181,48 +225,57 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 
 	var history []apievents.AuditEvent
 
-	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
 		return err
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
-	err = s.Log.PostSessionSlice(events.SessionSlice{
-		Namespace: apidefaults.Namespace,
-		SessionID: string(sessionID),
-		Chunks: []*events.SessionChunk{
-			// start the seession
-			{
-				Time:       s.Clock.Now().UTC().UnixNano(),
-				EventIndex: 0,
-				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob"}),
-			},
-			// emitting session end event should close the session
-			{
-				Time:       s.Clock.Now().Add(time.Hour).UTC().UnixNano(),
-				EventIndex: 4,
-				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob", events.SessionParticipants: []string{"bob", "alice"}}),
-			},
+
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().UTC(),
+			Index: 0,
+			Type:  events.SessionStartEvent,
 		},
-		Version: events.V2,
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(sessionID),
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().Add(time.Hour).UTC(),
+			Index: 4,
+			Type:  events.SessionEndEvent,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(sessionID),
+		},
+		Participants: []string{"bob", "alice"},
+	})
+	require.NoError(t, err)
 
 	// read the session event
 	historyEvents, err := s.Log.GetSessionEvents(apidefaults.Namespace, sessionID, 0, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(historyEvents, check.HasLen, 2)
-	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
-	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
+	require.NoError(t, err)
+	require.Len(t, historyEvents, 2)
+	require.Equal(t, historyEvents[0].GetString(events.EventType), events.SessionStartEvent)
+	require.Equal(t, historyEvents[1].GetString(events.EventType), events.SessionEndEvent)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil)
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 1)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil, "")
+	require.NoError(t, err)
+	require.Len(t, history, 1)
 
 	withParticipant := func(participant string) *types.WhereExpr {
 		return &types.WhereExpr{Contains: types.WhereExpr2{
@@ -231,23 +284,56 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		}}
 	}
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"))
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 1)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"), "")
+	require.NoError(t, err)
+	require.Len(t, history, 1)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"))
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 0)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"), "")
+	require.NoError(t, err)
+	require.Len(t, history, 0)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil)
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 0)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil, "")
+	require.NoError(t, err)
+	require.Len(t, history, 0)
 }
 
-func marshal(f events.EventFields) []byte {
-	data, err := json.Marshal(f)
-	if err != nil {
-		panic(err)
+func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
+	now := time.Now().UTC()
+	firstID := uuid.New().String()
+	secondID := uuid.New().String()
+	thirdID := uuid.New().String()
+	for i, id := range []string{firstID, secondID, thirdID} {
+		event := &apievents.WindowsDesktopSessionEnd{
+			Metadata: apievents.Metadata{
+				ID:   fmt.Sprintf("eventID%d", i),
+				Type: events.WindowsDesktopSessionEndEvent,
+				Code: events.DesktopSessionEndCode,
+				Time: now.Add(time.Duration(i) * time.Second),
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: id,
+			},
+		}
+		err := s.Log.EmitAuditEvent(context.Background(), event)
+		require.NoError(t, err)
 	}
-	return data
+	from := time.Time{}
+	to := now.Add(10 * time.Second)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		events, _, err := s.Log.SearchSessionEvents(from, to, 1000, types.EventOrderDescending, "", nil, secondID)
+		require.NoError(t, err)
+		require.Len(t, events, 1)
+		e, ok := events[0].(*apievents.WindowsDesktopSessionEnd)
+		require.True(t, ok)
+		require.Equal(t, e.GetSessionID(), secondID)
+	}()
+
+	select {
+	case <-time.After(time.Second * 10):
+		t.Fatalf("Search event query timeout")
+	case <-done:
+	}
 }

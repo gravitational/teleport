@@ -19,12 +19,12 @@ package common
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Audit defines an interface for database access audit events logger.
@@ -153,7 +153,7 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 // EmitEvent emits the provided audit event using configured emitter.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
-		a.log.WithError(err).Errorf("Failed to emit audit event: %v.", event)
+		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
 	}
 }
 

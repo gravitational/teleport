@@ -24,13 +24,34 @@ windows_desktop_service:
     # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
     # use the format: "EXAMPLE\svc-teleport".
     username: '$LDAP_USERNAME'
+    # The security identifier of the service account specified by the username
+    # field above. This looks like a string starting with "S-".
+    #
+    # An administrator with access to the domain controller can obtain this value
+    # by opening a PowerShell and running
+    # ```
+    # Get-AdUser -Identity $LDAP_USERNAME | Select SID
+    # ```
+    #
+    # The value can be obtained over LDAP by constructing a query with the
+    # filter = (&(objectCategory=person)(objectClass=user)(name=$LDAP_USERNAME))
+    # and requesting the attribute = objectSid
+    sid: '$LDAP_USER_SID'
     # You can skip LDAPS certificate verification by setting
     # this to true. It is recommended that this be set to false
     # and the certificate added your system's trusted repository,
-    # or its filepath provided in with the der_ca_file variable below.
+    # or provided as a PEM encoded certificate using ldap_ca_cert variable.
+    # You can provide a filepath with der_ca_file, but this behavior is deprecated.
     insecure_skip_verify: false
+    # PEM encoded LDAP CA certificate.
+    ldap_ca_cert: |
+      -----BEGIN CERTIFICATE-----
+          *certificate data*
+      -----END CERTIFICATE-----
     # DER encoded LDAP CA certificate.
+    # deprecated: prefer ldap_ca_cert instead
     der_ca_file: /path/to/cert
+
   # (optional) hosts is a list of hostnames to register as WindowsDesktop
   # objects in Teleport.
   hosts:
@@ -48,6 +69,10 @@ windows_desktop_service:
     filters:
     - '(location=Oakland)'
     - '(!(primaryGroupID=516))' # exclude domain controllers
+    # (optional) LDAP attributes to convert into Teleport labels.
+    # The key of the label will be "ldap/" + the value of the attribute.
+    label_attributes:
+    - location
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
@@ -58,3 +83,8 @@ windows_desktop_service:
   - match: '^.*\.prod\.example\.com$'
     labels:
       environment: prod
+
+  # Labels to attach to the Windows Desktop Service. This is used internally, so
+  # any custom labels added won't affect the Windows hosts.
+  labels:
+    teleport.internal/resource-id: "resource-id"

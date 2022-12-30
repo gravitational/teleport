@@ -20,11 +20,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/gravitational/trace"
 )
 
 // NewMultiLog returns a new instance of a multi logger
@@ -51,47 +51,11 @@ type MultiLog struct {
 	*MultiEmitter
 }
 
-// WaitForDelivery waits for resources to be released and outstanding requests to
-// complete after calling Close method
-func (m *MultiLog) WaitForDelivery(ctx context.Context) error {
-	return nil
-}
-
 // Close releases connections and resources associated with logs if any
 func (m *MultiLog) Close() error {
 	var errors []error
 	for _, log := range m.loggers {
 		errors = append(errors, log.Close())
-	}
-	return trace.NewAggregate(errors...)
-}
-
-// EmitAuditEventLegacy emits audit event
-func (m *MultiLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.EmitAuditEventLegacy(event, fields))
-	}
-	return trace.NewAggregate(errors...)
-}
-
-// UploadSessionRecording uploads session recording to the audit server
-func (m *MultiLog) UploadSessionRecording(rec SessionRecording) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.UploadSessionRecording(rec))
-	}
-	return trace.NewAggregate(errors...)
-}
-
-// DELETE IN: 2.7.0
-// This method is no longer necessary as nodes and proxies >= 2.7.0
-// use UploadSessionRecording method.
-// PostSessionSlice sends chunks of recorded session to the event log
-func (m *MultiLog) PostSessionSlice(slice SessionSlice) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.PostSessionSlice(slice))
 	}
 	return trace.NewAggregate(errors...)
 }
@@ -114,10 +78,7 @@ func (m *MultiLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 // Returns all events that happen during a session sorted by time
 // (oldest first).
 //
-// after tells to use only return events after a specified cursor Id
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+// after is used to return events after a specified cursor ID
 func (m *MultiLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) (events []EventFields, err error) {
 	for _, log := range m.loggers {
 		events, err = log.GetSessionEvents(namespace, sid, after, fetchPrintEvents)
@@ -152,9 +113,9 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
+		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 		if !trace.IsNotImplemented(err) {
 			return events, lastKey, err
 		}

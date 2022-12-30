@@ -1,8 +1,8 @@
 terraform {
   required_providers {
     teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
       version = ">= (=teleport.version=)"
-      source  = "gravitational.com/teleport/teleport"
     }
   }
 }
@@ -10,73 +10,77 @@ terraform {
 provider "teleport" {
   # Update addr to point to Teleport Auth/Proxy
   # addr               = "auth.example.com:3025"
-  addr               = "proxy.example.com:443"
-  cert_path          = "auth.crt"
-  key_path           = "auth.key"
-  root_ca_path       = "auth.cas"
+  addr         = "proxy.example.com:443"
+  cert_path    = "auth.crt"
+  key_path     = "auth.key"
+  root_ca_path = "auth.cas"
 }
 
 resource "teleport_role" "terraform-test" {
-  metadata {
+  metadata = {
     name        = "terraform-test"
     description = "Terraform test role"
     labels = {
-      example  = "yes"
+      example = "yes"
     }
   }
-  
-  spec {
-    options {
+
+  spec = {
+    options = {
       forward_agent           = false
       max_session_ttl         = "30m"
       port_forwarding         = false
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
-      permit_x11_forwarding    = false
+      permit_x11_forwarding   = false
       request_access          = "denied"
     }
 
-    allow {
+    allow = {
       logins = ["this-user-does-not-exist"]
 
-      rules {
-        resources = ["user", "role"]
-        verbs = ["list"]
-      }
-
-      request {
-        roles = ["example"]
-        claims_to_roles {
-          claim = "example"
-          value = "example"
-          roles = ["example"]
+      rules = [
+        {
+          resources = ["user", "role"]
+          verbs     = ["list"]
         }
+      ]
+
+      request = {
+        roles = ["example"]
+        claims_to_roles = [
+          {
+            claim = "example"
+            value = "example"
+            roles = ["example"]
+          }
+        ]
       }
 
-      node_labels {
-         key = "example"
-         value = ["yes"]
+      node_labels = {
+        key    = ["example"]
+        alabel = ["with", "multiple", "values"]
       }
     }
 
-    deny {
+    deny = {
       logins = ["anonymous"]
     }
   }
 }
 
 resource "teleport_user" "terraform-test" {
-  metadata {
+  metadata = {
     name        = "terraform-test"
     description = "Test terraform user"
-    expires     = "2022-10-12T07:20:50.52Z"
+    expires     = "2022-10-12T07:20:50Z"
 
     labels = {
-      test      = "true"
+      test = "true"
     }
   }
 
-  spec {
+  spec = {
     roles = ["terraform-test"]
   }
 }

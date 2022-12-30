@@ -19,11 +19,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
@@ -110,7 +110,11 @@ func TestRegister(t *testing.T) {
 			}
 			require.Equal(t, test.wantRawID, resp.GetWebauthn().RawId)
 
-			_, err = webRegistration.Finish(ctx, user, u2fKey.name, wanlib.CredentialCreationResponseFromProto(resp.GetWebauthn()))
+			_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             user,
+				DeviceName:       u2fKey.name,
+				CreationResponse: wanlib.CredentialCreationResponseFromProto(resp.GetWebauthn()),
+			})
 			require.NoError(t, err, "server-side registration failed")
 		})
 	}

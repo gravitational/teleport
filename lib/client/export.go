@@ -14,8 +14,6 @@
 
 package client
 
-// PasswordFromConsoleFn exports passwordFromConsoleFn for tests.
-var PasswordFromConsoleFn = &passwordFromConsoleFn
-
-// Prompts exports prompts for tests.
-var Prompts = prompts
+var PromptMFAStandalone = &promptMFAStandalone
+var PromptWebauthn = &promptWebauthn
+var HasPlatformSupport = &hasPlatformSupport

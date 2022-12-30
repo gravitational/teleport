@@ -22,8 +22,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/mongo/address"
 	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -33,7 +32,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/ocsp"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // connect returns connection to a MongoDB server.
@@ -98,7 +97,7 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 			return connString
 		}),
 		topology.WithServerSelectionTimeout(func(time.Duration) time.Duration {
-			return serverSelectionTimeout
+			return common.DefaultMongoDBServerSelectionTimeout
 		}),
 		topology.WithServerOptions(func(so ...topology.ServerOption) []topology.ServerOption {
 			return serverOptions
@@ -202,9 +201,3 @@ func (h *handshaker) GetHandshakeInformation(context.Context, address.Address, d
 func (h *handshaker) FinishHandshake(context.Context, driver.Connection) error {
 	return nil
 }
-
-const (
-	// serverSelectionTimeout is the timeout for selecting a MongoDB server
-	// to connect to.
-	serverSelectionTimeout = 5 * time.Second
-)

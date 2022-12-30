@@ -18,6 +18,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -31,6 +32,81 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSliceOrString(t *testing.T) {
+	t.Run("marshal", func(t *testing.T) {
+		t.Run("nil slice", func(t *testing.T) {
+			var empty SliceOrString
+			bytes, err := json.Marshal(empty)
+			require.NoError(t, err)
+			require.Equal(t, "[]", string(bytes))
+		})
+
+		t.Run("single string", func(t *testing.T) {
+			single := SliceOrString{"single"}
+			bytes, err := json.Marshal(single)
+			require.NoError(t, err)
+			require.Equal(t, "\"single\"", string(bytes))
+		})
+
+		t.Run("slice", func(t *testing.T) {
+			slice := SliceOrString{"e1", "e2"}
+			bytes, err := json.Marshal(slice)
+			require.NoError(t, err)
+			require.Equal(t, "[\"e1\",\"e2\"]", string(bytes))
+		})
+	})
+
+	t.Run("unmarshal", func(t *testing.T) {
+		t.Run("single string", func(t *testing.T) {
+			var single SliceOrString
+			err := json.Unmarshal([]byte(`"single"`), &single)
+			require.NoError(t, err)
+			require.Equal(t, SliceOrString{"single"}, single)
+		})
+
+		t.Run("slice", func(t *testing.T) {
+			var slice SliceOrString
+			err := json.Unmarshal([]byte(`["e1", "e2"]`), &slice)
+			require.NoError(t, err)
+			require.Equal(t, SliceOrString{"e1", "e2"}, slice)
+		})
+
+		t.Run("error int", func(t *testing.T) {
+			var slice SliceOrString
+			err := json.Unmarshal([]byte(`5`), &slice)
+			require.Error(t, err)
+		})
+
+		t.Run("error invalid json", func(t *testing.T) {
+			var slice SliceOrString
+			err := json.Unmarshal([]byte(`"e1,`), &slice)
+			require.Error(t, err)
+		})
+	})
+}
+
+func TestParsePolicyDocument(t *testing.T) {
+	policyDoc, err := ParsePolicyDocument(`{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "rds-db:connect",
+	  "Resource": ["arn:aws:rds-db:us-west-1:12345:dbuser:id/*"]
+    }
+  ]
+}`)
+	require.NoError(t, err)
+	require.Equal(t, PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{{
+			Effect:    EffectAllow,
+			Actions:   SliceOrString{"rds-db:connect"},
+			Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
+		}},
+	}, *policyDoc)
+}
 
 // TestIAMPolicy verifies AWS IAM policy manipulations.
 func TestIAMPolicy(t *testing.T) {
@@ -227,7 +303,7 @@ func TestRetrievePolicy(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Retrieve doesn't use `identity` so we can pass a nil value.
-			policies := NewPolicies("", test.iamMock)
+			policies := NewPolicies("", "", test.iamMock)
 
 			policy, versions, err := policies.Retrieve(ctx, "", test.tags)
 			if test.returnError {
@@ -246,6 +322,7 @@ func TestUpsertPolicy(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	accountID := "123456789012"
+	partitionID := "aws"
 
 	tests := map[string]struct {
 		expectedPolicyArn string
@@ -314,7 +391,7 @@ func TestUpsertPolicy(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies(accountID, test.iamMock)
+			policies := NewPolicies(partitionID, accountID, test.iamMock)
 
 			arn, err := policies.Upsert(ctx, &Policy{})
 			if test.returnError {
@@ -367,7 +444,7 @@ func TestAttachPolicy(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies("", test.iamMock)
+			policies := NewPolicies("", "", test.iamMock)
 
 			err := policies.Attach(ctx, "", test.identity)
 			if test.returnError {
@@ -419,7 +496,7 @@ func TestAttachPolicyBoundary(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies("", test.iamMock)
+			policies := NewPolicies("", "", test.iamMock)
 
 			err := policies.AttachBoundary(ctx, "", test.identity)
 			if test.returnError {

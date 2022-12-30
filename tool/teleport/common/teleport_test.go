@@ -17,19 +17,19 @@ limitations under the License.
 package common
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
 )
 
 func TestMain(m *testing.M) {
@@ -123,7 +123,10 @@ func TestTeleportMain(t *testing.T) {
 		require.False(t, conf.Proxy.Enabled)
 		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
-		require.Equal(t, "xxxyyy", conf.Token)
+
+		token, err := conf.Token()
+		require.NoError(t, err)
+		require.Equal(t, "xxxyyy", token)
 		require.Equal(t, "10.5.5.5", conf.AdvertiseIP)
 		require.Equal(t, map[string]string{"a": "a1", "b": "b1"}, conf.SSH.Labels)
 	})
@@ -134,11 +137,24 @@ func TestTeleportMain(t *testing.T) {
 			InitOnly: true,
 		})
 		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.Resources))
+		require.Equal(t, len(bootstrapEntries), len(conf.Auth.BootstrapResources))
 		for i, entry := range bootstrapEntries {
-			require.Equal(t, entry.kind, conf.Auth.Resources[i].GetKind(), entry.fileName)
-			require.Equal(t, entry.name, conf.Auth.Resources[i].GetName(), entry.fileName)
-			require.NoError(t, conf.Auth.Resources[i].CheckAndSetDefaults(), entry.fileName)
+			require.Equal(t, entry.kind, conf.Auth.BootstrapResources[i].GetKind(), entry.fileName)
+			require.Equal(t, entry.name, conf.Auth.BootstrapResources[i].GetName(), entry.fileName)
+			require.NoError(t, conf.Auth.BootstrapResources[i].CheckAndSetDefaults(), entry.fileName)
+		}
+	})
+	t.Run("ApplyOnStartup", func(t *testing.T) {
+		_, cmd, conf := Run(Options{
+			Args:     []string{"start", "--apply-on-startup", bootstrapFile},
+			InitOnly: true,
+		})
+		require.Equal(t, "start", cmd)
+		require.Equal(t, len(bootstrapEntries), len(conf.Auth.ApplyOnStartupResources))
+		for i, entry := range bootstrapEntries {
+			require.Equal(t, entry.kind, conf.Auth.ApplyOnStartupResources[i].GetKind(), entry.fileName)
+			require.Equal(t, entry.name, conf.Auth.ApplyOnStartupResources[i].GetName(), entry.fileName)
+			require.NoError(t, conf.Auth.ApplyOnStartupResources[i].CheckAndSetDefaults(), entry.fileName)
 		}
 	})
 }
@@ -173,12 +189,40 @@ func TestConfigure(t *testing.T) {
 	})
 }
 
+func TestDumpConfigFile(t *testing.T) {
+	tt := []struct {
+		name      string
+		outputURI string
+		contents  string
+		comment   string
+		assert    require.ErrorAssertionFunc
+	}{
+		{
+			name:      "errors on relative path",
+			assert:    require.Error,
+			outputURI: "../",
+		},
+		{
+			name:      "doesn't error on unexisting config path",
+			assert:    require.NoError,
+			outputURI: fmt.Sprintf("%s/unexisting/dir/%s", t.TempDir(), "config.yaml"),
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := dumpConfigFile(tc.outputURI, tc.contents, tc.comment)
+			tc.assert(t, err)
+		})
+	}
+}
+
 const configData = `
+version: v3
 teleport:
   advertise_ip: 10.5.5.5
   nodename: hvostongo.example.org
-  auth_servers:
-    - auth.server.example.org:3024
+  auth_server: auth.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
