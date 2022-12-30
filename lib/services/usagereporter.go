@@ -299,6 +299,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 	}
 }
 
+// TeleportUsageReporter submits Teleport usage events
+// anonymized with the cluster name.
 type TeleportUsageReporter struct {
 	// usageReporter is an actual reporter that batches and sends events
 	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitEventRequest]
