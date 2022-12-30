@@ -6927,7 +6927,6 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 	}
 	r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", burst)
 	_, err = hf(nil, r, nil)
-	require.Error(t, err)
 	require.True(t, trace.IsLimitExceeded(err))
 }
 
