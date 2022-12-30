@@ -1141,6 +1141,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Azure Cache for Redis.
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
+  - [ ] Dynamodb.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -1161,6 +1162,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Azure Cache for Redis.
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
+  - [ ] Dynamodb.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.

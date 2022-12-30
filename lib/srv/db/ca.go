@@ -75,6 +75,7 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeAWSKeyspaces,
+		types.DatabaseTypeDynamoDB,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure:
 
@@ -163,7 +164,8 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	//
 	// AWS MemoryDB uses same CA as ElastiCache.
 	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB:
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeDynamoDB:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL))}, nil
 
 	// Each Cloud SQL instance has its own CA.
@@ -286,7 +288,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 		types.DatabaseTypeRedshiftServerless:
 		return d.downloadFromURL(redshiftCAURLForDatabase(database))
 	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB:
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeDynamoDB:
 		return d.downloadFromURL(amazonRootCA1URL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
