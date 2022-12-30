@@ -201,7 +201,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
 	if cfg.UsageReporter == nil {
-		cfg.UsageReporter = local.NewDiscardUsageReporter()
+		cfg.UsageReporter = services.NewDiscardUsageReporter()
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -1343,7 +1343,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.SubmitAnonymizedUsageEvents(&services.UsageCertificateIssued{
+	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -3628,7 +3628,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	if err := a.SubmitAnonymizedUsageEvents(event); err != nil {
+	if err := a.AnonymizeAndSubmit(event); err != nil {
 		return trace.Wrap(err)
 	}
 

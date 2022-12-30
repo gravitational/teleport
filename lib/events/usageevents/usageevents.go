@@ -57,7 +57,7 @@ func (u *UsageLogger) report(event services.UsageAnonymizable) error {
 		return nil
 	}
 
-	return trace.Wrap(u.reporter.SubmitAnonymizedUsageEvents(event))
+	return trace.Wrap(u.reporter.AnonymizeAndSubmit(event))
 }
 
 func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.AuditEvent) error {

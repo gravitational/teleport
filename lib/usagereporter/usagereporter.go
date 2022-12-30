@@ -14,59 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package local
+package usagereporter
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"net/http"
 	"time"
 
-	"github.com/bufbuild/connect-go"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogclient "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	// usageReporterMinBatchSize determines the size at which a batch is sent
-	// regardless of elapsed time
-	usageReporterMinBatchSize = 20
-
-	// usageReporterMaxBatchSize is the largest batch size that will be sent to
-	// the server; batches larger than this will be split into multiple
-	// requests.
-	usageReporterMaxBatchSize = 100
-
-	// usageReporterMaxBatchAge is the maximum age a batch may reach before
-	// being flushed, regardless of the batch size.
-	usageReporterMaxBatchAge = time.Second * 5
-
-	// usageReporterMaxBufferSize is the maximum size to which the event buffer
-	// may grow. Events submitted once this limit is reached will be discarded.
-	// Events that were in the submission queue that fail to submit may also be
-	// discarded when requeued.
-	usageReporterMaxBufferSize = 500
-
-	// usageReporterSubmitDelay is a mandatory delay added to each batch submission
-	// to avoid spamming the prehog instance.
-	usageReporterSubmitDelay = time.Second * 1
-
-	// usageReporterRetryAttempts is the max number of attempts that
-	// should be made to submit a particular event before it's dropped
-	usageReporterRetryAttempts = 5
 )
 
 var (
@@ -112,40 +71,27 @@ var (
 		Help:      "a count of events dropped due to repeated errors or submission buffer overflow",
 	})
 
-	usagePrometheusCollectors = []prometheus.Collector{
+	UsagePrometheusCollectors = []prometheus.Collector{
 		usageEventsSubmitted, usageBatchesTotal, usageEventsRequeuedTotal,
 		usageBatchSubmissionDuration, usageBatchesSubmitted, usageBatchesFailed,
 		usageEventsDropped,
 	}
 )
 
-// DiscardUsageReporter is a dummy usage reporter that drops all events.
-type DiscardUsageReporter struct{}
-
-func (d *DiscardUsageReporter) SubmitAnonymizedUsageEvents(event ...services.UsageAnonymizable) error {
-	// do nothing
-	return nil
-}
-
-// NewDiscardUsageReporter creates a new usage reporter that drops all events.
-func NewDiscardUsageReporter() *DiscardUsageReporter {
-	return &DiscardUsageReporter{}
-}
-
-// submitFunc is a func that submits a batch of usage events.
-type UsageSubmitFunc func(reporter *UsageReporter, batch []*SubmittedEvent) ([]*SubmittedEvent, error)
+// SubmitFunc is a func that submits a batch of usage events.
+type SubmitFunc[T any] func(reporter *UsageReporter[T], batch []*SubmittedEvent[T]) ([]*SubmittedEvent[T], error)
 
 // SubmittedEvent is an event that has been submitted
-type SubmittedEvent struct {
+type SubmittedEvent[T any] struct {
 	// Event is the Event to attempt to send
-	Event *prehogapi.SubmitEventRequest
+	Event *T
 
 	// retriesRemaining is the number of attempts to make submitting this event
 	// before it's discarded
 	retriesRemaining int
 }
 
-type UsageReporter struct {
+type UsageReporter[T any] struct {
 	// Entry is a log entry
 	*logrus.Entry
 
@@ -155,24 +101,17 @@ type UsageReporter struct {
 	// submitClock is the clock used for the submission goroutine
 	submitClock clockwork.Clock
 
-	// anonymizer is the anonymizer used for filtered audit events.
-	anonymizer utils.Anonymizer
-
 	// events receives batches of incoming events from various Teleport components
-	events chan []*SubmittedEvent
+	events chan []*SubmittedEvent[T]
 
 	// buf stores events for batching
-	buf []*SubmittedEvent
+	buf []*SubmittedEvent[T]
 
 	// submissionQueue queues events for submission
-	submissionQueue chan []*SubmittedEvent
+	submissionQueue chan []*SubmittedEvent[T]
 
 	// submit is the func that submits batches of events to a backend
-	submit UsageSubmitFunc
-
-	// clusterName is the cluster's name, used for anonymization and as an event
-	// field.
-	clusterName types.ClusterName
+	submit SubmitFunc[T]
 
 	// minBatchSize is the minimum batch size before a submit is triggered due
 	// to size.
@@ -203,8 +142,8 @@ type UsageReporter struct {
 }
 
 // runSubmit starts the submission thread. It should be run as a background
-// goroutine to ensure SubmitAnonymizedUsageEvents() never blocks.
-func (r *UsageReporter) runSubmit(ctx context.Context) {
+// goroutine to ensure AnonymizeAndSubmit() never blocks.
+func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -216,7 +155,7 @@ func (r *UsageReporter) runSubmit(ctx context.Context) {
 				r.WithField("batch_size", len(batch)).Warnf("failed to submit batch of usage events: %v", err)
 				usageBatchesFailed.Inc()
 
-				var resubmit []*SubmittedEvent
+				var resubmit []*SubmittedEvent[T]
 				for _, e := range failed {
 					e.retriesRemaining--
 
@@ -256,14 +195,14 @@ func (r *UsageReporter) runSubmit(ctx context.Context) {
 
 // enqueueBatch prepares a batch for submission, removing it from the buffer and
 // adding it to the submission queue.
-func (r *UsageReporter) enqueueBatch() {
+func (r *UsageReporter[T]) enqueueBatch() {
 	if len(r.buf) == 0 {
 		// Nothing to do.
 		return
 	}
 
-	var events []*SubmittedEvent
-	var remaining []*SubmittedEvent
+	var events []*SubmittedEvent[T]
+	var remaining []*SubmittedEvent[T]
 	if len(r.buf) > r.maxBatchSize {
 		// Split the request and send the first batch. Any remaining events will
 		// sit in the buffer to send with the next batch.
@@ -273,7 +212,7 @@ func (r *UsageReporter) enqueueBatch() {
 		// The event buf is small enough to send in one request. We'll replace
 		// the buf to allow any excess memory from the last buf to be GC'd.
 		events = r.buf
-		remaining = make([]*SubmittedEvent, 0, r.minBatchSize)
+		remaining = make([]*SubmittedEvent[T], 0, r.minBatchSize)
 	}
 
 	select {
@@ -292,7 +231,7 @@ func (r *UsageReporter) enqueueBatch() {
 }
 
 // Run begins processing incoming usage events. It should be run in a goroutine.
-func (r *UsageReporter) Run(ctx context.Context) {
+func (r *UsageReporter[T]) Run(ctx context.Context) {
 	timer := r.clock.NewTimer(r.maxBatchAge)
 
 	// Also start the submission goroutine.
@@ -342,15 +281,12 @@ func (r *UsageReporter) Run(ctx context.Context) {
 	}
 }
 
-func (r *UsageReporter) SubmitAnonymizedUsageEvents(events ...services.UsageAnonymizable) error {
-	var submitted []*SubmittedEvent
+func (r *UsageReporter[T]) AddEventsToQueue(events ...*T) {
+	var submitted []*SubmittedEvent[T]
 
 	for _, e := range events {
-		req := e.Anonymize(r.anonymizer)
-		req.ClusterName = r.anonymizer.AnonymizeString(r.clusterName.GetClusterName())
-		req.Timestamp = timestamppb.New(r.clock.Now())
-		submitted = append(submitted, &SubmittedEvent{
-			Event:            &req,
+		submitted = append(submitted, &SubmittedEvent[T]{
+			Event:            e,
 			retriesRemaining: r.retryAttempts,
 		})
 
@@ -358,109 +294,75 @@ func (r *UsageReporter) SubmitAnonymizedUsageEvents(events ...services.UsageAnon
 	}
 
 	r.events <- submitted
-
-	return nil
 }
 
 // resubmitEvents resubmits events that have already been processed (in case of
 // some error during submission).
-func (r *UsageReporter) resubmitEvents(events []*SubmittedEvent) {
+func (r *UsageReporter[T]) resubmitEvents(events []*SubmittedEvent[T]) {
 	usageEventsRequeuedTotal.Add(float64(len(events)))
 
 	r.events <- events
 }
 
-func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (UsageSubmitFunc, error) {
-	tlsConfig := &tls.Config{
-		// Self-signed test licenses may not have a proper issuer and won't be
-		// used if just passed in via Certificates, so we'll use this to
-		// explicitly set the client cert we want to use.
-		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return clientCert, nil
-		},
-	}
-
-	if len(caCertPEM) > 0 {
-		pool := x509.NewCertPool()
-		pool.AppendCertsFromPEM(caCertPEM)
-
-		tlsConfig.RootCAs = pool
-	}
-
-	httpClient, err := defaults.HTTPClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	transport, ok := httpClient.Transport.(*http.Transport)
-	if !ok {
-		return nil, trace.BadParameter("invalid transport type %T", httpClient.Transport)
-	}
-
-	transport.Proxy = http.ProxyFromEnvironment
-	transport.ForceAttemptHTTP2 = true
-	transport.TLSClientConfig = tlsConfig
-
-	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	httpClient.Timeout = 5 * time.Second
-
-	client := prehogclient.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
-
-	return func(reporter *UsageReporter, events []*SubmittedEvent) ([]*SubmittedEvent, error) {
-		var failed []*SubmittedEvent
-		var errors []error
-
-		// Note: the backend doesn't support batching at the moment.
-		for _, event := range events {
-			// Note: this results in retrying the entire batch, which probably
-			// isn't ideal.
-			req := connect.NewRequest(event.Event)
-			if _, err := client.SubmitEvent(ctx, req); err != nil {
-				failed = append(failed, event)
-				errors = append(errors, err)
-			}
-		}
-
-		return failed, trace.NewAggregate(errors...)
-	}, nil
+type Options[T any] struct {
+	Log logrus.FieldLogger
+	// Submit is a func that submits a batch of usage events.
+	Submit SubmitFunc[T]
+	// MinBatchSize determines the size at which a batch is sent
+	// regardless of elapsed time.
+	MinBatchSize int
+	// MaxBatchSize is the largest batch size that will be sent to
+	// the server; batches larger than this will be split into multiple
+	// requests.
+	MaxBatchSize int
+	// MaxBatchAge is the maximum age a batch may reach before
+	// being flushed, regardless of the batch size
+	MaxBatchAge time.Duration
+	// MaxBufferSize is the maximum size to which the event buffer
+	// may grow. Events submitted once this limit is reached will be discarded.
+	// Events that were in the submission queue that fail to submit may also be
+	// discarded when requeued.
+	MaxBufferSize int
+	// SubmitDelay is a mandatory delay added to each batch submission
+	// to avoid spamming the prehog instance.
+	SubmitDelay time.Duration
+	// RetryAttempts is the number of attempts that should be made to
+	// submit a single event.
+	RetryAttempts int
+	// Clock is the clock used for the main batching goroutine
+	Clock clockwork.Clock
+	// SubmitClock is the clock used for the submission goroutine
+	SubmitClock clockwork.Clock
 }
 
 // NewUsageReporter creates a new usage reporter. `Run()` must be executed to
 // process incoming events.
-func NewUsageReporter(ctx context.Context, log logrus.FieldLogger, clusterName types.ClusterName, submitter UsageSubmitFunc) (*UsageReporter, error) {
-	if log == nil {
-		log = logrus.StandardLogger()
+func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
+	if options.Log == nil {
+		options.Log = logrus.StandardLogger()
+	}
+	if options.Clock == nil {
+		options.Clock = clockwork.NewRealClock()
+	}
+	if options.SubmitClock == nil {
+		options.SubmitClock = clockwork.NewRealClock()
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = metrics.RegisterPrometheusCollectors(usagePrometheusCollectors...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &UsageReporter{
-		Entry: log.WithField(
+	return &UsageReporter[T]{
+		Entry: options.Log.WithField(
 			trace.Component,
 			teleport.Component(teleport.ComponentUsageReporting),
 		),
-		anonymizer:      anonymizer,
-		events:          make(chan []*SubmittedEvent, 1),
-		submissionQueue: make(chan []*SubmittedEvent, 1),
-		submit:          submitter,
-		clock:           clockwork.NewRealClock(),
-		submitClock:     clockwork.NewRealClock(),
-		clusterName:     clusterName,
-		minBatchSize:    usageReporterMinBatchSize,
-		maxBatchSize:    usageReporterMaxBatchSize,
-		maxBatchAge:     usageReporterMaxBatchAge,
-		maxBufferSize:   usageReporterMaxBufferSize,
-		submitDelay:     usageReporterSubmitDelay,
-		retryAttempts:   usageReporterRetryAttempts,
-	}, nil
+		events:          make(chan []*SubmittedEvent[T], 1),
+		submissionQueue: make(chan []*SubmittedEvent[T], 1),
+		submit:          options.Submit,
+		clock:           options.Clock,
+		submitClock:     options.SubmitClock,
+		minBatchSize:    options.MinBatchSize,
+		maxBatchSize:    options.MaxBatchSize,
+		maxBatchAge:     options.MaxBatchAge,
+		maxBufferSize:   options.MaxBufferSize,
+		submitDelay:     options.SubmitDelay,
+		retryAttempts:   options.RetryAttempts,
+	}
 }
