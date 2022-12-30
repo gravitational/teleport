@@ -236,7 +236,7 @@ loop:
 		idx, value, ok := reflect.Select(cases)
 		if !ok || idx == 0 {
 			select {
-			// if parent context is cancelled, the session has ended and we should
+			// if parent context is canceled, the session has ended and we should
 			// return early. Otherwise, it means that we rebuilt and in that case we should continue.
 			case <-r.parentCtx.Done():
 				return nil
