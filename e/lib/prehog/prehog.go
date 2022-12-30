@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/events/usageevents"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -63,13 +63,13 @@ func InitPreHogUsageReporting(
 		return trace.Wrap(err)
 	}
 
-	submitter, err := local.NewPrehogSubmitter(ctx, endpoint, cert, caCert)
+	submitter, err := services.NewPrehogSubmitter(ctx, endpoint, cert, caCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Replace the discard usage reporter with the real implementation.
-	reporter, err := local.NewUsageReporter(ctx, log, clusterName, submitter)
+	reporter, err := services.NewTeleportUsageReporter(log, clusterName, submitter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
