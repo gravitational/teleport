@@ -353,4 +353,8 @@ const (
 	AzureMatcherRedis = "redis"
 	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
 	AzureMatcherSQLServer = "sqlserver"
+	// AzureMatcherMySQLFlex is the Azure matcher type for Azure MySQL flexible server databases.
+	AzureMatcherMySQLFlex = "mysql-flex"
+	// AzureMatcherPostgresFlex is the Azure matcher type for Azure Postgres flexible server databases.
+	AzureMatcherPostgresFlex = "postgres-flex"
 )

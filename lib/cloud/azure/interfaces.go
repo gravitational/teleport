@@ -21,7 +21,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
@@ -102,4 +104,20 @@ type ManagedSQLServerClient interface {
 	ListAll(ctx context.Context) ([]*armsql.ManagedInstance, error)
 	// ListWithinGroup returns all Azure Managed SQL servers within an Azure resource group.
 	ListWithinGroup(ctx context.Context, group string) ([]*armsql.ManagedInstance, error)
+}
+
+// TODO(gavin): godoc
+type MySQLFlexServersClient interface {
+	// ListAll returns all Azure MySQL Flex servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]*armmysqlflexibleservers.Server, error)
+	// ListWithinGroup returns all Azure MySQL Flex servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*armmysqlflexibleservers.Server, error)
+}
+
+// TODO(gavin): godoc
+type PostgresFlexServersClient interface {
+	// ListAll returns all Azure Postgres Flex servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]*armpostgresqlflexibleservers.Server, error)
+	// ListWithinGroup returns all Azure Postgres Flex servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*armpostgresqlflexibleservers.Server, error)
 }

@@ -249,7 +249,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("memorydb-discovery", "List of AWS regions in which the agent will discover MemoryDB clusters.").StringsVar(&dbConfigCreateFlags.MemoryDBDiscoveryRegions)
 	dbConfigureCreate.Flag("aws-tags", "(Only for AWS discoveries) Comma-separated list of AWS resource tags to match, for example env=dev,dept=it").StringVar(&dbConfigCreateFlags.AWSRawTags)
 	dbConfigureCreate.Flag("azure-mysql-discovery", "List of Azure regions in which the agent will discover MySQL servers.").StringsVar(&dbConfigCreateFlags.AzureMySQLDiscoveryRegions)
-	dbConfigureCreate.Flag("azure-postgres-discovery", "List of Azure regions in which the agent will discover Postgres servers.").StringsVar(&dbConfigCreateFlags.AzurePostgresDiscoveryRegions)
+	dbConfigureCreate.Flag("azure-postgres-discovery", "List of Azure regions in which the agent will discover PostgreSQL servers.").StringsVar(&dbConfigCreateFlags.AzurePostgresDiscoveryRegions)
 	dbConfigureCreate.Flag("azure-redis-discovery", "List of Azure regions in which the agent will discover Azure Cache For Redis servers.").StringsVar(&dbConfigCreateFlags.AzureRedisDiscoveryRegions)
 	dbConfigureCreate.Flag("azure-sqlserver-discovery", "List of Azure regions in which the agent will discover Azure SQL Databases and Managed Instances.").StringsVar(&dbConfigCreateFlags.AzureSQLServerDiscoveryRegions)
 	dbConfigureCreate.Flag("azure-subscription", "List of Azure subscription IDs for Azure discoveries. Default is \"*\".").Default(types.Wildcard).StringsVar(&dbConfigCreateFlags.AzureSubscriptions)

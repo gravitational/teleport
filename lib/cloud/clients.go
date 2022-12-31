@@ -147,6 +147,10 @@ type AzureClients interface {
 	// GetAzureManagedSQLServerClient returns an Azure ManagedSQL Server client
 	// for the specified subscription.
 	GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error)
+	// TODO(gavin): godoc
+	GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error)
+	// TODO(gavin): godoc
+	GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -154,14 +158,16 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:            make(map[string]azure.DBServersClient),
-			azurePostgresClients:         make(map[string]azure.DBServersClient),
-			azureRedisClients:            azure.NewClientMap(azure.NewRedisClient),
-			azureRedisEnterpriseClients:  azure.NewClientMap(azure.NewRedisEnterpriseClient),
-			azureKubernetesClient:        make(map[string]azure.AKSClient),
-			azureVirtualMachinesClients:  azure.NewClientMap(azure.NewVirtualMachinesClient),
-			azureSQLServerClients:        azure.NewClientMap(azure.NewSQLClient),
-			azureManagedSQLServerClients: azure.NewClientMap(azure.NewManagedSQLClient),
+			azureMySQLClients:               make(map[string]azure.DBServersClient),
+			azurePostgresClients:            make(map[string]azure.DBServersClient),
+			azureRedisClients:               azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients:     azure.NewClientMap(azure.NewRedisEnterpriseClient),
+			azureKubernetesClient:           make(map[string]azure.AKSClient),
+			azureVirtualMachinesClients:     azure.NewClientMap(azure.NewVirtualMachinesClient),
+			azureSQLServerClients:           azure.NewClientMap(azure.NewSQLClient),
+			azureManagedSQLServerClients:    azure.NewClientMap(azure.NewManagedSQLClient),
+			azureMySQLFlexServersClients:    azure.NewClientMap(azure.NewMySQLFlexServersClient),
+			azurePostgresFlexServersClients: azure.NewClientMap(azure.NewPostgresFlexServersClient),
 		},
 	}
 }
@@ -209,6 +215,10 @@ type azureClients struct {
 	// azureManagedSQLServerClient is the cached Azure Managed SQL Server
 	// client.
 	azureManagedSQLServerClients azure.ClientMap[azure.ManagedSQLServerClient]
+	// TODO(gavin): godoc
+	azureMySQLFlexServersClients azure.ClientMap[azure.MySQLFlexServersClient]
+	// TODO(gavin): godoc
+	azurePostgresFlexServersClients azure.ClientMap[azure.PostgresFlexServersClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -480,6 +490,16 @@ func (c *cloudClients) GetAzureManagedSQLServerClient(subscription string) (azur
 	return c.azureManagedSQLServerClients.Get(subscription, c.GetAzureCredential)
 }
 
+// TODO(gavin): godoc
+func (c *cloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
+	return c.azureMySQLFlexServersClients.Get(subscription, c.GetAzureCredential)
+}
+
+// TODO(gavin): godoc
+func (c *cloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
+	return c.azurePostgresFlexServersClients.Get(subscription, c.GetAzureCredential)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -720,6 +740,8 @@ type TestCloudClients struct {
 	AzureVirtualMachines    azure.VirtualMachinesClient
 	AzureSQLServer          azure.SQLServerClient
 	AzureManagedSQLServer   azure.ManagedSQLServerClient
+	AzureMySQLFlex          azure.MySQLFlexServersClient
+	AzurePostgresFlex       azure.PostgresFlexServersClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -882,6 +904,16 @@ func (c *TestCloudClients) GetAzureSQLServerClient(subscription string) (azure.S
 // SQL servers.
 func (c *TestCloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
 	return c.AzureManagedSQLServer, nil
+}
+
+// TODO(gavin): godoc
+func (c *TestCloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
+	return c.AzureMySQLFlex, nil
+}
+
+// TODO(gavin): godoc
+func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
+	return c.AzurePostgresFlex, nil
 }
 
 // Close closes all initialized clients.

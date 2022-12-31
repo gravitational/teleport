@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
@@ -420,6 +422,74 @@ func NewDatabaseFromAzureManagedSQLServer(server *armsql.ManagedInstance) (types
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolSQLServer,
 			URI:      fmt.Sprintf("%v:%d", azure.StringVal(server.Properties.FullyQualifiedDomainName), azureSQLServerDefaultPort),
+			Azure: types.Azure{
+				Name:       azure.StringVal(server.Name),
+				ResourceID: azure.StringVal(server.ID),
+			},
+		})
+}
+
+// TODO(gavin): godoc
+func NewDatabaseFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (types.Database, error) {
+	if server.Properties == nil {
+		return nil, trace.BadParameter("missing properties")
+	}
+
+	if server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("missing FQDN")
+	}
+
+	labels, err := labelsFromAzureMySQLFlexServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var description string
+	if replicaRole, ok := labels[labelReplicationRole]; ok {
+		description = fmt.Sprintf("Azure MySQL Flexible server in %v (%v endpoint)",
+			azure.StringVal(server.Location), strings.ToLower(replicaRole))
+	} else {
+		description = fmt.Sprintf("Azure MySQL Flexible server in %v", azure.StringVal(server.Location))
+	}
+
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: description,
+			Labels:      labels,
+		}, azure.StringVal(server.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      fmt.Sprintf("%v:%v", azure.StringVal(server.Properties.FullyQualifiedDomainName), azure.MySQLPort),
+			Azure: types.Azure{
+				Name:       azure.StringVal(server.Name),
+				ResourceID: azure.StringVal(server.ID),
+			},
+		})
+}
+
+// TODO(gavin): godoc
+func NewDatabaseFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Server) (types.Database, error) {
+	if server.Properties == nil {
+		return nil, trace.BadParameter("missing properties")
+	}
+
+	if server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("missing FQDN")
+	}
+
+	labels, err := labelsFromAzurePostgresFlexServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure PostgreSQL Flexible server in %v", azure.StringVal(server.Location)),
+			Labels:      labels,
+		}, azure.StringVal(server.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      fmt.Sprintf("%v:%v", azure.StringVal(server.Properties.FullyQualifiedDomainName), azure.PostgresPort),
 			Azure: types.Azure{
 				Name:       azure.StringVal(server.Name),
 				ResourceID: azure.StringVal(server.ID),
@@ -1070,6 +1140,40 @@ func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
 
+// TODO(gavin): godoc
+func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map[string]string, error) {
+	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = azure.StringVal(server.Location)
+	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
+
+	role := azure.StringVal(server.Properties.ReplicationRole)
+	switch armmysqlflexibleservers.ReplicationRole(role) {
+	case armmysqlflexibleservers.ReplicationRoleNone:
+		// don't add a label if this server has 'None' replication.
+	case armmysqlflexibleservers.ReplicationRoleSource:
+		labels[labelReplicationRole] = role
+	case armmysqlflexibleservers.ReplicationRoleReplica:
+		labels[labelReplicationRole] = role
+		ssrid, err := arm.ParseResourceID(azure.StringVal(server.Properties.SourceServerResourceID))
+		if err != nil {
+			log.WithError(err).Debugf("Skipping malformed %q label for Azure MySQL Flexible server replica.", labelSourceServer)
+		} else {
+			labels[labelSourceServer] = ssrid.Name
+		}
+	}
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
+}
+
+// TODO(gavin): godoc
+func labelsFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Server) (map[string]string, error) {
+	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = azure.StringVal(server.Location)
+	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
+}
+
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
@@ -1391,7 +1495,14 @@ func auroraMySQLVersion(cluster *rds.DBCluster) string {
 // GetMySQLEngineVersion returns MySQL engine version from provided metadata labels.
 // An empty string is returned if label doesn't exist.
 func GetMySQLEngineVersion(labels map[string]string) string {
-	if engine, ok := labels[labelEngine]; !ok || (engine != RDSEngineMySQL && engine != AzureEngineMySQL) {
+	engine, ok := labels[labelEngine]
+	if !ok {
+		return ""
+	}
+	switch engine {
+	case RDSEngineMySQL, AzureEngineMySQL, AzureEngineMySQLFlex:
+	default:
+		// unrecognized MySQL engine label
 		return ""
 	}
 
@@ -1402,16 +1513,34 @@ func GetMySQLEngineVersion(labels map[string]string) string {
 	return version
 }
 
+// TODO(gavin): godoc
+func IsAzureFlexServer(db types.Database) bool {
+	engine, ok := db.GetMetadata().Labels[labelEngine]
+	return ok && (engine == AzureEngineMySQLFlex || engine == AzureEnginePostgresFlex)
+}
+
+// TODO(gavin): godoc
+func MakeAzureDatabaseLoginUsername(db types.Database, user string) string {
+	// Azure requires database login to be <user>@<server-name>,
+	// for example: alice@mysql-server-name.
+	// Flexible server is an exception to this format.
+	// https://learn.microsoft.com/en-us/azure/mysql/flexible-server/how-to-azure-ad
+	if !IsAzureFlexServer(db) {
+		user = fmt.Sprintf("%v@%v", user, db.GetAzure().Name)
+	}
+	return user
+}
+
 const (
 	// labelAccountID is the label key containing AWS account ID.
 	labelAccountID = "account-id"
-	// labelRegion is the label key containing AWS region.
+	// labelRegion is the label key containing the cloud region.
 	labelRegion = "region"
-	// labelEngine is the label key containing RDS database engine name.
+	// labelEngine is the label key containing database engine name.
 	labelEngine = "engine"
-	// labelEngineVersion is the label key containing RDS database engine version.
+	// labelEngineVersion is the label key containing database engine version.
 	labelEngineVersion = "engine-version"
-	// labelEndpointType is the label key containing the RDS endpoint type.
+	// labelEndpointType is the label key containing the endpoint type.
 	labelEndpointType = "endpoint-type"
 	// labelVPCID is the label key containing the VPC ID.
 	labelVPCID = "vpc-id"
@@ -1425,6 +1554,10 @@ const (
 	// override for Azure databases. Azure tags connot contain these
 	// characters: "<>%&\?/".
 	labelTeleportDBNameAzure = "TeleportDatabaseName"
+	// TODO(gavin): godoc
+	labelReplicationRole = "replication-role"
+	// TODO(gavin): godoc
+	labelSourceServer = "source-server"
 )
 
 const (
@@ -1471,10 +1604,14 @@ const (
 )
 
 const (
-	// AzureEngineMySQL is the Azure engine name for MySQL single-server instances
+	// AzureEngineMySQL is the Azure engine name for MySQL single-server instances.
 	AzureEngineMySQL = "Microsoft.DBforMySQL/servers"
-	// AzureEnginePostgres is the Azure engine name for PostgreSQL single-server instances
+	// AzureEngineMySQLFlex is the Azure engine name for MySQL flexible-server instances.
+	AzureEngineMySQLFlex = "Microsoft.DBforMySQL/flexibleServers"
+	// AzureEnginePostgres is the Azure engine name for PostgreSQL single-server instances.
 	AzureEnginePostgres = "Microsoft.DBforPostgreSQL/servers"
+	// AzureEnginePostgresFlex is the Azure engine name for PostgreSQL flexible-server instances.
+	AzureEnginePostgresFlex = "Microsoft.DBforPostgreSQL/flexibleServers"
 )
 
 const (
