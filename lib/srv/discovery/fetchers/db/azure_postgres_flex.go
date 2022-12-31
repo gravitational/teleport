@@ -26,27 +26,27 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// TODO(gavin): godoc
+// newAzurePostgresFlexServerFetcher creates a fetcher for Azure PostgreSQL Flexible server.
 func newAzurePostgresFlexServerFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*armpostgresqlflexibleservers.Server, azure.PostgresFlexServersClient](config, &azurePostgresFlexServerFetcher{})
 }
 
-// TODO(gavin): godoc
+// newAzurePostgresFlexServerFetcher implements azureFetcherPlugin for Azure PostgreSQL Flexible server.
 type azurePostgresFlexServerFetcher struct {
 }
 
-// TODO(gavin): godoc
+// GetListClient returns a server-listing client for Azure PostgreSQL Flexible server.
 func (f *azurePostgresFlexServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.PostgresFlexServersClient, error) {
 	client, err := cfg.AzureClients.GetAzurePostgresFlexServersClient(subID)
 	return client, trace.Wrap(err)
 }
 
-// TODO(gavin): godoc
+// GetServerLocation returns the location of an Azure PostgreSQL Flexible server.
 func (f *azurePostgresFlexServerFetcher) GetServerLocation(server *armpostgresqlflexibleservers.Server) string {
 	return azure.StringVal(server.Location)
 }
 
-// TODO(gavin): godoc
+// NewDatabaseFromServer converts an Azure PostgreSQL server to a Teleport database.
 func (f *azurePostgresFlexServerFetcher) NewDatabaseFromServer(server *armpostgresqlflexibleservers.Server, log logrus.FieldLogger) types.Database {
 	if !f.isAvailable(server, log) {
 		log.Debugf("The current status of Azure PostgreSQL Flexible server %q is %q. Skipping.",
@@ -63,7 +63,8 @@ func (f *azurePostgresFlexServerFetcher) NewDatabaseFromServer(server *armpostgr
 	return database
 }
 
-// TODO(gavin): godoc
+// isAvailable checks the status of the server and returns true if the server
+// is available.
 func (f *azurePostgresFlexServerFetcher) isAvailable(server *armpostgresqlflexibleservers.Server, log logrus.FieldLogger) bool {
 	state := armpostgresqlflexibleservers.ServerState(azure.StringVal(server.Properties.State))
 	switch {

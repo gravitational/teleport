@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// TODO(gavin): godoc
+// TestAzureMySQLFlexFetchers tests Azure MySQL Flexible server fetchers.
 func TestAzureMySQLFlexFetchers(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func makeAzureMySQLFlexServer(t *testing.T, name, subscription, group, region st
 	return server, database
 }
 
-// withAzureMySQLFlexVersion returns an option function to makeARMMySQLServer to overwrite version.
+// withAzureMySQLFlexVersion returns an option function to makeAzureMySQLFlexServer to overwrite version.
 func withAzureMySQLFlexVersion(version string) func(*armmysqlflexibleservers.Server) {
 	return func(server *armmysqlflexibleservers.Server) {
 		version := armmysqlflexibleservers.ServerVersion(version) // ServerVersion is a type alias for string
@@ -94,7 +94,7 @@ func withAzureMySQLFlexVersion(version string) func(*armmysqlflexibleservers.Ser
 	}
 }
 
-// withAzureMySQLFlexState returns an option function to makeARMMySQLServer to overwrite state.
+// withAzureMySQLFlexState returns an option function to makeAzureMySQLFlexServer to overwrite state.
 func withAzureMySQLFlexState(state string) func(*armmysqlflexibleservers.Server) {
 	return func(server *armmysqlflexibleservers.Server) {
 		state := armmysqlflexibleservers.ServerState(state) // ServerState is a type alias for string

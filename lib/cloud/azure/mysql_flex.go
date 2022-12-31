@@ -27,19 +27,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// armMySQLFlexServersClient is an interface that defines a subset of functions of armmysqlflexibleservers.ServersClient.
 type armMySQLFlexServersClient interface {
 	NewListPager(*armmysqlflexibleservers.ServersClientListOptions) *runtime.Pager[armmysqlflexibleservers.ServersClientListResponse]
 	NewListByResourceGroupPager(string, *armmysqlflexibleservers.ServersClientListByResourceGroupOptions) *runtime.Pager[armmysqlflexibleservers.ServersClientListByResourceGroupResponse]
 }
 
-// TODO(gavin): godoc
+// mySQLFlexServersClient is an Azure MySQL Flexible server client.
 type mySQLFlexServersClient struct {
 	api armMySQLFlexServersClient
 }
 
 var _ MySQLFlexServersClient = (*mySQLFlexServersClient)(nil)
 
-// TODO(gavin): godoc
+// NewMySQLFlexServersClient creates a new Azure MySQL Flexible server client by subscription and credentials.
 func NewMySQLFlexServersClient(subID string, cred azcore.TokenCredential, opts *arm.ClientOptions) (MySQLFlexServersClient, error) {
 	logrus.Debug("Initializing Azure MySQL Flexible servers client.")
 	api, err := armmysqlflexibleservers.NewServersClient(subID, cred, opts)
@@ -50,14 +51,14 @@ func NewMySQLFlexServersClient(subID string, cred azcore.TokenCredential, opts *
 	return NewMySQLFlexServersClientByAPI(api), nil
 }
 
-// TODO(gavin): godoc
+// NewMySQLFlexServersClientByAPI creates a new Azure MySQL Flexible server client by ARM API client.
 func NewMySQLFlexServersClientByAPI(api armMySQLFlexServersClient) MySQLFlexServersClient {
 	return &mySQLFlexServersClient{
 		api: api,
 	}
 }
 
-// TODO(gavin): godoc
+// ListAll returns all Azure MySQL Flexible servers within an Azure subscription.
 func (c *mySQLFlexServersClient) ListAll(ctx context.Context) ([]*armmysqlflexibleservers.Server, error) {
 	var servers []*armmysqlflexibleservers.Server
 	opts := &armmysqlflexibleservers.ServersClientListOptions{}
@@ -72,7 +73,7 @@ func (c *mySQLFlexServersClient) ListAll(ctx context.Context) ([]*armmysqlflexib
 	return servers, nil
 }
 
-// TODO(gavin): godoc
+// ListWithinGroup returns all Azure MySQL Flexible servers within an Azure resource group.
 func (c *mySQLFlexServersClient) ListWithinGroup(ctx context.Context, group string) ([]*armmysqlflexibleservers.Server, error) {
 	var servers []*armmysqlflexibleservers.Server
 	opts := &armmysqlflexibleservers.ServersClientListByResourceGroupOptions{}

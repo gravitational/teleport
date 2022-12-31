@@ -147,9 +147,11 @@ type AzureClients interface {
 	// GetAzureManagedSQLServerClient returns an Azure ManagedSQL Server client
 	// for the specified subscription.
 	GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error)
-	// TODO(gavin): godoc
+	// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible Server client for the
+	// specified subscription.
 	GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error)
-	// TODO(gavin): godoc
+	// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible Server client for the
+	// specified subscription.
 	GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error)
 }
 
@@ -215,9 +217,11 @@ type azureClients struct {
 	// azureManagedSQLServerClient is the cached Azure Managed SQL Server
 	// client.
 	azureManagedSQLServerClients azure.ClientMap[azure.ManagedSQLServerClient]
-	// TODO(gavin): godoc
+	// azureMySQLFlexServersClients is the cached Azure MySQL Flexible Server
+	// client.
 	azureMySQLFlexServersClients azure.ClientMap[azure.MySQLFlexServersClient]
-	// TODO(gavin): godoc
+	// azurePostgresFlexServersClients is the cached Azure PostgreSQL Flexible Server
+	// client.
 	azurePostgresFlexServersClients azure.ClientMap[azure.PostgresFlexServersClient]
 }
 
@@ -490,12 +494,12 @@ func (c *cloudClients) GetAzureManagedSQLServerClient(subscription string) (azur
 	return c.azureManagedSQLServerClients.Get(subscription, c.GetAzureCredential)
 }
 
-// TODO(gavin): godoc
+// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
 func (c *cloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
 	return c.azureMySQLFlexServersClients.Get(subscription, c.GetAzureCredential)
 }
 
-// TODO(gavin): godoc
+// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
 func (c *cloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
 	return c.azurePostgresFlexServersClients.Get(subscription, c.GetAzureCredential)
 }
@@ -906,12 +910,12 @@ func (c *TestCloudClients) GetAzureManagedSQLServerClient(subscription string) (
 	return c.AzureManagedSQLServer, nil
 }
 
-// TODO(gavin): godoc
+// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
 func (c *TestCloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
 	return c.AzureMySQLFlex, nil
 }
 
-// TODO(gavin): godoc
+// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
 func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
 	return c.AzurePostgresFlex, nil
 }

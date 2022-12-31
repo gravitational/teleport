@@ -32,14 +32,15 @@ type armPostgresFlexServersClient interface {
 	NewListByResourceGroupPager(string, *armpostgresqlflexibleservers.ServersClientListByResourceGroupOptions) *runtime.Pager[armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse]
 }
 
-// TODO(gavin): godoc
+// armPostgresFlexServersClient is an interface that defines a subset of functions of armpostgresqlflexibleservers.ServersClient.
 type postgresFlexServersClient struct {
 	api armPostgresFlexServersClient
 }
 
+// postgresFlexServersClient is an Azure Postgres Flexible server client.
 var _ PostgresFlexServersClient = (*postgresFlexServersClient)(nil)
 
-// TODO(gavin): godoc
+// NewPostgresFlexServersClient creates a new Azure PostgreSQL Flexible server client by subscription and credentials.
 func NewPostgresFlexServersClient(subID string, cred azcore.TokenCredential, opts *arm.ClientOptions) (PostgresFlexServersClient, error) {
 	logrus.Debug("Initializing Azure PostgreSQL Flexible servers client.")
 	api, err := armpostgresqlflexibleservers.NewServersClient(subID, cred, opts)
@@ -50,14 +51,14 @@ func NewPostgresFlexServersClient(subID string, cred azcore.TokenCredential, opt
 	return NewPostgresFlexServersClientByAPI(api), nil
 }
 
-// TODO(gavin): godoc
+// NewPostgresFlexServersClientByAPI creates a new Azure PostgreSQL Flexible server client by ARM API client.
 func NewPostgresFlexServersClientByAPI(api armPostgresFlexServersClient) PostgresFlexServersClient {
 	return &postgresFlexServersClient{
 		api: api,
 	}
 }
 
-// TODO(gavin): godoc
+// ListAll returns all Azure PostgreSQL Flexible servers within an Azure subscription.
 func (c *postgresFlexServersClient) ListAll(ctx context.Context) ([]*armpostgresqlflexibleservers.Server, error) {
 	var servers []*armpostgresqlflexibleservers.Server
 	opts := &armpostgresqlflexibleservers.ServersClientListOptions{}
@@ -72,7 +73,7 @@ func (c *postgresFlexServersClient) ListAll(ctx context.Context) ([]*armpostgres
 	return servers, nil
 }
 
-// TODO(gavin): godoc
+// ListWithinGroup returns all Azure PostgreSQL Flexible servers within an Azure resource group.
 func (c *postgresFlexServersClient) ListWithinGroup(ctx context.Context, group string) ([]*armpostgresqlflexibleservers.Server, error) {
 	var servers []*armpostgresqlflexibleservers.Server
 	opts := &armpostgresqlflexibleservers.ServersClientListByResourceGroupOptions{}

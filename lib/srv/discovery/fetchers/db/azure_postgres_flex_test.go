@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// TODO(gavin): godoc
+// TestAzurePostgresFlexFetchers tests Azure PostgreSQL Flexible server fetchers.
 func TestAzurePostgresFlexFetchers(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func makeAzurePostgresFlexServer(t *testing.T, name, subscription, group, region
 	return server, database
 }
 
-// withAzurePostgresFlexVersion returns an option function to makeARMPostgresServer to overwrite version.
+// withAzurePostgresFlexVersion returns an option function to makeAzurePostgresFlexServer to overwrite version.
 func withAzurePostgresFlexVersion(version string) func(*armpostgresqlflexibleservers.Server) {
 	return func(server *armpostgresqlflexibleservers.Server) {
 		version := armpostgresqlflexibleservers.ServerVersion(version) // ServerVersion is a type alias for string
@@ -94,7 +94,7 @@ func withAzurePostgresFlexVersion(version string) func(*armpostgresqlflexibleser
 	}
 }
 
-// withAzurePostgresFlexState returns an option function to makeARMPostgresServer to overwrite state.
+// withAzurePostgresFlexState returns an option function to makeAzurePostgresFlexServer to overwrite state.
 func withAzurePostgresFlexState(state string) func(*armpostgresqlflexibleservers.Server) {
 	return func(server *armpostgresqlflexibleservers.Server) {
 		state := armpostgresqlflexibleservers.ServerState(state) // ServerState is a type alias for string

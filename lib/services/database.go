@@ -429,7 +429,7 @@ func NewDatabaseFromAzureManagedSQLServer(server *armsql.ManagedInstance) (types
 		})
 }
 
-// TODO(gavin): godoc
+// NewDatabaseFromAzureMySQLFlexServer creates a database resource from an Azure MySQL Flexible server.
 func NewDatabaseFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (types.Database, error) {
 	if server.Properties == nil {
 		return nil, trace.BadParameter("missing properties")
@@ -467,7 +467,7 @@ func NewDatabaseFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server)
 		})
 }
 
-// TODO(gavin): godoc
+// NewDatabaseFromAzurePostgresFlexServer creates a database resource from an Azure PostgreSQL Flexible server.
 func NewDatabaseFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Server) (types.Database, error) {
 	if server.Properties == nil {
 		return nil, trace.BadParameter("missing properties")
@@ -1140,7 +1140,7 @@ func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
 
-// TODO(gavin): godoc
+// labelsFromAzureMySQLFlexServer creates database labels for the provided Azure MySQL flex server.
 func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
 	labels[types.OriginLabel] = types.OriginCloud
@@ -1165,7 +1165,7 @@ func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
 
-// TODO(gavin): godoc
+// labelsFromAzurePostgresFlexServer creates database labels for the provided Azure postgres flex server.
 func labelsFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
 	labels[types.OriginLabel] = types.OriginCloud
@@ -1513,17 +1513,18 @@ func GetMySQLEngineVersion(labels map[string]string) string {
 	return version
 }
 
-// TODO(gavin): godoc
+// IsAzureFlexServer returns true if the database engine label matches the Azure PostgreSQL or MySQL Flex server engine name.
+// Matching engines are "Microsoft.DBforMySQL/flexibleServers" or "Microsoft.DBforPostgreSQL/flexibleServers".
 func IsAzureFlexServer(db types.Database) bool {
 	engine, ok := db.GetMetadata().Labels[labelEngine]
 	return ok && (engine == AzureEngineMySQLFlex || engine == AzureEnginePostgresFlex)
 }
 
-// TODO(gavin): godoc
+// MakeAzureDatabaseLoginUsername returns a user name appropriate for Azure database logins.
+// Azure requires database login to be <user>@<server-name>,
+// for example: alice@mysql-server-name.
+// Flexible server is an exception to this format and returns the provided username unmodified.
 func MakeAzureDatabaseLoginUsername(db types.Database, user string) string {
-	// Azure requires database login to be <user>@<server-name>,
-	// for example: alice@mysql-server-name.
-	// Flexible server is an exception to this format.
 	// https://learn.microsoft.com/en-us/azure/mysql/flexible-server/how-to-azure-ad
 	if IsAzureFlexServer(db) {
 		return user
@@ -1554,9 +1555,10 @@ const (
 	// override for Azure databases. Azure tags connot contain these
 	// characters: "<>%&\?/".
 	labelTeleportDBNameAzure = "TeleportDatabaseName"
-	// TODO(gavin): godoc
+	// labelReplicationRole is the replication role of an Azure DB Flexible server, e.g. "Source" or "Replica".
 	labelReplicationRole = "replication-role"
-	// TODO(gavin): godoc
+	// labelSourceServer is the source server for replica Azure DB Flexible servers.
+	// This is the source (primary) database resource name.
 	labelSourceServer = "source-server"
 )
 

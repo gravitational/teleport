@@ -568,13 +568,11 @@ func (m *ARMSQLManagedServerMock) NewListByResourceGroupPager(resourceGroupName 
 	})
 }
 
-// TODO(gavin): godoc
 type ARMMySQLFlexServerMock struct {
 	NoAuth  bool
 	Servers []*armmysqlflexibleservers.Server
 }
 
-// TODO(gavin): godoc
 func (m *ARMMySQLFlexServerMock) NewListPager(_ *armmysqlflexibleservers.ServersClientListOptions) *runtime.Pager[armmysqlflexibleservers.ServersClientListResponse] {
 	return newPagerHelper(m.NoAuth, func() (armmysqlflexibleservers.ServersClientListResponse, error) {
 		return armmysqlflexibleservers.ServersClientListResponse{
@@ -585,7 +583,6 @@ func (m *ARMMySQLFlexServerMock) NewListPager(_ *armmysqlflexibleservers.Servers
 	})
 }
 
-// TODO(gavin): godoc
 func (m *ARMMySQLFlexServerMock) NewListByResourceGroupPager(group string, _ *armmysqlflexibleservers.ServersClientListByResourceGroupOptions) *runtime.Pager[armmysqlflexibleservers.ServersClientListByResourceGroupResponse] {
 	return newPagerHelper(m.NoAuth, func() (armmysqlflexibleservers.ServersClientListByResourceGroupResponse, error) {
 		var servers []*armmysqlflexibleservers.Server
@@ -609,13 +606,11 @@ func (m *ARMMySQLFlexServerMock) NewListByResourceGroupPager(group string, _ *ar
 	})
 }
 
-// TODO(gavin): godoc
 type ARMPostgresFlexServerMock struct {
 	NoAuth  bool
 	Servers []*armpostgresqlflexibleservers.Server
 }
 
-// TODO(gavin): godoc
 func (m *ARMPostgresFlexServerMock) NewListPager(_ *armpostgresqlflexibleservers.ServersClientListOptions) *runtime.Pager[armpostgresqlflexibleservers.ServersClientListResponse] {
 	return newPagerHelper(m.NoAuth, func() (armpostgresqlflexibleservers.ServersClientListResponse, error) {
 		return armpostgresqlflexibleservers.ServersClientListResponse{
@@ -626,7 +621,6 @@ func (m *ARMPostgresFlexServerMock) NewListPager(_ *armpostgresqlflexibleservers
 	})
 }
 
-// TODO(gavin): godoc
 func (m *ARMPostgresFlexServerMock) NewListByResourceGroupPager(group string, _ *armpostgresqlflexibleservers.ServersClientListByResourceGroupOptions) *runtime.Pager[armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse] {
 	return newPagerHelper(m.NoAuth, func() (armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse, error) {
 		var servers []*armpostgresqlflexibleservers.Server

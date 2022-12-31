@@ -26,27 +26,27 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// TODO(gavin): godoc
+// newAzureMySQLFlexServerFetcher creates a fetcher for Azure MySQL Flexible server.
 func newAzureMySQLFlexServerFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*armmysqlflexibleservers.Server, azure.MySQLFlexServersClient](config, &azureMySQLFlexServerFetcher{})
 }
 
-// TODO(gavin): godoc
+// azureMySQLFlexServerFetcher implements azureFetcherPlugin for Azure MySQL Flexible server.
 type azureMySQLFlexServerFetcher struct {
 }
 
-// TODO(gavin): godoc
+// GetListClient returns a server-listing client for Azure MySQL Flexible server.
 func (f *azureMySQLFlexServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.MySQLFlexServersClient, error) {
 	client, err := cfg.AzureClients.GetAzureMySQLFlexServersClient(subID)
 	return client, trace.Wrap(err)
 }
 
-// TODO(gavin): godoc
+// GetServerLocation returns the location of an Azure MySQL Flexible server.
 func (f *azureMySQLFlexServerFetcher) GetServerLocation(server *armmysqlflexibleservers.Server) string {
 	return azure.StringVal(server.Location)
 }
 
-// TODO(gavin): godoc
+// NewDatabaseFromServer converts an Azure MySQL Flexible server to a Teleport database.
 func (f *azureMySQLFlexServerFetcher) NewDatabaseFromServer(server *armmysqlflexibleservers.Server, log logrus.FieldLogger) types.Database {
 	if !f.isAvailable(server, log) {
 		log.Debugf("The current status of Azure MySQL Flexible server %q is %q. Skipping.",
@@ -63,7 +63,8 @@ func (f *azureMySQLFlexServerFetcher) NewDatabaseFromServer(server *armmysqlflex
 	return database
 }
 
-// TODO(gavin): godoc
+// isAvailable checks the status of the server and returns true if the server
+// is available.
 func (f *azureMySQLFlexServerFetcher) isAvailable(server *armmysqlflexibleservers.Server, log logrus.FieldLogger) bool {
 	state := armmysqlflexibleservers.ServerState(azure.StringVal(server.Properties.State))
 	switch {

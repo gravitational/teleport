@@ -106,7 +106,7 @@ type ManagedSQLServerClient interface {
 	ListWithinGroup(ctx context.Context, group string) ([]*armsql.ManagedInstance, error)
 }
 
-// TODO(gavin): godoc
+// MySQLFlexServersClient is an interface for an Azure MySQL Flexible server client.
 type MySQLFlexServersClient interface {
 	// ListAll returns all Azure MySQL Flex servers within an Azure subscription.
 	ListAll(ctx context.Context) ([]*armmysqlflexibleservers.Server, error)
@@ -114,7 +114,7 @@ type MySQLFlexServersClient interface {
 	ListWithinGroup(ctx context.Context, group string) ([]*armmysqlflexibleservers.Server, error)
 }
 
-// TODO(gavin): godoc
+// PostgresFlexServersClient is an interface for an Azure PostgreSQL Flexible server client.
 type PostgresFlexServersClient interface {
 	// ListAll returns all Azure Postgres Flex servers within an Azure subscription.
 	ListAll(ctx context.Context) ([]*armpostgresqlflexibleservers.Server, error)
