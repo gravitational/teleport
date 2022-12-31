@@ -103,7 +103,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 
 		databases := generateAndParseConfig(t, flags)
 		require.Len(t, databases.AzureMatchers, 1)
-		require.ElementsMatch(t, []string{"mysql"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, []string{"mysql", "mysql-flex"}, databases.AzureMatchers[0].Types)
 		require.ElementsMatch(t, flags.AzureMySQLDiscoveryRegions, databases.AzureMatchers[0].Regions)
 	})
 
@@ -114,7 +114,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 
 		databases := generateAndParseConfig(t, flags)
 		require.Len(t, databases.AzureMatchers, 1)
-		require.ElementsMatch(t, []string{"postgres"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, []string{"postgres", "postgres-flex"}, databases.AzureMatchers[0].Types)
 		require.ElementsMatch(t, flags.AzurePostgresDiscoveryRegions, databases.AzureMatchers[0].Regions)
 	})
 
