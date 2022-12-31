@@ -283,16 +283,16 @@ func newParty(ctx authContext, mode types.SessionParticipantMode, client remoteC
 	}
 }
 
-// Close closes the party and disconnects the remote end.
-func (p *party) Close() error {
-	var err error
-
+// InformClose informs the party that he must leave the session.
+func (p *party) InformClose() {
 	p.closeOnce.Do(func() {
 		close(p.closeC)
-		err = p.Client.Close()
 	})
+}
 
-	return trace.Wrap(err)
+// CloseConnection closes the party underlying connection.
+func (p *party) CloseConnection() error {
+	return trace.Wrap(p.Client.Close())
 }
 
 // session represents an ongoing k8s session.
@@ -569,12 +569,12 @@ func (s *session) launch() error {
 	s.eventsWaiter.Add(1)
 	go func() {
 		defer s.eventsWaiter.Done()
-		select {
-		case <-time.After(time.Until(s.expires)):
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			s.BroadcastMessage("Session expired, closing...")
+		t := time.NewTimer(time.Until(s.expires))
+		defer t.Stop()
 
+		select {
+		case <-t.C:
+			s.BroadcastMessage("Session expired, closing...")
 			err := s.Close()
 			if err != nil {
 				s.log.WithError(err).Error("Failed to close session")
@@ -1031,11 +1031,13 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		errs = append(errs, trace.Wrap(err))
 	}
 
-	err = party.Close()
-	if err != nil {
-		s.log.WithError(err).Error("Error closing party")
-		errs = append(errs, trace.Wrap(err))
-	}
+	party.InformClose()
+	defer func() {
+		if err := party.Client.Close(); err != nil {
+			s.log.WithError(err).Error("Error closing party")
+			errs = append(errs, trace.Wrap(err))
+		}
+	}()
 
 	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
@@ -1128,7 +1130,6 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 // Close terminates a session and disconnects all participants.
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
-		s.mu.Lock()
 		s.BroadcastMessage("Closing session...")
 
 		s.io.Close()
@@ -1137,19 +1138,19 @@ func (s *session) Close() error {
 		if err := s.tracker.Close(s.forwarder.ctx); err != nil {
 			s.log.WithError(err).Debug("Failed to close session tracker")
 		}
-
+		s.mu.Lock()
 		// terminate all active parties in the session.
 		for _, party := range s.parties {
-			party.Close()
+			party.InformClose()
 		}
 		recorder := s.recorder
 		s.mu.Unlock()
+		s.log.Debugf("Closing session %v.", s.id.String())
+		close(s.closeC)
 		// Wait until every party leaves the session and emits the session leave
 		// event before closing the recorder - if available.
 		s.partiesWg.Wait()
 
-		s.log.Debugf("Closing session %v.", s.id.String())
-		close(s.closeC)
 		s.streamContextCancel()
 		s.terminalSizeQueue.close()
 		if recorder != nil {

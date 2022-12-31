@@ -866,19 +866,26 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
-		go func() {
-			<-stream.Done()
-			if _, err := session.leave(party.ID); err != nil {
-				f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
-			}
-		}()
 
 		err = session.join(party)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
+		closeC := make(chan struct{})
+		go func() {
+			defer close(closeC)
+			select {
+			case <-stream.Done():
+				party.InformClose()
+			case <-party.closeC:
+				return
+			}
+		}()
 		<-party.closeC
+		if _, err := session.leave(party.ID); err != nil {
+			f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+		}
+		<-closeC
 		return nil
 	}(); err != nil {
 		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
