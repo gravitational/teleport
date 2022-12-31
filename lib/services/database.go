@@ -1525,10 +1525,10 @@ func MakeAzureDatabaseLoginUsername(db types.Database, user string) string {
 	// for example: alice@mysql-server-name.
 	// Flexible server is an exception to this format.
 	// https://learn.microsoft.com/en-us/azure/mysql/flexible-server/how-to-azure-ad
-	if !IsAzureFlexServer(db) {
-		user = fmt.Sprintf("%v@%v", user, db.GetAzure().Name)
+	if IsAzureFlexServer(db) {
+		return user
 	}
-	return user
+	return fmt.Sprintf("%v@%v", user, db.GetAzure().Name)
 }
 
 const (
