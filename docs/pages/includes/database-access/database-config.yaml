@@ -25,9 +25,11 @@ db_service:
   azure:
     # Database types. Valid options are:
     # 'mysql' - discovers and registers Azure MySQL single-server databases.
+    # 'mysql-flex' - discovers and registers Azure MySQL flexible-server databases.
     # 'postgres' - discovers and registers Azure PostgreSQL single-server databases.
+    # 'postgres-flex' - discovers and registers Azure PostgreSQL flexible-server databases.
     # 'redis' - discovers and registers Azure Cache for Redis databases.
-  - types: ["mysql", "postgres", "redis"]
+  - types: ["mysql", "postgres", "redis", "mysql-flex", "postgres-flex"]
     # Azure regions to register databases from. Valid options are:
     # '*' - discovers databases in all regions (default).
     # Any valid Azure region name. List all valid regions using the Azure "az" cli: `az account list-locations -o table`
