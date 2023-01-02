@@ -21,12 +21,8 @@ GitHub Actions with Teleport can be applied as both a viable and secure solution
 CI/CD platform is needed.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
-actions runners.
-
-<Admonition type="note">
-Currently GitHub Actions with Machine ID is unsupported on GitHub Enterprise
-Server.
-</Admonition>
+actions runners. GitHub Enterprise Server requires
+[additional configuration](#github-enterprise-server).
 
 ## Prerequisites
 
@@ -127,7 +123,7 @@ Enter the following command from your workstation with `tsh` access, replacing t
 the username affiliated with a node the bot will be required to access over a `tsh ssh` session:
 
 ```
-$ tctl bots add github-demo --roles=access --token=github-token –logins=username
+$ tctl bots add github-demo --roles=access --token=github-token --logins=username
 ```
 
 ## Step 3/3. Configuring GitHub Actions
@@ -143,53 +139,51 @@ a file within the bot node. To create this configuration, use the following YAML
 # This is a basic workflow to help you get started.
 # It will take the following action whenever a push is made to the "main" branch.
 on:
- push:
-   branches:
-     - main
+  push:
+    branches:
+      - main
 jobs:
- demo:
-   permissions:
-# The "id-token: write" permission is required or tbot will not be able to authenticate.
-     id-token: write
-     contents: read
-# The name of the workflow, and the Linux distro to be used to perform the required steps.
-   name: guide-demo
-   runs-on: ubuntu-latest
-   steps:
-     - name: Checkout repository
-       uses: actions/checkout@v3
-     - name: Fetch Teleport binaries
-       uses: teleport-actions/setup@v1
-       with:
-         version: (=teleport.version=)
-     - name: Fetch credentials
-       run: >
-         tbot start
-         --join-method=github
-         --token=github-token
-# Use the address of the auth/proxy server for your own cluster.
-         --auth-server=example.domain:443
-         --oneshot
-         --destination-dir=/opt/machine-id
-         --data-dir=/opt/machine-id-data
-     - name: List nodes
-# Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
-# Ensure that the domain "authserver.domain" matches the auth/proxy server of your own cluster.
-       run: >
-         tsh -i ./opt/machine-id/identity
-         --proxy=example.domain:443
-         ls
-     - name: Write file to remote
-# Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
-# Ensure that the domain matches the auth/proxy server, that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
-       run: >
-         tsh -i /opt/machine-id/identity
-         --proxy example.domain:443
-         ssh username@hostname
-         "echo $GITHUB_SHA >> ~/github_run_log"
+  demo:
+    permissions:
+      # The "id-token: write" permission is required or Machine ID will not be able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    # The name of the workflow, and the Linux distro to be used to perform the required steps.
+    name: guide-demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Fetch Teleport binaries
+        uses: teleport-actions/setup@v1
+        with:
+          version: (=teleport.version=)
+      - name: Fetch credentials using Machine ID
+        id: auth
+        uses: teleport-actions/auth@v1
+        with:
+          # Use the address of the auth/proxy server for your own cluster.
+          proxy: example.domain:443
+          token: github-token
+          # Specify the length of time that the generated credentials should be
+          # valid for. This is optional and defaults to "1h"
+          certificate-ttl: 1h
+      - name: List nodes
+        # Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
+        run: tsh -i ${{ steps.auth.outputs.identity-file }} ls
+      - name: Write file to remote
+        # Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
+        # Ensure that that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
+        run: tsh -i ${{ steps.auth.outputs.identity-file }} ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
 ```
 
 Add, commit, and push your changes to the `main` branch of the repository.
+
+You can find out more about the `teleport-action/setup` and
+`teleport-actions/auth` actions on their GitHub repositories:
+
+- [https://github.com/teleport-actions/setup](https://github.com/teleport-actions/setup)
+- [https://github.com/teleport-actions/auth](https://github.com/teleport-actions/auth)
 
 Navigate to the **Actions** tab of your GitHub repository in your web browser. Select
 the **Workflow** that has now been created and triggered by the change, and select the `guide-demo` job.
@@ -214,3 +208,33 @@ a level of permitted access to your Teleport cluster. In order to reduce risk,
 extra care should be taken when user implemented code, code that is not
 otherwise well understood, or code that is otherwise untested is applied as part
 of the same job.
+
+## GitHub Enterprise Server
+
+From Teleport 11.1.4, users with Teleport Enterprise are able to permit CI/CD
+runs within a GitHub Enterprise Server instances to authenticate using the
+GitHub join method.
+
+This is configured by an additional `enterprise_server_host` field in the Token
+resource. This should be set to the host of your GHES instance.
+
+For example:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: github-token
+  expires: "2100-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: github-demo
+  github:
+    // Configure `enterprise_server_host` to the host of your GHES instance.
+    enterprise_server_host: your.ghes.instance.example.com
+    allow:
+      - repository: gravitational/example
+```
+
+Follow the rest of the instructions above as normal.
