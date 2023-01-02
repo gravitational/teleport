@@ -442,6 +442,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
+			dbcmd.WithTolerateMissingCLIClient(),
 		}
 		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
 			return trace.Wrap(err)
