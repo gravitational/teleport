@@ -557,7 +557,7 @@ export const formatters: Formatters = {
   [eventCodes.SESSION_UPLOAD]: {
     type: 'session.upload',
     desc: 'Session Uploaded',
-    format: () => `Recorded session has been uploaded`,
+    format: ({ sid }) => `Recorded session [${sid}] has been uploaded`,
   },
   [eventCodes.APP_SESSION_START]: {
     type: 'app.session.start',
