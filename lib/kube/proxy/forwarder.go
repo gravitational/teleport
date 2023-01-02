@@ -2306,7 +2306,7 @@ func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.
 		allowedResources, deniedResources := ctx.Checker.GetKubeResources(ctx.kubernetesCluster)
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
-		isWatch := req.URL.Query().Get("watch") == "yes"
+		isWatch := req.URL.Query().Get("watch") == "true"
 		if !isWatch {
 			// List pods and return immediately.
 			status, err = f.listPodsList(req, w, sess, allowedResources, deniedResources)
