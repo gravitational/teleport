@@ -346,7 +346,7 @@ func TestCARenewer(t *testing.T) {
 	require.Equal(t, int64(2), atomic.LoadInt64(&caDownloader.count))
 }
 
-// TestInitiAzurCAs given Azure hosted databases, init their CAs ensuring the
+// TestInitAzureCAs given Azure hosted databases, init their CAs ensuring the
 // download and get version calls have the correct CA hint.
 func TestInitAzureCAs(t *testing.T) {
 	ctx := context.Background()
