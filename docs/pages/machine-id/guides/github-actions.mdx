@@ -48,7 +48,7 @@ kind: token
 version: v2
 metadata:
   name: github-token
-  expires: "3000-01-01T00:00:00Z"
+  expires: "2100-01-01T00:00:00Z"
 spec:
   roles: [Bot]
   join_method: github
@@ -62,7 +62,7 @@ Let's go over the token configuration YAML in more detail:
 
 - `metadata.name` defines the name of the token. Note that this value will need to be used in other parts of the configuration later.
 - `metadata.expires` defines the date that the join token will expire. This example is set
-to the year `3000`, however care should be taken in production in order to Ensure
+to the year `2100`, however care should be taken in production in order to Ensure
 that the expiration date will not be given a value that is greater than what is needed.
 - `spec.bot_name` is the name of the Machine ID bot that this token will grant access to.
 Note that this value will need to be used in other parts of the configuration later.
@@ -161,7 +161,7 @@ jobs:
      - name: Fetch Teleport binaries
        uses: teleport-actions/setup@v1
        with:
-         version: (=teleport.major_version=)
+         version: (=teleport.version=)
      - name: Fetch credentials
        run: >
          tbot start
