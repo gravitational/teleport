@@ -177,8 +177,6 @@ jobs:
         run: tsh -i ${{ steps.auth.outputs.identity-file }} ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
 ```
 
-Add, commit, and push your changes to the `main` branch of the repository.
-
 You can find out more about the `teleport-action/setup` and
 `teleport-actions/auth` actions on their GitHub repositories:
 
@@ -188,6 +186,8 @@ You can find out more about the `teleport-action/setup` and
 From Teleport 11.1.0, the `-i` parameter for configuring the identity file of
 `tsh` is not necessary and `-i ${{ steps.auth.outputs.identity-file }}` can be
 omitted.
+
+Add, commit, and push your changes to the `main` branch of the repository.
 
 Navigate to the **Actions** tab of your GitHub repository in your web browser. Select
 the **Workflow** that has now been created and triggered by the change, and select the `guide-demo` job.
