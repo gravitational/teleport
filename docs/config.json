@@ -998,6 +998,10 @@
               "slug": "/machine-id/guides/github-actions/"
             },
             {
+              "title": "GitHub Actions & Kubernetes",
+              "slug": "/machine-id/guides/github-actions-kubernetes/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1030,6 +1034,10 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/reference/github-actions/"
             }
           ]
         },
