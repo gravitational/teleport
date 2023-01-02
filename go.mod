@@ -42,7 +42,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.5.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
-	github.com/fsouza/fake-gcs-server v1.42.2
+	github.com/fsouza/fake-gcs-server v1.43.0
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -130,7 +130,7 @@ require (
 	golang.org/x/term v0.3.0
 	golang.org/x/text v0.5.0
 	golang.org/x/tools v0.4.0
-	google.golang.org/api v0.103.0
+	google.golang.org/api v0.105.0
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
@@ -157,9 +157,9 @@ require (
 // deprecated Firestore Batch API is replaced. Updating causes
 // the linter to fail due to deprecation warnings.
 require (
-	cloud.google.com/go/firestore v1.6.1
+	cloud.google.com/go/firestore v1.9.0
 	cloud.google.com/go/iam v0.8.0
-	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
+	google.golang.org/genproto v0.0.0-20221206210731-b1a01be3a5f6
 )
 
 // DO NOT UPDATE crypto beyond v0.2.0, the commit below breaks compatibility
@@ -175,15 +175,12 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
-// Do not remove. It breaks github.com/gravitational/go-oidc.
-require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-
 require (
 	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.13.0 // indirect
-	cloud.google.com/go/compute/metadata v0.2.1 // indirect
+	cloud.google.com/go/compute/metadata v0.2.2 // indirect
 	cloud.google.com/go/longrunning v0.3.0 // indirect
-	cloud.google.com/go/pubsub v1.27.1 // indirect
+	cloud.google.com/go/pubsub v1.28.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
