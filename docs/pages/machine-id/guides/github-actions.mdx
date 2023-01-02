@@ -185,6 +185,10 @@ You can find out more about the `teleport-action/setup` and
 - [https://github.com/teleport-actions/setup](https://github.com/teleport-actions/setup)
 - [https://github.com/teleport-actions/auth](https://github.com/teleport-actions/auth)
 
+From Teleport 11.1.0, the `-i` parameter for configuring the identity file of
+`tsh` is not necessary and `-i ${{ steps.auth.outputs.identity-file }}` can be
+omitted.
+
 Navigate to the **Actions** tab of your GitHub repository in your web browser. Select
 the **Workflow** that has now been created and triggered by the change, and select the `guide-demo` job.
 The GitHub action may take some time to complete, and will resemble the following once successful.
