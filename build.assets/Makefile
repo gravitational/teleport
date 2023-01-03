@@ -442,7 +442,7 @@ release-arm64: buildbox-arm
 # image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the 
 # make command line
 #
-# Separating the constrtuction of build environment from the actual build itself 
+# Separating the construction of build environment from the actual build itself 
 # allows us to use the appropriate GHA actions to pre-build the buildbox 
 # image, so that the image construction works nicely with GHA.
 #
