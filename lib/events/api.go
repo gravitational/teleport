@@ -395,6 +395,10 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via app access session.
+	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.

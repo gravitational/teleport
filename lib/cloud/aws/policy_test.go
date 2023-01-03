@@ -93,7 +93,7 @@ func TestParsePolicyDocument(t *testing.T) {
     {
       "Effect": "Allow",
       "Action": "rds-db:connect",
-	  "Resource": ["arn:aws:rds-db:us-west-1:12345:dbuser:id/*"]
+	  "Resource": ["arn:aws:rds-db:us-west-1:123456789012:dbuser:id/*"]
     }
   ]
 }`)
@@ -103,7 +103,7 @@ func TestParsePolicyDocument(t *testing.T) {
 		Statements: []*Statement{{
 			Effect:    EffectAllow,
 			Actions:   SliceOrString{"rds-db:connect"},
-			Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
+			Resources: SliceOrString{"arn:aws:rds-db:us-west-1:123456789012:dbuser:id/*"},
 		}},
 	}, *policyDoc)
 }
@@ -513,7 +513,7 @@ func TestAttachPolicyBoundary(t *testing.T) {
 func userIdentity() Identity {
 	return &User{
 		identityBase: identityBase{
-			arn: arn.ARN{AccountID: "1234567", Resource: "user/example-user"},
+			arn: arn.ARN{AccountID: "123456789012", Resource: "user/example-user"},
 		},
 	}
 }
@@ -522,7 +522,7 @@ func userIdentity() Identity {
 func roleIdentity() Identity {
 	return &Role{
 		identityBase: identityBase{
-			arn: arn.ARN{AccountID: "1234567", Resource: "role/example-role"},
+			arn: arn.ARN{AccountID: "123456789012", Resource: "role/example-role"},
 		},
 	}
 }

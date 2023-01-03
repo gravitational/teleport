@@ -177,13 +177,13 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 // actionForKindSession is a special checker that grants access to session
 // recordings.  It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid session.ID) error {
+func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) error {
 	extendContext := func(ctx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(namespace, sid)
 		ctx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
 // actionForKindSSHSession is a special checker that grants access to active SSH
@@ -1732,8 +1732,30 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 	return a.authServer.GetToken(ctx, token)
 }
 
+func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		return nil
+	}
+
+	v, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("unexpected token type %T", token)
+	}
+
+	if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+		return fmt.Errorf(
+			"github enterprise server joining: %w",
+			ErrRequiresEnterprise,
+		)
+	}
+	return nil
+}
+
 func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertToken(ctx, token)
@@ -1741,6 +1763,9 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.CreateToken(ctx, token)
@@ -3204,7 +3229,7 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3212,7 +3237,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4585,7 +4610,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	isTeleportServer := err == nil
 
 	if !isTeleportServer {
-		if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
+		if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
 			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 			e <- trace.Wrap(err)
 			return c, e
