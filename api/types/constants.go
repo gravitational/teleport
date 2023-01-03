@@ -21,6 +21,17 @@ const (
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
 
+	// DefaultReleaseServerAddr is the default release service URL
+	DefaultReleaseServerAddr = "rlz.teleport.sh"
+
+	// ReleaseServerEnvVar is the environment variable used to overwrite
+	// the default release server address
+	ReleaseServerEnvVar = "RELEASE_SERVER_HOSTPORT"
+
+	// EnterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
+	// releases on the release server
+	EnterpriseReleaseEndpoint = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 

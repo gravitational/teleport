@@ -5418,6 +5418,23 @@ func (a *ServerWithRoles) SubmitUsageEvent(ctx context.Context, req *proto.Submi
 	return nil
 }
 
+// GetLicense returns the license used to start the auth server
+func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindLicense, types.VerbRead); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return a.authServer.GetLicense(ctx)
+}
+
+// ListReleases return Teleport Enterprise releases
+func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.releaseService.ListReleases(ctx)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
