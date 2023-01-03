@@ -347,6 +347,11 @@ type CLIConf struct {
 	// AzureCommandArgs contains arguments that will be forwarded to Azure CLI binary.
 	AzureCommandArgs []string
 
+	// GCPServiceAccount is GCP service account name that will be used for GCP CLI access.
+	GCPServiceAccount string
+	// GCPCommandArgs contains arguments that will be forwarded to GCP CLI binary.
+	GCPCommandArgs []string
+
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
 
@@ -637,6 +642,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 
+	gcp := app.Command("gcp", "Access GCP API.").Interspersed(false)
+	gcp.Arg("command", "`gcloud` command and subcommands arguments that are going to be forwarded to GCP CLI.").StringsVar(&cf.GCPCommandArgs)
+	gcp.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcp.Alias("gcloud")
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
@@ -651,6 +661,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
+	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
@@ -698,6 +709,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
+
+	proxyGCP := proxy.Command("gcp", "Start local proxy for GCP access.")
+	proxyGCP.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyGCP.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyGCP.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyGCP.Alias("gcloud")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1089,6 +1106,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAWS(&cf)
 	case proxyAzure.FullCommand():
 		err = onProxyCommandAzure(&cf)
+	case proxyGCP.FullCommand():
+		err = onProxyCommandGCP(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1128,6 +1147,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onAWS(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
+	case gcp.FullCommand():
+		err = onGCP(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():
