@@ -175,6 +175,9 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
+// Do not remove. It breaks github.com/gravitational/go-oidc.
+require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+
 require (
 	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.13.0 // indirect
