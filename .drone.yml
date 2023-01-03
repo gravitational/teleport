@@ -1310,11 +1310,12 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Determine teleport.e workflow revision
+- name: FAKE workflow revision
   image: docker:git
   commands:
-  - cd "/go/src/github.com/gravitational/teleport"
-  - echo WORKFLOW_REF=$(git rev-parse @:e) >> .DRONE.ENV
+  - set DRONE_BRANCH=master
+  - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE_ENV\nelse\n\techo
+    \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE_ENV\nfi"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
@@ -5042,11 +5043,12 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Determine teleport.e workflow revision
+- name: FAKE workflow revision
   image: docker:git
   commands:
-  - cd "/go/src/github.com/gravitational/teleport"
-  - echo WORKFLOW_REF=$(git rev-parse @:e) >> .DRONE.ENV
+  - set DRONE_BRANCH=master
+  - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE_ENV\nelse\n\techo
+    \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE_ENV\nfi"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
@@ -18278,6 +18280,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 958a68964c62460fdfc387c078dbfc874b7b75c1043323e64d3bd7df33312714
+hmac: ae516a68571affd37b77c373c6d1aba8bac9d04ffd6338483d6ec8c95025c6bc
 
 ...
