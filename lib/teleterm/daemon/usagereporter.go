@@ -16,18 +16,19 @@ package daemon
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/usagereporter"
 	"net/http"
 	"time"
 
 	"github.com/bufbuild/connect-go"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha/prehogv1alphaconnect"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 const (

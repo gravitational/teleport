@@ -17,8 +17,9 @@ package handler
 import (
 	"context"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/trace"
+
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 )
 
 func (h *Handler) ReportEvent(ctx context.Context, req *api.ReportUsageEventRequest) (*api.EmptyResponse, error) {

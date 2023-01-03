@@ -49,6 +49,7 @@ func New(cfg Config) (*Service, error) {
 
 	connectUsageReporter, err := NewConnectUsageReporter(closeContext)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
