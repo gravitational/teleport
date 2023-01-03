@@ -166,10 +166,10 @@ func ValidateDatabase(db types.Database) error {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
-	} else if db.GetProtocol() == defaults.ProtocolCassandra && db.GetAWS().Region != "" && db.GetAWS().AccountID != "" {
-		// In case of cloud hosted Cassandra doesn't require URI validation.
-	} else if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
-		return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
+	} else if needsURIValidation(db) {
+		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
+			return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
+		}
 	}
 
 	if db.GetTLS().CACert != "" {
@@ -194,6 +194,17 @@ func ValidateDatabase(db types.Database) error {
 		}
 	}
 	return nil
+}
+
+// needsURIValidation returns whether a database URI needs to be validated.
+func needsURIValidation(db types.Database) bool {
+	switch db.GetProtocol() {
+	case defaults.ProtocolCassandra, defaults.ProtocolDynamoDB:
+		// cloud hosted Cassandra doesn't require URI validation.
+		return db.GetAWS().Region == "" || db.GetAWS().AccountID == ""
+	default:
+		return true
+	}
 }
 
 // validateMongoDB validates MongoDB URIs with "mongodb" schemes.
@@ -799,7 +810,7 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 	// rds.DBProxy has no resource ID attribute. The resource ID can be found
 	// in the ARN, e.g.:
 	//
-	// arn:aws:rds:ca-central-1:1234567890:db-proxy:prx-xxxyyyzzz
+	// arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-xxxyyyzzz
 	//
 	// In this example, the arn.Resource is "db-proxy:prx-xxxyyyzzz", where the
 	// resource type is "db-proxy" and the resource ID is "prx-xxxyyyzzz".
