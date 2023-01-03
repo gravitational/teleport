@@ -1824,7 +1824,7 @@ should not mount secret when credentialSecretName is blank in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:11.1.4
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
