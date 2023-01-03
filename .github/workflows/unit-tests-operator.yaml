@@ -14,6 +14,15 @@ on:
       - 'lib/tbot/**'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+  merge_group:
+    paths:
+      - '/go.mod'
+      - '/go.sum'
+      - 'operator/**'
+      - 'api/types/**'
+      - 'lib/tbot/**'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
