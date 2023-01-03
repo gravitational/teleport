@@ -31,6 +31,8 @@ function fail_on_exit_code() {
 
 # input variables
 BASE_DOCKERFILE=${BASE_DOCKERFILE:-"../build.assets/charts/Dockerfile"}
+DOCKERFILE_TARGET=${DOCKERFILE_TARGET:-"teleport"}
+DEB_PATH=${DEB_PATH:-"teleport.deb"}	# If built by makefile this should be "./teleport-ent_$(VERSION)_$(ARCH).deb"
 BASE_IMAGE_REPO=${BASE_IMAGE_REPO:-quay.io/gravitational/teleport-ent}
 BASE_IMAGE_TAG=${BASE_IMAGE_TAG:-0.0.1}
 NAMESPACE_PREFIX=${NAMESPACE_PREFIX:-cloud-gravitational-io}
@@ -65,7 +67,8 @@ if [[ $BASE_DOCKERFILE == "-" ]]; then
 else
 	# when dockerfile is provided, build image from the dockerfile
 	echo "Building docker image using \"$BASE_DOCKERFILE\"..."
-	docker build  -t "$target_image" --platform=linux/amd64 --file="$BASE_DOCKERFILE" "$BUILDDIR"
+	docker build  -t "$target_image" --target="$DOCKERFILE_TARGET" --platform=linux/amd64 \
+		--build-arg DEB_PATH="$DEB_PATH" --file="$BASE_DOCKERFILE" "$BUILDDIR"
 fi
 
 echo "Pushing docker image to remote \"$target_image\"..."

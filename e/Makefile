@@ -6,6 +6,8 @@ endif
 BUILDDIR ?= build
 TELEPORT_DEBUG ?= false
 CGOFLAG ?= CGO_ENABLED=1
+GITTAG ?= v$(VERSION)
+DOCKER_IMAGE ?= teleport-ent
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
 CLOUD_DOCKERFILE ?= ../build.assets/charts/Dockerfile
@@ -17,10 +19,6 @@ BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)' -trimpath
 endif
-
-DOCKER_IMAGE_ENT_QUAY ?= quay.io/gravitational/teleport-ent
-DOCKER_IMAGE_ENT_ECR ?= public.ecr.aws/gravitational/teleport-ent
-DOCKER_IMAGE_ENT_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -273,8 +271,9 @@ deploy-cloud: ensure-webassets-e
 	else \
 		echo "---> Skipping tbot, tctl and tsh."; \
 	fi
+	$(MAKE) build-archive ent-deb OS=linux GITTAG=v99.99.99-DEV VERSION=99.99.99-DEV ARCH=amd64 TARBALL_PATH_SECTION="-s \"$(shell pwd)\"" TARGET=teleport
 	@echo "---> Building docker image and deploying to cloud tenant."
-	BASE_DOCKERFILE=$(CLOUD_DOCKERFILE) ./scripts/deploy-cloud.sh
+	BASE_DOCKERFILE=$(CLOUD_DOCKERFILE) DOCKERFILE_TARGET="teleport" DEB_PATH="./teleport-ent_99.99.99-DEV_amd64.deb" ./scripts/deploy-cloud.sh
 
 # make deploy-cloud-login - Ensures access to all services required to deploy
 # an image to a cloud tenant in the staging cluster.
@@ -311,11 +310,13 @@ release-arm:
 release-arm64:
 	$(MAKE) release ARCH=arm64
 
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
-.PHONY:
-release-unix: clean full
+#
+# make build-archive - Packages the results of a build into a release tarball
+#
+.PHONY: build-archive
+build-archive:
 	@echo "---> Creating Enterprise release archive."
+	mkdir -p $(BUILDDIR)/
 	cp ../README.md $(BUILDDIR)/
 	cp ../CHANGELOG.md $(BUILDDIR)/
 	cp ../build.assets/install $(BUILDDIR)/
@@ -325,6 +326,11 @@ release-unix: clean full
 	tar $(TAR_FLAGS) -c teleport-ent | gzip -n > $(RELEASE_ENT).tar.gz
 	rm -rf teleport-ent
 	@echo "---> Created $(RELEASE_ENT).tar.gz."
+
+# make release-unix - Produces a binary release tarball containing teleport,
+# tctl, and tsh.
+.PHONY:
+release-unix: clean full build-archive
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
@@ -356,67 +362,34 @@ test:
 docker-binaries: clean
 	make -C ../build.assets build-enterprise-binaries PIV=$(PIV)
 
-.PHONY: image
-image: clean docker-binaries
+.PHONY: build-image
+build-image: OS=linux
+build-image:
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)$(PRODUCT_TAG)-$(ARCH) --target $(TARGET) \
+		--build-arg DEB_PATH="./teleport-ent_$(VERSION)_$(ARCH).deb"
+
+# Standard enterprise Docker image build. Always build the binaries themselves within docker (see
+# the "docker" rule) to avoid dependencies on the host libc version.
+.PHONY: image
+image: OS=linux
+image: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
+image: TARGET:=teleport
+image: clean docker-binaries build-archive ent-deb build-image
 
 .PHONY:docker-binaries-fips
 docker-binaries-fips: clean
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	make -C ../build.assets build-binaries-fips
 
+# FIPS enterprise Docker image build. Always build the binaries themselves within docker (see
+# the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image-fips
-image-fips: docker-binaries-fips
-	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)-fips
-
-.PHONY: publish
-publish:
-	docker push $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)
-
-.PHONY: publish-fips
-publish-fips:
-	docker push $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)-fips
-
-.PHONY: publish-ecr
-publish-ecr:
-	docker tag $(DOCKER_IMAGE_ENT_QUAY) $(DOCKER_IMAGE_ENT_ECR)
-	docker push $(DOCKER_IMAGE_ENT_ECR):$(VERSION)
-
-# Docker image build in CI.
-# This is run to build and push Docker images to a private repository as part of the build process.
-# When we are ready to make the images public after testing (i.e. when publishing a release), we pull these
-# images down, retag them and push them up to the production repo so they're available for use.
-# This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
-.PHONY: image-ci
-image-ci: clean docker-binaries
-	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)
-
-.PHONY: image-fips-ci
-image-fips-ci: docker-binaries-fips
-	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)-fips
-
-.PHONY: publish-ci
-publish-ci:
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_ENT_STAGING):$(VERSION) 2>&1 >/dev/null; then\
-		echo "$(DOCKER_IMAGE_ENT_STAGING):$(VERSION) already exists. ";     \
-	else                                                                    \
-		docker push $(DOCKER_IMAGE_ENT_STAGING):$(VERSION);                 \
-	fi
-
-.PHONY: publish-fips-ci
-publish-fips-ci:
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)-fips 2>&1 >/dev/null; then\
-		echo "$(DOCKER_IMAGE_ENT_STAGING):$(VERSION) already exists. ";     \
-	else                                                                    \
-		docker push $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)-fips;                 \
-	fi
+image-fips: OS=linux
+image-fips: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
+image-fips: TARGET:=teleport-fips
+image-fips: PRODUCT_TAG:=-fips
+image-fips: clean docker-binaries-fips build-archive ent-deb build-image
 
 RUNTIME_SECTION ?=
 TARBALL_PATH_SECTION ?=
@@ -452,13 +425,18 @@ rpm:
 rpm-unsigned:
 	$(MAKE) UNSIGNED_RPM=true rpm
 
-# build .deb
-.PHONY: deb
-deb:
+# build enterprise .deb only
+.PHONY: ent-deb
+ent-deb:
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+# Left here for compatiblity reasons
+# build .deb
+.PHONY: deb
+deb: ent-deb
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
