@@ -39,12 +39,12 @@ images.
 
 Make sure that the following tools are installed locally:
 
-|Tool|Purpose|Installation link|
-|---|---|---|
-|minikube|Local Kubernetes deployment tool|[Install minikube](https://minikube.sigs.k8s.io/docs/start/)|
-|Helm|Kubernetes package manager|[Install Helm](https://helm.sh/docs/intro/install/)|
-|kubectl|Kubernetes admin CLI|[Install kubectl](https://kubernetes.io/docs/tasks/tools/)|
-|Docker Desktop (MacOS and Windows) or Docker Engine (Linux desktop) | Required minikube driver | [Get Started With Docker](https://www.docker.com/get-started)|
+| Tool                                                                | Purpose                          | Installation link                                             |
+|---------------------------------------------------------------------|----------------------------------|---------------------------------------------------------------|
+| minikube                                                            | Local Kubernetes deployment tool | [Install minikube](https://minikube.sigs.k8s.io/docs/start/)  |
+| Helm                                                                | Kubernetes package manager       | [Install Helm](https://helm.sh/docs/intro/install/)           |
+| kubectl                                                             | Kubernetes admin CLI             | [Install kubectl](https://kubernetes.io/docs/tasks/tools/)    |
+| Docker Desktop (MacOS and Windows) or Docker Engine (Linux desktop) | Required minikube driver         | [Get Started With Docker](https://www.docker.com/get-started) |
 
 You should also install a one-time passcode (OTP) application like Authy on your
 mobile device. You will use this to authenticate to your Teleport cluster.
@@ -70,9 +70,10 @@ You will deploy the Auth Service and Proxy Service by installing the
 # This is the DNS name Kubernetes will assign to the Proxy Service
 $ CLUSTER_NAME="teleport-cluster.teleport-cluster.svc.cluster.local"
 $ helm install teleport-cluster teleport/teleport-cluster \
---create-namespace \
---namespace=teleport-cluster \
---set clusterName=${CLUSTER_NAME?}
+  --create-namespace \
+  --namespace=teleport-cluster \
+  --set clusterName=${CLUSTER_NAME?} \
+  --version (=teleport.version=)
 $ kubectl config set-context --current --namespace teleport-cluster
 ```
 
@@ -96,7 +97,7 @@ SSH tunnel to ports on your local machine.
 
 Open a new terminal and run the following command to create a reverse tunnel. In
 this case, the tunnel forwards port 443, so you will need to enter your
-password.
+password:
 
 ```code
 $ minikube tunnel
@@ -120,12 +121,40 @@ teleport-cluster   LoadBalancer   10.107.218.212   127.0.0.1     443:32143/TCP,3
 
 The Proxy Service enables you to manage your cluster via an HTTP API. Assign the
 external IP of the load balancer to an environment variable and verify that the
-HTTP API is working:
+HTTP API is working. The example below uses [jq](https://stedolan.github.io/jq/)
+to format the API response, but you can omit it if not installed:
 
 ```code
+# Define EXTERNAL_IP, which we will use again in this guide
 $ EXTERNAL_IP=$(kubectl get service teleport-cluster -o jsonpath='{ .status.loadBalancer.ingress[0].ip }')
-$ curl --insecure https://${EXTERNAL_IP?}:443/webapi/ping
-{"auth":{"type":"local","second_factor":"otp","preferred_local_mfa":"otp","has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"teleport-cluster:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"8.2.0","min_client_version":"7.0.0"}%
+# Define TELEPORT_PING_URL to test against
+$ TELEPORT_PING_URL="https://${EXTERNAL_IP?}:443/webapi/ping"
+$ curl --insecure $TELEPORT_PING_URL | jq
+{
+  "auth": {
+    "type": "local",
+    "second_factor": "otp",
+    "preferred_local_mfa": "otp",
+    "has_motd": false
+  },
+  "proxy": {
+    "kube": {
+      "enabled": true,
+      "listen_addr": "0.0.0.0:3026"
+    },
+    "ssh": {
+      "listen_addr": "[::]:3023",
+      "tunnel_listen_addr": "0.0.0.0:3024",
+      "public_addr": "teleport-cluster:443"
+    },
+    "db": {
+      "mysql_listen_addr": "0.0.0.0:3036"
+    },
+    "tls_routing_enabled": false
+  },
+  "server_version": "8.2.0",
+  "min_client_version": "7.0.0"
+}
 ```
 
 <Details opened={false} title='Getting a "Connection refused" error?'>
@@ -211,6 +240,11 @@ Verify that the dashboard and metrics scraper services are running:
 
 ```code
 $ kubectl get services -n kubernetes-dashboard
+```
+
+You should see output similar to:
+
+```text
 NAME                        TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
 dashboard-metrics-scraper   ClusterIP   10.100.9.163   <none>        8000/TCP   8s
 kubernetes-dashboard        ClusterIP   10.100.80.65   <none>        443/TCP    8s
@@ -273,10 +307,10 @@ spec:
 EOF
 tctl create --force --confirm /home/cp.yaml"
 ```
+
 </Details>
 
 After signing in, you will navigate to the Teleport Web UI.
-
 
 ## Step 3/4 Enable access to Kubernetes Dashboard
 
@@ -316,7 +350,8 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set authToken=${INVITE_TOKEN?} \
   --set "apps[0].name"="kube-dash" \
   --set "apps[0].uri"=https://${DASH_ADDR?} \
-  --set insecureSkipProxyTLSVerify=true
+  --set insecureSkipProxyTLSVerify=true \
+  --version (=teleport.version=)
 ```
 
 <Details title="Why do we skip certificate verification here?">
@@ -337,6 +372,7 @@ Run the following command:
 ```code
 $ kubectl exec $PROXY_POD -- tctl tokens ls
 ```
+
 </Admonition>
 
 Visit the Teleport Web UI at the following link:
@@ -370,6 +406,10 @@ Terminate the `minikube tunnel` process you started earlier and run
 
 ## Next steps
 
+To see all of the options you can set in the values file for the
+`teleport-cluster` and `teleport-kube-agent` Helm charts, consult our [reference
+guide](../reference/helm-reference.mdx).
+
 Now that you have used Teleport to securely access resources in your local
 Kubernetes cluster, read our guides to setting up Teleport for Kubernetes in
 production.
@@ -382,5 +422,3 @@ production.
   [Single Sign-On and Kubernetes RBAC](../kubernetes-access/controls.mdx)
 - Have a Kubernetes cluster but don't want to run Teleport there?
   [Kubernetes Access from Standalone Teleport](../kubernetes-access/guides/standalone-teleport.mdx)
-
-

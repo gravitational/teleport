@@ -316,6 +316,11 @@ export class GetRequestableRolesRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): GetRequestableRolesRequest;
 
+    clearResourceIdsList(): void;
+    getResourceIdsList(): Array<v1_access_request_pb.ResourceID>;
+    setResourceIdsList(value: Array<v1_access_request_pb.ResourceID>): GetRequestableRolesRequest;
+    addResourceIds(value?: v1_access_request_pb.ResourceID, index?: number): v1_access_request_pb.ResourceID;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetRequestableRolesRequest.AsObject;
@@ -330,6 +335,7 @@ export class GetRequestableRolesRequest extends jspb.Message {
 export namespace GetRequestableRolesRequest {
     export type AsObject = {
         clusterUri: string,
+        resourceIdsList: Array<v1_access_request_pb.ResourceID.AsObject>,
     }
 }
 
@@ -338,6 +344,11 @@ export class GetRequestableRolesResponse extends jspb.Message {
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): GetRequestableRolesResponse;
     addRoles(value: string, index?: number): string;
+
+    clearApplicableRolesList(): void;
+    getApplicableRolesList(): Array<string>;
+    setApplicableRolesList(value: Array<string>): GetRequestableRolesResponse;
+    addApplicableRoles(value: string, index?: number): string;
 
 
     serializeBinary(): Uint8Array;
@@ -353,6 +364,7 @@ export class GetRequestableRolesResponse extends jspb.Message {
 export namespace GetRequestableRolesResponse {
     export type AsObject = {
         rolesList: Array<string>,
+        applicableRolesList: Array<string>,
     }
 }
 

@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestListKeys(t *testing.T) {
@@ -277,7 +278,7 @@ func TestCheckKey(t *testing.T) {
 	key := s.makeSignedKey(t, idx, false)
 
 	// Swap out the key with a ECDSA SSH key.
-	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
@@ -396,7 +397,7 @@ func TestCheckKeyFIPS(t *testing.T) {
 	key := s.makeSignedKey(t, idx, false)
 
 	// Swap out the key with a ECDSA SSH key.
-	ellipticCertificate, _, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 	key.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 

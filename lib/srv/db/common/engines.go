@@ -64,6 +64,18 @@ func GetEngine(name string, conf EngineConfig) (Engine, error) {
 	return engineFn(conf), nil
 }
 
+// CheckEngines checks if provided engine names are registered.
+func CheckEngines(names ...string) error {
+	enginesMu.RLock()
+	defer enginesMu.RUnlock()
+	for _, name := range names {
+		if engines[name] == nil {
+			return trace.NotFound("database engine %q is not registered", name)
+		}
+	}
+	return nil
+}
+
 // EngineConfig is the common configuration every database engine uses.
 type EngineConfig struct {
 	// Auth handles database access authentication.
@@ -82,6 +94,8 @@ type EngineConfig struct {
 	Log logrus.FieldLogger
 	// Users handles database users.
 	Users Users
+	// DataDir is the Teleport data directory
+	DataDir string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

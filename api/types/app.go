@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// Application represents a web app.
+// Application represents a web, TCP or cloud console application.
 type Application interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
@@ -63,6 +63,8 @@ type Application interface {
 	IsAWSConsole() bool
 	// IsOktaApp returns true if this app is an Okta application.
 	IsOktaApp() bool
+	// IsAzureCloud returns true if this app represents Azure Cloud instance.
+	IsAzureCloud() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// GetProtocol returns the application protocol.
@@ -233,7 +235,13 @@ func (a *AppV3) IsAWSConsole() bool {
 			return true
 		}
 	}
-	return false
+
+	return a.Spec.Cloud == CloudAWS
+}
+
+// IsAzureCloud returns true if this app is Azure Cloud instance.
+func (a *AppV3) IsAzureCloud() bool {
+	return a.Spec.Cloud == CloudAzure
 }
 
 // IsOktaApp returns true if this app is an Okta application.
@@ -303,9 +311,21 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 	if a.Spec.URI == "" {
-		return trace.BadParameter("app %q URI is empty", a.GetName())
+		if a.Spec.Cloud != "" {
+			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
+		} else {
+			return trace.BadParameter("app %q URI is empty", a.GetName())
+		}
 	}
-
+	if a.Spec.Cloud == "" && a.IsAWSConsole() {
+		a.Spec.Cloud = CloudAWS
+	}
+	switch a.Spec.Cloud {
+	case "", CloudAWS, CloudAzure, CloudGCP:
+		break
+	default:
+		return trace.BadParameter("app %q has unexpected Cloud value %q", a.GetName(), a.Spec.Cloud)
+	}
 	url, err := url.Parse(a.Spec.PublicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)

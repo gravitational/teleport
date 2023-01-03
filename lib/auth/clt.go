@@ -873,13 +873,13 @@ func (c *Client) GenerateHostCert(
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), ValidateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *oidcAuthRawResponse
+	var rawResponse *OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1274,15 +1274,11 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 }
 
 // ResumeAuditStream resumes existing audit stream.
-// This is a wrapper on the grpc endpoint and is deprecated.
-// DELETE IN 7.0.0
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
 }
 
 // CreateAuditStream creates new audit stream.
-// This is a wrapper on the grpc endpoint and is deprecated.
-// DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
@@ -1343,6 +1339,14 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) GetLicense(ctx context.Context) (string, error) {
+	return c.APIClient.GetLicense(ctx)
+}
+
+func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
+	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
 }
 
 // WebService implements features used by Web UI clients
@@ -1579,6 +1583,7 @@ type ClientI interface {
 	services.Restrictions
 	services.Apps
 	services.Databases
+	services.DatabaseServices
 	services.Kubernetes
 	services.WindowsDesktops
 	WebService
@@ -1677,4 +1682,13 @@ type ClientI interface {
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
+
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+
+	// GetLicense returns the license used to start Teleport Enterprise
+	GetLicense(ctx context.Context) (string, error)
+
+	// ListReleases returns a list of Teleport Enterprise releases
+	ListReleases(ctx context.Context) ([]*types.Release, error)
 }

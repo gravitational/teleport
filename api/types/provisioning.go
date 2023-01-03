@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -47,6 +48,10 @@ const (
 	// join method. Documentation regarding the implementation of this can be
 	// found in lib/circleci
 	JoinMethodCircleCI JoinMethod = "circleci"
+	// JoinMethodKubernetes indicates that the node will join with the
+	// Kubernetes join method. Documentation regarding implementation can be
+	// found in lib/kubernetestoken
+	JoinMethodKubernetes JoinMethod = "kubernetes"
 )
 
 var JoinMethods = []JoinMethod{
@@ -55,6 +60,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodIAM,
 	JoinMethodGitHub,
 	JoinMethodCircleCI,
+	JoinMethodKubernetes,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -99,6 +105,11 @@ type ProvisionToken interface {
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
+
+	// GetSafeName returns the name of the token, sanitized appropriately for
+	// join methods where the name is secret. This should be used when logging
+	// the token name.
+	GetSafeName() string
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -230,6 +241,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case JoinMethodKubernetes:
+		providerCfg := p.Spec.Kubernetes
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"kubernetes" configuration must be provided for the join method %q`,
+				JoinMethodKubernetes,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -346,14 +368,37 @@ func (p *ProvisionTokenV2) Expiry() time.Time {
 	return p.Metadata.Expiry()
 }
 
-// GetName returns server name
+// GetName returns the name of the provision token. This value can be secret!
+// Use GetSafeName where the name may be logged.
 func (p *ProvisionTokenV2) GetName() string {
 	return p.Metadata.Name
 }
 
-// SetName sets the name of the TrustedCluster.
+// SetName sets the name of the provision token.
 func (p *ProvisionTokenV2) SetName(e string) {
 	p.Metadata.Name = e
+}
+
+// GetSafeName returns the name of the token, sanitized appropriately for
+// join methods where the name is secret. This should be used when logging
+// the token name.
+func (p *ProvisionTokenV2) GetSafeName() string {
+	name := p.GetName()
+	if p.GetJoinMethod() != JoinMethodToken {
+		return name
+	}
+
+	// If the token name is short, we just blank the whole thing.
+	if len(name) < 16 {
+		return strings.Repeat("*", len(name))
+	}
+
+	// If the token name is longer, we can show the last 25% of it to help
+	// the operator identify it.
+	hiddenBefore := int(0.75 * float64(len(name)))
+	name = name[hiddenBefore:]
+	name = strings.Repeat("*", hiddenBefore) + name
+	return name
 }
 
 // String returns the human readable representation of a provisioning token.
@@ -439,6 +484,9 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 			)
 		}
 	}
+	if strings.Contains(a.EnterpriseServerHost, "/") {
+		return trace.BadParameter("'spec.github.enterprise_server_host' should not contain the scheme or path")
+	}
 	return nil
 }
 
@@ -456,6 +504,31 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 			return trace.BadParameter(
 				`allow rule for %q must include at least "project_id" or "context_id"`,
 				JoinMethodCircleCI,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter(
+			"the %q join method requires defined kubernetes allow rules",
+			JoinMethodKubernetes,
+		)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.ServiceAccount == "" {
+			return trace.BadParameter(
+				"the %q join method requires kubernetes allow rules with non-empty service account name",
+				JoinMethodKubernetes,
+			)
+		}
+		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
+			return trace.BadParameter(
+				`the %q join method service account rule format is "namespace:service_account", got %q instead`,
+				JoinMethodKubernetes,
+				allowRule.ServiceAccount,
 			)
 		}
 	}

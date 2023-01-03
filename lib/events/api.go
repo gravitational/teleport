@@ -489,6 +489,10 @@ const (
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
 
+	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via database-access.
+	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
@@ -583,6 +587,11 @@ const (
 
 	// DeviceEvent is the catch-all event for Device Trust events.
 	DeviceEvent = "device"
+
+	// BotJoinEvent is emitted when a bot joins
+	BotJoinEvent = "bot.join"
+	// InstanceJoinEvent is emitted when an instance joins
+	InstanceJoinEvent = "instance.join"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent

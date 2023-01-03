@@ -14,7 +14,7 @@
 
 package proxy
 
-//nolint:goimports
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"fmt"

@@ -272,6 +272,11 @@ type UserCertParams struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
 	// SourceIP is an IP that certificate should be pinned to.
@@ -291,6 +296,13 @@ type UserCertParams struct {
 	ConnectionDiagnosticID string
 	// PrivateKeyPolicy is the private key policy supported by this certificate.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// DeviceID is the trusted device identifier.
+	DeviceID string
+	// DeviceAssetTag is the device inventory identifier.
+	DeviceAssetTag string
+	// DeviceCredentialID is the identifier for the credential used by the device
+	// to authenticate itself.
+	DeviceCredentialID string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

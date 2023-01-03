@@ -15,7 +15,6 @@
 package peer
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -33,6 +32,7 @@ import (
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -148,7 +148,7 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 	subj, err := ident.Subject()
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
 
 	clock := clockwork.NewRealClock()

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
@@ -153,7 +154,7 @@ type Config struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Events is events service
 	Events types.Events
@@ -166,6 +167,9 @@ type Config struct {
 
 	// Access is a service that controls access
 	Access services.Access
+
+	// UsageReporter is a service that reports usage events.
+	UsageReporter services.UsageReporter
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
@@ -258,6 +262,13 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 
 	ExtraWebHandlers map[string]web.ContextHandler
+
+	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
+	AdditionalReadyEvents []string
+
+	// InstanceMetadataClient specifies the instance metadata client.
+	InstanceMetadataClient cloud.InstanceMetadata
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -608,9 +619,13 @@ type AuthConfig struct {
 	// that will be added by this auth server on the first start
 	Authorities []types.CertAuthority
 
-	// Resources is a set of previously backed up resources
+	// BootstrapResources is a set of previously backed up resources
 	// used to bootstrap backend state on the first start.
-	Resources []types.Resource
+	BootstrapResources []types.Resource
+
+	// ApplyOnStartupResources is a set of resources that should be applied
+	// on each Teleport start.
+	ApplyOnStartupResources []types.Resource
 
 	// Roles is a set of roles to pre-provision for this cluster
 	Roles []types.Role
@@ -857,12 +872,24 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	ExternalID string
+	// RedshiftServerless contains AWS Redshift Serverless specific settings.
+	RedshiftServerless DatabaseAWSRedshiftServerless
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
 	ClusterID string
+}
+
+// DatabaseAWSRedshiftServerless contains AWS Redshift Serverless specific settings.
+type DatabaseAWSRedshiftServerless struct {
+	// WorkgroupName is the Redshift Serverless workgroup name.
+	WorkgroupName string
+	// EndpointName is the Redshift Serverless VPC endpoint name.
+	EndpointName string
 }
 
 // DatabaseAWSRDS contains AWS RDS specific settings.
@@ -911,6 +938,10 @@ type DatabaseAD struct {
 	Domain string
 	// SPN is the service principal name for the database.
 	SPN string
+	// LDAPCert is the Active Directory LDAP Certificate.
+	LDAPCert string
+	// KDCHostName is the Key Distribution Center Hostname for x509 authentication
+	KDCHostName string
 }
 
 // IsEmpty returns true if the database AD configuration is empty.
@@ -926,8 +957,8 @@ type DatabaseAzure struct {
 
 // CheckAndSetDefaults validates database Active Directory configuration.
 func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
-	if d.KeytabFile == "" {
-		return trace.BadParameter("missing keytab file path for database %q", name)
+	if d.KeytabFile == "" && d.KDCHostName == "" {
+		return trace.BadParameter("missing keytab file path or kdc_host_name for database %q", name)
 	}
 	if d.Krb5File == "" {
 		d.Krb5File = defaults.Krb5FilePath
@@ -938,6 +969,13 @@ func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
 	if d.SPN == "" {
 		return trace.BadParameter("missing service principal name for database %q", name)
 	}
+
+	if d.KDCHostName != "" {
+		if d.LDAPCert == "" {
+			return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", name)
+		}
+	}
+
 	return nil
 }
 
@@ -996,10 +1034,15 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ServerVersion: d.MySQL.ServerVersion,
 		},
 		AWS: types.AWS{
-			AccountID: d.AWS.AccountID,
-			Region:    d.AWS.Region,
+			AccountID:  d.AWS.AccountID,
+			ExternalID: d.AWS.ExternalID,
+			Region:     d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
+			},
+			RedshiftServerless: types.RedshiftServerless{
+				WorkgroupName: d.AWS.RedshiftServerless.WorkgroupName,
+				EndpointName:  d.AWS.RedshiftServerless.EndpointName,
 			},
 			RDS: types.RDS{
 				InstanceID: d.AWS.RDS.InstanceID,
@@ -1022,10 +1065,12 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
 		AD: types.AD{
-			KeytabFile: d.AD.KeytabFile,
-			Krb5File:   d.AD.Krb5File,
-			Domain:     d.AD.Domain,
-			SPN:        d.AD.SPN,
+			KeytabFile:  d.AD.KeytabFile,
+			Krb5File:    d.AD.Krb5File,
+			Domain:      d.AD.Domain,
+			SPN:         d.AD.SPN,
+			LDAPCert:    d.AD.LDAPCert,
+			KDCHostName: d.AD.KDCHostName,
 		},
 		Azure: types.Azure{
 			ResourceID: d.Azure.ResourceID,
@@ -1083,6 +1128,9 @@ type App struct {
 
 	// AWS contains additional options for AWS applications.
 	AWS *AppAWS `yaml:"aws,omitempty"`
+
+	// Cloud identifies the cloud instance the app represents.
+	Cloud string
 }
 
 // CheckAndSetDefaults validates an application.
@@ -1091,7 +1139,11 @@ func (a *App) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing application name")
 	}
 	if a.URI == "" {
-		return trace.BadParameter("missing application %q URI", a.Name)
+		if a.Cloud != "" {
+			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
+		} else {
+			return trace.BadParameter("missing application %q URI", a.Name)
+		}
 	}
 	// Check if the application name is a valid subdomain. Don't allow names that
 	// are invalid subdomains because for trusted clusters the name is used to
@@ -1267,22 +1319,40 @@ type LDAPDiscoveryConfig struct {
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
-type HostLabelRules []HostLabelRule
+type HostLabelRules struct {
+	rules  []HostLabelRule
+	labels map[string]map[string]string
+}
+
+func NewHostLabelRules(rules ...HostLabelRule) HostLabelRules {
+	return HostLabelRules{
+		rules: rules,
+	}
+}
 
 // LabelsForHost returns the set of all labels that should be applied
 // to the specified host. If multiple rules match and specify the same
 // label keys, the value will be that of the last matching rule.
 func (h HostLabelRules) LabelsForHost(host string) map[string]string {
-	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
-	// change, so it may be worth not matching regexps on each heartbeat.
+	labels, ok := h.labels[host]
+	if ok {
+		return labels
+	}
+
 	result := make(map[string]string)
-	for _, rule := range h {
+	for _, rule := range h.rules {
 		if rule.Regexp.MatchString(host) {
 			for k, v := range rule.Labels {
 				result[k] = v
 			}
 		}
 	}
+
+	if h.labels == nil {
+		h.labels = make(map[string]map[string]string)
+	}
+	h.labels[host] = result
+
 	return result
 }
 
@@ -1301,6 +1371,8 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.

@@ -61,7 +61,7 @@ type Config struct {
 // GenerateUserCertFn generates user certificates for RDP authentication.
 type GenerateUserCertFn func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error)
 
-//nolint:unused
+//nolint:unused // used in client.go that is behind desktop_access_rdp build flag
 func (c *Config) checkAndSetDefaults() error {
 	if c.Addr == "" {
 		return trace.BadParameter("missing Addr in rdpclient.Config")

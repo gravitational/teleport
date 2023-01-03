@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
@@ -75,6 +76,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+	c.AzureMatchers = services.SimplifyAzureMatchers(c.AzureMatchers)
 	return nil
 }
 
@@ -96,7 +98,7 @@ type Server struct {
 	// azureWatcher periodically retrieves Azure virtual machines.
 	azureWatcher *server.Watcher
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
-	kubeFetchers []fetchers.Fetcher
+	kubeFetchers []common.Fetcher
 }
 
 // New initializes a discovery Server
@@ -223,6 +225,11 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
 func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMatcher) error {
+	// return early if there are no matchers as GetGCPGKEClient causes
+	// an error if there are no credentials present
+	if len(matchers) == 0 {
+		return nil
+	}
 	kubeClient, err := s.Clients.GetGCPGKEClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)

@@ -745,6 +745,7 @@ func (c *windowsDesktopServiceCollection) WriteText(w io.Writer) error {
 
 type windowsDesktopCollection struct {
 	desktops []types.WindowsDesktop
+	verbose  bool
 }
 
 func (c *windowsDesktopCollection) Resources() (r []types.Resource) {
@@ -763,14 +764,12 @@ func (c *windowsDesktopCollection) WriteText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-type windowsDesktopAndService struct {
-	desktop types.WindowsDesktop
-	service types.WindowsDesktopService
+func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.desktops)
 }
 
-type windowsDesktopAndServiceCollection struct {
-	desktops []windowsDesktopAndService
-	verbose  bool
+func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
+	return utils.WriteJSON(w, c.desktops)
 }
 
 func stripInternalTeleportLabels(verbose bool, labels map[string]string) string {
@@ -945,4 +944,57 @@ func (c *installerCollection) WriteText(w io.Writer) error {
 		}
 	}
 	return nil
+}
+
+type databaseServiceCollection struct {
+	databaseServices []types.DatabaseService
+}
+
+func (c *databaseServiceCollection) resources() (r []types.Resource) {
+	for _, service := range c.databaseServices {
+		r = append(r, service)
+	}
+	return r
+}
+
+func databaseResourceMatchersToString(in []*types.DatabaseResourceMatcher) string {
+	resourceMatchersStrings := make([]string, 0, len(in))
+
+	for _, resMatcher := range in {
+		if resMatcher == nil || resMatcher.Labels == nil {
+			continue
+		}
+
+		labelsString := make([]string, 0, len(*resMatcher.Labels))
+		for key, values := range *resMatcher.Labels {
+			if key == types.Wildcard {
+				labelsString = append(labelsString, "<all databases>")
+				continue
+			}
+			labelsString = append(labelsString, fmt.Sprintf("%v=%v", key, values))
+		}
+
+		resourceMatchersStrings = append(resourceMatchersStrings, fmt.Sprintf("(Labels: %s)", strings.Join(labelsString, ",")))
+	}
+	return strings.Join(resourceMatchersStrings, ",")
+}
+
+// writeText formats the DatabaseServices into a table and writes them into w.
+// Example:
+//
+// Name                                 Resource Matchers
+// ------------------------------------ --------------------------------------
+// a6065ee9-d5ee-4555-8d47-94a78625277b (Labels: <all databases>)
+// d4e13f2b-0a55-4e0a-b363-bacfb1a11294 (Labels: env=[prod],aws-tag=[xyz abc])
+func (c *databaseServiceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Resource Matchers"})
+
+	for _, dbService := range c.databaseServices {
+		t.AddRow([]string{
+			dbService.GetName(), databaseResourceMatchersToString(dbService.GetResourceMatchers()),
+		})
+	}
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }

@@ -65,6 +65,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -86,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/jwt"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -111,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -392,20 +395,6 @@ type keyPairKey struct {
 	reason string
 }
 
-// newTeleportConfig provides extra options to NewTeleport().
-type newTeleportConfig struct {
-	imdsClient cloud.InstanceMetadata
-}
-
-type NewTeleportOption func(*newTeleportConfig)
-
-// WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
-func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
-	return func(c *newTeleportConfig) {
-		c.imdsClient = client
-	}
-}
-
 // processIndex is an internal process index
 // to help differentiate between two different teleport processes
 // during in-process reload.
@@ -493,9 +482,9 @@ func (process *TeleportProcess) getInstanceRoleEventMapping() map[types.SystemRo
 	return out
 }
 
-// setExpectedInstanceRole marks a given instance role as active, storing the name of its associated
+// SetExpectedInstanceRole marks a given instance role as active, storing the name of its associated
 // identity event.
-func (process *TeleportProcess) setExpectedInstanceRole(role types.SystemRole, eventName string) {
+func (process *TeleportProcess) SetExpectedInstanceRole(role types.SystemRole, eventName string) {
 	process.Lock()
 	defer process.Unlock()
 	process.instanceRoles[role] = eventName
@@ -768,11 +757,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, error) {
-	newTeleportConf := &newTeleportConfig{}
-	for _, opt := range opts {
-		opt(newTeleportConf)
-	}
+func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var err error
 
 	// auth and proxy benefit from precomputing keys since they can experience spikes in key
@@ -878,7 +863,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	var cloudLabels labels.Importer
 
 	// Check if we're on a cloud instance, and if we should override the node's hostname.
-	imClient := newTeleportConf.imdsClient
+	imClient := cfg.InstanceMetadataClient
 	if imClient == nil {
 		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
 		if err != nil && !trace.IsNotFound(err) {
@@ -886,7 +871,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	if imClient != nil {
+	if imClient != nil && imClient.GetType() != types.InstanceMetadataTypeDisabled {
 		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
 			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")
@@ -968,6 +953,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		ServerID: cfg.HostUUID,
 		Version:  teleport.Version,
 		Services: process.getInstanceRoles(),
+		Hostname: cfg.Hostname,
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
@@ -999,7 +985,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = native.New(process.ExitContext())
+		cfg.Keygen = keygen.New(process.ExitContext())
 	}
 
 	// Produce global TeleportReadyEvent
@@ -1008,6 +994,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		Out: TeleportReadyEvent,
 		In:  []string{InstanceReady},
 	}
+
+	// Register additional ready events before considering the Teleport instance "ready."
+	// Meant for enterprise support.
+	if cfg.AdditionalReadyEvents != nil {
+		eventMapping.In = append(eventMapping.In, cfg.AdditionalReadyEvents...)
+	}
+
 	if cfg.Auth.Enabled {
 		eventMapping.In = append(eventMapping.In, AuthTLSReady)
 	}
@@ -1542,7 +1535,8 @@ func (process *TeleportProcess) initAuthService() error {
 		HostUUID:                cfg.HostUUID,
 		NodeName:                cfg.Hostname,
 		Authorities:             cfg.Auth.Authorities,
-		Resources:               cfg.Auth.Resources,
+		ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
+		BootstrapResources:      cfg.Auth.BootstrapResources,
 		ReverseTunnels:          cfg.ReverseTunnels,
 		Trust:                   cfg.Trust,
 		Presence:                cfg.Presence,
@@ -1550,6 +1544,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Provisioner:             cfg.Provisioner,
 		Identity:                cfg.Identity,
 		Access:                  cfg.Access,
+		UsageReporter:           cfg.UsageReporter,
 		StaticTokens:            cfg.Auth.StaticTokens,
 		Roles:                   cfg.Auth.Roles,
 		AuthPreference:          cfg.Auth.Preference,
@@ -1672,9 +1667,11 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
-		EnableProxyProtocol: cfg.Auth.EnableProxyProtocol,
-		Listener:            listener,
-		ID:                  teleport.Component(process.id),
+		EnableExternalProxyProtocol: cfg.Auth.EnableProxyProtocol,
+		Listener:                    listener,
+		ID:                          teleport.Component(process.id),
+		CertAuthorityGetter:         authServer,
+		LocalClusterName:            clusterName,
 	})
 	if err != nil {
 		listener.Close()
@@ -1911,6 +1908,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Restrictions:     cfg.services,
 		Apps:             cfg.services,
 		Kubernetes:       cfg.services,
+		DatabaseServices: cfg.services,
 		Databases:        cfg.services,
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,
@@ -2428,7 +2426,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
 		if role.IsLocalService() && !process.instanceRoleExpected(role) {
-			// if you hit this error, your probably forgot to call setExpectedInstanceRole inside of
+			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
 			// the registerExpectedServices function.
 			process.log.Errorf("Register called for unexpected instance role %q (this is a bug).", role)
 		}
@@ -2484,33 +2482,38 @@ func (process *TeleportProcess) initUploaderService() error {
 		return trace.Wrap(err)
 	}
 
-	// prepare dir for uploader
-	path := []string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingLogsDir, apidefaults.Namespace}
-	for i := 1; i < len(path); i++ {
-		dir := filepath.Join(path[:i+1]...)
-		log.Infof("Creating directory %v.", dir)
-		err := os.Mkdir(dir, 0o755)
-		err = trace.ConvertSystemError(err)
-		if err != nil {
-			if !trace.IsAlreadyExists(err) {
+	// prepare directories for uploader
+	paths := [][]string{
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingSessionsDir, apidefaults.Namespace},
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.CorruptedSessionsDir, apidefaults.Namespace},
+	}
+	for _, path := range paths {
+		for i := 1; i < len(path); i++ {
+			dir := filepath.Join(path[:i+1]...)
+			log.Infof("Creating directory %v.", dir)
+			err := os.Mkdir(dir, 0o755)
+			err = trace.ConvertSystemError(err)
+			if err != nil && !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}
-		}
-		if uid != nil && gid != nil {
-			log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
-			err := os.Chown(dir, *uid, *gid)
-			if err != nil {
-				return trace.ConvertSystemError(err)
+			if uid != nil && gid != nil {
+				log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
+				err := os.Chown(dir, *uid, *gid)
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
 			}
 		}
 	}
 
-	uploadsDir := filepath.Join(path...)
+	uploadsDir := filepath.Join(paths[0]...)
+	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer: conn.Client,
-		ScanDir:  uploadsDir,
-		EventsC:  process.Config.UploadEventsC,
+		Streamer:     conn.Client,
+		ScanDir:      uploadsDir,
+		CorruptedDir: corruptedDir,
+		EventsC:      process.Config.UploadEventsC,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3042,9 +3045,9 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		if cfg.Proxy.EnableProxyProtocol {
 			// Create multiplexer for the purpose of processing proxy protocol
 			mux, err := multiplexer.New(multiplexer.Config{
-				Listener:            l,
-				EnableProxyProtocol: true,
-				ID:                  teleport.Component(teleport.ComponentProxy, "ssh"),
+				Listener:                    l,
+				EnableExternalProxyProtocol: true,
+				ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -3134,9 +3137,9 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
-			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-			Listener:            listener,
-			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			Listener:                    listener,
+			ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
 			listener.Close()
@@ -3162,9 +3165,9 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
-			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-			Listener:            listener,
-			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			Listener:                    listener,
+			ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
 			listener.Close()
@@ -3214,9 +3217,9 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			if !cfg.Proxy.DisableDatabaseProxy && !cfg.Proxy.DisableTLS {
 				process.log.Debug("Setup Proxy: Multiplexing web and database proxy on the same port.")
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
-					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-					Listener:            listener,
-					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+					EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+					Listener:                    listener,
+					ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
 				})
 				if err != nil {
 					listener.Close()
@@ -3255,9 +3258,9 @@ func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *Config, li
 		return trace.Wrap(err)
 	}
 	listeners.reverseTunnelMux, err = multiplexer.New(multiplexer.Config{
-		EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-		Listener:            listener,
-		ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+		EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+		Listener:                    listener,
+		ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 	})
 	if err != nil {
 		listener.Close()
@@ -3947,7 +3950,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServerAddresses()))
+		jwtSigner, err := process.getJWTSigner(conn.ServerIdentity)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServerAddresses()), jwtSigner, conn.ServerIdentity.TLSCertBytes)
+
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
@@ -4065,6 +4073,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	})
 
 	return nil
+
+}
+
+func (process *TeleportProcess) getJWTSigner(ident *auth.Identity) (*jwt.Key, error) {
+	signer, err := utils.ParsePrivateKeyPEM(ident.KeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not parse identity's private key")
+	}
+
+	jwtSigner, err := services.GetJWTSigner(signer, ident.ClusterName, process.Clock)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create JWT signer")
+	}
+
+	return jwtSigner, nil
 }
 
 func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *Config, webConfig web.Config, log *logrus.Entry) (*http.Server, *web.APIHandler, error) {
@@ -4312,35 +4335,35 @@ func (process *TeleportProcess) waitForAppDepend() {
 // registerExpectedServices sets up the instance role -> identity event mapping.
 func (process *TeleportProcess) registerExpectedServices(cfg *Config) {
 	if cfg.Auth.Enabled {
-		process.setExpectedInstanceRole(types.RoleAuth, AuthIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleAuth, AuthIdentityEvent)
 	}
 
 	if cfg.SSH.Enabled {
-		process.setExpectedInstanceRole(types.RoleNode, SSHIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleNode, SSHIdentityEvent)
 	}
 
 	if cfg.Proxy.Enabled {
-		process.setExpectedInstanceRole(types.RoleProxy, ProxyIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleProxy, ProxyIdentityEvent)
 	}
 
 	if cfg.Kube.Enabled {
-		process.setExpectedInstanceRole(types.RoleKube, KubeIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleKube, KubeIdentityEvent)
 	}
 
 	if cfg.Apps.Enabled {
-		process.setExpectedInstanceRole(types.RoleApp, AppsIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleApp, AppsIdentityEvent)
 	}
 
 	if cfg.Databases.Enabled {
-		process.setExpectedInstanceRole(types.RoleDatabase, DatabasesIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleDatabase, DatabasesIdentityEvent)
 	}
 
 	if cfg.WindowsDesktop.Enabled {
-		process.setExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	}
 
 	if cfg.Discovery.Enabled {
-		process.setExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
+		process.SetExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
 	}
 }
 
@@ -4481,6 +4504,7 @@ func (process *TeleportProcess) initApps() {
 				InsecureSkipVerify: app.InsecureSkipVerify,
 				Rewrite:            rewrite,
 				AWS:                aws,
+				Cloud:              app.Cloud,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -4512,14 +4536,13 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		proxyGetter := reversetunnel.NewConnectedProxyGetter()
-
 		defer func() {
 			if !shouldSkipCleanup {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
 		}()
+
+		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			Clock:                process.Config.Clock,
@@ -4769,7 +4792,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	}
 	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
-	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
+	creds, err := cert.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4890,8 +4913,8 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
 	if !isDebugMode() {
-		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck
-		if err != nil {                              //nolint:staticcheck
+		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+		if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 			return nil, trace.Wrap(err)
 		}
 		return fs, nil
@@ -4944,6 +4967,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				types.JoinMethodUnspecified,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
+				types.JoinMethodKubernetes,
 				types.JoinMethodGitHub:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
