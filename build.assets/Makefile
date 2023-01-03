@@ -447,37 +447,29 @@ release-arm64: buildbox-arm
 # image, so that the image construction works nicely with GHA.
 #
 
+define RELEASE_RECIPE
+		docker run \
+			--rm \
+			--platform linux/$(ARCH) \
+			--memory-swap -1 \
+			-h buildbox \
+			-e GOMODCACHE=$(GOMODCACHE) \
+			-e GOCACHE=$(GOCACHE) \
+			-v "/tmp:/tmp" \
+			-v "$(WORKSPACE):/go/teleport" \
+			-w /go/teleport \
+			-u 1000:1000 \
+			$(BUILDBOX) \
+		make $(1) -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+endef
+
 .PHONY: release-oss
 release-oss:
-	docker run                         \
-		--rm                           \
-		--platform linux/$(ARCH)       \
-		--memory-swap -1               \
-		-h buildbox                    \
-		-e GOMODCACHE=$(GOMODCACHE)    \
-		-e GOCACHE=$(GOCACHE)          \
-		-v "/tmp:/tmp"                 \
-		-v "$(WORKSPACE):/go/teleport" \
-		-w /go/teleport                \
-		-u 1000:1000                   \
-		$(BUILDBOX)					   \
-		make full build-archive ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	$(call RELEASE_RECIPE,full build-archive)
 
 .PHONY: release-enterprise
 release-enterprise:
-	docker run                         \
-		--rm                           \
-		--platform linux/$(ARCH)       \
-		--memory-swap -1               \
-		-h buildbox                    \
-		-e GOMODCACHE=$(GOMODCACHE)    \
-		-e GOCACHE=$(GOCACHE)          \
-		-v "/tmp:/tmp"                 \
-		-v "$(WORKSPACE):/go/teleport" \
-		-w /go/teleport                \
-		-u 1000:1000                   \
-		$(BUILDBOX)                    \
-		make release-unix-only ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	$(call RELEASE_RECIPE,full release-unix-only)
 
 # #############################################################################
 
