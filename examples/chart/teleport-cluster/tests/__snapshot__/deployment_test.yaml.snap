@@ -1824,7 +1824,7 @@ should not mount secret when credentialSecretName is blank in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:10.3.11
+      image: quay.io/gravitational/teleport:10.3.11
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
