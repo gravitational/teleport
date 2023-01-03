@@ -43,8 +43,6 @@ func tagCheckoutCommands(b buildType) []string {
 		`mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
 		`git submodule update --init e`,
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`git submodule update --init --recursive webassets || true`,
 		`rm -f /root/.ssh/id_rsa`,
 		// create necessary directories
 		`mkdir -p /go/cache /go/artifacts`,

@@ -177,7 +177,7 @@ func darwinTagPipeline() pipeline {
 		arch: "amd64",
 		os:   "darwin",
 	}
-	toolchainConfig := toolchainConfig{golang: true, rust: true}
+	toolchainConfig := toolchainConfig{golang: true, rust: true, nodejs: true}
 	artifactConfig := onlyBinaries
 
 	p := newDarwinPipeline("build-darwin-amd64")
