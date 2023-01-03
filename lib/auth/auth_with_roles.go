@@ -2418,7 +2418,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 
 	return a.generateUserCerts(
 		ctx, req,
-		certRequestDeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+		certRequestDeviceExtensions(identity.DeviceExtensions),
 	)
 }
 
