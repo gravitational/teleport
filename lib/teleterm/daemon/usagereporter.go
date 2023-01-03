@@ -102,6 +102,7 @@ func newRealPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagere
 			// isn't ideal.
 			req := connect.NewRequest(event.Event)
 			if _, err := client.SubmitConnectEvent(ctx, req); err != nil {
+				failed = append(failed, event)
 				errors = append(errors, err)
 			}
 		}
