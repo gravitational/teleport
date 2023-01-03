@@ -54,7 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// FileConfig structre represents the teleport configuration stored in a config file
+// FileConfig structure represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.

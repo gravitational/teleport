@@ -949,7 +949,7 @@ func (d *DatabaseAD) IsEmpty() bool {
 // DatabaseAzure contains Azure database configuration.
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
-	ResourceID string `yaml:"resource_id,omitempty"`
+	ResourceID string
 }
 
 // CheckAndSetDefaults validates database Active Directory configuration.
@@ -1124,7 +1124,7 @@ type App struct {
 	Rewrite *Rewrite
 
 	// AWS contains additional options for AWS applications.
-	AWS *AppAWS `yaml:"aws,omitempty"`
+	AWS *AppAWS
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string
@@ -1445,7 +1445,7 @@ func ParseHeaders(headers []string) (headersOut []Header, err error) {
 // AppAWS contains additional options for AWS applications.
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
-	ExternalID string `yaml:"external_id,omitempty"`
+	ExternalID string
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
