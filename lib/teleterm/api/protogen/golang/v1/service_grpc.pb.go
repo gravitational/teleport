@@ -114,8 +114,8 @@ type TerminalServiceClient interface {
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (TerminalService_TransferFileClient, error)
-	// ReportEvent sends usage event
-	ReportEvent(ctx context.Context, in *ReportUsageEventRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
+	ReportUsageEvent(ctx context.Context, in *ReportUsageEventRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -459,9 +459,9 @@ func (x *terminalServiceTransferFileClient) Recv() (*FileTransferProgress, error
 	return m, nil
 }
 
-func (c *terminalServiceClient) ReportEvent(ctx context.Context, in *ReportUsageEventRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+func (c *terminalServiceClient) ReportUsageEvent(ctx context.Context, in *ReportUsageEventRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ReportEvent", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ReportUsageEvent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -564,8 +564,8 @@ type TerminalServiceServer interface {
 	Logout(context.Context, *LogoutRequest) (*EmptyResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error
-	// ReportEvent sends usage event
-	ReportEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error)
+	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
+	ReportUsageEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -669,8 +669,8 @@ func (UnimplementedTerminalServiceServer) Logout(context.Context, *LogoutRequest
 func (UnimplementedTerminalServiceServer) TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error {
 	return status.Errorf(codes.Unimplemented, "method TransferFile not implemented")
 }
-func (UnimplementedTerminalServiceServer) ReportEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReportEvent not implemented")
+func (UnimplementedTerminalServiceServer) ReportUsageEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportUsageEvent not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1272,20 +1272,20 @@ func (x *terminalServiceTransferFileServer) Send(m *FileTransferProgress) error 
 	return x.ServerStream.SendMsg(m)
 }
 
-func _TerminalService_ReportEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _TerminalService_ReportUsageEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReportUsageEventRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TerminalServiceServer).ReportEvent(ctx, in)
+		return srv.(TerminalServiceServer).ReportUsageEvent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ReportEvent",
+		FullMethod: "/teleport.terminal.v1.TerminalService/ReportUsageEvent",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).ReportEvent(ctx, req.(*ReportUsageEventRequest))
+		return srv.(TerminalServiceServer).ReportUsageEvent(ctx, req.(*ReportUsageEventRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1418,8 +1418,8 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_Logout_Handler,
 		},
 		{
-			MethodName: "ReportEvent",
-			Handler:    _TerminalService_ReportEvent_Handler,
+			MethodName: "ReportUsageEvent",
+			Handler:    _TerminalService_ReportUsageEvent_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

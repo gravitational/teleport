@@ -22,7 +22,7 @@ import (
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 )
 
-func (h *Handler) ReportEvent(ctx context.Context, req *api.ReportUsageEventRequest) (*api.EmptyResponse, error) {
+func (h *Handler) ReportUsageEvent(ctx context.Context, req *api.ReportUsageEventRequest) (*api.EmptyResponse, error) {
 	if err := h.DaemonService.ReportUsageEvent(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
