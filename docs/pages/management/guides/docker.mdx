@@ -53,9 +53,11 @@ $ docker version
 
 <Tabs>
 <TabItem scope={["oss"]} label="Open Source">
-We provide pre-built Docker images for every version of Teleport.
+We provide pre-built `amd64`, `arm`, and `arm64` Docker images for every version of Teleport.
 
 These images are hosted on Amazon ECR Public. All tags under `public.ecr.aws/gravitational/teleport` [are Teleport Open Source images](https://gallery.ecr.aws/gravitational/teleport).
+Versions without a architecture postfix type are `amd64` architecute. (public.ecr.aws/gravitational/teleport:(=teleport.major_version=)). All architecture versions are available 
+with the postfix type (ex: `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)-arm64`).
 
 The table below gives an idea of how our image naming scheme works. We offer images that
 point to a static version of Teleport, as well as images that are automatically rebuilt
@@ -76,7 +78,7 @@ keep your Teleport installation up to date.
 For testing, we always recommend that you use the latest release version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 </TabItem>
 <TabItem scope={["enterprise", "cloud"]} label="Commercial">
-We provide pre-built Docker images for every version of Teleport.
+We provide pre-built `amd64`, `arm`, and `arm64` Docker images for every version of Teleport Enterprise.
 
 (!docs/pages/includes/enterprise/docker-images.mdx!)
 
@@ -91,7 +93,7 @@ We provide pre-built Docker images for every version of Teleport.
 Create Teleport configs and start the process with the following `docker run` commands:
 
 ```code
-# Docker image to use. The default is the x86 64 version.  Add -arm64 or -arm
+# Docker image to use. The default is the amd64 version.  Add -arm64 or -arm
 # to the end (ex: (=teleport.latest_oss_docker_image=)-arm64 to get the arm versions.
 $ TELEPORT_DOCKER_IMAGE=(=teleport.latest_oss_docker_image=)
 # Create local config and data directories for Teleport, which will be mounted
