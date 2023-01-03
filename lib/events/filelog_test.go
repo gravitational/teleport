@@ -19,6 +19,8 @@ package events
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -153,7 +155,7 @@ func TestSearchSessionEvents(t *testing.T) {
 }
 
 // TestLargeEvent test fileLog behavior in case of large events.
-// If an event is serializable the FileLog handler should trie to trim the event size.
+// If an event is serializable the FileLog handler should try to trim the event size.
 func TestLargeEvent(t *testing.T) {
 	type check func(t *testing.T, event []events.AuditEvent)
 
@@ -172,6 +174,9 @@ func TestLargeEvent(t *testing.T) {
 		}
 	}
 
+	largeMongoQuery, err := makeLargeMongoQuery()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name   string
 		in     []events.AuditEvent
@@ -183,10 +188,11 @@ func TestLargeEvent(t *testing.T) {
 				makeQueryEvent("1", "select 1"),
 				makeQueryEvent("2", strings.Repeat("A", bufio.MaxScanTokenSize)),
 				makeQueryEvent("3", "select 3"),
+				makeQueryEvent("4", largeMongoQuery),
 			},
 			checks: []check{
-				hasEventsLength(3),
-				hasEventsIDs("1", "2", "3"),
+				hasEventsLength(4),
+				hasEventsIDs("1", "2", "3", "4"),
 			},
 		},
 		{
@@ -229,6 +235,28 @@ func TestLargeEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// makeLargeMongoQuery returns an example MongoDB query to test TrimToMaxSize when a
+// query contains a lot of characters that need to be escaped. The additional
+// escaping might push the message size over the limit even after being trimmed.
+// The goal of to make this about as pathological a query as is possible so there
+// are many very small string fields that will require quoting.
+func makeLargeMongoQuery() (string, error) {
+	record := map[string]string{"_id": `{"$oid":"63a0dd6da68baaeb828581fe"}`}
+	for i := 0; i < 100; i++ {
+		t := fmt.Sprintf("%v", i)
+		record[t] = t
+	}
+
+	out, err := json.Marshal(record)
+	if err != nil {
+		return "", err
+	}
+
+	return `OpMsg(Body={"insert": "books","ordered": true,"lsid": {"id": {"$binary":{"base64":"NX7MXcLdRi6pIT86e52k5A==","subType":"04"}}},"$db": "teleport"}, Documents=[` +
+		strings.Repeat(string(out), 500) +
+		`], Flags=)`, nil
 }
 
 func makeQueryEvent(id string, query string) *events.DatabaseSessionQuery {

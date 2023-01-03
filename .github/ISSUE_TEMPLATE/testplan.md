@@ -118,6 +118,15 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] Host key checking enabled rejects connection
       - [ ] Host key checking disabled allows connection
 
+- [ ] Enhanced Session Recording
+  - [ ] `disk`, `command` and `network` events are being logged.
+  - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
+  - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
+
+- [ ] Restricted Session 
+  - [ ] Network request are allowed when a policy allow them.
+  - [ ] Network request are blocked when a policy deny them.
+
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
@@ -1052,6 +1061,17 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify that all 5000 sessions are able to be established.
 - [ ] Verify that tsh and the web UI are still functional.
 
+### Robustness
+
+* Connectivity Issues:
+
+- [ ] Verify that a lack of connectivity to Auth does not prevent access to
+  resources which do not require a moderated session and in async recording
+  mode from an already issued certificate.
+- [ ] Verify that a lack of connectivity to Auth prevents access to resources
+  which require a moderated session and in async recording mode from an already
+  issued certificate.
+
 ## Teleport with Cloud Providers
 
 ### AWS
@@ -1121,6 +1141,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Azure Cache for Redis.
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
+  - [ ] Dynamodb.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -1141,6 +1162,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Azure Cache for Redis.
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
+  - [ ] Dynamodb.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1377,129 +1399,232 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 ## Teleport Connect
 
 - Auth methods
-  - Verify that the app supports clusters using different auth settings
-    (`auth_service.authentication` in the cluster config):
-    - [ ] `type: local`, `second_factor: "off"`
-    - [ ] `type: local`, `second_factor: "otp"`
-    - [ ] `type: local`, `second_factor: "webauthn"`,
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
-    - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
-    - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
-    - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
-    - [ ] `type: local`, `second_factor: "on"`, log in with OTP
-    - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
-    - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
-      - For those you might want to use clusters that are deployed on the web, specified in parens.
-        Or set up the connectors on a local enterprise cluster following [the guide from our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
-      - [ ] GitHub (asteroid)
-        - [ ] local login on a GitHub-enabled cluster
-      - [ ] SAML (platform cluster)
-      - [ ] OIDC (e-demo)
+   - Verify that the app supports clusters using different auth settings
+     (`auth_service.authentication` in the cluster config):
+      - [ ] `type: local`, `second_factor: "off"`
+      - [ ] `type: local`, `second_factor: "otp"`
+      - [ ] `type: local`, `second_factor: "webauthn"`,
+      - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
+      - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
+      - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
+      - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
+      - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
+      - [ ] `type: local`, `second_factor: "on"`, log in with OTP
+      - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
+      - [ ] `type: local`, `second_factor: "on"`, log in with passwordless auth
+      - [ ] Verify that the passwordless credential picker works.
+         - To make the picker show up, you need to add the same MFA device with passwordless
+           capabilities to multiple users.
+      - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
+         - For those you might want to use clusters that are deployed on the web, specified in
+           parens. Or set up the connectors on a local enterprise cluster following [the guide from
+           our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
+         - [ ] GitHub (asteroid)
+            - [ ] local login on a GitHub-enabled cluster
+         - [ ] SAML (platform cluster)
+         - [ ] OIDC (e-demo)
 - Shell
-  - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf clusters).
-    - That is, opening new shell sessions in other workspaces or other clusters within the same
-      workspace should have no impact on the original shell session.
-  - [ ] Verify that the local shell is opened with correct env vars.
-    - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
-    - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
-    - `PATH` should include `/Applications/Teleport Connect.app/Contents/Resources/bin`.
-  - [ ] Verify that the working directory in the tab title is updated when you change the directory
-        (only for local terminals).
-  - [ ] Verify that terminal resize works for both local and remote shells.
-    - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
-    - Run the program: `$ mc`
-    - Resize Teleport Connect to see if the panels resize with it
-  - [ ] Verify that the tab automatically closes on `$ exit` command.
-- State restoration
-  - [ ] Verify that the app asks about restoring the previous tabs when launched and restores them
-        properly.
-  - [ ] Verify that the app opens with the cluster that was active when you closed the app.
-  - [ ] Verify that the app remembers size & position after restart.
-  - [ ] Verify that [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575)
-        works.
-  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/tsh`
-        doesn't crash the app.
-  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/app_state.json`
-        but not the `tsh` dir doesn't crash the app.
-  - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
-        remember previous tabs (they should be cleared on logout).
+   - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf
+     clusters).
+      - That is, opening new shell sessions in other workspaces or other clusters within the same
+        workspace should have no impact on the original shell session.
+   - [ ] Verify that the local shell is opened with correct env vars.
+      - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
+      - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
+      - `PATH` should include `/Applications/Teleport Connect.app/Contents/Resources/bin`.
+   - [ ] Verify that the working directory in the tab title is updated when you change the directory
+         (only for local terminals).
+   - [ ] Verify that terminal resize works for both local and remote shells.
+      - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
+      - Run the program: `$ mc`
+      - Resize Teleport Connect to see if the panels resize with it
+   - [ ] Verify that the tab automatically closes on `$ exit` command.
+   - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
+     error from tsh ssh.
+- Kubernetes access
+   - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory. 
+   - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
+   - [ ] Run `kubectl get pods` and see if the command succeeds. 
+   - Verify if the kubeconfig file is removed when the user:
+      - [ ] Removes the connection
+      - [ ] Logs out of the cluster
+- State restoration from disk
+   - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
+         properly.
+   - [ ] Verify that the app opens with the cluster that was active when you closed the app.
+   - [ ] Verify that the app remembers size & position after restart.
+   - [ ] Verify that [reopening a cluster that has no workspace
+     assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works.
+   - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport
+     Connect/tsh` doesn't crash the app.
+   - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport
+     Connect/app_state.json` but not the `tsh` dir doesn't crash the app.
+   - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
+     remember previous tabs (they should be cleared on logout).
+   - [ ] Open a db connection tab. Change the db name and port. Close the tab. Restart the app. Open
+     connection tracker and choose said db connection from it. Verify that the newly opened tab uses
+     the same db name and port.
+   - [ ] Log in to a cluster. Close the DocumentCluster tab. Open a new DocumentCluster tab. Restart
+     the app. Verify that the app doesn't ask you about restoring previous tabs.
 - Connections picker
-  - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
-  - [ ] Check if those connections are available after the app restart.
-  - [ ] Check that those connections are removed after you log out of the root cluster that they
-        belong to.
-  - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
-- Cluster resources (servers/databases)
-  - [ ] Verify that the app shows the same resources as the Web UI.
-  - [ ] Verify that search is working for the resources lists.
-  - [ ] Verify that you can connect to these resources.
-  - [ ] Verify that clicking "Connect" shows available logins and db usernames.
-    - Logins and db usernames are taken from the role, under `spec.allow.logins` and
-      `spec.allow.db_users`.
-  - [ ] Repeat the above steps for resources in leaf clusters.
-  - [ ] Verify that tabs have correct titles set.
-  - [ ] Verify that the port number remains the same for a db connection between app restarts.
-  - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the app.
-        Verify that the app doesn't crash and the db connection tab shows you the error (address in
-        use) and offers a way to retry creating the connection.
+   - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
+   - [ ] Check if those connections are available after the app restart.
+   - [ ] Check that those connections are removed after you log out of the root cluster that they
+         belong to.
+   - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
+- Cluster resources (servers, databases, k8s)
+   - [ ] Verify that the app shows the same resources as the Web UI.
+   - [ ] Verify that search is working for the resources lists.
+   - [ ] Verify that pagination is working for the resources lists.
+   - [ ] Verify that pagination works in tandem with search, that is verify that search results are
+         paginated too.
+   - [ ] Verify that you can connect to these resources.
+   - [ ] Verify that clicking "Connect" shows available logins and db usernames.
+      - Logins and db usernames are taken from the role, under `spec.allow.logins` and
+        `spec.allow.db_users`.
+   - [ ] Repeat the above steps for resources in leaf clusters.
+- Tabs
+   - [ ] Verify that tabs have correct titles set.
+   - [ ] Verify that changing tab position works.
 - Shortcuts
-  - [ ] Verify that switching between tabs works on `Cmd+[1...9]`.
-  - [ ] Verify that other shortcuts are shown after you close all tabs.
-  - [ ] Verify that the other shortcuts work and each of them is shown on hover on relevant UI
-        elements.
-- Workspaces
-  - [ ] Verify that logging in to a new cluster adds it to the identity switcher and switches to the
-        workspace of that cluster automatically.
-  - [ ] Verify that the state of the current workspace is preserved when you change the workspace (by
-        switching to another cluster) and return to the previous workspace.
+   - [ ] Verify that switching between tabs works on `Cmd+[1...9]`.
+   - [ ] Verify that other shortcuts are shown after you close all tabs.
+   - [ ] Verify that the other shortcuts work and each of them is shown on hover on relevant UI
+     elements.
+- Workspaces & cluster management
+   - [ ] Verify that logging in to a new cluster adds it to the identity switcher and switches to
+     the workspace of that cluster automatically.
+   - [ ] Verify that the state of the current workspace is preserved when you change the workspace
+     (by switching to another cluster) and return to the previous workspace.
+   - [ ] Click "Add another cluster", provide an address to a cluster that was already added. Verify
+     that Connect simply changes the workspace to that of that cluster.
+   - [ ] Click "Add another cluster", provide an address to a new cluster and submit the form. Close
+     the modal when asked for credentials. Verify that the cluster was still added and is visible in
+     the profile selector.
 - Command bar & autocomplete
-  - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
-  - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
-  - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
-        autocompletes them.
-  - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
-  - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
-  - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
-        autocompletes them.
-  - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
-        running.
-  - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
-        various points.
-  - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
-        command bar.
-  - [ ] Verify that launching any other command that's not supported by the autocomplete opens a new
-        local shell with that command running.
+   - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
+   - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
+   - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
+     autocompletes them.
+   - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
+   - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
+   - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
+     autocompletes them.
+   - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
+     running.
+   - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
+     various points.
+   - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
+     command bar.
+   - [ ] Verify that launching any other command that's not supported by the autocomplete opens a
+     new local shell with that command running.
 - Resilience when resources become unavailable
-  - For each scenario, create at least one tab for each available kind (minus k8s for now).
-  - For each scenario, first do the external action, then click "Sync" on the relevant cluster tab.
-    Verify that no unrecoverable error was raised. Then restart the app and verify that it was
-    restarted gracefully (no unrecoverable error on restart, the user can continue using the app).
-    * [ ] Stop the root cluster.
-    * [ ] Stop a leaf cluster.
-    * [ ] Disconnect your device from the internet.
+   - DocumentCluster
+      - For each scenario, create at least one DocumentCluster tab for each available resource kind.
+      - For each scenario, first do the action described in the bullet point, then refetch list of
+        resources by entering the search field and pressing enter. Verify that no unrecoverable
+        error was raised (that is, the app still works). Then restart the app and verify that it was
+        restarted gracefully (no unrecoverable error on restart, the user can continue using the
+        app).
+         - [ ] Stop the root cluster.
+         - [ ] Stop a leaf cluster.
+         - [ ] Disconnect your device from the internet.
+   - DocumentGateway
+      - [ ] Verify that you can't open more than one tab for the same db server + username pair.
+        Trying to open a second tab with the same pair should just switch you to the already
+        existing tab.
+      - [ ] Create a db connection tab for a given database. Then remove access to that db for that
+        user. Go back to Connect and change the database name and port. Both actions should not
+        return an error.
+      - [ ] Open DocumentCluster and make sure a given db is visible on the list of available dbs.
+        Click "Connect" to show a list of db users. Now remove access to that db. Go back to Connect
+        and choose a username. Verify that a recoverable error is shown and the user can continue
+        using the app.
+      - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the
+        app. Verify that the app doesn't crash and the db connection tab shows you the error
+        (address in use) and offers a way to retry creating the connection.
+- File transfer
+   - Download
+      - [ ] Verify if Connect asks for a path when downloading the file.
+      - [ ] Verify that invalid paths and network errors are handled.
+      - [ ] Verify if cancelling the download works.
+   - Upload
+      - [ ] Verify if uploading single/multiple files works.
+      - [ ] Verify that invalid paths and network errors are handled.
+      - [ ] Verify if cancelling the upload works.
 - Refreshing certs
-  - To test scenarios from this section, create a user with a role that has TTL of `1m`
-    (`spec.options.max_session_ttl`).
-  - Log in, create a db connection and run the CLI command; wait for the cert to expire, click
-    "Sync" on the cluster tab.
-    - Verify that after successfully logging in:
-      - [ ] the cluster info is synced
-      - [ ] the connection in the running CLI db client wasn't dropped; try executing `select
-            now();`, the client should be able to automatically reinstantiate the connection.
-      - [ ] the database proxy is able to handle new connections; click "Run" in the db tab and see
-            if it connects without problems. You might need to resync the cluster again in case they
-            managed to expire.
-    - [ ] Verify that closing the login modal without logging in shows an error related to syncing
-      the cluster.
-  - Log in; wait for the cert to expire, click "Connect" next to a db in the cluster tab.
-    - [ ] Verify that clicking "Connect" and then navigating to a different tab before the request
-          completes doesn't show the login modal and instead immediately shows the error.
-    - For this one, you might want to use a sever in our Cloud if the introduced latency is high
-      enough. Perhaps enabling throttling in dev tools can help too.
-  - [ ] Log in; create two db connections, then remove access to one of the db servers for that
-    user; wait for the cert to expire, click "Sync", verify that the db tab with no access shows an
-    appropriate error and that the other db tab still handles old and new connections.
+   - To test scenarios from this section, create a user with a role that has TTL of `1m`
+     (`spec.options.max_session_ttl`).
+   - Log in, create a db connection and run the CLI command; wait for the cert to expire, make
+     another connection to the local db proxy.
+      - [ ] Verify that the window received focus and a modal login is shown.
+      - Verify that after successfully logging in:
+         - [ ] The cluster info is synced.
+         - [ ] The first connection wasn't dropped; try executing `select now();`, the client should
+           be able to automatically reinstantiate the connection.
+         - [ ] The database proxy is able to handle new connections; click "Run" in the db tab and
+           see if it connects without problems. You might need to resync the cluster again in case
+           they managed to expire.
+      - [ ] Verify that closing the login modal without logging in shows an appropriate error.
+   - Log in, create a db connection, then remove access to that db server for that user; wait for
+     the cert to expire, then attempt to make a connection through the proxy; log in.
+      - [ ] Verify that the db tab shows an appropriate error.
+   - Log in, open a cluster tab, wait for the cert to expire. Switch from a servers view to
+     databases view.
+      - [ ] Verify that a login modal was shown.
+      - [ ] Verify that after logging in, the database list is shown.
+- Access Requests
+   - **Creating Access Requests (Role Based)**
+      - To setup a test environment, follow the steps laid out in `Created Access Requests (Role
+        Based)` from the Web UI testplan and then verify the tasks below.
+      - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and
+        `allow-users-with-short-ttl` are listed
+      - [ ] Verify you can select/input/modify reviewers
+      - [ ] Verify you can view the request you created from request list (should be in a pending
+        state)
+      - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
+        suggested_reviewers wasn't defined)
+      - [ ] Verify you can't review own requests
+   - **Creating Access Requests (Search Based)**
+      - To setup a test environment, follow the steps laid out in `Created Access Requests (Search
+        Based)` from the Web UI testplan and then verify the tasks below.
+      - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
+      - [ ] Verify you can select/input/modify reviewers
+      - [ ] Verify you can view the request you created from request list (should be in a pending
+        state)
+      - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
+        suggested_reviewers wasn't defined)
+      - [ ] Verify you can't review own requests
+      - [ ] Verify that you can't mix adding resources from different clusters (there should be a
+        warning dialogue that clears the selected list)
+      - [ ] Verify that you can't mix roles and resources into the same request.
+   - **Viewing & Approving/Denying Requests**
+      - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying
+        Requests` from the Web UI testplan and then verify the tasks below.
+      - [ ] Verify you can view access request from request list
+      - [ ] Verify you can approve a request with message, and immediately see updated state with
+        your review stamp (green checkmark) and message box
+      - [ ] Verify you can deny a request, and immediately see updated state with your review stamp
+        (red cross)
+      - [ ] Verify deleting the denied request is removed from list
+   - **Assuming Approved Requests (Role Based)**
+      - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into
+        nodes
+      - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-short-ttl`
+        allows you to see users screen, and denies access to nodes
+      - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it
+        expires
+      - [ ] Verify `switching back` goes back to your default static role
+      - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged
+        out after the expiry is met (4 minutes)
+   - **Assuming Approved Requests (Search Based)**
+      - [ ] Verify that assuming approved request, allows you to see the resources you've requested.
+   - **Assuming Approved Requests (Both)**
+      - [ ] Verify assume buttons are only present for approved request and for logged in user
+      - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in
+        viewing
+      - [ ] Verify that after re-login, requests that are not expired and are approved are assumable
+        again
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 - [ ] Verify that the password from the login form is not saved in the renderer log.
@@ -1564,6 +1689,47 @@ TODO(lxea): replace links with actual docs once merged
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
+## Documentation
+
+Checks should be performed on the version of documentation corresponding to the
+major release we're testing for. For example, for Teleport 12 release use
+`branch/v12` branch and make sure to select "Version 12.0" in the documentation
+version switcher.
+
+- [ ] Verify installation instructions are accurate:
+  - [ ] Self-hosted: https://goteleport.com/docs/installation
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/downloads/?scope=cloud
+
+- [ ] Verify getting started instructions are accurate:
+  - [ ] OSS: https://goteleport.com/docs/deploy-a-cluster/open-source/
+  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/?scope=cloud
+  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/?scope=enterprise
+
+- [ ] Verify upcoming releases page is accurate:
+  - [ ] https://goteleport.com/docs/preview/upcoming-releases/?scope=enterprise
+  - [ ] Only exists for the default docs version.
+
+- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release:
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1128
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1176-L1186
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1146-L1153
+
+- [ ] Verify that all necessary documentation for the release was backported to release branch:
+  - [ ] Diff between master and release branch and make sure there are no missed PRs
+
+- [ ] Verify deprecated Teleport versions are added to the older versions page
+  - [ ] https://goteleport.com/docs/older-versions/
+
+- [ ] Verify `gravitational/docs` version configuration:
+  - [ ] Verify latest version in `gravitational/docs/config.json`
+  - [ ] Verify `gravitational/docs/.gitmodules` contains latest release
+
+- [ ] Verify changelog is up-to-date and complete for the default docs version:
+  - [ ] https://goteleport.com/docs/changelog/
+
+- [ ] Verify supported versions table in FAQ:
+  - [ ] https://goteleport.com/docs/faq/#supported-versions
 
 ## Resources
 

@@ -44,12 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolSnowflake)
-}
-
-// newEngine create new Snowflake engine.
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new Snowflake engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		HTTPClient:   getDefaultHTTPClient(),

@@ -1052,9 +1052,13 @@ type AuthenticationConfig struct {
 	// Defaults to true if the Webauthn is configured, defaults to false
 	// otherwise.
 	Passwordless *types.BoolOption `yaml:"passwordless"`
+
+	// DeviceTrust holds settings related to trusted device verification.
+	// Requires Teleport Enterprise.
+	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
 }
 
-// Parse returns a types.AuthPreference (type, second factor, U2F).
+// Parse returns valid types.AuthPreference instance.
 func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
@@ -1074,6 +1078,14 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var dt *types.DeviceTrust
+	if a.DeviceTrust != nil {
+		dt, err = a.DeviceTrust.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -1084,6 +1096,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,
+		DeviceTrust:       dt,
 	})
 }
 
@@ -1169,6 +1182,20 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	return string(data), nil // OK, valid PEM file
+}
+
+// DeviceTrust holds settings related to trusted device verification.
+// Requires Teleport Enterprise.
+type DeviceTrust struct {
+	// Mode is the trusted device verification mode.
+	// Mirrors types.DeviceTrust.Mode.
+	Mode string `yaml:"mode,omitempty"`
+}
+
+func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
+	return &types.DeviceTrust{
+		Mode: dt.Mode,
+	}, nil
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -1559,8 +1586,10 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
-	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_severless"`
+	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1930,6 +1959,8 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
+	// SID is the Security Identifier for the service account specified by Username.
+	SID string `yaml:"sid"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// ServerName is the name of the LDAP server for TLS.

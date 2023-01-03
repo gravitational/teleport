@@ -40,9 +40,9 @@ func (process *TeleportProcess) initKubernetes() {
 		trace.Component: teleport.Component(teleport.ComponentKube, process.id),
 	})
 
-	process.registerWithAuthServer(types.RoleKube, KubeIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
-		conn, err := process.waitForConnector(KubeIdentityEvent, log)
+		conn, err := process.WaitForConnector(KubeIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
@@ -174,7 +174,13 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(teleportClusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: teleportClusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		// TODO(codingllama): Enable after testing.
+		DisableDeviceAuthorization: true,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

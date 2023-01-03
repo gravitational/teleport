@@ -265,7 +265,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 				// TODO: find a cleaner way of formatting the error.
 				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
 				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
-				logrus.Warn(errHeader)
+				l.cfg.Log.Warn(errHeader)
 			}
 			return nil
 		},

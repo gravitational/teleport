@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -272,6 +273,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 		config.Auth.StorageConfig = *storageConfig
 	}
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	if gcpKeyring := os.Getenv("TEST_GCP_KMS_KEYRING"); gcpKeyring != "" {
 		config.Auth.KeyStore.GCPKMS.KeyRing = gcpKeyring
@@ -304,6 +306,7 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 	config.DataDir = t.TempDir()
 	config.SetAuthServerAddress(authAddr)
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	config.Log = log
 	return config
 }

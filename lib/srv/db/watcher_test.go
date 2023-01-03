@@ -18,15 +18,22 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -187,6 +194,55 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 	})
 }
 
+// TestWatcherCloudFetchers tests usasge of discovery database fetchers by the
+// database service.
+func TestWatcherCloudFetchers(t *testing.T) {
+	// Test an AWS fetcher. Note that status AWS can be set by Metadata
+	// service.
+	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
+	redshiftServerlessDatabase, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
+	require.NoError(t, err)
+	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
+
+	// Test an Azure fetcher.
+	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	reconcileCh := make(chan types.Databases)
+	testCtx.setupDatabaseServer(ctx, t, agentParams{
+		OnReconcile: func(d types.Databases) {
+			reconcileCh <- d
+		},
+		CloudClients: &clients.TestCloudClients{
+			RDS: &mocks.RDSMockUnauth{}, // Access denied error should not affect other fetchers.
+			RedshiftServerless: &mocks.RedshiftServerlessMock{
+				Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
+			},
+			AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
+				AllServers: []*armsql.Server{azSQLServer},
+			}),
+			AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
+		},
+		AzureMatchers: []services.AzureMatcher{{
+			Subscriptions: []string{"sub"},
+			Types:         []string{services.AzureMatcherSQLServer},
+			ResourceTags:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+		}},
+		AWSMatchers: []services.AWSMatcher{{
+			Types:   []string{services.AWSMatcherRDS, services.AWSMatcherRedshiftServerless},
+			Regions: []string{"us-east-1"},
+			Tags:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+		}},
+	})
+
+	wantDatabases := types.Databases{azSQLServerDatabase, redshiftServerlessDatabase}
+	sort.Sort(wantDatabases)
+
+	assertReconciledResource(t, reconcileCh, wantDatabases)
+}
+
 func assertReconciledResource(t *testing.T, ch chan types.Databases, databases types.Databases) {
 	t.Helper()
 	select {
@@ -247,4 +303,19 @@ func makeDatabase(name string, labels map[string]string, additionalLabels map[st
 		Name:   name,
 		Labels: labels,
 	}, ds)
+}
+
+func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types.Database) {
+	t.Helper()
+
+	server := &armsql.Server{
+		ID:   to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Sql/servers/%v", group, name)),
+		Name: to.Ptr(fmt.Sprintf("%s.database.windows.net", name)),
+		Properties: &armsql.ServerProperties{
+			FullyQualifiedDomainName: to.Ptr("localhost"),
+		},
+	}
+	database, err := services.NewDatabaseFromAzureSQLServer(server)
+	require.NoError(t, err)
+	return server, database
 }

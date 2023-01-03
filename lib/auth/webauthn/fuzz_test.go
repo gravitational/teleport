@@ -20,13 +20,12 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/stretchr/testify/require"
 )
 
 func FuzzParseCredentialCreationResponseBody(f *testing.F) {
 	f.Fuzz(func(t *testing.T, body []byte) {
-
 		require.NotPanics(t, func() {
 			protocol.ParseCredentialCreationResponseBody(bytes.NewReader(body))
 		})
@@ -35,7 +34,6 @@ func FuzzParseCredentialCreationResponseBody(f *testing.F) {
 
 func FuzzParseCredentialRequestResponseBody(f *testing.F) {
 	f.Fuzz(func(t *testing.T, body []byte) {
-
 		require.NotPanics(t, func() {
 			protocol.ParseCredentialRequestResponseBody(bytes.NewReader(body))
 		})
