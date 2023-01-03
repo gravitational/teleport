@@ -366,7 +366,7 @@ func ParseElastiCacheEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 
 	// Remove partition suffix. Note that endpoints for CN regions use the same
 	// format except they end with AWSCNEndpointSuffix.
-	endpointWithoutSuffix, err := removePartitionSuffix(endpoint)
+	endpointWithoutSuffix, _, err := removePartitionSuffix(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -531,7 +531,7 @@ func ParseMemoryDBEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 	//
 	// Unlike RDS/Redshift endpoints, the service subdomain is before region.
 	// Unlike ElastiCache endpoints, MemoryDB uses full region name.
-	endpointWithoutSuffix, err := removePartitionSuffix(endpoint)
+	endpointWithoutSuffix, _, err := removePartitionSuffix(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -607,16 +607,16 @@ func removeSchemaAndPort(endpoint string) (string, error) {
 	return parsedURL.Hostname(), nil
 }
 
-func removePartitionSuffix(endpoint string) (string, error) {
+func removePartitionSuffix(endpoint string) (string, string, error) {
 	switch {
 	case strings.HasSuffix(endpoint, AWSEndpointSuffix):
-		return strings.TrimSuffix(endpoint, AWSEndpointSuffix), nil
+		return strings.TrimSuffix(endpoint, AWSEndpointSuffix), AWSEndpointSuffix, nil
 
 	case strings.HasSuffix(endpoint, AWSCNEndpointSuffix):
-		return strings.TrimSuffix(endpoint, AWSCNEndpointSuffix), nil
+		return strings.TrimSuffix(endpoint, AWSCNEndpointSuffix), AWSCNEndpointSuffix, nil
 
 	default:
-		return "", trace.BadParameter("%v is not a valid AWS endpoint", endpoint)
+		return "", "", trace.BadParameter("%v is not a valid AWS endpoint", endpoint)
 	}
 }
 
@@ -647,6 +647,15 @@ const (
 
 	// MemoryDBSServiceName is the service name for AWS MemoryDB.
 	MemoryDBSServiceName = "memorydb"
+
+	// DynamoDBServiceName is the service name for AWS DynamoDB.
+	DynamoDBServiceName = "dynamodb"
+	// DynamoDBFipsServiceName is the fips variant service name for AWS DynamoDB.
+	DynamoDBFipsServiceName = "dynamodb-fips"
+	// DynamoDBStreamsServiceName is the AWS DynamoDB Streams service name.
+	DynamoDBStreamsServiceName = "streams.dynamodb"
+	// DAXServiceName is the AWS DynamoDB Accelerator service name.
+	DAXServiceName = "dax"
 )
 
 // CassandraEndpointURLForRegion returns a Cassandra endpoint based on the provided region.
@@ -662,16 +671,92 @@ func CassandraEndpointURLForRegion(region string) string {
 // where endpoint looks like cassandra.us-east-2.amazonaws.com
 // https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
 func CassandraEndpointRegion(endpoint string) (string, error) {
-	endpoint, err := removeSchemaAndPort(endpoint)
+	parts, _, err := extractAWSEndpointParts(endpoint)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	endpoint = strings.TrimSuffix(endpoint, AWSCNEndpointSuffix)
-	endpoint = strings.TrimSuffix(endpoint, AWSEndpointSuffix)
-	parts := strings.Split(endpoint, ".")
 	if len(parts) != 2 {
 		return "", trace.BadParameter("invalid Cassandra endpoint")
 	}
 	return parts[1], nil
+}
+
+// DynamoDBEndpointInfo describes info extracted from a DynamoDB endpoint.
+type DynamoDBEndpointInfo struct {
+	// Service is the service subdomain of the endpoint, for example "dynamodb" or "dax".
+	Service string
+	// Region is the AWS region for the endpoint, for example "us-west-1".
+	Region string
+	// Partition is the AWS partition for the endpoint, for example ".amazonaws.com"
+	Partition string
+}
+
+// ParseDynamoDBEndpoint parses and extract info from the provided DynamoDB endpoint.
+func ParseDynamoDBEndpoint(endpoint string) (*DynamoDBEndpointInfo, error) {
+	endpoint = strings.ToLower(endpoint)
+	parts, partition, err := extractAWSEndpointParts(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch len(parts) {
+	case 2, 3:
+	default:
+		return nil, trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
+	}
+	info := &DynamoDBEndpointInfo{
+		Service:   strings.Join(parts[:len(parts)-1], "."),
+		Region:    parts[len(parts)-1],
+		Partition: partition,
+	}
+
+	// check for recognized service name.
+	switch info.Service {
+	case DynamoDBServiceName, DynamoDBFipsServiceName,
+		DynamoDBStreamsServiceName, DAXServiceName:
+	default:
+		return nil, trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
+	}
+
+	// check that the partition is valid for the region.
+	if info.Region == "" || info.Partition == "" {
+		return nil, trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
+	}
+	switch {
+	case info.Partition == AWSCNEndpointSuffix && IsCNRegion(info.Region):
+	case info.Partition == AWSEndpointSuffix && !IsCNRegion(info.Region):
+	default:
+		return nil, trace.BadParameter("invalid AWS region %q for AWS partition %q",
+			info.Region, info.Partition)
+	}
+	return info, nil
+}
+
+// DynamoDBURIForRegion constructs a DynamoDB URI based on the AWS region.
+// The URI uses a custom schema aws:// to differentiate an auto-generated URI from
+// a user-configured URI in the engine.
+// When the Teleport DynamoDB engine sees this custom URI schema, it will resolve
+// the real endpoint using the request API target.
+// https://docs.aws.amazon.com/general/latest/gr/ddb.html
+func DynamoDBURIForRegion(region string) string {
+	var suffix string
+	if IsCNRegion(region) {
+		suffix = AWSCNEndpointSuffix
+	} else {
+		suffix = AWSEndpointSuffix
+	}
+	return fmt.Sprintf("aws://dynamodb.%s%s", region, suffix)
+}
+
+// extractAWSEndpointParts strips the schema, port, and AWS suffix,
+// then splits the prefix by subdomain separator (".") and returns the parts and suffix.
+func extractAWSEndpointParts(endpoint string) ([]string, string, error) {
+	uri, err := removeSchemaAndPort(endpoint)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	prefix, suffix, err := removePartitionSuffix(uri)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return strings.Split(prefix, "."), suffix, nil
 }

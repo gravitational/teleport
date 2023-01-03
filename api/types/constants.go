@@ -21,6 +21,17 @@ const (
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
 
+	// DefaultReleaseServerAddr is the default release service URL
+	DefaultReleaseServerAddr = "rlz.teleport.sh"
+
+	// ReleaseServerEnvVar is the environment variable used to overwrite
+	// the default release server address
+	ReleaseServerEnvVar = "RELEASE_SERVER_HOSTPORT"
+
+	// EnterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
+	// releases on the release server
+	EnterpriseReleaseEndpoint = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
@@ -285,6 +296,9 @@ const (
 	// KindUsageEvent is an external cluster usage event. Similar to
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
+
+	// KindInstance represents a teleport instance independent of any specific service.
+	KindInstance = "instance"
 
 	// V5 is the fifth version of resources.
 	V5 = "v5"

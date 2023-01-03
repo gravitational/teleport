@@ -23,12 +23,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type mockIDTokenValidator struct {
@@ -106,16 +106,16 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := assert.ErrorAssertionFunc(func(t assert.TestingT, err error, i ...interface{}) bool {
-		messageMatch := assert.ErrorContains(t, err, "id token claims did not match any allow rules")
-		typeMatch := assert.True(t, trace.IsAccessDenied(err))
-		return messageMatch && typeMatch
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+		require.ErrorContains(t, err, "id token claims did not match any allow rules")
+		require.True(t, trace.IsAccessDenied(err))
 	})
 	tests := []struct {
-		name        string
-		request     *types.RegisterUsingTokenRequest
-		tokenSpec   types.ProvisionTokenSpecV2
-		assertError assert.ErrorAssertionFunc
+		name          string
+		request       *types.RegisterUsingTokenRequest
+		tokenSpec     types.ProvisionTokenSpecV2
+		assertError   require.ErrorAssertionFunc
+		setEnterprise bool
 	}{
 		{
 			name: "success",
@@ -129,10 +129,10 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				},
 			},
 			request:     newRequest(validIDToken),
-			assertError: assert.NoError,
+			assertError: require.NoError,
 		},
 		{
-			name: "success with ghes override",
+			name: "ghes override",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -143,8 +143,26 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
-			assertError: assert.NoError,
+			request:       newRequest(validIDToken),
+			assertError:   require.NoError,
+			setEnterprise: true,
+		},
+		{
+			name: "ghes override requires enterprise license",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseServerHost: "my.ghes.instance",
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request: newRequest(validIDToken),
+			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrRequiresEnterprise)
+			}),
 		},
 		{
 			name: "multiple allow rules",
@@ -161,7 +179,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				},
 			},
 			request:     newRequest(validIDToken),
-			assertError: assert.NoError,
+			assertError: require.NoError,
 		},
 		{
 			name: "incorrect sub",
@@ -294,6 +312,12 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setEnterprise {
+				modules.SetTestModules(
+					t,
+					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+				)
+			}
 			token, err := types.NewProvisionTokenFromSpec(
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
 			)

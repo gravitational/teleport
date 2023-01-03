@@ -828,6 +828,11 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		return nil, trace.Wrap(err)
@@ -861,19 +866,26 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
-		go func() {
-			<-stream.Done()
-			if err := session.leave(party.ID); err != nil {
-				f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
-			}
-		}()
 
 		err = session.join(party)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
+		closeC := make(chan struct{})
+		go func() {
+			defer close(closeC)
+			select {
+			case <-stream.Done():
+				party.InformClose()
+			case <-party.closeC:
+				return
+			}
+		}()
 		<-party.closeC
+		if _, err := session.leave(party.ID); err != nil {
+			f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+		}
+		<-closeC
 		return nil
 	}(); err != nil {
 		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
@@ -1165,7 +1177,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
@@ -1223,6 +1235,11 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
@@ -1280,7 +1297,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	<-party.closeC
 
-	if err := session.leave(party.ID); err != nil {
+	if _, err := session.leave(party.ID); err != nil {
 		f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
 	}
 
@@ -1297,7 +1314,7 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		// send the status back to the client when forwarding mode is enabled
 		if err := proxy.sendStatus(err); err != nil {
@@ -1320,6 +1337,11 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
@@ -1540,6 +1562,11 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	sess.upgradeToHTTP2 = true
 	sess.forwarder, err = f.makeSessionForwarder(sess)
@@ -1652,6 +1679,15 @@ type clusterSession struct {
 	// A HTTP2 configured transport does not work with connections that are going to be
 	// upgraded to SPDY, like in the cases of exec, port forward...
 	upgradeToHTTP2 bool
+	// monitorCancel is the conn monitor monitorCancel function.
+	monitorCancel context.CancelFunc
+}
+
+// close cancels the connection monitor context if available.
+func (s *clusterSession) close() {
+	if s.monitorCancel != nil {
+		s.monitorCancel()
+	}
 }
 
 // kubeClusterEndpoint can be used to connect to a kube cluster
@@ -1672,13 +1708,15 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	}
 
 	ctx, cancel := context.WithCancel(s.parent.ctx)
+	s.monitorCancel = cancel
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
-		Context: s.parent.ctx,
+		Context: ctx,
 		Cancel:  cancel,
 	})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1698,6 +1736,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	})
 	if err != nil {
 		tc.Close()
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil

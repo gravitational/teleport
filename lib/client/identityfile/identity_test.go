@@ -252,6 +252,8 @@ func assertKubeconfigContents(t *testing.T, path, clusterName, serverAddr, kubeT
 }
 
 func TestIdentityRead(t *testing.T) {
+	t.Parallel()
+
 	// 3 different types of identities
 	ids := []string{
 		"cert-key.pem", // cert + key concatenated together, cert first

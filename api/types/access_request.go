@@ -612,3 +612,24 @@ func (f *AccessRequestFilter) Match(req AccessRequest) bool {
 	}
 	return true
 }
+
+// AccessRequests is a list of AccessRequest resources.
+type AccessRequests []AccessRequest
+
+// ToMap returns these access requests as a map keyed by access request name.
+func (a AccessRequests) ToMap() map[string]AccessRequest {
+	m := make(map[string]AccessRequest)
+	for _, accessRequest := range a {
+		m[accessRequest.GetName()] = accessRequest
+	}
+	return m
+}
+
+// Len returns the slice length.
+func (a AccessRequests) Len() int { return len(a) }
+
+// Less compares access requests by name.
+func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
+
+// Swap swaps two access requests.
+func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }

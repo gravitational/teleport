@@ -56,9 +56,9 @@ Update the included Makefile to define your configuration.
 2. SSH to your new instance. `ssh ec2-user@<cluster_domain>`.
 3. Create a user (this will create a Teleport User and permit login as the local ec2-user).
    - OSS:
-   `tctl users add <username> ec2-user`
-   - Enterprise (requires a role):
-    `tctl users add --roles=admin <username> --logins=ec2-user`
+   `sudo tctl users add <username> --roles=access,editor --logins=ec2-user`
+   - Enterprise:
+    `tctl users add --roles=access,editor <username> --logins=ec2-user`
 4. Click the registration link provided by the output. Set a password and configure your 2fa token.
 5. Success! You've configured a fully functional Teleport cluster.
 
@@ -86,7 +86,7 @@ TF_VAR_license_path ?= "/path/to/license"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-11.1.2"
+TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-11.1.4"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?= "example.com"

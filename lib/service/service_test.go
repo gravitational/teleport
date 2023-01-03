@@ -503,6 +503,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-dynamodb-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -515,6 +516,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-dynamodb",
 			},
 		},
 		{
@@ -529,6 +531,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-dynamodb-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -544,6 +547,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-dynamodb",
 			},
 		},
 	}

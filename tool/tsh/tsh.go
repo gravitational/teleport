@@ -729,7 +729,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 
 	// join
-	join := app.Command("join", "Join the active SSH session")
+	join := app.Command("join", "Join the active SSH or Kubernetes session")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	join.Flag("mode", "Mode of joining the session, valid modes are observer and moderator").Short('m').Default("peer").StringVar(&cf.JoinMode)
 	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
@@ -2441,7 +2441,13 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	for _, a := range active {
 		if a.ServiceName == name {
 			name = formatActiveDB(a)
-			connect = formatDatabaseConnectCommand(clusterFlag, a)
+			switch a.Protocol {
+			case defaults.ProtocolDynamoDB:
+				// DynamoDB does not support "tsh db connect", so print the proxy command instead.
+				connect = formatDatabaseProxyCommand(clusterFlag, a)
+			default:
+				connect = formatDatabaseConnectCommand(clusterFlag, a)
+			}
 		}
 	}
 

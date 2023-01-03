@@ -535,6 +535,8 @@ func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.P
 }
 
 func TestRelogin(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -610,6 +612,8 @@ func TestRelogin(t *testing.T) {
 }
 
 func TestSwitchingProxies(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -732,6 +736,8 @@ func TestSwitchingProxies(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
+	t.Parallel()
+
 	var conf CLIConf
 	conf.HomePath = t.TempDir()
 
@@ -1506,6 +1512,8 @@ func TestSSHAccessRequest(t *testing.T) {
 }
 
 func TestAccessRequestOnLeaf(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1651,6 +1659,8 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func TestFormatConnectCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		clusterFlag string
 		comment     string
@@ -2295,6 +2305,8 @@ func TestSetX11Config(t *testing.T) {
 // TestAuthClientFromTSHProfile tests if API Client can be successfully created from tsh profile where clusters
 // certs are stored separately in CAS directory and in case where legacy certs.pem file was used.
 func TestAuthClientFromTSHProfile(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -2397,13 +2409,11 @@ func withSSHLabel(key, value string) testServerOptFunc {
 	})
 }
 
-func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) (node *service.TeleportProcess) {
+func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) *service.TeleportProcess {
 	var options testServersOpts
 	for _, opt := range opts {
 		opt(&options)
 	}
-
-	var err error
 
 	// Set up a test ssh service.
 	cfg := service.MakeDefaultConfig()
@@ -2425,23 +2435,12 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 		fn(cfg)
 	}
 
-	node, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, node.Start())
-
-	t.Cleanup(func() {
-		require.NoError(t, node.Close())
-		require.NoError(t, node.Wait())
-	})
-
-	// Wait for node to become ready.
-	node.WaitForEventTimeout(10*time.Second, service.NodeSSHReady)
-	require.NoError(t, err, "node didn't start after 10s")
-
-	return node
+	return runTeleport(t, cfg)
 }
 
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+	t.Helper()
+
 	var options testServersOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -2478,14 +2477,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		fn(cfg)
 	}
 
-	auth, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, auth.Start())
-
-	t.Cleanup(func() {
-		require.NoError(t, auth.Close())
-		require.NoError(t, auth.Wait())
-	})
+	auth = runTeleport(t, cfg)
 
 	// Wait for proxy to become ready.
 	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
@@ -2513,19 +2505,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
 
-	proxy, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, proxy.Start())
-
-	t.Cleanup(func() {
-		require.NoError(t, proxy.Close())
-		require.NoError(t, proxy.Wait())
-	})
-
-	// Wait for proxy to become ready.
-	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
-	require.NoError(t, err, "proxy web server didn't start after 10s")
-
+	proxy = runTeleport(t, cfg)
 	return auth, proxy
 }
 
@@ -2616,6 +2596,8 @@ func testSerialization(t *testing.T, expected string, serializer func(string) (s
 }
 
 func TestSerializeVersion(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name     string
 		expected string
@@ -2648,6 +2630,8 @@ func TestSerializeVersion(t *testing.T) {
 }
 
 func TestSerializeApps(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[{
 		"kind": "app",
@@ -2680,12 +2664,16 @@ func TestSerializeApps(t *testing.T) {
 }
 
 func TestSerializeAppsEmpty(t *testing.T) {
+	t.Parallel()
+
 	testSerialization(t, "[]", func(f string) (string, error) {
 		return serializeApps(nil, f)
 	})
 }
 
 func TestSerializeAppConfig(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"name": "my app",
@@ -2710,6 +2698,8 @@ func TestSerializeAppConfig(t *testing.T) {
 }
 
 func TestSerializeDatabases(t *testing.T) {
+	t.Parallel()
+
 	expectedFmt := `
 	[{
     "kind": "db",
@@ -2903,12 +2893,16 @@ func TestSerializeDatabases(t *testing.T) {
 }
 
 func TestSerializeDatabasesEmpty(t *testing.T) {
+	t.Parallel()
+
 	testSerialization(t, "[]", func(f string) (string, error) {
 		return serializeDatabases(nil, f, nil)
 	})
 }
 
 func TestSerializeDatabaseEnvironment(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"A": "1",
@@ -2925,6 +2919,8 @@ func TestSerializeDatabaseEnvironment(t *testing.T) {
 }
 
 func TestSerializeDatabaseConfig(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"name": "my db",
@@ -2949,6 +2945,8 @@ func TestSerializeDatabaseConfig(t *testing.T) {
 }
 
 func TestSerializeNodes(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[{
     "kind": "node",
@@ -2985,12 +2983,16 @@ func TestSerializeNodes(t *testing.T) {
 }
 
 func TestSerializeNodesEmpty(t *testing.T) {
+	t.Parallel()
+
 	testSerialization(t, "[]", func(f string) (string, error) {
 		return serializeNodes(nil, f)
 	})
 }
 
 func TestSerializeClusters(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[
 		{
@@ -3033,6 +3035,8 @@ func TestSerializeClusters(t *testing.T) {
 }
 
 func TestSerializeProfiles(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
   "active": {
@@ -3121,6 +3125,8 @@ func TestSerializeProfiles(t *testing.T) {
 }
 
 func TestSerializeProfilesNoOthers(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"active": {
@@ -3149,6 +3155,8 @@ func TestSerializeProfilesNoOthers(t *testing.T) {
 }
 
 func TestSerializeProfilesNoActive(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"profiles": []
@@ -3193,6 +3201,8 @@ func TestSerializeProfilesWithEnvVars(t *testing.T) {
 }
 
 func TestSerializeEnvironment(t *testing.T) {
+	t.Parallel()
+
 	expected := fmt.Sprintf(`
 	{
 		%q: "example.com",
@@ -3211,6 +3221,8 @@ func TestSerializeEnvironment(t *testing.T) {
 }
 
 func TestSerializeAccessRequests(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
     "kind": "access_request",
@@ -3243,6 +3255,8 @@ func TestSerializeAccessRequests(t *testing.T) {
 }
 
 func TestSerializeKubeSessions(t *testing.T) {
+	t.Parallel()
+
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
@@ -3355,6 +3369,8 @@ func TestSerializeKubeSessions(t *testing.T) {
 }
 
 func TestSerializeKubeClusters(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[
 		{
@@ -3402,6 +3418,8 @@ func TestSerializeKubeClusters(t *testing.T) {
 }
 
 func TestSerializeMFADevices(t *testing.T) {
+	t.Parallel()
+
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
@@ -3802,6 +3820,8 @@ func TestExportingTraces(t *testing.T) {
 }
 
 func TestShowSessions(t *testing.T) {
+	t.Parallel()
+
 	expected := `[
     {
         "ei": 0,

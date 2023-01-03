@@ -95,7 +95,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 
 	clusterName := conn.ServerIdentity.ClusterName
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
