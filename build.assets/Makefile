@@ -435,11 +435,11 @@ release-arm64: buildbox-arm
 #
 # The `release-oss` and `release-enterprise` make targets are for building OSS 
 # and Enterprise releases from GitHub actions. These make targets execute in a
-# container based on a caller-supplued `BUILDBOX` image.
+# container based on a caller-supplied `BUILDBOX` image.
 #
 # Unlike the other release targets, these release targets do not attempt to
 # automatically construct the buildbox image at build time - the build box 
-# image *must* it must be pre-built and the tag suuplied via `MAKE=` on the 
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the 
 # make command line
 #
 # Separating the constrtuction of build environment from the actual build itself 
@@ -461,7 +461,7 @@ release-oss:
 		-w /go/teleport                \
 		-u 1000:1000                   \
 		$(BUILDBOX)					   \
-		make full build-archive -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+		make full build-archive ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-enterprise
 release-enterprise:
@@ -476,8 +476,8 @@ release-enterprise:
 		-v "$(WORKSPACE):/go/teleport" \
 		-w /go/teleport                \
 		-u 1000:1000                   \
-		$(BUILDBOX)					   \
-		make release-unix-only -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+		$(BUILDBOX)                    \
+		make release-unix-only ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 # #############################################################################
 
