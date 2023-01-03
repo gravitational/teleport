@@ -269,6 +269,7 @@ type roleSpec struct {
 	kubeGroups     []string
 	sessionRequire []*types.SessionRequirePolicy
 	sessionJoin    []*types.SessionJoinPolicy
+	setupRoleFunc  func(types.Role)
 }
 
 // createUserAndRole creates Teleport user and role with specified names
@@ -279,7 +280,11 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, usern
 	role.SetKubeGroups(types.Allow, roleSpec.kubeGroups)
 	role.SetSessionRequirePolicies(roleSpec.sessionRequire)
 	role.SetSessionJoinPolicies(roleSpec.sessionJoin)
-	role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard}})
+	if roleSpec.setupRoleFunc == nil {
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard}})
+	} else {
+		roleSpec.setupRoleFunc(role)
+	}
 	err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role

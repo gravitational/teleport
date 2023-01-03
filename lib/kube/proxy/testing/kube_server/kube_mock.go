@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -95,13 +96,15 @@ var statusScheme = runtime.NewScheme()
 var statusCodecs = serializer.NewCodecFactory(statusScheme)
 
 type KubeMockServer struct {
-	router *httprouter.Router
-	log    *log.Entry
-	server *httptest.Server
-	TLS    *tls.Config
-	Addr   net.Addr
-	URL    string
-	CA     []byte
+	router      *httprouter.Router
+	log         *log.Entry
+	server      *httptest.Server
+	TLS         *tls.Config
+	Addr        net.Addr
+	URL         string
+	CA          []byte
+	deletedPods []string
+	mu          sync.Mutex
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -133,6 +136,10 @@ func (s *KubeMockServer) setup() {
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
 	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods", s.withWriter(s.listPods))
+	s.router.GET("/api/:ver/pods", s.withWriter(s.listPods))
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.getPod))
+	s.router.DELETE("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.deletePod))
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
