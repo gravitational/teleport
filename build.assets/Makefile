@@ -454,7 +454,7 @@ release-oss:
 		-w /go/teleport                \
 		-u 1000:1000                   \
 		$(BUILDBOX)					   \
-		make -C .. full build-archive -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+		make full build-archive -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-enterprise
 release-enterprise:
@@ -470,7 +470,7 @@ release-enterprise:
 		-w /go/teleport                \
 		-u 1000:1000                   \
 		$(BUILDBOX)					   \
-		make -C .. release-unix-only -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+		make release-unix-only -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 # #############################################################################
 
