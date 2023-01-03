@@ -1314,8 +1314,10 @@ steps:
   image: docker:git
   commands:
   - set DRONE_BRANCH=master
+  - cd "/go/src/github.com/gravitational/teleport"
   - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE.ENV\nelse\n\techo
     \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE.ENV\nfi"
+  - cat .DRONE.ENV
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
@@ -5047,8 +5049,10 @@ steps:
   image: docker:git
   commands:
   - set DRONE_BRANCH=master
+  - cd "/go/src/github.com/gravitational/teleport"
   - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE.ENV\nelse\n\techo
     \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE.ENV\nfi"
+  - cat .DRONE.ENV
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
@@ -18280,6 +18284,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c85eb0aa564feb1de540f82112e9a722c4400a2a1cf8b909efdb0f696ec129b3
+hmac: 6a7b80baa26cbf444eb176c039ff8bbc0587244ae66a972ef6b2af5046aaae42
 
 ...
