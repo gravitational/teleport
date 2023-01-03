@@ -21,7 +21,7 @@ GitHub Actions with Teleport can be applied as both a viable and secure solution
 CI/CD platform is needed.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
-actions runners. GitHub Enterprise Server requires
+Actions runners. GitHub Enterprise Server requires
 [additional configuration](#github-enterprise-server).
 
 ## Prerequisites
@@ -235,7 +235,7 @@ spec:
   join_method: github
   bot_name: github-demo
   github:
-    // Configure `enterprise_server_host` to the host of your GHES instance.
+    # Configure `enterprise_server_host` to the host of your GHES instance.
     enterprise_server_host: your.ghes.instance.example.com
     allow:
       - repository: gravitational/example
