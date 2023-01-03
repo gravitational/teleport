@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
@@ -152,7 +153,7 @@ type Config struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Events is events service
 	Events types.Events
@@ -261,6 +262,9 @@ type Config struct {
 
 	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
 	AdditionalReadyEvents []string
+
+	// InstanceMetadataClient specifies the instance metadata client.
+	InstanceMetadataClient cloud.InstanceMetadata
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -865,6 +869,8 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	ExternalID string
 	// RedshiftServerless contains AWS Redshift Serverless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless
 }
@@ -1025,8 +1031,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ServerVersion: d.MySQL.ServerVersion,
 		},
 		AWS: types.AWS{
-			AccountID: d.AWS.AccountID,
-			Region:    d.AWS.Region,
+			AccountID:  d.AWS.AccountID,
+			ExternalID: d.AWS.ExternalID,
+			Region:     d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
 			},
@@ -1364,6 +1371,8 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.

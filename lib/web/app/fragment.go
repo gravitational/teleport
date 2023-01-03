@@ -27,14 +27,17 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type fragmentRequest struct {
-	StateValue  string `json:"state_value"`
-	CookieValue string `json:"cookie_value"`
+	StateValue         string `json:"state_value"`
+	CookieValue        string `json:"cookie_value"`
+	SubjectCookieValue string `json:"subject_cookie_value"`
 }
 
 // handleFragment handles fragment authentication. Returns a Javascript
@@ -93,34 +96,75 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 		// Prevent reuse of the same state token.
 		h.setAuthStateCookie(w, "")
 
-		// Validate that the caller is asking for a session that exists.
-		_, err = h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
+		// Validate that the caller is asking for a session that exists and that they have the secret
+		// session token for.
+		ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
 			SessionID: req.CookieValue,
 		})
 		if err != nil {
 			h.log.Warn("Request failed: session does not exist.")
 			return trace.AccessDenied("access denied")
 		}
+		if err := checkSubjectToken(&req, ws); err != nil {
+			h.log.Warnf("Request failed: %v.", err)
+			h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+				Metadata: apievents.Metadata{
+					Type: events.AuthAttemptEvent,
+					Code: events.AuthAttemptFailureCode,
+				},
+				UserMetadata: apievents.UserMetadata{
+					Login: ws.GetUser(),
+					User:  "unknown",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  r.Host,
+					RemoteAddr: r.RemoteAddr,
+				},
+				Status: apievents.Status{
+					Success: false,
+					Error:   err.Error(),
+				},
+			})
+			return trace.AccessDenied("access denied")
+		}
 
 		// Set the "Set-Cookie" header on the response.
+		// Set Same-Site policy for the session cookies to None in order to
+		// support redirects that identity providers do during SSO auth.
+		// Otherwise the session cookie won't be sent and the user will
+		// get redirected to the application launcher.
+		// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
 		http.SetCookie(w, &http.Cookie{
 			Name:     CookieName,
 			Value:    req.CookieValue,
 			Path:     "/",
 			HttpOnly: true,
 			Secure:   true,
-			// Set Same-Site policy for the session cookie to None in order to
-			// support redirects that identity providers do during SSO auth.
-			// Otherwise the session cookie won't be sent and the user will
-			// get redirected to the application launcher.
-			//
-			// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
+			SameSite: http.SameSiteNoneMode,
+		})
+		http.SetCookie(w, &http.Cookie{
+			Name:     SubjectCookieName,
+			Value:    ws.GetBearerToken(),
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
 		})
 		return nil
 	default:
 		return trace.BadParameter("unsupported method %q", r.Method)
 	}
+}
+
+// checkSubjectToken checks that the subject cookie value in the fragment request is not empty and matches the session bearer token.
+func checkSubjectToken(req *fragmentRequest, ws types.WebSession) error {
+	if req.SubjectCookieValue == "" {
+		return trace.AccessDenied("subject session token is not set")
+	}
+	if subtle.ConstantTimeCompare([]byte(req.SubjectCookieValue), []byte(ws.GetBearerToken())) != 1 {
+		return trace.AccessDenied("subject session token does not match")
+	}
+	return nil
 }
 
 func (h *Handler) setAuthStateCookie(w http.ResponseWriter, value string) {
