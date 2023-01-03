@@ -4446,7 +4446,7 @@ func (g *GRPCServer) GetLicense(ctx context.Context, req *proto.GetLicenseReques
 	}, nil
 }
 
-// ListReleases returns the license used to start the auth server.
+// ListReleases returns a list of Teleport Enterprise releases.
 func (g *GRPCServer) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) (*proto.ListReleasesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

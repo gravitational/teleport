@@ -85,7 +85,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	}, nil
 }
 
-// ListRelease calls the release server and returns a list of releases
+// ListReleases calls the release server and returns a list of releases
 func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	if c.client == nil {
 		return nil, trace.BadParameter("client not initialized")
@@ -151,7 +151,7 @@ func GetServerAddr() string {
 	return addr
 }
 
-// Release correspond to a Teleport Enterprise release
+// Release corresponds to a Teleport Enterprise release
 // returned by the release service
 type Release struct {
 	// NotesMD is the notes of the release in markdown
@@ -164,7 +164,7 @@ type Release struct {
 	Status string `json:"status"`
 	// Version is the version of the release
 	Version string `json:"version"`
-	// Asset is a list of assets related to the release
+	// Assets is a list of assets related to the release
 	Assets []*Asset `json:"assets"`
 }
 
@@ -177,13 +177,13 @@ type Asset struct {
 	Description string `json:"description"`
 	// Name is the name of the asset
 	Name string `json:"name"`
-	// Name is which OS the asset is built for
+	// OS is which OS the asset is built for
 	OS string `json:"os"`
 	// SHA256 is the sha256 of the asset
 	SHA256 string `json:"sha256"`
 	// Size is the size of the release in bytes
 	Size int64 `json:"size"`
-	// ReleaseID is a list of releases that have the asset included
+	// ReleaseIDs is a list of releases that have the asset included
 	ReleaseIDs []string `json:"releaseIds"`
 	// PublicURL is the public URL used to download the asset
 	PublicURL string `json:"publicUrl"`

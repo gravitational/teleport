@@ -508,7 +508,7 @@ type Server struct {
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
 
-	// license is the Teleport Enterprise license used to star the auth server
+	// license is the Teleport Enterprise license used to start the auth server
 	license *liblicense.License
 }
 

@@ -4636,7 +4636,7 @@ message Release {
   string Status = 4 [(gogoproto.jsontag) = "status"];
   // Version is the version of the release
   string Version = 5 [(gogoproto.jsontag) = "version"];
-  // Asset is a list of assets related to the release
+  // Assets is a list of assets related to the release
   repeated Asset Assets = 6 [(gogoproto.jsontag) = "assets"];
 }
 
@@ -4648,7 +4648,7 @@ message Asset {
   string Description = 2 [(gogoproto.jsontag) = "description"];
   // Name is the name of the asset
   string Name = 3 [(gogoproto.jsontag) = "name"];
-  // Name is which OS the asset is built for
+  // OS is which OS the asset is built for
   string OS = 4 [(gogoproto.jsontag) = "os"];
   // SHA256 is the sha256 of the asset
   string SHA256 = 5 [(gogoproto.jsontag) = "sha256"];

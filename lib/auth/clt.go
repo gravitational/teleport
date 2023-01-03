@@ -1689,5 +1689,6 @@ type ClientI interface {
 	// GetLicense returns the license used to start Teleport Enterprise
 	GetLicense(ctx context.Context) (string, error)
 
+	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
 }
