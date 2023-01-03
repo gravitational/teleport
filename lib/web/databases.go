@@ -42,6 +42,12 @@ type createDatabaseRequest struct {
 	Labels   []ui.Label `json:"labels,omitempty"`
 	Protocol string     `json:"protocol,omitempty"`
 	URI      string     `json:"uri,omitempty"`
+	AWSRDS   *awsRDS    `json:"awsRds,omitempty"`
+}
+
+type awsRDS struct {
+	AccountID  string `json:"accountId,omitempty"`
+	ResourceID string `json:"resourceId,omitempty"`
 }
 
 func (r *createDatabaseRequest) checkAndSetDefaults() error {
@@ -57,11 +63,20 @@ func (r *createDatabaseRequest) checkAndSetDefaults() error {
 		return trace.BadParameter("missing uri")
 	}
 
+	if r.AWSRDS != nil {
+		if r.AWSRDS.ResourceID == "" {
+			return trace.BadParameter("missing aws rds field resource id")
+		}
+		if r.AWSRDS.AccountID == "" {
+			return trace.BadParameter("missing aws rds field account id")
+		}
+	}
+
 	return nil
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	var req *createDatabaseRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -76,20 +91,30 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		labels[label.Name] = label.Value
 	}
 
+	dbSpec := types.DatabaseSpecV3{
+		Protocol: req.Protocol,
+		URI:      req.URI,
+	}
+
+	if req.AWSRDS != nil {
+		dbSpec.AWS = types.AWS{
+			AccountID: req.AWSRDS.AccountID,
+			RDS: types.RDS{
+				ResourceID: req.AWSRDS.ResourceID,
+			},
+		}
+	}
+
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
 			Name:   req.Name,
 			Labels: labels,
-		},
-		types.DatabaseSpecV3{
-			Protocol: req.Protocol,
-			URI:      req.URI,
-		})
+		}, dbSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,7 +144,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -134,7 +159,7 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,13 +195,13 @@ type databaseIAMPolicyAWS struct {
 }
 
 // handleDatabaseGetIAMPolicy returns the required IAM policy for database.
-func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("missing database name")
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -28,6 +28,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
@@ -324,15 +325,20 @@ func TestRoleUpdate(t *testing.T) {
 	})
 
 	// Updating the role in K8S
+	// The modification can fail because of a conflict with the resource controller. We retry if that happens.
 	var k8sRoleNewVersion resourcesv5.TeleportRole
-	err = setup.k8sClient.Get(ctx, kclient.ObjectKey{
-		Namespace: setup.namespace.Name,
-		Name:      roleName,
-	}, &k8sRoleNewVersion)
-	require.NoError(t, err)
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		err := setup.k8sClient.Get(ctx, kclient.ObjectKey{
+			Namespace: setup.namespace.Name,
+			Name:      roleName,
+		}, &k8sRoleNewVersion)
+		if err != nil {
+			return err
+		}
 
-	k8sRoleNewVersion.Spec.Allow.Logins = append(k8sRoleNewVersion.Spec.Allow.Logins, "admin", "root")
-	err = setup.k8sClient.Update(ctx, &k8sRoleNewVersion)
+		k8sRoleNewVersion.Spec.Allow.Logins = append(k8sRoleNewVersion.Spec.Allow.Logins, "admin", "root")
+		return setup.k8sClient.Update(ctx, &k8sRoleNewVersion)
+	})
 	require.NoError(t, err)
 
 	// Updates the role in Teleport

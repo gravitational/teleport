@@ -215,6 +215,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SQLServerRPCRequest{}
 	case DatabaseSessionElasticsearchRequestEvent:
 		e = &events.ElasticsearchRequest{}
+	case DatabaseSessionDynamoDBRequestEvent:
+		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -269,6 +271,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DesktopSharedDirectoryRead{}
 	case DesktopSharedDirectoryWriteEvent:
 		e = &events.DesktopSharedDirectoryWrite{}
+	case BotJoinEvent:
+		e = &events.BotJoin{}
+	case InstanceJoinEvent:
+		e = &events.InstanceJoin{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

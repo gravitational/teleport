@@ -5,6 +5,7 @@ on:
     branches:
       - master
   pull_request:
+  merge_group:
 
 jobs:
   lint:
@@ -15,7 +16,7 @@ jobs:
       contents: read
 
     container:
-      image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
       env:
         GO_LINT_FLAGS: --timeout=15m
 

@@ -52,15 +52,48 @@ $ kubectl cluster-info
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-Install the Helm chart for the Teleport Cluster with `operator.enabled=true`.
+Install the Helm chart for the Teleport Cluster with `operator.enabled=true`:
+
+<Tabs>
+<TabItem scope="oss" label="Teleport Community Edition">
 
 ```code
 $ helm install teleport-cluster teleport/teleport-cluster \
         --create-namespace --namespace teleport-cluster \
         --set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
         --set operator.enabled=true \
-        --set teleportVersionOverride=(=teleport.version=)
+        --version (=teleport.version=)
 ```
+</TabItem>
+<TabItem scope="enterprise" label="Teleport Enterprise">
+
+Create a namespace for your Teleport cluster resources:
+
+```code
+$ kubectl create namespace teleport-cluster
+```
+
+Obtain your Teleport Enterprise license file from the [Teleport Customer
+Portal](https://dashboard.gravitational.com/web/login). Create a secret called
+"license" in the namespace you created:
+
+```code
+$ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
+```
+
+Deploy your Teleport cluster and the Teleport Kubernetes Operator:
+
+```code
+$ helm install teleport-cluster teleport/teleport-cluster \
+        --namespace teleport-cluster \
+        --set enterprise=true \
+        --set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
+        --set operator.enabled=true \
+        --version (=teleport.version=)
+```
+</TabItem>
+
+</Tabs>
 
 This command installs the required Kubernetes CRDs and deploys the Teleport Kubernetes Operator next to the Teleport
 cluster. All resources (except CRDs, which are cluster-scoped) are created in the `teleport-cluster` namespace.

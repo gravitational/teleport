@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 )
 
-// CertAuthority is a host or user certificate authority that
-// can check and if it has private key stored as well, sign it too
+// CertAuthority is a host or user certificate authority that can check and if
+// it has private key stored as well, sign it too.
 type CertAuthority interface {
 	// ResourceWithSecrets sets common resource properties
 	ResourceWithSecrets
