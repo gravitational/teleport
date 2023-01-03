@@ -469,7 +469,7 @@ release-oss:
 
 .PHONY: release-enterprise
 release-enterprise:
-	$(call RELEASE_RECIPE,full release-unix-only)
+	$(call RELEASE_RECIPE,release-unix-only)
 
 # #############################################################################
 
