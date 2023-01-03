@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "build-ui": "yarn build-ui-oss && yarn build-ui-e",
     "build-ui-oss": "yarn workspace @gravitational/teleport build --output-path=../../../webassets/teleport/app",
     "build-ui-e": "yarn workspace @gravitational/teleport.e build --output-path=../../../webassets/e/teleport/app",
     "build-teleport": "yarn workspace @gravitational/namespaces build-teleport",

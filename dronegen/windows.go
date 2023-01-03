@@ -168,7 +168,6 @@ func updateWindowsSubreposStep(workspace string) step {
 			`Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY`,
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
-			`git submodule update --init --recursive webassets`,
 			`Reset-Git -Workspace $Workspace`,
 		},
 	}
@@ -266,7 +265,6 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`Enable-Node -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`Push-Location $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
-			`Pop-Location`,
 			`$Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"`,
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
