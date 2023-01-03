@@ -1655,14 +1655,16 @@ func listNodesAllClusters(cf *CLIConf) error {
 					return trace.Wrap(err)
 				}
 
-				mu.Lock()
+				var localListings nodeListings
 				for _, node := range nodes {
-					listings = append(listings, nodeListing{
+					localListings = append(localListings, nodeListing{
 						Proxy:   profile.ProxyURL.Host,
 						Cluster: site.Name,
 						Node:    node,
 					})
 				}
+				mu.Lock()
+				listings = append(listings, localListings...)
 				mu.Unlock()
 			}
 
