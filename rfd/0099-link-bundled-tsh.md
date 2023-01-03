@@ -132,8 +132,7 @@ Similar to Linux, we can symlink the binary to `/usr/local/bin/tsh`. The tsh .pk
 places the binary there. We'll still need to ask about administrator privileges because that
 directory is owned by root.
 
-Running the command will overwrite an existing symlink if present – we should emit a warning if that
-happened.
+Running the command will overwrite an existing symlink if present.
 
 We will also add `tsh uninstall` which will remove the symlink. Both commands will be present only
 in the macOS version of the app.
