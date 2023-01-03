@@ -1807,6 +1807,59 @@ should not mount TLS secrets when when highAvailability.certManager.enabled is f
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
+should not mount secret when credentialSecretName is blank in values:
+  1: |
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should not set securityContext when is empty object (default value):
   1: |
     containers:
