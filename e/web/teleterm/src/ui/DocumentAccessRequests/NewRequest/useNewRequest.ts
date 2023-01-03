@@ -14,6 +14,7 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { ServerSideParams } from 'teleterm/services/tshd/types';
 import { routing } from 'teleterm/ui/uri';
+import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import type {
   AgentLabel,
@@ -30,6 +31,8 @@ export default function useNewRequest() {
   const { accessRequestsService, localClusterUri: clusterUri } =
     useWorkspaceContext();
 
+  const loggedInUser = useLoggedInUser();
+
   const isLeafCluster = routing.isLeafCluster(clusterUri);
 
   const { attempt, setAttempt } = useAttempt('processing');
@@ -37,7 +40,7 @@ export default function useNewRequest() {
   const [fetchedData, setFetchedData] = useState<AgentResponse<AgentKind>>(
     getEmptyFetchedDataState()
   );
-  const [requestableRoles, setRequestableRoles] = useState<string[]>([]);
+  const requestableRoles = loggedInUser.requestableRolesList || [];
   const [selectedResource, setSelectedResource] =
     useState<ResourceKind>('node');
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
@@ -92,22 +95,8 @@ export default function useNewRequest() {
   }
 
   const fetch = useCallback(async () => {
-    try {
-      // currently, we need to fetch roles for the current user
-      // in the future it'd be nice to have this array of requestable roles
-      // on the loggedInUser object
-      if (selectedResource === 'role') {
-        setFetchStatus('loading');
-        const data = await retry(() =>
-          ctx.clustersService.getRequestableRoles({
-            rootClusterUri: ctx.workspacesService.getRootClusterUri(),
-            resourceIds: [],
-          })
-        );
-        setRequestableRoles(data.rolesList);
-        setAttempt({ status: 'success' });
-        setFetchStatus('');
-      } else {
+    if (selectedResource !== 'role') {
+      try {
         setFetchStatus('loading');
         const data = await getFetchCallback({
           clusterUri,
@@ -126,10 +115,10 @@ export default function useNewRequest() {
         });
         setAttempt({ status: 'success' });
         setFetchStatus('');
+      } catch (err) {
+        setAttempt({ status: 'failed', statusText: err.message });
+        setFetchStatus('');
       }
-    } catch (err) {
-      setAttempt({ status: 'failed', statusText: err.message });
-      setFetchStatus('');
     }
   }, [agentFilter, clusterUri, selectedResource]);
 

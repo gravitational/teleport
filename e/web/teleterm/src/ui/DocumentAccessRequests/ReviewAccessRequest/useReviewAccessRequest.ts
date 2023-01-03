@@ -4,7 +4,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { AssumedRequest, LoggedInUser } from 'teleterm/services/tshd/types';
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
-import { useIdentity } from 'teleterm/ui/TopBar/Identity/useIdentity';
+import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { retryWithRelogin } from 'teleterm/ui/utils';
@@ -17,7 +17,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
   ctx.clustersService.useState();
 
   const { localClusterUri: clusterUri, rootClusterUri } = useWorkspaceContext();
-  const identity = useIdentity();
+  const loggedInUser = useLoggedInUser();
   const [request, setRequest] = useState<AccessRequest>(null);
   const { attempt, run: runGetRequest } = useAttempt('processing');
   const { attempt: submitReviewAttempt, run: runSubmitReview } = useAttempt('');
@@ -39,13 +39,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
           .then(r => {
             const req = makeUiAccessRequest(r);
             setRequest(req);
-            setFlags(
-              getRequestFlags(
-                req,
-                identity?.activeRootCluster?.loggedInUser,
-                assumed
-              )
-            );
+            setFlags(getRequestFlags(req, loggedInUser, assumed));
           })
       )
     );
@@ -57,9 +51,8 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
   }, [assumed]);
 
   function updateFlags() {
-    const user = identity?.activeRootCluster?.loggedInUser;
-    if (request && user) {
-      setFlags(getRequestFlags(request, user, assumed));
+    if (request && loggedInUser) {
+      setFlags(getRequestFlags(request, loggedInUser, assumed));
     }
   }
 
@@ -103,7 +96,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
   }
 
   return {
-    user: identity.activeRootCluster?.loggedInUser,
+    user: loggedInUser,
     requestId,
     request,
     goBack,

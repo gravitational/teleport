@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
+import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { ResourceKind } from '../NewRequest/useNewRequest';
@@ -14,6 +15,9 @@ export default function useAccessRequestCheckout() {
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
+
+  const loggedInUser = useLoggedInUser();
+  const suggestedReviewers = loggedInUser?.suggestedReviewersList || [];
 
   const [showCheckout, setShowCheckout] = useState(false);
   const [hasExited, setHasExited] = useState(false);
@@ -198,5 +202,6 @@ export default function useAccessRequestCheckout() {
     createRequestAttempt,
     collapseBar,
     setShowCheckout,
+    suggestedReviewers,
   };
 }

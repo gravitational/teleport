@@ -5,10 +5,10 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
 import { makeAccessRequest, AccessRequest } from 'e-teleport/services/workflow';
 
-import { useIdentity } from 'teleterm/ui/TopBar/Identity/useIdentity';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();
@@ -21,7 +21,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   } = useWorkspaceContext();
 
   const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
-  const identity = useIdentity();
+  const loggedInUser = useLoggedInUser();
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>();
   const { attempt, setAttempt } = useAttempt('');
   const { attempt: assumeRoleAttempt, run: runAssumeRole } = useAttempt('');
@@ -29,8 +29,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   // transform tsdh Access Request type into the web's Access Request
   // to promote code reuse
   function makeRow(request: AccessRequest) {
-    const ownRequest =
-      request.user === identity?.activeRootCluster?.loggedInUser.name;
+    const ownRequest = request.user === loggedInUser?.name;
     const canAssume = ownRequest && request.state === 'APPROVED';
     const isAssumed = assumed[request.id];
 

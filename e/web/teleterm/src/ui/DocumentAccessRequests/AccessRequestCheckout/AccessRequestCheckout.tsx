@@ -61,6 +61,7 @@ export function AccessRequestCheckout() {
     setSelectedResourceRequestRoles,
     clearCreateAttempt,
     data,
+    suggestedReviewers,
     assumedRequests,
     requestedCount,
     goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
@@ -112,7 +113,7 @@ export function AccessRequestCheckout() {
             setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
             createRequest={createRequest}
             clearAttempt={clearCreateAttempt}
-            reviewers={[]} // need a way to get reviewers as options. for now you can create a text entry
+            reviewers={suggestedReviewers}
             requireReason={false}
             numRequestedResources={requestedCount}
             isResourceRequest={data[0]?.kind !== 'role'}
