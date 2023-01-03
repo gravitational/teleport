@@ -54,8 +54,8 @@ func main() {
 	}
 }
 
-// scanForSubmodules collects all of the submodules that the root repoitory has
-// coinfigured (optionally recursively) and compiles them into a single list
+// scanForSubmodules collects all of the submodules that the root repository has
+// configured (optionally recursively) and compiles them into a single list.
 func scanForSubmodules(root *git.Repository, recursive bool) ([]*git.Repository, error) {
 	queue := []*git.Repository{root}
 	result := []*git.Repository{root}
@@ -119,7 +119,7 @@ func tagRepos(repos []*git.Repository, tag, annotation string, force bool) error
 			if !force {
 				return trace.Wrap(err, "Failed extracting worktree")
 			}
-			log.Printf("WARNING: failed extracting woirktree")
+			log.Printf("WARNING: failed extracting worktree")
 			continue
 		}
 
@@ -127,17 +127,17 @@ func tagRepos(repos []*git.Repository, tag, annotation string, force bool) error
 
 		tagExists, err := statTag(repo, tag)
 		if err != nil {
-			return trace.Wrap(err, "failed enumerating tags")
+			return trace.Wrap(err)
 		}
 
 		if tagExists {
 			if !force {
 				return trace.BadParameter("tag already exists")
 			}
-			log.Printf("WARNING: tag \"%s\" already exists. Deleting.", tag)
+			log.Printf("WARNING: tag %q already exists. Deleting.", tag)
 			err = repo.DeleteTag(tag)
 			if err != nil {
-				log.Printf("WARNING: Faled to delete tag: %s", err)
+				log.Printf("WARNING: Failed to delete tag: %s", err)
 				continue
 			}
 		}
@@ -151,7 +151,7 @@ func tagRepos(repos []*git.Repository, tag, annotation string, force bool) error
 		_, err = repo.CreateTag(tag, head.Hash(), opts)
 		if err != nil {
 			if !force {
-				return trace.Wrap(err, "")
+				return trace.Wrap(err)
 			}
 			log.Printf("Failed to set tag: %s", err)
 		}
@@ -211,7 +211,7 @@ func statTag(repo *git.Repository, tag string) (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err, "failed listing tags")
 	}
-	simpleTags.ForEach(func(t *plumbing.Reference) error {
+	err = simpleTags.ForEach(func(t *plumbing.Reference) error {
 		if t.Name().String() == tagpath {
 			res = true
 			return nil
