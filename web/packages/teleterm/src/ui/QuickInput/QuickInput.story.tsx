@@ -59,6 +59,8 @@ export const Story = () => {
           acl: {},
           sshLoginsList: [],
           rolesList: [],
+          requestableRolesList: [],
+          suggestedReviewersList: [],
         },
       },
     ];

@@ -20,6 +20,8 @@ const clusterMock: tsh.Cluster = {
     acl: {},
     sshLoginsList: [],
     rolesList: [],
+    requestableRolesList: [],
+    suggestedReviewersList: [],
   },
 };
 

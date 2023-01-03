@@ -637,6 +637,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   private async syncClusterInfo(clusterUri: uri.RootClusterUri) {
     const cluster = await this.client.getCluster(clusterUri);
+    // TODO: this information should eventually be gathered by getCluster
     const assumedRequests = cluster.loggedInUser
       ? await this.fetchClusterAssumedRequests(
           cluster.loggedInUser.activeRequestsList,

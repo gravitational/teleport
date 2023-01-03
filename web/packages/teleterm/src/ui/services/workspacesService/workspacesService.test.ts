@@ -36,6 +36,8 @@ describe('restoring workspace', () => {
             name: 'Alice',
             rolesList: [],
             sshLoginsList: [],
+            requestableRolesList: [],
+            suggestedReviewersList: [],
           },
         },
       ],
