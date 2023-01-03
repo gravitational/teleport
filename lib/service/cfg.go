@@ -1303,16 +1303,16 @@ type LDAPDiscoveryConfig struct {
 	// BaseDN is the base DN to search for desktops.
 	// Use the value '*' to search from the root of the domain,
 	// or leave blank to disable desktop discovery.
-	BaseDN string `yaml:"base_dn"`
+	BaseDN string
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
-	Filters []string `yaml:"filters"`
+	Filters []string
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
-	LabelAttributes []string `yaml:"label_attributes"`
+	LabelAttributes []string
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
