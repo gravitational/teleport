@@ -2755,11 +2755,11 @@ func onSSH(cf *CLIConf) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-				printNodesAsText(os.Stderr, nodes, true)
-				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
-				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
-				fmt.Fprintf(os.Stderr, "\n")
+				fmt.Fprintf(cf.Stderr(), "error: ambiguous host could match multiple nodes\n\n")
+				printNodesAsText(cf.Stderr(), nodes, true)
+				fmt.Fprintf(cf.Stderr(), "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
+				fmt.Fprintf(cf.Stderr(), "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
+				fmt.Fprintf(cf.Stderr(), "\n")
 				return trace.Wrap(&exitCodeError{code: 1})
 			}
 			return trace.Wrap(err)
