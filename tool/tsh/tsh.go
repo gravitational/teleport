@@ -1964,7 +1964,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 					return trace.Wrap(err)
 				}
 
-				var localListings nodeListings
+				localListings := make(nodeListings, 0, len(nodes))
 				for _, node := range nodes {
 					localListings = append(localListings, nodeListing{
 						Proxy:   profile.ProxyURL.Host,
