@@ -51,6 +51,9 @@ message LoggedInUser {
   ACL acl = 4;
   // active_requests is an array of request-id strings of active requests
   repeated string active_requests = 5;
+
+  repeated string suggested_reviewers = 6;
+  repeated string requestable_roles = 7;
 }
 
 // ACL is the access control list of the user
