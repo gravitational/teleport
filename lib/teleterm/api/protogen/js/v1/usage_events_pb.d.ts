@@ -12,10 +12,10 @@ export class ReportUsageEventRequest extends jspb.Message {
     setAuthClusterId(value: string): ReportUsageEventRequest;
 
 
-    hasPrehogEvent(): boolean;
-    clearPrehogEvent(): void;
-    getPrehogEvent(): prehog_v1alpha_connect_pb.SubmitConnectEventRequest | undefined;
-    setPrehogEvent(value?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest): ReportUsageEventRequest;
+    hasPrehogReq(): boolean;
+    clearPrehogReq(): void;
+    getPrehogReq(): prehog_v1alpha_connect_pb.SubmitConnectEventRequest | undefined;
+    setPrehogReq(value?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest): ReportUsageEventRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -31,6 +31,6 @@ export class ReportUsageEventRequest extends jspb.Message {
 export namespace ReportUsageEventRequest {
     export type AsObject = {
         authClusterId: string,
-        prehogEvent?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest.AsObject,
+        prehogReq?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest.AsObject,
     }
 }

@@ -120,12 +120,12 @@ func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 }
 
 func convertAndAnonymizeApiEvent(event *api.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
-	prehogEvent := event.PrehogEvent
+	prehogReq := event.PrehogReq
 
 	// non-anonymized
-	switch prehogEvent.GetEvent().(type) {
+	switch prehogReq.GetEvent().(type) {
 	case *prehogapi.SubmitConnectEventRequest_UserJobRoleUpdate:
-		return prehogEvent, nil
+		return prehogReq, nil
 	}
 
 	// anonymized
@@ -133,31 +133,31 @@ func convertAndAnonymizeApiEvent(event *api.ReportUsageEventRequest) (*prehogapi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch e := prehogEvent.GetEvent().(type) {
+	switch e := prehogReq.GetEvent().(type) {
 	case *prehogapi.SubmitConnectEventRequest_UserLogin:
 		e.UserLogin.ClusterName = anonymizer.AnonymizeString(e.UserLogin.ClusterName)
 		e.UserLogin.UserName = anonymizer.AnonymizeString(e.UserLogin.UserName)
-		return prehogEvent, nil
+		return prehogReq, nil
 	case *prehogapi.SubmitConnectEventRequest_ProtocolUse:
 		e.ProtocolUse.ClusterName = anonymizer.AnonymizeString(e.ProtocolUse.ClusterName)
 		e.ProtocolUse.UserName = anonymizer.AnonymizeString(e.ProtocolUse.UserName)
-		return prehogEvent, nil
+		return prehogReq, nil
 	case *prehogapi.SubmitConnectEventRequest_AccessRequestCreate:
 		e.AccessRequestCreate.ClusterName = anonymizer.AnonymizeString(e.AccessRequestCreate.ClusterName)
 		e.AccessRequestCreate.UserName = anonymizer.AnonymizeString(e.AccessRequestCreate.UserName)
-		return prehogEvent, nil
+		return prehogReq, nil
 	case *prehogapi.SubmitConnectEventRequest_AccessRequestReview:
 		e.AccessRequestReview.ClusterName = anonymizer.AnonymizeString(e.AccessRequestReview.ClusterName)
 		e.AccessRequestReview.UserName = anonymizer.AnonymizeString(e.AccessRequestReview.UserName)
-		return prehogEvent, nil
+		return prehogReq, nil
 	case *prehogapi.SubmitConnectEventRequest_AccessRequestAssumeRole:
 		e.AccessRequestAssumeRole.ClusterName = anonymizer.AnonymizeString(e.AccessRequestAssumeRole.ClusterName)
 		e.AccessRequestAssumeRole.UserName = anonymizer.AnonymizeString(e.AccessRequestAssumeRole.UserName)
-		return prehogEvent, nil
+		return prehogReq, nil
 	case *prehogapi.SubmitConnectEventRequest_FileTransferRun:
 		e.FileTransferRun.ClusterName = anonymizer.AnonymizeString(e.FileTransferRun.ClusterName)
 		e.FileTransferRun.UserName = anonymizer.AnonymizeString(e.FileTransferRun.UserName)
-		return prehogEvent, nil
+		return prehogReq, nil
 	}
 
 	return nil, trace.BadParameter("unexpected Event usage type %T", event)
