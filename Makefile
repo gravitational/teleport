@@ -415,7 +415,7 @@ clean-ui:
 .PHONY:
 export
 release:
-	@echo "---> $(RELEASE_MESSAGE)"
+	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
 else ifeq ("$(OS)", "darwin")
@@ -1237,7 +1237,7 @@ backport:
 
 .PHONY: ensure-js-deps
 ensure-js-deps:
-	yarn
+	yarn install --ignore-scripts
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
@@ -1247,16 +1247,6 @@ build-ui: ensure-js-deps
 build-ui-e: ensure-js-deps
 	yarn build-ui-e
 
-.PHONY: build-ui-docker
-build-ui-docker:
-	docker build --build-arg NPM_CMD=build-ui-oss -f ./build.assets/Dockerfile-web -t webui .
-	docker run --name build-webassets -d webui
-	docker cp build-webassets:/webapp/webassets/. $(PWD)/webassets
-	docker rm -f build-webassets
-
-.PHONY: build-ui-e-docker
-build-ui-e-docker:
-	docker build --build-arg NPM_CMD=build-ui-e -f ./build.assets/Dockerfile-web -t webui-e .
-	docker run --name build-webassets-e -d webui-e
-	docker cp build-webassets-e:/webapp/webassets/e/. $(PWD)/webassets/e
-	docker rm -f build-webassets-e
+.PHONY: docker-ui
+docker-ui:
+	$(MAKE) -C build.assets ui
