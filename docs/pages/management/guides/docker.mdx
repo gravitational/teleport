@@ -20,8 +20,7 @@ Service) or explore the Auth and Proxy Services locally.
 <Tabs>
 <TabItem scope={["oss"]} label="Open Source">
 
-- Docker v(=docker.version=) or later. We currently only offer Docker images for
-  `x86_64` architectures.
+- Docker v(=docker.version=) or later.
 
 ```code
 $ docker version
@@ -37,8 +36,7 @@ $ docker version
 - A Teleport Enterprise account. If you do not have one, use our [signup
   form](https://goteleport.com/signup/enterprise/) to schedule a demo with the
   Teleport Sales Team.
-- Docker v(=docker.version=) or later. We currently only offer Docker images for
-  `x86_64` architectures.
+- Docker v(=docker.version=) or later.
 
 ```code
 $ docker version
@@ -93,6 +91,9 @@ We provide pre-built Docker images for every version of Teleport.
 Create Teleport configs and start the process with the following `docker run` commands:
 
 ```code
+# Docker image to use. The default is the x86 64 version.  Add -arm64 or -arm
+# to the end (ex: (=teleport.latest_oss_docker_image=)-arm64 to get the arm versions.
+$ TELEPORT_DOCKER_IMAGE=(=teleport.latest_oss_docker_image=)
 # Create local config and data directories for Teleport, which will be mounted
 # into the container.
 $ mkdir -p ~/teleport/config ~/teleport/data
@@ -101,13 +102,13 @@ $ mkdir -p ~/teleport/config ~/teleport/data
 $ docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
-  (=teleport.latest_oss_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
+  ${TELEPORT_DOCKER_IMAGE} -c "teleport configure > /etc/teleport/teleport.yaml"
 # Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
-  (=teleport.latest_oss_docker_image=)
+  ${TELEPORT_DOCKER_IMAGE}
 ```
 
 </TabItem>
