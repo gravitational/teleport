@@ -1621,7 +1621,15 @@ func (process *TeleportProcess) initAuthService() error {
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
-	authorizer, err := auth.NewAuthorizer(clusterName, authServer, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: authServer,
+		LockWatcher: lockWatcher,
+		// Auth Server does explicit device authorization.
+		// Various Auth APIs must allow access to unauthorized devices, otherwise it
+		// is not possible to acquire device-aware certificates in the first place.
+		DisableDeviceAuthorization: true,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3746,7 +3754,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+			ClusterName: clusterName,
+			AccessPoint: accessPoint,
+			LockWatcher: lockWatcher,
+			// TODO(codingllama): Enable after testing.
+			DisableDeviceAuthorization: true,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3808,7 +3822,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
 	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+			ClusterName: clusterName,
+			AccessPoint: accessPoint,
+			LockWatcher: lockWatcher,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -4515,7 +4533,13 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+			ClusterName: clusterName,
+			AccessPoint: accessPoint,
+			LockWatcher: lockWatcher,
+			// Device authorization breaks browser-based access.
+			DisableDeviceAuthorization: true,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
