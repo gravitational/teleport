@@ -25,6 +25,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/ghodss/yaml"
@@ -146,20 +147,9 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	group, groupCtx := errgroup.WithContext(cf.Context)
 	group.SetLimit(4)
 
-	dbListingsResultChan := make(chan databaseListings)
-	dbListingsCollectChan := make(chan databaseListings)
-	go func() {
-		var dbListings databaseListings
-		for {
-			select {
-			case items := <-dbListingsCollectChan:
-				dbListings = append(dbListings, items...)
-			case <-groupCtx.Done():
-				dbListingsResultChan <- dbListings
-				return
-			}
-		}
-	}()
+	// mu guards access to dbListings
+	var mu sync.Mutex
+	var dbListings databaseListings
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		group.Go(func() error {
@@ -174,7 +164,6 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			var dbListings databaseListings
 			for _, site := range sites {
 				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
 				if err != nil {
@@ -189,6 +178,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 					}
 				}
 
+				mu.Lock()
 				for _, database := range databases {
 					dbListings = append(dbListings, databaseListing{
 						Proxy:    profile.ProxyURL.Host,
@@ -197,9 +187,9 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 						Database: database,
 					})
 				}
+				mu.Unlock()
 			}
 
-			dbListingsCollectChan <- dbListings
 			return nil
 		})
 		return nil
@@ -212,7 +202,6 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	dbListings := <-dbListingsResultChan
 	sort.Sort(dbListings)
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
