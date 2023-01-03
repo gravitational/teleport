@@ -22,7 +22,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -154,20 +153,10 @@ func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, prox
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
 	cfg.Apps.Enabled = true
 	cfg.Apps.Apps = apps
 	cfg.Log = utils.NewLoggerForTests()
 
-	srv, err := service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, srv.Start())
-
-	t.Cleanup(func() {
-		srv.Close()
-	})
-
-	// Wait for apps agent to start.
-	_, err = srv.WaitForEventTimeout(10*time.Second, service.AppsReady)
-	require.NoError(t, err, "app server didn't start after 10s")
-	return srv
+	return runTeleport(t, cfg)
 }

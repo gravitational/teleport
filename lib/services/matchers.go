@@ -19,8 +19,11 @@ package services
 import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
 // ResourceMatcher matches cluster resources.
@@ -98,6 +101,40 @@ type GCPMatcher struct {
 	Tags types.Labels `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project IDs where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
+}
+
+// SimplifyAzureMatchers returns simplified Azure Matchers.
+// Selectors are deduplicated, wildcard in a selector reduces the selector
+// to just the wildcard, and defaults are applied.
+func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
+	result := make([]AzureMatcher, 0, len(matchers))
+	for _, m := range matchers {
+		subs := apiutils.Deduplicate(m.Subscriptions)
+		groups := apiutils.Deduplicate(m.ResourceGroups)
+		regions := apiutils.Deduplicate(m.Regions)
+		ts := apiutils.Deduplicate(m.Types)
+		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
+			subs = []string{types.Wildcard}
+		}
+		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
+			groups = []string{types.Wildcard}
+		}
+		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
+			regions = []string{types.Wildcard}
+		} else {
+			for i, region := range regions {
+				regions[i] = azureutils.NormalizeLocation(region)
+			}
+		}
+		result = append(result, AzureMatcher{
+			Subscriptions:  subs,
+			ResourceGroups: groups,
+			Regions:        regions,
+			Types:          ts,
+			ResourceTags:   m.ResourceTags,
+		})
+	}
+	return result
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.

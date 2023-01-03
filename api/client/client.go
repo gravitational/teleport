@@ -2984,3 +2984,22 @@ func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 
 	return trail.FromGRPC(err)
 }
+
+// GetLicense returns the license used to start the teleport enterprise auth server
+func (c *Client) GetLicense(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetLicense(ctx, &proto.GetLicenseRequest{})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return string(resp.License), nil
+}
+
+// ListReleases returns a list of teleport enterprise releases
+func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) ([]*types.Release, error) {
+	resp, err := c.grpc.ListReleases(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.Releases, nil
+}

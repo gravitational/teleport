@@ -42,6 +42,7 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -100,6 +102,9 @@ const (
 const (
 	// githubCacheTimeout is how long Github org entries are cached.
 	githubCacheTimeout = time.Hour
+
+	// mfaDeviceNameMaxLen is the maximum length of a device name.
+	mfaDeviceNameMaxLen = 30
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -191,7 +196,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
 	if cfg.UsageReporter == nil {
-		cfg.UsageReporter = local.NewDiscardUsageReporter()
+		cfg.UsageReporter = services.NewDiscardUsageReporter()
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -223,7 +228,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	services := &Services{
 		Trust:                 cfg.Trust,
-		Presence:              cfg.Presence,
+		PresenceInternal:      cfg.Presence,
 		Provisioner:           cfg.Provisioner,
 		Identity:              cfg.Identity,
 		Access:                cfg.Access,
@@ -260,7 +265,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence),
+		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
@@ -304,7 +309,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 type Services struct {
 	services.Trust
-	services.Presence
+	services.PresenceInternal
 	services.Provisioner
 	services.Identity
 	services.Access
@@ -389,10 +394,19 @@ var (
 		[]string{teleport.TagVersion},
 	)
 
+	migrations = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricMigrations,
+			Help:      "Migrations tracks for each migration if it is active (1) or not (0).",
+		},
+		[]string{teleport.TagMigration},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
-		registeredAgents,
+		registeredAgents, migrations,
 	}
 )
 
@@ -414,6 +428,8 @@ type Server struct {
 
 	samlAuthService SAMLService
 	oidcAuthService OIDCService
+
+	releaseService release.Client
 
 	sshca.Authority
 
@@ -491,6 +507,9 @@ type Server struct {
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
+
+	// license is the Teleport Enterprise license used to start the auth server
+	license *liblicense.License
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -507,6 +526,17 @@ func (a *Server) SetOIDCService(svc OIDCService) {
 	a.oidcAuthService = svc
 }
 
+// SetLicense sets the license
+func (a *Server) SetLicense(license *liblicense.License) {
+	a.license = license
+}
+
+// SetReleaseService sets the release service
+func (a *Server) SetReleaseService(svc release.Client) {
+	a.releaseService = svc
+}
+
+// CloseContext returns the close context
 func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
@@ -1604,6 +1634,19 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pinnedIP := ""
+	if req.checker.PinSourceIP() {
+		if req.clientIP == "" && req.sourceIP == "" {
+			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error instead of warning.
+			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
+		}
+
+		pinnedIP = req.clientIP
+		if req.sourceIP != "" {
+			pinnedIP = req.sourceIP
+		}
+	}
+
 	params := services.UserCertParams{
 		CASigner:                sshSigner,
 		PublicUserKey:           req.publicKey,
@@ -1627,7 +1670,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Generation:              req.generation,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
-		SourceIP:                req.sourceIP,
+		SourceIP:                pinnedIP,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		DeviceID:                req.deviceExtensions.DeviceID,
@@ -2307,6 +2350,10 @@ type newMFADeviceFields struct {
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
 func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADeviceFields) (*types.MFADevice, error) {
+	if len(req.newDeviceName) > mfaDeviceNameMaxLen {
+		return nil, trace.BadParameter("device name must be %v characters or less", mfaDeviceNameMaxLen)
+	}
+
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2910,15 +2957,93 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
+	const pingAttempt = "ping-attempt"
+	const pingSuccess = "ping-success"
+	const maxAttempts = 16
 	stream, ok := a.inventory.GetControlStream(req.ServerID)
 	if !ok {
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	d, err := stream.Ping(ctx)
+	id := insecurerand.Uint64()
+
+	if !req.ControlLog {
+		// this ping doesn't pass through the control log, so just execute it immediately.
+		d, err := stream.Ping(ctx, id)
+		return proto.InventoryPingResponse{
+			Duration: d,
+		}, trace.Wrap(err)
+	}
+
+	// matchEntry is used to check if our log entry has been included
+	// in the control log.
+	matchEntry := func(entry types.InstanceControlLogEntry) bool {
+		return entry.Type == pingAttempt && entry.ID == id
+	}
+
+	var included bool
+	for i := 1; i <= maxAttempts; i++ {
+		stream.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
+			// check if we've already successfully included the ping entry
+			if ref.LastHeartbeat != nil {
+				if slices.IndexFunc(ref.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
+					included = true
+					return
+				}
+			}
+
+			// if the entry pending already, we just need to wait
+			if slices.IndexFunc(ref.QualifiedPendingControlLog, matchEntry) >= 0 {
+				return
+			}
+
+			// either this is the first iteration, or the pending control log was reset.
+			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+				Type: pingAttempt,
+				ID:   id,
+				Time: time.Now(),
+			})
+			stream.HeartbeatInstance()
+			return
+		})
+
+		if included {
+			// entry appeared in control log
+			break
+		}
+
+		// pause briefly, then re-sync our state. note that this strategy is not scalable. control log usage is intended only
+		// for periodic operations. control-log based pings are a mechanism for testing/debugging only, hence the use of a
+		// simple sleep loop.
+		select {
+		case <-time.After(time.Millisecond * 100 * time.Duration(i)):
+		case <-stream.Done():
+			return proto.InventoryPingResponse{}, trace.Errorf("control stream closed during ping attempt")
+		case <-ctx.Done():
+			return proto.InventoryPingResponse{}, trace.Wrap(ctx.Err())
+		}
+	}
+
+	if !included {
+		return proto.InventoryPingResponse{}, trace.LimitExceeded("failed to include ping %d in control log for instance %q (max attempts exceeded)", id, req.ServerID)
+	}
+
+	d, err := stream.Ping(ctx, id)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
+
+	stream.VisitInstanceState(func(_ inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
+		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+			Type: pingSuccess,
+			ID:   id,
+			Labels: map[string]string{
+				"duration": d.String(),
+			},
+		})
+		return
+	})
+	stream.HeartbeatInstance()
 
 	return proto.InventoryPingResponse{
 		Duration: d,
@@ -3718,7 +3843,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	if err := a.SubmitAnonymizedUsageEvents(event); err != nil {
+	if err := a.AnonymizeAndSubmit(event); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4240,6 +4365,14 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 	}
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+}
+
+// GetLicense return the license used the star the teleport enterprise auth server
+func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	if a.license == nil {
+		return "", trace.NotFound("license not found")
+	}
+	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly

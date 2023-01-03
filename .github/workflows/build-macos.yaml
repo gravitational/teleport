@@ -13,6 +13,18 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   build:
