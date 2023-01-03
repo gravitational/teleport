@@ -1,0 +1,170 @@
+name: Build Generic Linux
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-ref:
+        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        required: true
+        type: string
+
+      ent-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of Enterprise teleport to build. If no 
+          value is supplied this workflow will use whatever reference is specified in 
+          the OSS teleport submodule record.
+        required: false
+        default: ""
+        type: string
+
+      arch:
+        description: 'CPU architecture to build. Currently supports `arm` and `arm64`'
+        required: true
+        type: string
+
+      release:
+        description: 'Release level to build. Currently supports `oss` and `enterprise`'
+        required: true
+        type: string
+
+      save-artifacts:
+        description: 'Should the build export the build artifacts'
+        required: false
+        type: boolean
+        default: false
+
+      builder:
+        # This needs to be encoded as JSON, as parameters can opnly be strings, numbers
+        # or booleans, and we need to pass an array if we're running on a self-hosted 
+        # builder. 
+        description: |
+          JSON-encoded tags for selecting the action runner to use when executing this 
+          workflow. This allows callers to select self-hosted runners (e.g. for arm64)
+          or any of the github-supplied runners (e.g. ubuntu-latest) depending on the 
+          build requirements.
+        required: true
+        type: string
+
+    secrets:
+      webassets_e_deploy_key:
+        description: 'Deployment key to grant access to webassets.e'
+        required: true
+
+jobs:
+  build-release-artifacts:
+    permissions:
+      contents: read
+
+    runs-on: ${{ fromJSON(inputs.builder) }}
+
+    env:
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+
+    steps:         
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport
+          ref: ${{ inputs.oss-teleport-ref }}
+
+      - name: Determine Enterprise Teleport reference
+        if: inputs.release == 'enterprise'
+        run: |
+          if [[ -z "${{ inputs.ent-teleport-ref }}" ]]; then
+            echo TELEPORT_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
+          else
+            echo TELEPORT_E_REF=${{ inputs.ent-teleport-ref }} >> $GITHUB_ENV
+          fi
+
+      - name: Checkout Enterprise Teleport
+        if: inputs.release == 'enterprise'
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport.e
+          ref: ${{ env.TELEPORT_E_REF }}
+          path: e
+
+      - name: Determine OSS webassets reference
+        run: echo WEBASSETS_REF=$(git rev-parse @:webassets) >> $GITHUB_ENV
+        
+      - name: Checkout Webassets
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/webassets
+          path: webassets
+          ref: ${{ env.WEBASSETS_REF }}
+
+      - name: Determine enterprise webassets reference
+        if: inputs.release == 'enterprise'
+        run: echo WEBASSETS_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
+        working-directory: ./webassets
+
+      - name: Checkout Webassets.e
+        if: inputs.release == 'enterprise'
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/webassets.e
+          path: webassets/e
+          ref: ${{ env.WEBASSETS_E_REF }}
+          ssh-key: ${{ secrets.webassets_e_deploy_key }}
+
+      # We are not guaranteed to have an available `make` at this point, (e.g.
+      # when using the self-hosted ARM runners) so for now we will scrape the
+      # info we need directly out of the makefile using grep. This is not
+      # ideal, and should be replaced with a call to make as soon as we can 
+      # guarantee the runner image has `make` baked in.
+      - name: Determine toolchain versions
+        run: |
+          echo GOLANG_VERSION=$(grep -Po 'GOLANG_VERSION \?\= \Kgo\S*' build.assets/Makefile) >> $GITHUB_ENV
+          echo RUST_VERSION=$(grep -Po 'RUST_VERSION \?\= \K\S*' build.assets/Makefile) >> $GITHUB_ENV
+      
+      - name: Build Buildbox
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          context: build.assets
+          file: ./build.assets/Dockerfile-multiarch
+          platforms: linux/${{ inputs.arch }}
+          tags: teleport-buildbox-${{ inputs.arch }}:latest
+          build-args: |
+            RUST_VERSION=${{ env.RUST_VERSION }}
+            GOLANG_VERSION=${{ env.GOLANG_VERSION }}
+            UID=1000
+            GID=1000
+
+      - name: Build Release 
+        run: |
+            make -C build.assets                                           \
+              release-${{ inputs.release }}                                \
+              ARCH=${{ inputs.arch }}                                      \
+              BUILDBOX=teleport-buildbox-${{ inputs.arch }}:latest         \
+              GOMODCACHE=${{ env.GOMODCACHE }}                             \
+              GOCACHE=${{ env.GOCACHE }}                                   \
+              WORKSPACE=${{ github.workspace  }}
+              
+
+      - name: Gather artifacts
+        if: ${{ inputs.save-artifacts }}
+        run: find -name "teleport-*.tar.gz" -type f -not -path "./teleport-*.tar.gz" | xargs -Itarball cp tarball .
+
+      - name: Checksum artifacts
+        if: ${{ inputs.save-artifacts }}
+        run: | 
+          for f in teleport-*.tar.gz
+          do
+            sha256sum $f > $f.sha256
+          done
+
+      - name: Upload artifacts
+        if: ${{ inputs.save-artifacts }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: tarballs
+          path: |
+            ./teleport-*.tar.gz
+            ./teleport-*.tar.gz.sha256
+          retention-days: 1

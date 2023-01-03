@@ -1,0 +1,176 @@
+name: Build ARM64 Release Artifacts
+on: 
+  workflow_dispatch:
+    inputs:
+      oss-teleport-ref:
+        description: 'Tag, branch or reference to OSS teleport to build'
+        type: string
+        required: true
+
+      ent-teleport-ref:
+        description: |
+          Tag, branch or reference to Enterprise teleport to include in the
+          build. If no value is supplied this workflow will use whatever 
+          reference is specified in the OSS teleport submodule record.
+        type: string
+        required: false
+        default: ""
+
+      upload-artifacts:
+        description:  |
+          Should the workflow upload the resulting artifacts to the Release 
+          staging area?
+        type: boolean
+        default: false
+
+      release-version:
+        description: |
+          Override the default release version tag when uploading the build 
+          artifacts. The default value is deduced from `oss-teleport-ref`, 
+          which is assumed to be a version tag with a leading `v`. Use this
+          override to specify a tag for build debugging purposes.
+        type: string
+        default: ""
+
+jobs:
+  build-artifacts:
+    strategy:
+      matrix: 
+        release: ['oss', 'enterprise']
+        arch: ['arm64']
+        include:
+          # Use the self-hosted arm64 builders for all arm64 matrix entries.
+          - arch: 'arm64'
+            builder: ['self-hosted', 'linux', 'arm64']
+
+    uses: ./.github/workflows/build-linux-generic.yml
+    with:
+      arch: ${{ matrix.arch }}
+      release: ${{ matrix.release }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+      save-artifacts: ${{ inputs.upload-artifacts }}
+      builder: ${{ toJSON(matrix.builder) }}
+    secrets:
+      webassets_e_deploy_key: ${{ secrets.WEBASSETS_DEPLOY_KEY }}
+
+  upload-artifacts-to-dronestaging:
+    if: ${{ inputs.upload-artifacts }}
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      contents: read
+    needs: build-artifacts
+    steps:
+      - name: Download artifacts
+        id: download        
+        uses: actions/download-artifact@v3 
+        with:
+          name: tarballs
+          path: tarballs
+
+      # If a teleport version is not explicitly given we assume that the
+      # `oss-teleport-ref` is a release tag of the form vX.Y.Z and deduce 
+      # the version from that.
+      - name: Extract Teleport version
+        run: |
+          if [[ -z "${{ inputs.release-version }}" ]]; then
+            echo TELEPORT_VERSION=${REF#v} >> $GITHUB_ENV
+          else
+            echo TELEPORT_VERSION=${{ inputs.release-version }} >> $GITHUB_ENV
+          fi
+        env:
+          REF: ${{ inputs.oss-teleport-ref }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.STAGING_DEPLOYMENT_AWS_ROLE }}
+          role-session-name: "gha-teleport-build-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Copy artifacts to staging area
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run: aws s3 sync . s3://${{ secrets.STAGING_AWS_S3_BUCKET }}/teleport/tag/${{ env.TELEPORT_VERSION }}
+
+  register-assets-with-release-server:
+    if: ${{ inputs.upload-artifacts }}
+    runs-on: ubuntu-latest
+    environment: staging
+    needs: build-artifacts
+    steps:
+      - name: Download artifacts
+        id: download        
+        uses: actions/download-artifact@v3 
+        with:
+          name: tarballs
+          path: tarballs
+
+      # If a teleport version is not explicitly given we assume that the
+      # `oss-teleport-ref` is a release tag of the form vX.Y.Z and deduce 
+      # the version from that.
+      - name: Extract Teleport version
+        run: |
+          if [[ -z "${{ inputs.release-version }}" ]]; then
+            echo TELEPORT_VERSION=${REF#v} >> $GITHUB_ENV
+          else
+            echo TELEPORT_VERSION=${{ inputs.release-version }} >> $GITHUB_ENV
+          fi
+        env:
+          REF: ${{ inputs.oss-teleport-ref }}
+
+      # register the artifacts with the releases API. This is largely cribbed from
+      # the old Drone release process
+      - name: Register artifacts
+        run: |
+          printenv RELEASES_CERT | base64 -d > ".releases.crt"
+          printenv RELEASES_KEY | base64 -d > ".releases.key"
+
+          CREDENTIALS="--cert .releases.crt --key .releases.key"
+          for file in ${{ steps.download.outputs.download-path }}/teleport-*.tar.gz
+          do
+            name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z       
+            shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+            description="Linux ARM64/ARMv8 (64-bit)"
+            products="$name"
+            productTagArgs=""  
+
+            for product in $products 
+            do
+              status_code=$(curl $CREDENTIALS -o "./curl_out.txt" -w "%{http_code}" \
+                -F product="$product"                             \
+                -F version="${{env.TELEPORT_VERSION}}"            \
+                -F notesMd="# Teleport ${{env.TELEPORT_VERSION}}" \
+                -F status=draft                                   \
+                "$RELEASES_HOST/releases")
+              if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+                echo "curl HTTP status: $status_code"
+                cat ./curl_out.txt
+                exit 1
+              fi
+
+              productTagArgs="$productTagArgs -F releaseId=$product@$TELEPORT_VERSION"
+            done
+
+            curl $CREDENTIALS                     \
+               --fail -o /dev/null                \
+              -F description="$description"       \
+              -F os="linux"                       \
+              -F arch="arm64"                     \
+              -F "file=@$file"                    \
+              -F "sha256=$shasum"                 \
+              $productTagArgs                     \
+              "$RELEASES_HOST/assets"
+          done
+        env:
+          RELEASES_HOST: https://releases-prod.platform.teleport.sh
+          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
+          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
+
+      - name: Cleanup
+        if: ${{ always() }}
+        run: rm -rf .releases*
