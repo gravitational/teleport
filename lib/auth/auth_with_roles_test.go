@@ -3779,7 +3779,7 @@ func TestListReleasesPermissions(t *testing.T) {
 	tt := []struct {
 		Name         string
 		Role         types.RoleSpecV5
-		ErrAssertion func(*testing.T, error)
+		ErrAssertion require.BoolAssertionFunc
 	}{
 		{
 			Name: "no permission error if user has allow rule to list downloads",
@@ -3789,7 +3789,7 @@ func TestListReleasesPermissions(t *testing.T) {
 					Verbs:     []string{types.VerbList},
 				}}},
 			},
-			ErrAssertion: func(t *testing.T, err error) { require.False(t, trace.IsAccessDenied(err)) },
+			ErrAssertion: require.False,
 		},
 		{
 			Name: "permission error if user deny allow rule to list downloads",
@@ -3799,14 +3799,14 @@ func TestListReleasesPermissions(t *testing.T) {
 					Verbs:     []string{types.VerbList},
 				}}},
 			},
-			ErrAssertion: func(t *testing.T, err error) { require.True(t, trace.IsAccessDenied(err)) },
+			ErrAssertion: require.True,
 		},
 		{
 			Name: "permission error if user has no rules regarding downloads",
 			Role: types.RoleSpecV5{
 				Allow: types.RoleConditions{Rules: []types.Rule{}},
 			},
-			ErrAssertion: func(t *testing.T, err error) { require.True(t, trace.IsAccessDenied(err)) },
+			ErrAssertion: require.True,
 		},
 	}
 
@@ -3822,7 +3822,7 @@ func TestListReleasesPermissions(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = client.ListReleases(ctx)
-			tc.ErrAssertion(t, err)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
 		})
 	}
 }
@@ -3834,7 +3834,7 @@ func TestGetLicensePermissions(t *testing.T) {
 	tt := []struct {
 		Name         string
 		Role         types.RoleSpecV5
-		ErrAssertion func(*testing.T, error)
+		ErrAssertion require.BoolAssertionFunc
 	}{
 		{
 			Name: "no permission error if user has allow rule to read license",
@@ -3844,7 +3844,7 @@ func TestGetLicensePermissions(t *testing.T) {
 					Verbs:     []string{types.VerbRead},
 				}}},
 			},
-			ErrAssertion: func(t *testing.T, err error) { require.False(t, trace.IsAccessDenied(err)) },
+			ErrAssertion: require.False,
 		},
 		{
 			Name: "permission error if user deny allow rule to read license",
@@ -3854,14 +3854,14 @@ func TestGetLicensePermissions(t *testing.T) {
 					Verbs:     []string{types.VerbRead},
 				}}},
 			},
-			ErrAssertion: func(t *testing.T, err error) { require.True(t, trace.IsAccessDenied(err)) },
+			ErrAssertion: require.True,
 		},
 		{
 			Name: "permission error if user has no rules regarding license",
 			Role: types.RoleSpecV5{
 				Allow: types.RoleConditions{Rules: []types.Rule{}},
 			},
-			ErrAssertion: func(t *testing.T, err error) { require.True(t, trace.IsAccessDenied(err)) },
+			ErrAssertion: require.True,
 		},
 	}
 
@@ -3877,7 +3877,7 @@ func TestGetLicensePermissions(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = client.GetLicense(ctx)
-			tc.ErrAssertion(t, err)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
 		})
 	}
 }

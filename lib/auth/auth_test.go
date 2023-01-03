@@ -2703,10 +2703,10 @@ func TestCAGeneration(t *testing.T) {
 }
 
 func TestGetLicense(t *testing.T) {
-	suite := newAuthSuite(t)
+	s := newAuthSuite(t)
 
 	// GetLicense should return error if license is not set
-	_, err := suite.a.GetLicense(context.Background())
+	_, err := s.a.GetLicense(context.Background())
 	assert.NotNil(t, err)
 
 	// GetLicense should return cert and key pem concatenated, when license is set
@@ -2714,11 +2714,11 @@ func TestGetLicense(t *testing.T) {
 		CertPEM: []byte("cert"),
 		KeyPEM:  []byte("key"),
 	}
-	suite.a.SetLicense(&l)
+	s.a.SetLicense(&l)
 
-	license, err := suite.a.GetLicense(context.Background())
+	actual, err := s.a.GetLicense(context.Background())
 	assert.Nil(t, err)
-	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), license)
+	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
 }
 
 type mockEnforcer struct {
