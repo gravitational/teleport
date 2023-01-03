@@ -1574,6 +1574,10 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
 		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 	}

@@ -1935,6 +1935,9 @@ type WindowsDesktopService struct {
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
+	// NonADHosts is a list of static Windows hosts connected to this service in
+	// gateway mode that are not part of Active Directory.
+	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.

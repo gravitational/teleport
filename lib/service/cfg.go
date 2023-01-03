@@ -1292,6 +1292,11 @@ type WindowsDesktopConfig struct {
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
 	Hosts []utils.NetAddr
+
+	// NonADHosts is an optional list of static Windows hosts to expose through this
+	// service. These hosts are not part of Active Directory.
+	NonADHosts []utils.NetAddr
+
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
