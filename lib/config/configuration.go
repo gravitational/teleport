@@ -1563,7 +1563,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	cfg.WindowsDesktop.Discovery = &LDAPDiscoveryConfig{
+	cfg.WindowsDesktop.Discovery = service.LDAPDiscoveryConfig{
 		BaseDN:          fc.WindowsDesktop.Discovery.BaseDN,
 		Filters:         fc.WindowsDesktop.Discovery.Filters,
 		LabelAttributes: fc.WindowsDesktop.Discovery.LabelAttributes,

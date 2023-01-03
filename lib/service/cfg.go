@@ -1299,6 +1299,7 @@ type WindowsDesktopConfig struct {
 	Labels     map[string]string
 }
 
+// LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
 type LDAPDiscoveryConfig struct {
 	// BaseDN is the base DN to search for desktops.
 	// Use the value '*' to search from the root of the domain,
