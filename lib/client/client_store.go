@@ -22,7 +22,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -187,7 +186,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 }
 
 // FullProfileStatus returns the name of the current profile with a
-// a list of all active profile statuses.
+// a list of all profile statuses.
 func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 	currentProfileName, err := s.CurrentProfile()
 	if err != nil {
@@ -218,63 +217,4 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 	}
 
 	return currentProfile, profiles, nil
-}
-
-// noClientStore is a ClientStore representing the absence of a ClientStore.
-// All methods return errors. This exists to avoid nil checking everywhere in
-// LocalKeyAgent and prevent nil pointer panics.
-type noClientStore struct{}
-
-func newNoClientStore() *Store {
-	return &Store{
-		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
-		KeyStore:          noClientStore{},
-		TrustedCertsStore: noClientStore{},
-		ProfileStore:      noClientStore{},
-	}
-}
-
-var errNoClientStore = trace.NotFound("there is no client store")
-
-func (noClientStore) CurrentProfile() (string, error) {
-	return "", errNoClientStore
-}
-func (noClientStore) ListProfiles() ([]string, error) {
-	return nil, errNoClientStore
-}
-func (noClientStore) GetProfile(profileName string) (*profile.Profile, error) {
-	return nil, errNoClientStore
-}
-func (noClientStore) SaveProfile(*profile.Profile, bool) error {
-	return errNoClientStore
-}
-func (noClientStore) AddKey(key *Key) error {
-	return errNoClientStore
-}
-func (noClientStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
-	return nil, errNoClientStore
-}
-func (noClientStore) DeleteKey(idx KeyIndex) error {
-	return errNoClientStore
-}
-func (noClientStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
-	return errNoClientStore
-}
-func (noClientStore) DeleteKeys() error {
-	return errNoClientStore
-}
-func (noClientStore) SaveTrustedCerts(proxyHost string, cas []auth.TrustedCerts) error {
-	return errNoClientStore
-}
-func (noClientStore) GetTrustedCerts(proxyHost string) ([]auth.TrustedCerts, error) {
-	return nil, errNoClientStore
-}
-func (noClientStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, error) {
-	return nil, errNoClientStore
-}
-func (noClientStore) GetTrustedHostKeys(clusterNames ...string) ([]ssh.PublicKey, error) {
-	return nil, errNoClientStore
-}
-func (noClientStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error) {
-	return nil, errNoClientStore
 }

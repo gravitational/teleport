@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -953,7 +952,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			if len(c.AuthMethods) == 0 {
 				return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 			}
-			c.ClientStore = newNoClientStore()
+			c.ClientStore = NewMemClientStore()
 		} else {
 			clientStore, err := NewFSClientStore(c.KeysDir)
 			if err != nil {
@@ -2704,7 +2703,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		signers, err := tc.localAgent.Signers()
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
-		if err != nil && !errors.Is(err, errNoClientStore) && !trace.IsNotFound(err) {
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {

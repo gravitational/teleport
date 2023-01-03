@@ -37,10 +37,10 @@ import (
 
 // ProfileStore is a storage interface for client profile data.
 type ProfileStore interface {
-	// CurrentProfile returns the current active profile.
+	// CurrentProfile returns the current profile.
 	CurrentProfile() (string, error)
 
-	// ListProfiles returns a list of all active profiles.
+	// ListProfiles returns a list of all profiles.
 	ListProfiles() ([]string, error)
 
 	// GetProfile returns the requested profile.
@@ -66,12 +66,12 @@ func NewMemProfileStore() *MemProfileStore {
 	}
 }
 
-// CurrentProfile returns the current active profile.
+// CurrentProfile returns the current profile.
 func (ms *MemProfileStore) CurrentProfile() (string, error) {
 	return ms.currentProfile, nil
 }
 
-// ListProfiles returns a list of all active profiles.
+// ListProfiles returns a list of all profiles.
 func (ms *MemProfileStore) ListProfiles() ([]string, error) {
 	var profileNames []string
 	for profileName := range ms.profiles {
@@ -122,7 +122,7 @@ func NewFSProfileStore(dirPath string) (*FSProfileStore, error) {
 	}, nil
 }
 
-// CurrentProfile returns the current active profile.
+// CurrentProfile returns the current profile.
 func (fs *FSProfileStore) CurrentProfile() (string, error) {
 	profileName, err := profile.GetCurrentProfileName(fs.KeyDir)
 	if err != nil {
@@ -131,7 +131,7 @@ func (fs *FSProfileStore) CurrentProfile() (string, error) {
 	return profileName, nil
 }
 
-// ListProfiles returns a list of all active profiles.
+// ListProfiles returns a list of all profiles.
 func (fs *FSProfileStore) ListProfiles() ([]string, error) {
 	profileNames, err := profile.ListProfileNames(fs.KeyDir)
 	if err != nil {

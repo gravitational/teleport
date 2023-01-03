@@ -262,7 +262,7 @@ func TestIdentityRead(t *testing.T) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, err := KeyFromIdentityFile(fmt.Sprintf("../../../fixtures/certs/identities/%s", id), "proxy.example.com", "")
+		k, err := KeyFromIdentityFile(fixturePath(fmt.Sprintf("certs/identities/%s", id)), "proxy.example.com", "")
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
@@ -271,17 +271,17 @@ func TestIdentityRead(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, am)
 	}
-	k, err := KeyFromIdentityFile("../../../fixtures/certs/identities/lonekey", "proxy.example.com", "")
+	k, err := KeyFromIdentityFile(fixturePath("certs/identities/lonekey"), "proxy.example.com", "")
 	require.Nil(t, k)
 	require.Error(t, err)
 
 	// lets read an identity which includes a CA cert
-	k, err = KeyFromIdentityFile("../../../fixtures/certs/identities/key-cert-ca.pem", "proxy.example.com", "")
+	k, err = KeyFromIdentityFile(fixturePath("certs/identities/key-cert-ca.pem"), "proxy.example.com", "")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 
 	// prepare the cluster CA separately
-	certBytes, err := os.ReadFile("../../../fixtures/certs/identities/ca.pem")
+	certBytes, err := os.ReadFile(fixturePath("certs/identities/ca.pem"))
 	require.NoError(t, err)
 
 	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
@@ -293,7 +293,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NoError(t, cb(hosts[0], a, cert))
 
 	// load an identity which include TLS certificates
-	k, err = KeyFromIdentityFile("../../../fixtures/certs/identities/tls.pem", "proxy.example.com", "")
+	k, err = KeyFromIdentityFile(fixturePath("certs/identities/tls.pem"), "proxy.example.com", "")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 	require.NotNil(t, k.TLSCert)
@@ -302,6 +302,10 @@ func TestIdentityRead(t *testing.T) {
 	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
+}
+
+func fixturePath(path string) string {
+	return "../../../fixtures/" + path
 }
 
 func TestKeyFromIdentityFile(t *testing.T) {

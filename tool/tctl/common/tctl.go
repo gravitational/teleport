@@ -364,7 +364,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	}
 
 	c := client.MakeDefaultConfig()
-	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found profile.")
 	if err := c.LoadProfile(clientStore, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}

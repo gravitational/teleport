@@ -111,9 +111,10 @@ func UnmarshalKnownHosts(knownHostsFile [][]byte) ([]KnownHost, error) {
 			}
 
 			comment, err := url.ParseQuery(commentString)
-			if err == nil {
-				ah.Comment = map[string][]string(comment)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			ah.Comment = map[string][]string(comment)
 
 			// Assuming the known host was generated from MarshalKnownHost,
 			// we can get the proxyHost and clusterName for the host.
