@@ -23,9 +23,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -171,5 +174,105 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, srv *TestAuthServ
 		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock put.")
+	}
+}
+
+func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
+	t.Parallel()
+
+	testServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err, "NewTestAuthServer failed")
+
+	authServer := testServer.AuthServer
+	ctx := context.Background()
+
+	user, role, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
+	require.NoError(t, err, "CreateUserAndRole")
+
+	userWithoutExtensions := &LocalUser{
+		Username: user.GetName(),
+		Identity: tlsca.Identity{
+			Username:   user.GetName(),
+			Groups:     []string{role.GetName()},
+			Principals: user.GetLogins(),
+		},
+	}
+	userWithExtensions := *userWithoutExtensions
+	userWithExtensions.Identity.DeviceExtensions = tlsca.DeviceExtensions{
+		DeviceID:     "deviceid1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	// Enterprise is necessary for mode=optional and mode=required to work.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	tests := []struct {
+		name               string
+		deviceMode         string
+		disableDeviceAuthz bool
+		user               *LocalUser
+		wantErr            string
+	}{
+		{
+			name:       "user without extensions and mode=off",
+			deviceMode: constants.DeviceTrustModeOff,
+			user:       userWithoutExtensions,
+		},
+		{
+			name:       "nok: user without extensions and mode=required",
+			deviceMode: constants.DeviceTrustModeRequired,
+			user:       userWithoutExtensions,
+			wantErr:    "unauthorized device",
+		},
+		{
+			name:               "device authorization disabled",
+			deviceMode:         constants.DeviceTrustModeRequired,
+			disableDeviceAuthz: true,
+			user:               userWithoutExtensions,
+		},
+		{
+			name:       "user with extensions and mode=required",
+			deviceMode: constants.DeviceTrustModeRequired,
+			user:       &userWithExtensions,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Update device trust mode.
+			authPref, err := authServer.GetAuthPreference(ctx)
+			require.NoError(t, err, "GetAuthPreference failed")
+			apV2 := authPref.(*types.AuthPreferenceV2)
+			apV2.Spec.DeviceTrust = &types.DeviceTrust{
+				Mode: test.deviceMode,
+			}
+			require.NoError(t,
+				authServer.SetAuthPreference(ctx, apV2),
+				"SetAuthPreference failed")
+
+			// Create a new authorizer.
+			authorizer, err := NewAuthorizer(AuthorizerOpts{
+				ClusterName:                testServer.ClusterName,
+				AccessPoint:                authServer,
+				LockWatcher:                testServer.LockWatcher,
+				DisableDeviceAuthorization: test.disableDeviceAuthz,
+			})
+			require.NoError(t, err, "NewAuthorizer failed")
+
+			// Test!
+			userCtx := context.WithValue(ctx, ContextUser, *test.user)
+			_, gotErr := authorizer.Authorize(userCtx)
+			if test.wantErr == "" {
+				assert.NoError(t, gotErr, "Authorize returned unexpected error")
+			} else {
+				assert.ErrorContains(t, gotErr, test.wantErr, "Authorize mismatch")
+				assert.True(t, trace.IsAccessDenied(gotErr), "Authorize returned err=%T, want trace.AccessDeniedError", gotErr)
+			}
+		})
 	}
 }

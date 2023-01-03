@@ -151,7 +151,13 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		// Device authorization breaks browser-based access.
+		DisableDeviceAuthorization: true,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
