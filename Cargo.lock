@@ -717,9 +717,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.138"
+version = "0.2.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db6d7e329c562c5dfab7a46a2afabc8b987ab9a4834c9d1ca04dc54c1546cef8"
+checksum = "201de327520df007757c1f0adce6e827fe8562fbc28bfd9c15571c66ca1f5f79"
 
 [[package]]
 name = "libloading"
@@ -1144,7 +1144,7 @@ dependencies = [
 [[package]]
 name = "rdp-rs"
 version = "0.1.0"
-source = "git+https://github.com/gravitational/rdp-rs?rev=a6606f14cbeb62c056cfa51a23f1aec17b682218#a6606f14cbeb62c056cfa51a23f1aec17b682218"
+source = "git+https://github.com/gravitational/rdp-rs?rev=8f9f2ab4835f3e52cc9d1771114cc745f3c02759#8f9f2ab4835f3e52cc9d1771114cc745f3c02759"
 dependencies = [
  "boring",
  "bufstream",

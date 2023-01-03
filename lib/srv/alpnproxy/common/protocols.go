@@ -53,6 +53,9 @@ const (
 	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
 	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
 
+	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
+	ProtocolDynamoDB Protocol = "teleport-dynamodb"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
@@ -140,6 +143,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolCassandra, nil
 	case defaults.ProtocolElasticsearch:
 		return ProtocolElasticsearch, nil
+	case defaults.ProtocolDynamoDB:
+		return ProtocolDynamoDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -158,6 +163,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolSnowflake,
 		ProtocolCassandra,
 		ProtocolElasticsearch,
+		ProtocolDynamoDB,
 	}
 
 	return slices.Contains(
@@ -176,6 +182,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolSnowflake,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolDynamoDB,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

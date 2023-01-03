@@ -19,13 +19,22 @@
 package forward
 
 import (
+	"context"
 	"crypto/rand"
+	"errors"
+	"os/user"
+	"sync/atomic"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestSignersWithSHA1Fallback(t *testing.T) {
@@ -101,6 +110,89 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 			signers, err := getSignersFn()
 			require.NoError(t, err)
 			tt.want(t, signers)
+		})
+	}
+}
+
+type newChannelMock struct {
+	channelType string
+	accepted    atomic.Bool
+	rejected    atomic.Bool
+}
+
+func (n *newChannelMock) Accept() (ssh.Channel, <-chan *ssh.Request, error) {
+	n.accepted.Store(true)
+	return nil, nil, errors.New("mock channel")
+}
+
+func (n *newChannelMock) Reject(reason ssh.RejectionReason, message string) error {
+	n.rejected.Store(true)
+	return nil
+}
+
+func (n *newChannelMock) ChannelType() string {
+	return n.channelType
+}
+
+func (n *newChannelMock) ExtraData() []byte {
+	return ssh.Marshal(sshutils.DirectTCPIPReq{
+		Host:     "localhost",
+		Port:     0,
+		Orig:     "localhost",
+		OrigPort: 0,
+	})
+}
+
+// TestDirectTCPIP ensures that ssh client using SessionJoinPrincipal as Login
+// cannot connect using "direct-tcpip" on forward mode.
+//
+// Forward requires a lot of depependencies and we don't have top level tests
+// yet here. If we add it in future, test should be rework to use public methods
+// instead of internals.
+func TestDirectTCPIP(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name           string
+		login          string
+		expectAccepted bool
+		expectRejected bool
+	}{
+		{
+			name:           "join principal rejected",
+			login:          teleport.SSHSessionJoinPrincipal,
+			expectAccepted: false,
+			expectRejected: true,
+		},
+		{
+			name: "user allowed",
+			login: func() string {
+				u, err := user.Current()
+				require.NoError(t, err)
+				return u.Username
+			}(),
+			expectAccepted: true,
+			// expectRejected is set to true because we are using mock channel
+			// which return errors on accept.
+			expectRejected: true,
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := Server{
+				log:             utils.NewLoggerForTests().WithField(trace.Component, "test"),
+				identityContext: srv.IdentityContext{Login: tt.login},
+			}
+
+			nch := &newChannelMock{channelType: teleport.ChanDirectTCPIP}
+			s.handleChannel(ctx, nch)
+			require.Equal(t, tt.expectRejected, nch.rejected.Load())
+			require.Equal(t, tt.expectAccepted, nch.accepted.Load())
 		})
 	}
 }
