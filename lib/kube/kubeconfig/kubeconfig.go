@@ -375,14 +375,14 @@ func SelectContext(teleportCluster, kubeCluster string) error {
 	return nil
 }
 
-const selectedExtension = "selected_context"
+const selectedExtension = "teleport-prev-selec-ctx"
 
 // setSelectedExtension sets an extension to indentify that the current non-teleport
 // context was selected before introducing Teleport contexts in kubeconfig.
 // If the currentContext is not from Teleport, this function adds the following
 // extensions:
 //   - extension: null
-//     name: selected_context
+//     name: teleport-prev-selec-ctx
 //
 // Only one context is allowed to have the selected extension. If other context has it,
 // this function deletes it and introduces it in the desired context.
@@ -402,11 +402,17 @@ func setSelectedExtension(contexts map[string]*clientcmdapi.Context, prevCluster
 // in order to restore the the CurrentContext value.
 // If no such key is found, it returns an empty selected cluster.
 func searchForSelectedCluster(contexts map[string]*clientcmdapi.Context) string {
+	count := 0
+	selected := ""
 	for k, v := range contexts {
 		if _, ok := v.Extensions[selectedExtension]; ok {
 			delete(v.Extensions, selectedExtension)
-			return k
+			count++
+			selected = k
 		}
 	}
-	return ""
+	if count != 1 {
+		return ""
+	}
+	return selected
 }
