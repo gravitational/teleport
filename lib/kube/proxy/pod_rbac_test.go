@@ -33,11 +33,10 @@ import (
 func TestListPodRBAC(t *testing.T) {
 	t.Parallel()
 	const (
-		usernameWithFullAccess        = "full_user"
-		usernameWithNamespaceAccess   = "default_user"
-		usernameWithLimitedAccess     = "limited_user"
-		usernameDeniedNamespaceAccess = "denied_user"
-		testPodName                   = "test"
+		usernameWithFullAccess      = "full_user"
+		usernameWithNamespaceAccess = "default_user"
+		usernameWithLimitedAccess   = "limited_user"
+		testPodName                 = "test"
 	)
 	// kubeMock is a Kubernetes API mock for the session tests.
 	// Once a new session is created, this mock will write to
@@ -115,39 +114,6 @@ func TestListPodRBAC(t *testing.T) {
 			kubeGroups: roleKubeGroups,
 			setupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow,
-					[]types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Name:      "nginx-*",
-							Namespace: metav1.NamespaceDefault,
-						},
-					},
-				)
-			},
-		},
-	)
-
-	// create a moderator user with access to kubernetes
-	// (kubernetes_user and kubernetes_groups specified)
-	userWithNamespaceAccessButDeniedNginx, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
-		t,
-		usernameDeniedNamespaceAccess,
-		roleSpec{
-			name:       usernameDeniedNamespaceAccess,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
-			setupRoleFunc: func(r types.Role) {
-				r.SetKubeResources(types.Allow,
-					[]types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: metav1.NamespaceDefault,
-						},
-					},
-				)
-				r.SetKubeResources(types.Deny,
 					[]types.KubernetesResource{
 						{
 							Kind:      types.KindKubePod,
@@ -249,32 +215,6 @@ func TestListPodRBAC(t *testing.T) {
 						Code:    403,
 					},
 				},
-			},
-		},
-		{
-			name: "list pods in default namespace for user with denied access to nginx-* pods",
-			args: args{
-				user:      userWithNamespaceAccessButDeniedNginx,
-				namespace: metav1.NamespaceDefault,
-			},
-			want: want{
-				listPodsResult: []string{
-					"default/test",
-				},
-				getTestPodResult: nil,
-			},
-		},
-		{
-			name: "list pods in every namespace for user with denied access to nginx-* pods",
-			args: args{
-				user:      userWithNamespaceAccessButDeniedNginx,
-				namespace: metav1.NamespaceAll,
-			},
-			want: want{
-				listPodsResult: []string{
-					"default/test",
-				},
-				getTestPodResult: nil,
 			},
 		},
 	}

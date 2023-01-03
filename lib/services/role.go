@@ -2632,7 +2632,7 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster) (allowed, denied 
 	}
 
 	for _, role := range set {
-		matchLabels, _, err := MatchLabels(getRoleLabels(role, types.Allow), cluster.GetAllLabels())
+		matchLabels, _, err := MatchLabels(getRoleLabels(role, types.Deny), cluster.GetAllLabels())
 		if err != nil {
 			continue
 		}
