@@ -162,7 +162,6 @@ func TestWrite(t *testing.T) {
 		key.Cert,
 		key.TLSCert,
 		[]byte(knownHosts),
-		[]byte("\n"),
 		bytes.Join(key.TrustedCerts[0].TLSCertificates, []byte{}),
 	}
 	want := string(bytes.Join(wantArr, nil))

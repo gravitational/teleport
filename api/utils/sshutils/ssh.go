@@ -82,7 +82,7 @@ func ParseKnownHosts(knownHosts [][]byte, matchHostnames ...string) ([]ssh.Publi
 				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
 			}
 
-			if len(matchHostnames) == 0 || HostNameMatch(matchHostnames, hosts...) {
+			if len(matchHostnames) == 0 || HostNameMatch(matchHostnames, hosts) {
 				keys = append(keys, publicKey)
 			}
 
@@ -95,7 +95,7 @@ func ParseKnownHosts(knownHosts [][]byte, matchHostnames ...string) ([]ssh.Publi
 // HostNameMatch returns whether at least one of the given hosts matches one
 // of the given matchHosts. If a host has a wildcard prefix "*.", it will be
 // used to match. Ex: "*.example.com" will  match "proxy.example.com".
-func HostNameMatch(matchHosts []string, hosts ...string) bool {
+func HostNameMatch(matchHosts []string, hosts []string) bool {
 	for _, matchHost := range matchHosts {
 		for _, host := range hosts {
 			if host == matchHost || matchesWildcard(matchHost, host) {
@@ -103,38 +103,31 @@ func HostNameMatch(matchHosts []string, hosts ...string) bool {
 			}
 		}
 	}
-
 	return false
 }
 
 // matchesWildcard ensures the given `hostname` matches the given `pattern`.
-// The `pattern` may be prefixed with `*.` which will match exactly one domain
+// The `pattern` should be prefixed with `*.` which will match exactly one domain
 // segment, meaning `*.example.com` will match `foo.example.com` but not
 // `foo.bar.example.com`.
 func matchesWildcard(hostname, pattern string) bool {
+	pattern = strings.TrimSpace(pattern)
+
+	// Don't allow non-wildcard or empty patterns.
+	if !strings.HasPrefix(pattern, "*.") || len(pattern) < 3 {
+		return false
+	}
+	matchHost := pattern[2:]
+
 	// Trim any trailing "." in case of an absolute domain.
 	hostname = strings.TrimSuffix(hostname, ".")
 
-	// Don't allow non-wildcard patterns.
-	if !strings.HasPrefix(pattern, "*.") || len(pattern) < 2 {
+	_, hostnameRoot, found := strings.Cut(hostname, ".")
+	if !found {
 		return false
 	}
 
-	// Never match a top-level hostname.
-	if !strings.Contains(hostname, ".") {
-		return false
-	}
-
-	// Don't allow empty matches.
-	pattern = pattern[2:]
-	if strings.TrimSpace(pattern) == "" {
-		return false
-	}
-
-	hostnameParts := strings.Split(hostname, ".")
-	hostnameRoot := strings.Join(hostnameParts[1:], ".")
-
-	return hostnameRoot == pattern
+	return hostnameRoot == matchHost
 }
 
 // ParseAuthorizedKeys parses provided authorized_keys entries into ssh.PublicKey list.

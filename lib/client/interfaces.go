@@ -234,10 +234,10 @@ func (k *Key) HostKeyCallback(hostname string) ssh.HostKeyCallback {
 // names are provided, only matching host keys will be returned.
 func (k *Key) AuthorizedHostKeys(hostnames ...string) (result [][]byte) {
 	for _, ca := range k.TrustedCerts {
-		// Mirror the hosts we would find in a known hosts entry.
+		// Mirror the hosts we would find in a known_hosts entry.
 		hosts := []string{k.ProxyHost, ca.ClusterName, "*." + ca.ClusterName}
 
-		if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts...) {
+		if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts) {
 			result = append(result, ca.AuthorizedKeys...)
 		}
 	}

@@ -193,7 +193,6 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 				}
 
 				ret.WriteString(castr)
-				ret.WriteString("\n")
 				continue
 			}
 
@@ -213,7 +212,6 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 
 			// write the export friendly string
 			ret.WriteString(castr)
-			ret.WriteString("\n")
 		}
 	}
 

@@ -45,13 +45,13 @@ func JoinStrings[T ~string](elems []T, sep string) T {
 	return T(b.String())
 }
 
-// Deduplicate deduplicates list of strings
-func Deduplicate(in []string) []string {
+// Deduplicate deduplicates list of comparable values.
+func Deduplicate[T comparable](in []T) []T {
 	if len(in) == 0 {
 		return in
 	}
-	out := make([]string, 0, len(in))
-	seen := make(map[string]struct{}, len(in))
+	out := make([]T, 0, len(in))
+	seen := make(map[T]struct{}, len(in))
 	for _, val := range in {
 		if _, ok := seen[val]; !ok {
 			out = append(out, val)
@@ -61,17 +61,22 @@ func Deduplicate(in []string) []string {
 	return out
 }
 
-// DeduplicateBytes deduplicates list of bytes
-func DeduplicateBytes(in [][]byte) [][]byte {
+// DeduplicateAny deduplicates list of any values with compare function.
+func DeduplicateAny[T any](in []T, compare func(T, T) bool) []T {
 	if len(in) == 0 {
 		return in
 	}
-	out := make([][]byte, 0, len(in))
-	seen := make(map[string]struct{}, len(in))
+	out := make([]T, 0, len(in))
 	for _, val := range in {
-		if _, ok := seen[string(val)]; !ok {
+		var seen bool
+		for _, outVal := range out {
+			if compare(val, outVal) {
+				seen = true
+				break
+			}
+		}
+		if !seen {
 			out = append(out, val)
-			seen[string(val)] = struct{}{}
 		}
 	}
 	return out

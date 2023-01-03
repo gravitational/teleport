@@ -18,6 +18,7 @@ package client
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/pem"
 	"fmt"
@@ -103,7 +104,7 @@ func (ms *MemTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.Tr
 		// Unlike with trusted TLS certificates, we don't replace the trusted host keys.
 		// Instead, append to the existing entry, without duplicates. This matches the
 		// behavior of the known hosts file.
-		entry.AuthorizedKeys = apiutils.DeduplicateBytes(append(entry.AuthorizedKeys, ca.AuthorizedKeys...))
+		entry.AuthorizedKeys = apiutils.DeduplicateAny(append(entry.AuthorizedKeys, ca.AuthorizedKeys...), bytes.Equal)
 
 		ms.trustedCerts[proxyHost][ca.ClusterName] = entry
 	}
@@ -133,14 +134,14 @@ func (ms *MemTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, 
 // GetTrustedHostKeys returns all trusted public host keys. If hostnames are provided, only
 // matching host keys will be returned. Host names should be a proxy host or cluster name.
 func (ms *MemTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
-	// known hosts are not retrieved by proxyHost, only clusterName, so we search all proxy entries.
+	// authorized hosts are not retrieved by proxyHost, only clusterName, so we search all proxy entries.
 	var hostKeys []ssh.PublicKey
 	for proxyHost, proxyEntries := range ms.trustedCerts {
 		for _, entry := range proxyEntries {
-			// Mirror the hosts we would find in a known hosts entry.
+			// Mirror the hosts we would find in a known_hosts entry.
 			hosts := []string{proxyHost, entry.ClusterName, "*." + entry.ClusterName}
 
-			if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts...) {
+			if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts) {
 				clusterHostKeys, err := apisshutils.ParseAuthorizedKeys(entry.AuthorizedKeys)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -358,6 +359,7 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.Truste
 		return trace.ConvertSystemError(err)
 	}
 	defer utils.StoreErrorOf(fp.Close, &retErr)
+
 	// read all existing entries into a map (this removes any pre-existing dupes)
 	entries := make(map[string]int)
 	output := make([]string, 0)
@@ -414,7 +416,9 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.Truste
 		return trace.Wrap(err)
 	}
 	for _, line := range output {
-		fmt.Fprintf(fp, "%s\n", line)
+		if _, err := fp.Write([]byte(line)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return fp.Sync()
 }

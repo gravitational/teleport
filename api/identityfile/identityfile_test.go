@@ -38,7 +38,7 @@ func TestIdentityFileBasics(t *testing.T) {
 			TLS: []byte("-----BEGIN CERTIFICATE-----\ntls-cert\n-----END CERTIFICATE-----\n"),
 		},
 		CACerts: CACerts{
-			SSH: [][]byte{[]byte("@cert-authority ssh-cacerts")},
+			SSH: [][]byte{[]byte("@cert-authority ssh-cacerts\n")},
 			TLS: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\ntls-cacerts\n-----END CERTIFICATE-----\n")},
 		},
 	}

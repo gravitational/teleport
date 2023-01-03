@@ -41,7 +41,7 @@ func MarshalAuthorizedKeysFormat(clusterName string, keyBytes []byte) (string, e
 		"clustername": []string{clusterName},
 	}
 
-	return fmt.Sprintf("cert-authority %s %s", strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
+	return fmt.Sprintf("cert-authority %s %s\n", strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
 }
 
 // KnownHost is a structural representation of a known hosts entry for a Teleport host.
@@ -83,7 +83,7 @@ func MarshalKnownHost(kh KnownHost) (string, error) {
 		hosts = append([]string{kh.ProxyHost}, hosts...)
 	}
 
-	return fmt.Sprintf("@cert-authority %s %s %s", strings.Join(hosts, ","), strings.TrimSpace(string(kh.AuthorizedKey)), comment.Encode()), nil
+	return fmt.Sprintf("@cert-authority %s %s %s\n", strings.Join(hosts, ","), strings.TrimSpace(string(kh.AuthorizedKey)), comment.Encode()), nil
 }
 
 // UnmarshalKnownHosts returns a list of authorized hosts from the given known_hosts

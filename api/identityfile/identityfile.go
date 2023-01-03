@@ -264,7 +264,7 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 		case isSSHCert(line):
 			ident.Certs.SSH = append(cloneln(), '\n')
 		case hasPrefix("@cert-authority"):
-			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
+			ident.CACerts.SSH = append(ident.CACerts.SSH, append(cloneln(), '\n'))
 		case hasPrefix("-----BEGIN"):
 			// Current line marks the beginning of a PEM block.  Consume all
 			// lines until a corresponding END is found.
