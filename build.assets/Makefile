@@ -442,11 +442,35 @@ release-arm64: buildbox-arm
 
 .PHONY: release-oss
 release-oss:
-	make -C .. full build-archive -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	docker run                         \
+		--rm                           \
+		--platform linux/$(ARCH)       \
+		--memory-swap -1               \
+		-h buildbox                    \
+		-e GOMODCACHE=$(GOMODCACHE)    \
+		-e GOCACHE=$(GOCACHE)          \
+		-v "/tmp:/tmp"                 \
+		-v "$(WORKSPACE):/go/teleport" \
+		-w /go/teleport                \
+		-u 1000:1000                   \
+		$(BUILDBOX)					   \
+		make -C .. full build-archive -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-enterprise
 release-enterprise:
-	make -C .. release-unix-only -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	docker run                         \
+		--rm                           \
+		--platform linux/$(ARCH)       \
+		--memory-swap -1               \
+		-h buildbox                    \
+		-e GOMODCACHE=$(GOMODCACHE)    \
+		-e GOCACHE=$(GOCACHE)          \
+		-v "/tmp:/tmp"                 \
+		-v "$(WORKSPACE):/go/teleport" \
+		-w /go/teleport                \
+		-u 1000:1000                   \
+		$(BUILDBOX)					   \
+		make -C .. release-unix-only -e ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 # #############################################################################
 
