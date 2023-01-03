@@ -434,10 +434,17 @@ release-arm64: buildbox-arm
 
 #
 # The `release-oss` and `release-enterprise` make targets are for building OSS 
-# and Enterprise releases from GitHub actions. These make targets assume that 
-# we are already running in the build environment (either natively, or in a 
-# container) and will make no attempt to either construct a buildbox or create
-# a container to run inside.
+# and Enterprise releases from GitHub actions. These make targets execute in a
+# container based on a caller-supplued `BUILDBOX` image.
+#
+# Unlike the other release targets, these release targets do not attempt to
+# automatically construct the buildbox image at build time - the build box 
+# image *must* it must be pre-built and the tag suuplied via `MAKE=` on the 
+# make command line
+#
+# Separating the constrtuction of build environment from the actual build itself 
+# allows us to use the appropriate GHA actions to pre-build the buildbox 
+# image, so that the image construction works nicely with GHA.
 #
 
 .PHONY: release-oss
