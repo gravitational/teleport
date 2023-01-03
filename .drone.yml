@@ -1310,12 +1310,12 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: FAKE workflow revision
+- name: Determine workflow revision
   image: docker:git
   commands:
   - set DRONE_BRANCH=master
-  - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE_ENV\nelse\n\techo
-    \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE_ENV\nfi"
+  - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE.ENV\nelse\n\techo
+    \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE.ENV\nfi"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
@@ -5043,12 +5043,12 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: FAKE workflow revision
+- name: Determine workflow revision
   image: docker:git
   commands:
   - set DRONE_BRANCH=master
-  - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE_ENV\nelse\n\techo
-    \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE_ENV\nfi"
+  - "if [[ -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$DRONE_BRANCH\" >> .DRONE.ENV\nelse\n\techo
+    \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE.ENV\nfi"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
@@ -18280,6 +18280,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: ae516a68571affd37b77c373c6d1aba8bac9d04ffd6338483d6ec8c95025c6bc
+hmac: c85eb0aa564feb1de540f82112e9a722c4400a2a1cf8b909efdb0f696ec129b3
 
 ...
