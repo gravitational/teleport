@@ -60,7 +60,7 @@ const (
 )
 
 func NewConnectUsageReporter(ctx context.Context) (*usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], error) {
-	submitter, err := newRealPrehogSubmitter(ctx, "https://localhost:8443") // TODO: change the address before merge
+	submitter, err := newPrehogSubmitter(ctx, "https://localhost:8443") // TODO: change the address before merge
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -75,7 +75,7 @@ func NewConnectUsageReporter(ctx context.Context) (*usagereporter.UsageReporter[
 	}), nil
 }
 
-func newRealPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereporter.SubmitFunc[prehogapi.SubmitConnectEventRequest], error) {
+func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereporter.SubmitFunc[prehogapi.SubmitConnectEventRequest], error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			ForceAttemptHTTP2:   true,
@@ -112,62 +112,62 @@ func newRealPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagere
 }
 
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
-	event, err := convertAndAnonymizeApiEvent(req)
+	prehogEvent, err := getAnonymizedPrehogEvent(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.usageReporter.AddEventsToQueue(event)
+	s.usageReporter.AddEventsToQueue(prehogEvent)
 	return nil
 }
 
-func convertAndAnonymizeApiEvent(event *api.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
-	prehogReq := event.PrehogReq
+func getAnonymizedPrehogEvent(req *api.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
+	prehogEvent := req.PrehogReq
 
 	// non-anonymized
-	switch prehogReq.GetEvent().(type) {
+	switch prehogEvent.GetEvent().(type) {
 	case *prehogapi.SubmitConnectEventRequest_UserJobRoleUpdate:
-		return prehogReq, nil
+		return prehogEvent, nil
 	}
 
 	// anonymized
-	anonymizer, err := newClusterAnonymizer(event.GetAuthClusterId()) // authClusterId is sent with each event that needs to be anonymized
+	anonymizer, err := newClusterAnonymizer(req.GetAuthClusterId()) // authClusterId is sent with each event that needs to be anonymized
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch e := prehogReq.GetEvent().(type) {
+	switch e := prehogEvent.GetEvent().(type) {
 	case *prehogapi.SubmitConnectEventRequest_UserLogin:
 		e.UserLogin.ClusterName = anonymizer.AnonymizeString(e.UserLogin.ClusterName)
 		e.UserLogin.UserName = anonymizer.AnonymizeString(e.UserLogin.UserName)
-		return prehogReq, nil
+		return prehogEvent, nil
 	case *prehogapi.SubmitConnectEventRequest_ProtocolUse:
 		e.ProtocolUse.ClusterName = anonymizer.AnonymizeString(e.ProtocolUse.ClusterName)
 		e.ProtocolUse.UserName = anonymizer.AnonymizeString(e.ProtocolUse.UserName)
-		return prehogReq, nil
+		return prehogEvent, nil
 	case *prehogapi.SubmitConnectEventRequest_AccessRequestCreate:
 		e.AccessRequestCreate.ClusterName = anonymizer.AnonymizeString(e.AccessRequestCreate.ClusterName)
 		e.AccessRequestCreate.UserName = anonymizer.AnonymizeString(e.AccessRequestCreate.UserName)
-		return prehogReq, nil
+		return prehogEvent, nil
 	case *prehogapi.SubmitConnectEventRequest_AccessRequestReview:
 		e.AccessRequestReview.ClusterName = anonymizer.AnonymizeString(e.AccessRequestReview.ClusterName)
 		e.AccessRequestReview.UserName = anonymizer.AnonymizeString(e.AccessRequestReview.UserName)
-		return prehogReq, nil
+		return prehogEvent, nil
 	case *prehogapi.SubmitConnectEventRequest_AccessRequestAssumeRole:
 		e.AccessRequestAssumeRole.ClusterName = anonymizer.AnonymizeString(e.AccessRequestAssumeRole.ClusterName)
 		e.AccessRequestAssumeRole.UserName = anonymizer.AnonymizeString(e.AccessRequestAssumeRole.UserName)
-		return prehogReq, nil
+		return prehogEvent, nil
 	case *prehogapi.SubmitConnectEventRequest_FileTransferRun:
 		e.FileTransferRun.ClusterName = anonymizer.AnonymizeString(e.FileTransferRun.ClusterName)
 		e.FileTransferRun.UserName = anonymizer.AnonymizeString(e.FileTransferRun.UserName)
-		return prehogReq, nil
+		return prehogEvent, nil
 	}
 
-	return nil, trace.BadParameter("unexpected Event usage type %T", event)
+	return nil, trace.BadParameter("unexpected Event usage type %T", req)
 }
 
-func newClusterAnonymizer(authClusterId string) (utils.Anonymizer, error) {
-	_, err := uuid.Parse(authClusterId)
+func newClusterAnonymizer(authClusterID string) (utils.Anonymizer, error) {
+	_, err := uuid.Parse(authClusterID)
 	if err != nil {
-		return nil, trace.BadParameter("Invalid auth cluster ID %s", authClusterId)
+		return nil, trace.BadParameter("Invalid auth cluster ID %s", authClusterID)
 	}
-	return utils.NewHMACAnonymizer(authClusterId)
+	return utils.NewHMACAnonymizer(authClusterID)
 }
