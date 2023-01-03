@@ -168,15 +168,17 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 					log.Debugf("Failed to fetch user roles: %v.", err)
 				}
 
-				mu.Lock()
+				var localDBListings databaseListings
 				for _, database := range databases {
-					dbListings = append(dbListings, databaseListing{
+					localDBListings = append(localDBListings, databaseListing{
 						Proxy:    profile.ProxyURL.Host,
 						Cluster:  site.Name,
 						roleSet:  roleSet,
 						Database: database,
 					})
 				}
+				mu.Lock()
+				dbListings = append(dbListings, localDBListings...)
 				mu.Unlock()
 			}
 
