@@ -45,3 +45,11 @@ func FuzzParseElastiCacheEndpoint(f *testing.F) {
 		})
 	})
 }
+
+func FuzzParseDynamoDBEndpoint(f *testing.F) {
+	f.Fuzz(func(t *testing.T, endpoint string) {
+		require.NotPanics(t, func() {
+			ParseDynamoDBEndpoint(endpoint)
+		})
+	})
+}

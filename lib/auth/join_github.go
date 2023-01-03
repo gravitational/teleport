@@ -18,12 +18,14 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type ghaIDTokenValidator interface {
@@ -46,8 +48,20 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		return nil, trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
+	// enterpriseOverride is a hostname to use instead of github.com when
+	// validating tokens. This allows GHES instances to be connected.
+	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
+	if enterpriseOverride != "" {
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, fmt.Errorf(
+				"github enterprise server joining: %w",
+				ErrRequiresEnterprise,
+			)
+		}
+	}
+
 	claims, err := a.ghaIDTokenValidator.Validate(
-		ctx, token.Spec.GitHub.EnterpriseServerHost, req.IDToken,
+		ctx, enterpriseOverride, req.IDToken,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
