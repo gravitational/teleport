@@ -177,7 +177,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 					}
 				}
 
-				var localDBListings databaseListings
+				localDBListings := make(databaseListings, 0, len(databases))
 				for _, database := range databases {
 					localDBListings = append(localDBListings, databaseListing{
 						Proxy:    profile.ProxyURL.Host,
