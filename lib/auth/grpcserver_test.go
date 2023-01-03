@@ -19,7 +19,9 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
@@ -42,6 +44,7 @@ import (
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -746,6 +749,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
+	userCertTTL := 12 * time.Hour
+	userCertExpires := clock.Now().Add(userCertTTL)
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -808,7 +813,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	role.SetOptions(roleOpt)
 	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	testUser := TestUser(user.GetName())
+	testUser.TTL = userCertTTL
+	cl, err := srv.NewClient(testUser)
 	require.NoError(t, err)
 
 	// Register MFA devices for the fake user.
@@ -828,9 +835,17 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
+	// Used for device trust tests.
+	wantDeviceExtensions := tlsca.DeviceExtensions{
+		DeviceID:     "device-id1",
+		AssetTag:     "device-assettag1",
+		CredentialID: "device-credentialid1",
+	}
+
 	tests := []struct {
-		desc string
-		opts generateUserSingleUseCertTestOpts
+		desc      string
+		newClient func() (*Client, error) // optional, makes a new client for the test.
+		opts      generateUserSingleUseCertTestOpts
 	}{
 		{
 			desc: "ssh using webauthn",
@@ -852,9 +867,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
 
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
+					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
 		},
@@ -880,9 +896,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
 
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
+					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
 		},
@@ -909,10 +926,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, webDevID)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
-					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
-					require.Equal(t, identity.KubernetesCluster, "kube-a")
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
 				},
 			},
 		},
@@ -941,9 +959,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, webDevID)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
-					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
 				},
 			},
@@ -961,7 +980,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkInitErr: require.Error,
 			},
 		},
-
 		{
 			desc: "fail - mfa challenge fail",
 			opts: generateUserSingleUseCertTestOpts{
@@ -980,10 +998,106 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkAuthErr: require.Error,
 			},
 		},
+		{
+			desc: "device extensions copied SSH cert",
+			newClient: func() (*Client, error) {
+				u := TestUser(user.GetName())
+				u.TTL = 1 * time.Hour
+
+				// Add device extensions to the fake user's identity.
+				localUser := u.I.(LocalUser)
+				localUser.Identity.DeviceExtensions = wantDeviceExtensions
+				u.I = localUser
+
+				return srv.NewClient(u)
+			},
+			opts: generateUserSingleUseCertTestOpts{
+				// Same as SSH options. Nothing special here.
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_SSH,
+					NodeName:  "node-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					// SSH certificate.
+					sshRaw := c.GetSSH()
+					require.NotEmpty(t, sshRaw, "Got empty single-use SSH certificate")
+
+					sshCert, err := sshutils.ParseCertificate(sshRaw)
+					require.NoError(t, err, "ParseCertificate failed")
+					gotSSH := tlsca.DeviceExtensions{
+						DeviceID:     sshCert.Extensions[teleport.CertExtensionDeviceID],
+						AssetTag:     sshCert.Extensions[teleport.CertExtensionDeviceAssetTag],
+						CredentialID: sshCert.Extensions[teleport.CertExtensionDeviceCredentialID],
+					}
+					if diff := cmp.Diff(wantDeviceExtensions, gotSSH, protocmp.Transform()); diff != "" {
+						t.Errorf("SSH DeviceExtensions mismatch (-want +got)\n%s", diff)
+					}
+				},
+			},
+		},
+		{
+			desc: "device extensions copied TLS cert",
+			newClient: func() (*Client, error) {
+				u := TestUser(user.GetName())
+				u.TTL = 1 * time.Hour
+
+				// Add device extensions to the fake user's identity.
+				localUser := u.I.(LocalUser)
+				localUser.Identity.DeviceExtensions = wantDeviceExtensions
+				u.I = localUser
+
+				return srv.NewClient(u)
+			},
+			opts: generateUserSingleUseCertTestOpts{
+				// Same as Database options. Nothing special here.
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+					},
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					// TLS certificate.
+					tlsRaw := c.GetTLS()
+					require.NotEmpty(t, tlsRaw, "Got empty single-use TLS certificate")
+
+					block, _ := pem.Decode(tlsRaw)
+					require.NotNil(t, block, "Decode failed (TLS PEM)")
+					tlsCert, err := x509.ParseCertificate(block.Bytes)
+					require.NoError(t, err, "ParseCertificate failed")
+
+					singleUseIdentity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+					require.NoError(t, err, "FromSubject failed")
+					gotTLS := singleUseIdentity.DeviceExtensions
+					if diff := cmp.Diff(wantDeviceExtensions, gotTLS, protocmp.Transform()); diff != "" {
+						t.Errorf("TLS DeviceExtensions mismatch (-want +got)\n%s", diff)
+					}
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			testGenerateUserSingleUseCert(ctx, t, cl, tt.opts)
+			testClient := cl
+			if tt.newClient != nil {
+				var err error
+				testClient, err = tt.newClient()
+				require.NoError(t, err, "newClient failed")
+			}
+
+			testGenerateUserSingleUseCert(ctx, t, testClient, tt.opts)
 		})
 	}
 }
@@ -1873,6 +1987,133 @@ func TestDatabasesCRUD(t *testing.T) {
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
+}
+
+// TestDatabaseServicesCRUD tests DatabaseService resource operations.
+func TestDatabaseServicesCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create two DatabaseServices.
+	db1, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name:   "db1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	db2, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name:   "db2",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"stg"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Initially we expect no DatabaseServices.
+	listServicesResp, err := clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create both DatabaseServices.
+	_, err = clt.UpsertDatabaseService(ctx, db1)
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseService(ctx, db2)
+	require.NoError(t, err)
+
+	// Fetch all DatabaseServices.
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Update a DatabaseService.
+	db1.Spec.ResourceMatchers[0] = &types.DatabaseResourceMatcher{
+		Labels: &types.Labels{
+			"env": []string{"notprod"},
+		},
+	}
+
+	_, err = clt.UpsertDatabaseService(ctx, db1)
+	require.NoError(t, err)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete a DatabaseService.
+	err = clt.DeleteDatabaseService(ctx, db1.GetName())
+	require.NoError(t, err)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to delete a DatabaseService that doesn't exist.
+	err = clt.DeleteDatabaseService(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Delete all DatabaseServices.
+	err = clt.DeleteAllDatabaseServices(ctx)
+	require.NoError(t, err)
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        apidefaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 func TestListResources(t *testing.T) {

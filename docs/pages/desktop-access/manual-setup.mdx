@@ -34,7 +34,7 @@ This guide requires you to have:
 
   **Teleport Cloud:** version 9.0 or newer
 
-  See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
+  See [Teleport Getting Started](../try-out-teleport/introduction.mdx) if you're new to Teleport.
 
 - A Linux server to run the Teleport Desktop Access service on.
 
@@ -99,6 +99,14 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"
 
 ```
+
+To save yourself time later, you can use the same prompt to get the security identifier of your new service account by running this command:
+
+```powershell
+Get-AdUser -Identity $SamAccountName | Select SID
+```
+
+Note this value (beginning with "S-") down, as it will be used as the `sid` field in the `ldap` section of your configuration file in a later step.
 
 ## Step 2/7. Prevent the service account from performing interactive logins
 
@@ -169,7 +177,7 @@ certificate-based smart card authentication, and ensuring RDP is enabled.
 
 The following step requires an existing cluster. If you don't already have a
 Teleport cluster up and running, see our general [Getting
-Started](../getting-started.mdx) guide.
+Started](../try-out-teleport/introduction.mdx) guide.
 
 <Admonition type="note" title="User CA Rotation">
 These steps will need to be repeated if Teleport's user certificate authority is rotated.
@@ -303,11 +311,27 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
 ```
 
-4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select **`Disable`** and `OK`.
+4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
 
 <Figure align="left" bordered caption="Disable Require user authentication...">
   ![Disable Require](../../img/desktop-access/disable.png)
 </Figure>
+
+5. Right click `Always prompt for password upon connection`, edit, select **`Disabled`** and .
+   Teleport's smart card based authentication generates a random smart card PIN for each
+   desktop session and provides the PIN to the desktop during the RDP connection establishment.
+   Since the PIN is never provided to the Teleport user, this setting must be disabled in
+   order for authentication to complete.
+
+### Allow credentials to be provided over RDP
+
+Select:
+
+```text
+Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection" 
+```
+
+Set to `Disabled` and click `OK`.
 
 ### Open firewall to inbound RDP connections
 
@@ -366,7 +390,7 @@ Start > Control Panel > Administrative Tools > Certificate Authority
 7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
 8. Next, in the `Extensions` tab select `Application Polices` and click the `Edit` button.
 9. Remove all entries from the list.
-10. Go to the `Security` tab, select `Domain Controllers` and give the group `Read` and `Enroll` permissions.
+10. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
 11. Finally, create a template by clicking `OK`.
 12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
 
@@ -484,7 +508,8 @@ windows_desktop_service:
     # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
-    username: '$LDAP_USERNAME'
+    username: "$LDAP_USERNAME"
+    sid: "$LDAP_USER_SID"
     # This should be the path to the certificate exported in Step 4.
     der_ca_file: /path/to/cert
   discovery:
@@ -524,7 +549,8 @@ windows_desktop_service:
     # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
-    username: '$LDAP_USERNAME'
+    username: "$LDAP_USERNAME"
+    sid: "$LDAP_USER_SID"
     # This should be the path to the certificate exported in Step 5.
     der_ca_file: /path/to/cert
   discovery:
@@ -550,9 +576,11 @@ sudo teleport start -c /etc/teleport.yaml
 ### Create a Teleport user/role for Windows Desktop Access
 
 In order to gain access to a remote desktop, a Teleport user needs to have the
-appropriate permissions for that desktop. For example, you can create a role
-that gives its users access to all Windows desktop labels and the
-`"Administrator"` user:
+appropriate permissions for that desktop. 
+
+For example, you can create a role that gives its users access to all Windows
+desktop labels and the `"Administrator"` user. To do so, create a file called
+`windows-desktop-admins.yaml` with the following content:
 
 ```yaml
 kind: role
@@ -573,11 +601,13 @@ be allowed to access.
 Usernames shared between domain and local users will create login conflicts.
 </Admonition>
 
-See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows Desktop Access permissions.
+Create the role:
 
-See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
-guide for instructions on how to create or update a user with a given role.
+```code
+$ tctl create -f windows-desktop-admins.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins"!)
 
 ### Connect to your Windows desktop
 

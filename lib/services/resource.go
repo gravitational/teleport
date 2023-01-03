@@ -177,6 +177,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindToken, nil
 	case types.KindInstaller:
 		return types.KindInstaller, nil
+	case types.KindDatabaseService, types.KindDatabaseService + "s":
+		return types.KindDatabaseService, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -511,6 +513,24 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return role, nil
+	})
+	RegisterResourceMarshaler(types.KindToken, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		token, ok := resource.(types.ProvisionToken)
+		if !ok {
+			return nil, trace.BadParameter("expected Token, got %T", resource)
+		}
+		bytes, err := MarshalProvisionToken(token, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindToken, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		token, err := UnmarshalProvisionToken(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return token, nil
 	})
 }
 

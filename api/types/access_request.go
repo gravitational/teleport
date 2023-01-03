@@ -46,11 +46,11 @@ type AccessRequest interface {
 	GetCreationTime() time.Time
 	// SetCreationTime sets the creation time of the request.
 	SetCreationTime(time.Time)
-	// GetAccessExpiry gets the upper limit for which this request
-	// may be considered active.
+	// GetAccessExpiry gets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	GetAccessExpiry() time.Time
-	// SetAccessExpiry sets the upper limit for which this request
-	// may be considered active.
+	// SetAccessExpiry sets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string
@@ -612,3 +612,24 @@ func (f *AccessRequestFilter) Match(req AccessRequest) bool {
 	}
 	return true
 }
+
+// AccessRequests is a list of AccessRequest resources.
+type AccessRequests []AccessRequest
+
+// ToMap returns these access requests as a map keyed by access request name.
+func (a AccessRequests) ToMap() map[string]AccessRequest {
+	m := make(map[string]AccessRequest)
+	for _, accessRequest := range a {
+		m[accessRequest.GetName()] = accessRequest
+	}
+	return m
+}
+
+// Len returns the slice length.
+func (a AccessRequests) Len() int { return len(a) }
+
+// Less compares access requests by name.
+func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
+
+// Swap swaps two access requests.
+func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }

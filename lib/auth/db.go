@@ -21,6 +21,8 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
@@ -82,10 +84,20 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		PublicKey: csr.PublicKey,
 		Subject:   csr.Subject,
 		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
+	}
+	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
+		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
+		// and SubjectAltName (which we need for otherName SAN, not supported
+		// out of the box in crypto/x509) extensions only.
+		certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
+		certReq.KeyUsage = x509.KeyUsageDigitalSignature
+		// CRL is required for Windows smartcard certs.
+		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
+	} else {
 		// Include provided server names as SANs in the certificate, CommonName
 		// has been deprecated since Go 1.15:
 		//   https://golang.org/doc/go1.15#commonname
-		DNSNames: getServerNames(req),
+		certReq.DNSNames = getServerNames(req)
 	}
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
@@ -305,3 +317,20 @@ func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (stri
 
 	return subject, issuer
 }
+
+func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
+	filtered := make([]pkix.Extension, 0, len(oids))
+	for _, e := range extensions {
+		for _, id := range oids {
+			if e.Id.Equal(id) {
+				filtered = append(filtered, e)
+			}
+		}
+	}
+	return filtered
+}
+
+var (
+	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+)

@@ -814,6 +814,10 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		// Disconnect.
 		require.NoError(t, client.Close())
 	})
+
+	t.Run("teleterm gateways cert renewal", func(t *testing.T) {
+		testTeletermGatewaysCertRenewal(t, pack)
+	})
 }
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
@@ -829,13 +833,13 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		},
 	})
 
-	sess := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
-	status, _, err := pack.MakeRequest(sess, http.MethodGet, "/")
+	cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+	status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
-	sess = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
-	status, _, err = pack.MakeRequest(sess, http.MethodGet, "/")
+	cookies = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+	status, _, err = pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 }

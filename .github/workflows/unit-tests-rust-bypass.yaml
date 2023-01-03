@@ -1,5 +1,15 @@
+# This workflow is required to ensure that required Github check passes even if
+# the actual "Unit Tests (Rust)" workflow skipped due to path filtering. Otherwise
+# it will stay forever pending.
+#
+# See "Handling skipped but required checks" for more info:
+#
+# https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/troubleshooting-required-status-checks#handling-skipped-but-required-checks
+#
+# Note both workflows must have the same name.
+
 name: Unit Tests (Rust)
-run-name: Unit Tests (Rust) - ${{ github.run_id }} - @${{ github.actor }}
+run-name: Skip Unit Tests (Rust) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   pull_request:
@@ -7,6 +17,15 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths-ignore:
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:

@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
@@ -76,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -3945,7 +3947,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4109,7 +4111,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4253,7 +4255,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -5631,7 +5633,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 
 	accessRequestID := req.GetName()
 
-	err = authServer.CreateAccessRequest(context.TODO(), req)
+	err = authServer.CreateAccessRequest(context.TODO(), req, tlsca.Identity{})
 	require.NoError(t, err)
 
 	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
@@ -5872,6 +5874,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
 	cfg.Console = nil
 	cfg.Log = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return cfg
 }
 
