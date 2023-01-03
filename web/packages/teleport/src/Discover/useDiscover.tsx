@@ -109,6 +109,12 @@ export function DiscoverProvider<T = any>(
   // database service, then we don't want to show the user
   // the screen that lets them add a database server.
   function nextStep(numToIncrement = 1) {
+    // This function can be used in a way that HTML event
+    // get passed in which isn't a valid number.
+    if (!Number.isInteger(numToIncrement)) {
+      numToIncrement = 1;
+    }
+
     const nextView = findViewAtIndex(views, currentStep + numToIncrement);
 
     if (nextView) {

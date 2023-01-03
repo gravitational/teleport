@@ -46,7 +46,20 @@ export default {
 export const Init = () => {
   return (
     <Provider>
-      <DownloadScript />
+      <DownloadScript {...props} />
+    </Provider>
+  );
+};
+
+export const InitWithLabels = () => {
+  return (
+    <Provider>
+      <DownloadScript
+        agentMeta={{
+          ...props.agentMeta,
+          agentMatcherLabels: [{ name: 'env', value: 'prod' }],
+        }}
+      />
     </Provider>
   );
 };
@@ -55,13 +68,13 @@ export const Polling = () => {
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+    rest.get(cfg.api.databasesPath, (req, res, ctx) => {
       return res(ctx.delay('infinite'));
     })
   );
   return (
     <Provider>
-      <DownloadScript runJoinTokenPromise={true} />
+      <DownloadScript runJoinTokenPromise={true} {...props} />
     </Provider>
   );
 };
@@ -70,13 +83,13 @@ export const PollingSuccess = () => {
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+    rest.get(cfg.api.databasesPath, (req, res, ctx) => {
       return res(ctx.json({ items: [{}] }));
     })
   );
   return (
     <Provider interval={5}>
-      <DownloadScript runJoinTokenPromise={true} />
+      <DownloadScript runJoinTokenPromise={true} {...props} />
     </Provider>
   );
 };
@@ -85,13 +98,13 @@ export const PollingError = () => {
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+    rest.get(cfg.api.databasesPath, (req, res, ctx) => {
       return res(ctx.delay('infinite'));
     })
   );
   return (
     <Provider timeout={20}>
-      <DownloadScript runJoinTokenPromise={true} />
+      <DownloadScript runJoinTokenPromise={true} {...props} />
     </Provider>
   );
 };
@@ -131,7 +144,7 @@ const Provider = props => {
           <PingTeleportProvider
             timeout={props.timeout || 100000}
             interval={props.interval || 100000}
-            resourceKind={ResourceKind.Kubernetes}
+            resourceKind={ResourceKind.Database}
           >
             {props.children}
           </PingTeleportProvider>
@@ -149,3 +162,11 @@ function createTeleportContext() {
 
   return ctx;
 }
+
+const props = {
+  agentMeta: {
+    resourceName: 'db-name',
+    agentMatcherLabels: [],
+    db: {} as any,
+  },
+};

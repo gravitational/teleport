@@ -17,7 +17,7 @@
 import React, { useState, Suspense } from 'react';
 import { Text, Box, ButtonSecondary } from 'design';
 import * as Icons from 'design/Icon';
-import Validation, { Validator } from 'shared/components/Validation';
+import Validation, { Validator, useRule } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
 import {
@@ -37,6 +37,8 @@ import {
   ResourceKind,
   TextIcon,
   LabelsCreater,
+  DiscoverLabel,
+  Mark,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
@@ -46,24 +48,26 @@ export default function Container(
   props: AgentStepProps & { runJoinTokenPromise?: boolean }
 ) {
   const [showScript, setShowScript] = useState(props.runJoinTokenPromise);
-  const [labels, setLabels] = useState<AgentLabel[]>(
-    props.agentMeta?.agentMatcherLabels?.length > 0
-      ? // TODO (lisa): make it so that either asteriks, or one of the
-        // user defined labels is included
-        props.agentMeta.agentMatcherLabels
+
+  const hasDbLabels = props.agentMeta?.agentMatcherLabels?.length;
+  const dbLabels = hasDbLabels ? props.agentMeta.agentMatcherLabels : [];
+  const [labels, setLabels] = useState<DiscoverLabel[]>(
+    hasDbLabels
+      ? dbLabels
       : // If user did not define any labels from previous step (create db)
         // then the only way the agent will know how to pick up the
         // new db is through asteriks.
-        [{ name: '*', value: '*' }]
+        [{ name: '*', value: '*', isFixed: true }]
   );
 
   function handleGenerateCommand(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
-
     setShowScript(true);
   }
+
+  const labelProps = { labels, setLabels, dbLabels };
 
   return (
     <Validation>
@@ -73,10 +77,19 @@ export default function Container(
           fallbackFn={props => (
             <Box>
               <Heading />
-              <Labels labels={labels} setLabels={setLabels} />
-              <ButtonSecondary width="200px" onClick={props.retry}>
-                Generate Command
-              </ButtonSecondary>
+              <Labels
+                {...labelProps}
+                generateBtn={
+                  <ButtonGenerateCmd
+                    onClick={() => {
+                      if (!validator.validate()) {
+                        return;
+                      }
+                      props.retry();
+                    }}
+                  />
+                }
+              />
               <Box>
                 <TextIcon mt={3}>
                   <Icons.Warning ml={1} color="danger" />
@@ -92,13 +105,10 @@ export default function Container(
               <Box>
                 <Heading />
                 <Labels
-                  labels={labels}
-                  setLabels={setLabels}
+                  {...labelProps}
                   disableBtns={true}
+                  generateBtn={<ButtonGenerateCmd disabled={true} />}
                 />
-                <ButtonSecondary width="200px" disabled={true}>
-                  Generate Command
-                </ButtonSecondary>
                 <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
             }
@@ -106,21 +116,22 @@ export default function Container(
             {!showScript && (
               <Box>
                 <Heading />
-                <Labels labels={labels} setLabels={setLabels} />
-                <ButtonSecondary
-                  width="200px"
-                  onClick={() => handleGenerateCommand(validator)}
-                >
-                  Generate Command
-                </ButtonSecondary>
+                <Labels
+                  {...labelProps}
+                  generateBtn={
+                    <ButtonGenerateCmd
+                      onClick={() => handleGenerateCommand(validator)}
+                    />
+                  }
+                />
                 <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
             )}
             {showScript && (
               <DownloadScript
                 {...props}
-                labels={labels}
-                setLabels={setLabels}
+                {...labelProps}
+                validator={validator}
               />
             )}
           </Suspense>
@@ -134,6 +145,8 @@ export function DownloadScript(
   props: AgentStepProps & {
     labels: AgentLabel[];
     setLabels(l: AgentLabel[]): void;
+    dbLabels: AgentLabel[];
+    validator: Validator;
   }
 ) {
   // Fetches join token.
@@ -150,6 +163,10 @@ export function DownloadScript(
   } = usePingTeleport<Database>(props.agentMeta.resourceName);
 
   function regenerateScriptAndRepoll() {
+    if (!props.validator.validate()) {
+      return;
+    }
+
     reloadJoinToken();
     start();
   }
@@ -160,6 +177,7 @@ export function DownloadScript(
       resourceName: result.name,
       db: result,
     });
+    props.nextStep();
   }
 
   let poll: Poll = { state: 'polling' };
@@ -172,12 +190,11 @@ export function DownloadScript(
             The command was not run on the server you were trying to add,
             regenerate command and try again.
           </>,
-          // TODO (lisa): not sure what this message should be.
-          // <>
-          //   The Teleport Service could not join this Teleport cluster. Check the
-          //   logs for errors by running <br />
-          //   <Mark>kubectl logs -l app=teleport-agent -n {namespace}</Mark>
-          // </>,
+          <>
+            The Teleport Database Service could not join this Teleport cluster.
+            Check the logs for errors by running <br />
+            <Mark>journalctl status teleport</Mark>
+          </>,
         ],
       },
     };
@@ -192,20 +209,22 @@ export function DownloadScript(
         labels={props.labels}
         setLabels={props.setLabels}
         disableBtns={poll.state === 'polling'}
+        dbLabels={props.dbLabels}
+        generateBtn={
+          <ButtonGenerateCmd
+            disabled={poll.state === 'polling'}
+            onClick={regenerateScriptAndRepoll}
+            title="Regenerate Command"
+          />
+        }
       />
-      <ButtonSecondary
-        width="200px"
-        disabled={poll.state === 'polling'}
-        onClick={regenerateScriptAndRepoll}
-        mb={3}
-      >
-        Regenerate Command
-      </ButtonSecondary>
-      <CommandWithTimer
-        command={createBashCommand(joinToken.id)}
-        poll={poll}
-        pollingTimeout={timeout}
-      />
+      <Box mt={6}>
+        <CommandWithTimer
+          command={createBashCommand(joinToken.id)}
+          poll={poll}
+          pollingTimeout={timeout}
+        />
+      </Box>
       <ActionButtons
         onProceed={handleNextStep}
         disableProceed={poll.state !== 'success' || props.labels.length === 0}
@@ -218,7 +237,11 @@ const Heading = () => {
   return (
     <>
       <Header>Deploy a Database Service</Header>
-      <HeaderSubtitle>TODO lorem ipsum dolores</HeaderSubtitle>
+      <HeaderSubtitle>
+        On the host where you will run the Teleport Database Service, execute
+        the generated command that will install and start Teleport with the
+        appropriate configuration.
+      </HeaderSubtitle>
     </>
   );
 };
@@ -227,11 +250,18 @@ export const Labels = ({
   labels,
   setLabels,
   disableBtns = false,
+  dbLabels,
+  generateBtn,
 }: {
   labels: AgentLabel[];
   setLabels(l: AgentLabel[]): void;
   disableBtns?: boolean;
+  dbLabels: AgentLabel[];
+  generateBtn: React.ReactNode;
 }) => {
+  const { valid, message } = useRule(requireMatchingLabels(dbLabels, labels));
+  const hasError = !valid;
+
   return (
     <Box mb={2}>
       <Text bold>Labels</Text>
@@ -244,6 +274,15 @@ export const Labels = ({
         setLabels={setLabels}
         disableBtns={disableBtns}
       />
+      <Box mt={3}>
+        {generateBtn}
+        {hasError && (
+          <TextIcon mt={3}>
+            <Icons.Warning ml={1} color="danger" />
+            {message}
+          </TextIcon>
+        )}
+      </Box>
     </Box>
   );
 };
@@ -251,3 +290,75 @@ export const Labels = ({
 function createBashCommand(tokenId: string) {
   return `sudo bash -c "$(curl -fsSL ${cfg.getDbScriptUrl(tokenId)})"`;
 }
+
+const requireMatchingLabels =
+  (dbLabels: AgentLabel[], agentLabels: AgentLabel[]) => () => {
+    if (!matchLabels(dbLabels, agentLabels)) {
+      return {
+        valid: false,
+        message:
+          'At least one matching label needs to be defined. \
+          Asteriks can also be used to match any databases.',
+      };
+    }
+    return { valid: true };
+  };
+
+// matchLabels will go through 'agentLabels' and find a match from
+// 'dbLabels' (if an agent label matches with a db label, then the
+// db will be discoverable by the agent).
+export function matchLabels(dbLabels: AgentLabel[], agentLabels: AgentLabel[]) {
+  let dbKeyMap = {};
+  let dbValMap = {};
+
+  dbLabels.forEach(label => {
+    dbKeyMap[label.name] = label.value;
+    dbValMap[label.value] = label.name;
+  });
+
+  for (let i = 0; i < agentLabels.length; i++) {
+    const agentLabel = agentLabels[i];
+    const agentLabelKey = agentLabel.name;
+    const agentLabelVal = agentLabel.value;
+
+    // All asterik means an agent can discover any database
+    // by any labels (or no labels).
+    if (agentLabelKey === '*' && agentLabelVal === '*') {
+      return true;
+    }
+
+    // Key only asterik means an agent can discover any database
+    // with any matching value.
+    if (agentLabelKey === '*' && dbValMap[agentLabelVal]) {
+      return true;
+    }
+
+    // Value only asterik means an agent can discover any database
+    // with any matching key.
+    if (agentLabelVal === '*' && dbKeyMap[agentLabelKey]) {
+      return true;
+    }
+
+    // Match against words.
+    const dbVal = dbKeyMap[agentLabel.name];
+    if (dbVal && dbVal === agentLabelVal) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const ButtonGenerateCmd = ({
+  onClick,
+  title = 'Generate Command',
+  disabled = false,
+}: {
+  onClick?(): void;
+  title?: string;
+  disabled?: boolean;
+}) => (
+  <ButtonSecondary width="200px" onClick={onClick} disabled={disabled}>
+    {title}
+  </ButtonSecondary>
+);

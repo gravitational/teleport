@@ -55,13 +55,10 @@ export function TestConnectionView({
   const userOpts = db.users.map(l => ({ value: l, label: l }));
   const nameOpts = db.names.map(l => ({ value: l, label: l }));
 
+  // These fields will never be empty as the previous step prevents users
+  // from getting to this step if both are not defined.
   const [selectedUser, setSelectedUser] = useState(userOpts[0]);
-
-  // Database User might be the more popular option so it takes
-  // precedence.
-  const [selectedName, setSelectedName] = useState(
-    userOpts[0] ? null : nameOpts[0]
-  );
+  const [selectedName, setSelectedName] = useState(nameOpts[0]);
 
   return (
     <Box>
@@ -73,8 +70,7 @@ export function TestConnectionView({
       <StyledBox mb={5}>
         <Text bold>Step 1</Text>
         <Text typography="subtitle1" mb={3}>
-          Select a user and or a database name to test. At least one must be
-          selected.
+          Select a user and a database name to test.
         </Text>
         <Box width="500px" mb={4}>
           <LabelInput htmlFor={'select'}>Database User</LabelInput>
@@ -85,7 +81,6 @@ export function TestConnectionView({
                 : 'Click to select a database user'
             }
             isSearchable
-            isClearable={true}
             value={selectedUser}
             onChange={(o: Option) => setSelectedUser(o)}
             options={userOpts}
@@ -104,7 +99,6 @@ export function TestConnectionView({
                 : 'Click to select a database name'
             }
             isSearchable
-            isClearable={true}
             value={selectedName}
             onChange={(o: Option) => setSelectedName(o)}
             options={nameOpts}
@@ -119,7 +113,10 @@ export function TestConnectionView({
         diagnosis={diagnosis}
         canTestConnection={canTestConnection}
         testConnection={() =>
-          testConnection({ name: selectedName.value, user: selectedUser.value })
+          testConnection({
+            name: selectedName.value,
+            user: selectedUser.value,
+          })
         }
         stepNumber={2}
         stepDescription="Verify that your database is accessible"
@@ -141,7 +138,10 @@ export function TestConnectionView({
         </Box>
         <Box mb={2}>
           Connect to your database
-          <TextSelectCopy mt="1" text={`tsh db connect ${db.name}`} />
+          <TextSelectCopy
+            mt="1"
+            text={`tsh db connect ${db.name} --db-user=${selectedUser.value} --db-name=${selectedName.value}`}
+          />
         </Box>
       </StyledBox>
       <ActionButtons onProceed={nextStep} lastStep={true} />

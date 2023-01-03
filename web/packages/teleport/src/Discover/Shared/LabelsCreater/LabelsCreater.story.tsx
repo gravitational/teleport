@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 
 import Validation from 'shared/components/Validation';
 
-import { LabelsCreater } from './LabelsCreater';
+import { LabelsCreater, DiscoverLabel } from './LabelsCreater';
 
 export default {
   title: 'Teleport/Discover/Shared/LabelsCreator',
@@ -41,6 +41,20 @@ export const OptionalLabels = () => {
 export const RequiredLabels = () => {
   const [labels, setLabels] = useState([
     { name: 'env', value: 'prod' },
+    { name: 'os', value: 'windows' },
+  ]);
+
+  return (
+    <Validation>
+      <LabelsCreater labels={labels} setLabels={setLabels} />
+    </Validation>
+  );
+};
+
+export const FixedLabels = () => {
+  const [labels, setLabels] = useState<DiscoverLabel[]>([
+    { name: 'env', value: 'prod', isFixed: true },
+    { name: 'fruit', value: 'banana', isFixed: true },
     { name: 'os', value: 'windows' },
   ]);
 

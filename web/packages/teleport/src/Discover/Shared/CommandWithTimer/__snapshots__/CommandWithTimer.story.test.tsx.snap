@@ -132,7 +132,6 @@ exports[`render custom polling 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
   padding: 16px;
   border-radius: 8px;
   max-width: 800px;
@@ -233,6 +232,7 @@ exports[`render custom polling 1`] = `
         00
         :
         00
+        
       </span>
     </div>
   </div>
@@ -402,7 +402,6 @@ exports[`render custom polling error 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
   padding: 16px;
   border-radius: 8px;
   max-width: 800px;
@@ -666,7 +665,6 @@ exports[`render custom polling success 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
   padding: 16px;
   border-radius: 8px;
   max-width: 800px;
@@ -894,7 +892,6 @@ exports[`render default polling 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
   padding: 16px;
   border-radius: 8px;
   max-width: 800px;
@@ -997,6 +994,7 @@ exports[`render default polling 1`] = `
         00
         :
         00
+        
       </span>
     </div>
   </div>
@@ -1166,7 +1164,6 @@ exports[`render default polling error 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
   padding: 16px;
   border-radius: 8px;
   max-width: 800px;
@@ -1430,7 +1427,6 @@ exports[`render default polling success 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  margin-top: 24px;
   padding: 16px;
   border-radius: 8px;
   max-width: 800px;

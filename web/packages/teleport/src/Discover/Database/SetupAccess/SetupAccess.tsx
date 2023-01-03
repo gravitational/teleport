@@ -15,7 +15,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Box } from 'design';
+import styled from 'styled-components';
+import { Box, Text, Flex, Link } from 'design';
+import { InfoFilled } from 'design/Icon';
 
 import {
   SelectCreatable,
@@ -25,6 +27,8 @@ import {
   useUserTraits,
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
+import { Mark } from 'teleport/Discover/Shared';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
@@ -87,7 +91,9 @@ export function SetupAccess(props: State) {
     onProceed({ databaseNames: selectedNames, databaseUsers: selectedUsers });
   }
 
-  const hasTraits = selectedNames.length > 0 || selectedUsers.length > 0;
+  // Both db names and users are required.
+  const hasTraits = selectedNames.length > 0 && selectedUsers.length > 0;
+
   const canAddTraits = !props.isSsoUser && props.canEditUser;
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
@@ -100,6 +106,7 @@ export function SetupAccess(props: State) {
       traitDescription="names and users"
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
+      infoContent={<Info />}
     >
       <Box mb={4}>
         Database Users
@@ -145,3 +152,65 @@ export function SetupAccess(props: State) {
     </SetupAccessWrapper>
   );
 }
+
+const Info = () => (
+  <StyledBox mt={5}>
+    <Flex mb={2}>
+      <InfoFilled fontSize={18} mr={1} mt="2px" />
+      <Text bold>To allow access using your Database Users</Text>
+    </Flex>
+    <Box mb={3}>
+      <Text mb={1}>
+        Add the following entries to PostgreSQL's{' '}
+        <Link
+          href="https://www.postgresql.org/docs/current/auth-pg-hba-conf.html"
+          target="_blank"
+        >
+          host-based authentication
+        </Link>{' '}
+        file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL require's client
+        CA from clients connecting over TLS:
+      </Text>
+      <TextSelectCopyMulti
+        bash={false}
+        lines={[
+          {
+            text:
+              `hostssl all             all             ::/0                    cert\n` +
+              `hostssl all             all             0.0.0.0/0               cert\n`,
+          },
+        ]}
+      />
+      <Text mt={2}>
+        Note: Ensure that you have no higher-priority md5 authentication rules
+        that will match, otherwise PostgreSQL will offer them first, and the
+        certificate-based Teleport login will fail.
+      </Text>
+    </Box>
+    <Box>
+      <Text bold>Access Definition</Text>
+      <ul
+        css={`
+          margin-bottom: 0;
+        `}
+      >
+        <li>
+          <Mark>Database User</Mark> is the name of a user that is allowed to
+          connect to a database. A wildcard allows any user.
+        </li>
+        <li>
+          <Mark>Database Name</Mark> is the name of a logical database (aka
+          schemas) that a <Mark>Database User</Mark> will be allowed to connect
+          to within a database server. A wildcard allows any database.
+        </li>
+      </ul>
+    </Box>
+  </StyledBox>
+);
+
+const StyledBox = styled(Box)`
+  max-width: 800px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 20px;
+`;

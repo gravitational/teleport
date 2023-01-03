@@ -48,7 +48,7 @@ export function useConnectionDiagnostic(props: AgentStepProps) {
     attempt,
     runConnectionDiagnostic,
     diagnosis,
-    nextStep: props.nextStep,
+    nextStep: () => props.nextStep(),
     prevStep: props.prevStep,
     canTestConnection,
     username,

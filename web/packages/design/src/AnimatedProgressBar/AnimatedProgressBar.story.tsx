@@ -14,5 +14,12 @@
  * limitations under the License.
  */
 
-export { LabelsCreater } from './LabelsCreater';
-export type { DiscoverLabel } from './LabelsCreater';
+import React from 'react';
+
+import { AnimatedProgressBar as Component } from './AnimatedProgressBar';
+
+export default {
+  title: 'Design',
+};
+
+export const AnimatedProgressBar = () => <Component />;

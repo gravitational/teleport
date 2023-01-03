@@ -3,11 +3,13 @@ import React, { useEffect, useState } from 'react';
 interface TimeoutProps {
   timeout: number; // ms
   message?: string;
+  tailMessage?: string;
 }
 
 export function Timeout({
   timeout,
   message = 'This script is valid for another',
+  tailMessage = '',
 }: TimeoutProps) {
   const [, setCount] = useState(0);
 
@@ -33,6 +35,7 @@ export function Timeout({
   return (
     <span>
       {message} {formattedMinutes}:{formattedSeconds}
+      {tailMessage}
     </span>
   );
 }

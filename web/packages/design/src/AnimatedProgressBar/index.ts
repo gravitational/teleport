@@ -14,5 +14,4 @@
  * limitations under the License.
  */
 
-export { LabelsCreater } from './LabelsCreater';
-export type { DiscoverLabel } from './LabelsCreater';
+export { AnimatedProgressBar } from './AnimatedProgressBar';

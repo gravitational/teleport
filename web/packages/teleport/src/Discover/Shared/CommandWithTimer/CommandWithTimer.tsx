@@ -28,7 +28,7 @@ export const CommandWithTimer = ({
   header,
 }: Props) => {
   return (
-    <PollBox mt={4} p={3} borderRadius={3} pollState={poll.state}>
+    <PollBox p={3} borderRadius={3} pollState={poll.state}>
       {header || <Text bold>Command</Text>}
       <Box mt={2} mb={1}>
         <TextSelectCopyMulti lines={[{ text: command }]} />

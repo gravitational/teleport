@@ -134,6 +134,7 @@ export function DownloadScript(props: AgentStepProps) {
       resourceName: result.hostname,
       node: result,
     });
+    props.nextStep();
   }
 
   return (

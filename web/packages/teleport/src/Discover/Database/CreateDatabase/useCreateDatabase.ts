@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
@@ -24,15 +26,21 @@ import type { AgentStepProps } from '../../types';
 import type { CreateDatabaseRequest } from 'teleport/services/databases';
 import type { DbMeta } from 'teleport/Discover/useDiscover';
 
+const WAITING_TIMEOUT = 30000;
+
 export function useCreateDatabase(props: AgentStepProps) {
   const ctx = useTeleport();
   const { attempt, setAttempt } = useAttempt('');
+  const [pollTimeout, setPollTimeout] = useState(0);
 
-  async function createDbAndQueryDb(db: CreateDatabaseRequest) {
+  async function registerDatabase(db: CreateDatabaseRequest) {
+    setPollTimeout(Date.now() + WAITING_TIMEOUT);
     setAttempt({ status: 'processing' });
     try {
       // TODO (lisa): The exisitng logic below is no longer correct, will modify/update
       // after this issue gets resolved: https://github.com/gravitational/teleport/issues/19032
+
+      // 30 second poller.
       //
       // Logic to implement:
       //
@@ -58,15 +66,15 @@ export function useCreateDatabase(props: AgentStepProps) {
       // Query for the created database by searching through database services.
       // As discussed, if a service was already available, the new db should be
       // picked up immediately.
-      let numSteps;
-      const request = {
-        search: db.name,
-        limit: 1,
-      };
-      const queryResult = await ctx.databaseService.fetchDatabases(
-        clusterId,
-        request
-      );
+      // let numSteps;
+      // const request = {
+      //   search: db.name,
+      //   limit: 1,
+      // };
+      // const queryResult = await ctx.databaseService.fetchDatabases(
+      //   clusterId,
+      //   request
+      // );
 
       const dbMeta: DbMeta = {
         ...(props.agentMeta as DbMeta),
@@ -74,23 +82,26 @@ export function useCreateDatabase(props: AgentStepProps) {
         agentMatcherLabels: db.labels,
       };
 
-      // If an agent was found, skip the next step that requires you
-      // to set up the db service, and set the database we queried to
-      // refer to it in later steps (this queried db will include current
-      // db users and db names).
-      const queriedDb = queryResult.agents[0];
-      if (queriedDb) {
-        numSteps = 2;
-        props.updateAgentMeta({
-          ...dbMeta,
-          db: queriedDb,
-        });
-      } else {
-        // Set the new db name to query by this name after user
-        // adds a db service.
-        props.updateAgentMeta(dbMeta);
-      }
-      props.nextStep(numSteps);
+      // // If an agent was found, skip the next step that requires you
+      // // to set up the db service, and set the database we queried to
+      // // refer to it in later steps (this queried db will include current
+      // // db users and db names).
+      // const queriedDb = queryResult.agents[0];
+      // if (queriedDb) {
+      //   numSteps = 2;
+      //   props.updateAgentMeta({
+      //     ...dbMeta,
+      //     db: queriedDb,
+      //   });
+      // } else {
+      //   // Set the new db name to query by this name after user
+      //   // adds a db service.
+      //   props.updateAgentMeta(dbMeta);
+      // }
+      // props.nextStep(numSteps);
+
+      props.updateAgentMeta(dbMeta);
+      props.nextStep();
     } catch (err) {
       let message;
       if (err instanceof Error) message = err.message;
@@ -99,12 +110,18 @@ export function useCreateDatabase(props: AgentStepProps) {
     }
   }
 
+  function clearAttempt() {
+    setAttempt({ status: '' });
+  }
+
   const access = ctx.storeUser.getDatabaseAccess();
   return {
     attempt,
-    createDbAndQueryDb,
+    clearAttempt,
+    registerDatabase,
     canCreateDatabase: access.create,
     engine: (props.resourceState as Database).engine,
+    pollTimeout,
   };
 }
 

@@ -49,14 +49,20 @@ export const Failed = () => (
   <MemoryRouter>
     <CreateDatabaseView
       {...props}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
+      attempt={{
+        status: 'failed',
+        statusText:
+          'invalid database "sfd" address "sfdsdf": address sfdsdf: missing port in address',
+      }}
     />
   </MemoryRouter>
 );
 
 const props: State = {
   attempt: { status: '' },
-  createDbAndQueryDb: () => null,
+  clearAttempt: () => null,
+  registerDatabase: () => null,
   canCreateDatabase: true,
   engine: DatabaseEngine.PostgreSQL,
+  pollTimeout: Date.now() + 30000,
 };

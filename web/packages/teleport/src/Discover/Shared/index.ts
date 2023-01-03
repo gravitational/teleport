@@ -29,3 +29,5 @@ export {
   ConnectionDiagnosticResult,
   useConnectionDiagnostic,
 } from './ConnectionDiagnostic';
+
+export type { DiscoverLabel } from './LabelsCreater';

@@ -31,18 +31,6 @@ export const Init = () => (
   </MemoryRouter>
 );
 
-export const InitWithOnlyDbUsers = () => (
-  <MemoryRouter>
-    <TestConnectionView {...props} db={{ ...props.db, names: [] }} />
-  </MemoryRouter>
-);
-
-export const InitWithOnlyDbNames = () => (
-  <MemoryRouter>
-    <TestConnectionView {...props} db={{ ...props.db, users: [] }} />
-  </MemoryRouter>
-);
-
 const props: State = {
   attempt: {
     status: 'success',

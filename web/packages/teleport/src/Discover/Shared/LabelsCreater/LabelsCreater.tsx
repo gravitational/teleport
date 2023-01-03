@@ -29,8 +29,8 @@ export function LabelsCreater({
   disableBtns = false,
   isLabelOptional = false,
 }: {
-  labels: AgentLabel[];
-  setLabels(l: AgentLabel[]): void;
+  labels: DiscoverLabel[];
+  setLabels(l: DiscoverLabel[]): void;
   disableBtns?: boolean;
   isLabelOptional?: boolean;
 }) {
@@ -110,6 +110,7 @@ export function LabelsCreater({
                   mr={3}
                   mb={0}
                   onChange={e => handleChange(e, index, 'name')}
+                  readonly={disableBtns || label.isFixed}
                 />
                 <FieldInput
                   rule={requiredField('required')}
@@ -119,21 +120,24 @@ export function LabelsCreater({
                   mb={0}
                   mr={2}
                   onChange={e => handleChange(e, index, 'value')}
+                  readonly={disableBtns || label.isFixed}
                 />
-                <ButtonIcon
-                  size={1}
-                  title="Remove Label"
-                  onClick={() => removeLabel(index)}
-                  css={`
-                    &:disabled {
-                      opacity: 0.65;
-                      pointer-events: none;
-                    }
-                  `}
-                  disabled={disableBtns}
-                >
-                  <Icons.Trash />
-                </ButtonIcon>
+                {!label.isFixed && (
+                  <ButtonIcon
+                    size={1}
+                    title="Remove Label"
+                    onClick={() => removeLabel(index)}
+                    css={`
+                      &:disabled {
+                        opacity: 0.65;
+                        pointer-events: none;
+                      }
+                    `}
+                    disabled={disableBtns}
+                  >
+                    <Icons.Trash />
+                  </ButtonIcon>
+                )}
               </Flex>
             </Box>
           );
@@ -169,3 +173,9 @@ export function LabelsCreater({
     </>
   );
 }
+
+export type DiscoverLabel = AgentLabel & {
+  // isFixed is a flag to mean label is
+  // unmodifiable and undeletable.
+  isFixed?: boolean;
+};
