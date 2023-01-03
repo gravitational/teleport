@@ -58,7 +58,7 @@ Let's go over the token configuration YAML in more detail:
 
 - `metadata.name` defines the name of the token. Note that this value will need to be used in other parts of the configuration later.
 - `metadata.expires` defines the date that the join token will expire. This example is set
-to the year `2100`, however care should be taken in production in order to Ensure
+to the year `2100`, however care should be taken in production in order to ensure
 that the expiration date will not be given a value that is greater than what is needed.
 - `spec.bot_name` is the name of the Machine ID bot that this token will grant access to.
 Note that this value will need to be used in other parts of the configuration later.
@@ -91,8 +91,8 @@ Once the configuration YAML file has been created, apply it to your cluster usin
 $ tctl create -f tokenconfig.yaml
 ```
 
-The token `github-token` can now be observed with the following command, ensuring that the configuring is ready to be used by
-GitHub:
+The token `github-token` can now be observed with the following command, ensuring
+that the configuration is ready to be used by GitHub:
 
 ```code
 $ tctl tokens ls
@@ -120,7 +120,7 @@ a role according to the principle of least privilege in production environments.
 should have explicit access to the cluster using a username created specifically for the bot user alone.
 
 Enter the following command from your workstation with `tsh` access, replacing the `username` value with
-the username affiliated with a node the bot will be required to access over a `tsh ssh` session:
+a Linux user on the host that you want your GitHub Actions flow to be able to connect to:
 
 ```
 $ tctl bots add github-demo --roles=access --token=github-token --logins=username
@@ -128,12 +128,12 @@ $ tctl bots add github-demo --roles=access --token=github-token --logins=usernam
 
 ## Step 3/3. Configuring GitHub Actions
 
-Now that the bot has been successfully created, GitHub Actions can function as part of the Teleport cluster.
+Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their GitHub provided identity.
 
 In the GitHub workflows directory of your repo (`.github/workflows/`) create a new workflow YAML file,
 in this case `actionstest.yml`, that will reflect the action you'd like to configure. This guide will create an action that
 will both list nodes within the cluster using `tsh ls`, as well as write the commit SHA that triggered the workflow to
-a file within the bot node. To create this configuration, use the following YAML file:
+file on a node. To create this configuration, use the following YAML file:
 
 ```YAML
 # This is a basic workflow to help you get started.
@@ -198,20 +198,20 @@ The GitHub action may take some time to complete, and will resemble the followin
 
 Expand the `List nodes` step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
-TSH user configured for Machine ID using the command `tsh ls`.
+Machine ID bot using the command `tsh ls`.
 
 ## A note on security implications and risk
 
-When working with GitHub Actions and `tbot` it is important to ensure that
-the principal of least privilege is always applied and that security implications
-are well understood and respected.
+Once `teleport-actions/auth` has been used in a workflow job, all successive
+steps in that job will have access to the credentials which grant access to your
+Teleport cluster as the bot. Where possible, run as few steps as necessary after
+this action has been used. It may be a good idea to break your workflow up into
+multiple jobs in order to segregate these credentials from other code running in
+your CI/CD pipeline.
 
-Using `tbot` commands with GitHub Actions means that GitHub Actions will
-have access to certificates contained within your Teleport cluster, and therefore
-a level of permitted access to your Teleport cluster. In order to reduce risk,
-extra care should be taken when user implemented code, code that is not
-otherwise well understood, or code that is otherwise untested is applied as part
-of the same job.
+Most importantly, ensure that the role you assign to your GitHub Actions bot has
+access to only the resources in your Teleport cluster that your CI/CD needs to
+interact with.
 
 ## GitHub Enterprise Server
 
