@@ -17,6 +17,7 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -24,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -344,6 +346,50 @@ func TestCARenewer(t *testing.T) {
 	require.Equal(t, int64(2), atomic.LoadInt64(&caDownloader.count))
 }
 
+// TestInitAzureCAs given Azure hosted databases, init their CAs ensuring the
+// download and get version calls have the correct CA hint.
+func TestInitAzureCAs(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	azureDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "azure",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		Azure: types.Azure{
+			Name: "azure",
+		},
+	})
+	require.NoError(t, err)
+
+	supportedHints := []string{filepath.Base(azureCAURLBaltimore), filepath.Base(azureCAURLDigiCert)}
+	initialCA := generateDatabaseCA(t)
+	caDownloader := &fakeDownloader{
+		cert:    initialCA,
+		version: []byte("v1"),
+		assertHintFunc: func(hint string) {
+			require.Contains(
+				t,
+				supportedHints,
+				hint,
+				"CA download hint must be one of: %s. But got %q", strings.Join(supportedHints, ","),
+				hint,
+			)
+		},
+	}
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:    []types.Database{azureDB},
+		NoStart:      true,
+		CADownloader: caDownloader,
+	})
+
+	require.NoError(t, databaseServer.initCACert(ctx, azureDB))
+	// It must have the contents of two CAs. Since we're returning the same
+	// content for both, it should have 2 instances of "initialCA".
+	require.Equal(t, string(bytes.Join([][]byte{initialCA, initialCA}, []byte("\n"))), azureDB.GetStatusCA())
+}
+
 func generateDatabaseCA(t *testing.T) []byte {
 	t.Helper()
 	_, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
@@ -360,14 +406,25 @@ type fakeDownloader struct {
 	count int64
 	// version is the CA version returned when GetVersion is called.
 	version []byte
+	// assertHintFunc is a function used to assert the contents of "hint"
+	// argument.
+	assertHintFunc func(string)
 }
 
-func (d *fakeDownloader) Download(context.Context, types.Database, string) ([]byte, []byte, error) {
+func (d *fakeDownloader) Download(_ context.Context, _ types.Database, hint string) ([]byte, []byte, error) {
+	if d.assertHintFunc != nil {
+		d.assertHintFunc(hint)
+	}
+
 	atomic.AddInt64(&d.count, 1)
 	return d.cert, d.version, nil
 }
 
-func (d *fakeDownloader) GetVersion(_ context.Context, _ types.Database, _ string) ([]byte, error) {
+func (d *fakeDownloader) GetVersion(_ context.Context, _ types.Database, hint string) ([]byte, error) {
+	if d.assertHintFunc != nil {
+		d.assertHintFunc(hint)
+	}
+
 	if d.version == nil {
 		return nil, trace.NotImplemented("GetVersion not implemented")
 	}
