@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -2319,6 +2320,18 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authPref, err := actx.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	identity := actx.Identity.GetIdentity()
+
+	// Device trust: authorize device before issuing certificates, if applicable.
+	// This gives a better UX by failing earlier in the access attempt.
+	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
 		return trace.Wrap(err)
 	}
 

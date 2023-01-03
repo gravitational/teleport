@@ -1900,7 +1900,11 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyLockWatcher)
+	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: testCtx.clusterName,
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
@@ -2036,7 +2040,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 	})
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient, lockWatcher)
+	dbAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: c.clusterName,
+		AccessPoint: c.authClient,
+		LockWatcher: lockWatcher,
+	})
 	require.NoError(t, err)
 
 	// Create test database auth tokens generator.

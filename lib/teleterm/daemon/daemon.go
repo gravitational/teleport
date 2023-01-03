@@ -126,19 +126,18 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// ResolveFullCluster returns full cluster information. It makes a request to the auth server.
+// ResolveFullCluster returns full cluster information. It makes a request to the auth server and includes
+// details about the cluster and logged in user
 func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	features, err := cluster.GetClusterFeatures(ctx)
+	cluster, err = cluster.EnrichWithDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cluster.Features = features
 
 	return cluster, nil
 }
