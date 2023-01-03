@@ -1979,7 +1979,8 @@ func listNodesAllClusters(cf *CLIConf) error {
 	group, groupCtx := errgroup.WithContext(cf.Context)
 	group.SetLimit(4)
 
-	mu := sync.Mutex{}
+	// mu guards access to listings
+	var mu sync.Mutex
 	var listings nodeListings
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
