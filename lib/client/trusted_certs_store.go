@@ -365,7 +365,7 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.Truste
 	output := make([]string, 0)
 	scanner := bufio.NewScanner(fp)
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := scanner.Text() + "\n"
 		if _, exists := entries[line]; !exists {
 			output = append(output, line)
 			entries[line] = 1
