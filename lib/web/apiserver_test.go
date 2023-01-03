@@ -5671,15 +5671,19 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 	hf := h.WithLimiterHandlerFunc(func(http.ResponseWriter, *http.Request, httprouter.Params) (interface{}, error) {
 		return nil, nil
 	})
+
+	// Verify that a valid burst is allowed.
 	r := &http.Request{}
 	for i := 0; i < burst; i++ {
 		r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", i)
 		_, err = hf(nil, r, nil)
-		require.NoError(t, err)
+		require.NoError(t, err, "WithLimiterHandlerFunc failed unexpectedly")
 	}
+
+	// Verify that exceeding the limit causes errors.
 	r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", burst)
 	_, err = hf(nil, r, nil)
-	require.True(t, trace.IsLimitExceeded(err))
+	require.True(t, trace.IsLimitExceeded(err), "WithLimiterHandlerFunc returned err = %T, want trace.LimitExceededError", err)
 }
 
 // kubeClusterConfig defines the cluster to be created
