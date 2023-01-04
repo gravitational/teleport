@@ -91,13 +91,12 @@ type RedirectorConfig struct {
 
 // NewRedirector returns new local web server redirector
 func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*Redirector, error) {
-	cltConfig := ClientConfig{
+	clt, proxyURL, err := initClient(ClientConfig{
 		ProxyAddr:    login.ProxyAddr,
 		Insecure:     login.Insecure,
 		Pool:         login.Pool,
 		ExtraHeaders: login.ExtraHeaders,
-	}
-	clt, proxyURL, err := initClient(cltConfig)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

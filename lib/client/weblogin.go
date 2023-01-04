@@ -374,13 +374,12 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
 func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginResponse, error) {
-	cltConfig := ClientConfig{
+	clt, _, err := initClient(ClientConfig{
 		ProxyAddr:    login.ProxyAddr,
 		Insecure:     login.Insecure,
 		Pool:         login.Pool,
 		ExtraHeaders: login.ExtraHeaders,
-	}
-	clt, _, err := initClient(cltConfig)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -415,13 +414,12 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 //
 // Returns the SSH certificate if authn is successful or an error.
 func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
-	cltConfig := ClientConfig{
+	webClient, webURL, err := initClient(ClientConfig{
 		ProxyAddr:    login.ProxyAddr,
 		Insecure:     login.Insecure,
 		Pool:         login.Pool,
 		ExtraHeaders: login.ExtraHeaders,
-	}
-	webClient, webURL, err := initClient(cltConfig)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -492,13 +490,12 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
 func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
-	cltConfig := ClientConfig{
+	clt, _, err := initClient(ClientConfig{
 		ProxyAddr:    login.ProxyAddr,
 		Insecure:     login.Insecure,
 		Pool:         login.Pool,
 		ExtraHeaders: login.ExtraHeaders,
-	}
-	clt, _, err := initClient(cltConfig)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -566,13 +563,12 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 // HostCredentials is used to fetch host credentials for a node.
 func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	cltConfig := ClientConfig{
+	clt, _, err := initClient(ClientConfig{
 		ProxyAddr:    proxyAddr,
 		Insecure:     insecure,
 		Pool:         nil,
 		ExtraHeaders: nil,
-	}
-	clt, _, err := initClient(cltConfig)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -592,13 +588,12 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 
 // GetWebConfig is used by teleterm to fetch webconfig.js from proxies
 func GetWebConfig(ctx context.Context, proxyAddr string, insecure bool) (*webclient.WebConfig, error) {
-	cltConfig := ClientConfig{
+	clt, _, err := initClient(ClientConfig{
 		ProxyAddr:    proxyAddr,
 		Insecure:     insecure,
 		Pool:         nil,
 		ExtraHeaders: nil,
-	}
-	clt, _, err := initClient(cltConfig)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
