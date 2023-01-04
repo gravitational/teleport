@@ -82,6 +82,16 @@ export class LoggedInUser extends jspb.Message {
     setActiveRequestsList(value: Array<string>): LoggedInUser;
     addActiveRequests(value: string, index?: number): string;
 
+    clearSuggestedReviewersList(): void;
+    getSuggestedReviewersList(): Array<string>;
+    setSuggestedReviewersList(value: Array<string>): LoggedInUser;
+    addSuggestedReviewers(value: string, index?: number): string;
+
+    clearRequestableRolesList(): void;
+    getRequestableRolesList(): Array<string>;
+    setRequestableRolesList(value: Array<string>): LoggedInUser;
+    addRequestableRoles(value: string, index?: number): string;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LoggedInUser.AsObject;
@@ -100,6 +110,8 @@ export namespace LoggedInUser {
         sshLoginsList: Array<string>,
         acl?: ACL.AsObject,
         activeRequestsList: Array<string>,
+        suggestedReviewersList: Array<string>,
+        requestableRolesList: Array<string>,
     }
 }
 
