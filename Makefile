@@ -993,10 +993,8 @@ protos/format: buf/installed
 
 .PHONY: protos/lint
 protos/lint: buf/installed
-	$(BUF) lint proto
+	$(BUF) lint
 	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
-	$(BUF) lint lib/teleterm/api/proto
-	$(BUF) lint lib/prehog/proto
 
 .PHONY: lint-protos
 lint-protos: protos/lint
