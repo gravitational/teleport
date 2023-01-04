@@ -178,7 +178,7 @@ ENV GOPATH="/go" \
 # Install node.
 ARG NODE_VERSION
 ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-arm64.tar.xz"
-RUN curl -L ${NODE_URL} && \
+RUN curl -O -L ${NODE_URL} && \
     tar --strip-components 1 -xzvf node-v* -C /usr/local
 RUN corepack enable yarn
 
