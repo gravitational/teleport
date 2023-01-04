@@ -432,9 +432,7 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
 func (s *Server) HandleConnection(conn net.Conn) {
-	s.log.Info("connection accepetet will report?")
 	if s.ingressReporter != nil {
-		s.log.Info("Reporting connection accepeted")
 		s.ingressReporter.ConnectionAccepeted(s.ingressService, conn)
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
