@@ -1915,17 +1915,19 @@ func TestApplyTraits(t *testing.T) {
 			},
 			allow: rule{
 				inLogins: []string{
-					`{{email.local(whatever.email)}}`, // no validation is done on the namespace
 					`{{regexp.replace(external.email, "_", "")}}`,
+					`{{email.local(external.email)}}`,
 					`{{regexp.replace(email.local(external.email), "_", "")}}`,
+					`{{regexp.replace(external.email, "d", "e")}}`,
 					`{{email.local(regexp.replace(external.email, "d", "e"))}}`,
 					`{{regexp.replace(regexp.replace(email.local(regexp.replace(external.email, "cd", "z")), "ab", "xy"), "_", "")}}`,
 					"root",
 				},
 				outLogins: []string{
-					"ab_cd",
 					"abcd@example.com",
+					"ab_cd",
 					"abcd",
+					"ab_ce@example.com",
 					"ab_ce",
 					"xyz",
 					"root",

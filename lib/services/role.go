@@ -491,17 +491,17 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	varValidation := func(v parse.VarNode) error {
+	varValidation := func(namespace string, name string) error {
 		// verify that internal traits match the supported variables
-		if v.Namespace() == teleport.TraitInternalPrefix {
-			switch v.Name() {
+		if namespace == teleport.TraitInternalPrefix {
+			switch name {
 			case constants.TraitLogins, constants.TraitWindowsLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				teleport.TraitJWT:
 			default:
-				return trace.BadParameter("unsupported variable %q", v.Name())
+				return trace.BadParameter("unsupported variable %q", name)
 			}
 		}
 		// TODO: which namespace values are allowed? here we're allowing all.
