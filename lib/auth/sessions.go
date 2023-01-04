@@ -85,6 +85,8 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// we need to skip attestation.
 		skipAttestation: true,
 		azureIdentity:   req.AzureIdentity,
+		// Pass along device extensions from the user.
+		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

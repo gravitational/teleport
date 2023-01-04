@@ -353,7 +353,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	srv.Authorizer, err = NewAuthorizer(AuthorizerOpts{
+		ClusterName: srv.ClusterName,
+		AccessPoint: srv.AuthServer,
+		LockWatcher: srv.LockWatcher,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -8,6 +8,9 @@ on:
   pull_request:
     paths:
       - 'examples/chart/**'
+  merge_group:
+    paths:
+      - 'examples/chart/**'
 
 jobs:
   test:

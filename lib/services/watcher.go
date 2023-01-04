@@ -519,11 +519,13 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 		fanout:            NewFanout(),
 		initializationC:   make(chan struct{}),
 	}
+	// Resource watcher require the fanout to be initialized before passing in.
+	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
+	collector.fanout.SetInit()
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	collector.fanout.SetInit()
 	return &LockWatcher{watcher, collector}, nil
 }
 
@@ -1194,13 +1196,14 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	for _, t := range cfg.Types {
 		collector.cas[t] = make(map[string]types.CertAuthority)
 	}
-
+	// Resource watcher require the fanout to be initialized before passing in.
+	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
+	collector.fanout.SetInit()
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	collector.fanout.SetInit()
 	return &CertAuthorityWatcher{watcher, collector}, nil
 }
 
@@ -1521,3 +1524,145 @@ func (n *nodeCollector) initializationChan() <-chan struct{} {
 }
 
 func (n *nodeCollector) notifyStale() {}
+
+// AccessRequestWatcherConfig is a AccessRequestWatcher configuration.
+type AccessRequestWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// AccessRequestGetter is responsible for fetching access request resources.
+	AccessRequestGetter
+	// Filter is the filter to use to monitor access requests.
+	Filter types.AccessRequestFilter
+	// AccessRequestsC receives up-to-date list of all access request resources.
+	AccessRequestsC chan types.AccessRequests
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *AccessRequestWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.AccessRequestGetter == nil {
+		getter, ok := cfg.Client.(AccessRequestGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter AccessRequestGetter and Client not usable as AccessRequestGetter")
+		}
+		cfg.AccessRequestGetter = getter
+	}
+	if cfg.AccessRequestsC == nil {
+		cfg.AccessRequestsC = make(chan types.AccessRequests)
+	}
+	return nil
+}
+
+// NewAccessRequestWatcher returns a new instance of AccessRequestWatcher.
+func NewAccessRequestWatcher(ctx context.Context, cfg AccessRequestWatcherConfig) (*AccessRequestWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &accessRequestCollector{
+		AccessRequestWatcherConfig: cfg,
+		initializationC:            make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AccessRequestWatcher{watcher, collector}, nil
+}
+
+// AccessRequestWatcher is built on top of resourceWatcher to monitor access request resources.
+type AccessRequestWatcher struct {
+	*resourceWatcher
+	*accessRequestCollector
+}
+
+// accessRequestCollector accompanies resourceWatcher when monitoring access request resources.
+type accessRequestCollector struct {
+	// AccessRequestWatcherConfig is the watcher configuration.
+	AccessRequestWatcherConfig
+	// current holds a map of the currently known access request resources.
+	current map[string]types.AccessRequest
+	// lock protects the "current" map.
+	lock sync.RWMutex
+	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *accessRequestCollector) resourceKind() string {
+	return types.KindAccessRequest
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *accessRequestCollector) initializationChan() <-chan struct{} {
+	return p.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	accessRequests, err := p.AccessRequestGetter.GetAccessRequests(ctx, p.Filter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.AccessRequest, len(accessRequests))
+	for _, accessRequest := range accessRequests {
+		newCurrent[accessRequest.GetName()] = accessRequest
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.defineCollectorAsInitialized()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case p.AccessRequestsC <- accessRequests:
+	}
+
+	return nil
+}
+
+func (p *accessRequestCollector) defineCollectorAsInitialized() {
+	p.once.Do(func() {
+		// mark watcher as initialized.
+		close(p.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindAccessRequest {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+		select {
+		case <-ctx.Done():
+		case p.AccessRequestsC <- resourcesToSlice(p.current):
+		}
+	case types.OpPut:
+		accessRequest, ok := event.Resource.(types.AccessRequest)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		p.current[accessRequest.GetName()] = accessRequest
+		select {
+		case <-ctx.Done():
+		case p.AccessRequestsC <- resourcesToSlice(p.current):
+		}
+
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*accessRequestCollector) notifyStale() {}
