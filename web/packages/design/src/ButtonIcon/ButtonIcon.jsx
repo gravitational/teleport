@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-import { space, color } from 'design/system';
+import { space, color, alignSelf } from 'design/system';
 
 import Icon from '../Icon';
 
@@ -95,5 +95,6 @@ const StyledButtonIcon = styled.button`
   ${size}
   ${space}
   ${color}
+  ${alignSelf}
 `;
 export default ButtonIcon;

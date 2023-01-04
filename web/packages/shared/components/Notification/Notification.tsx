@@ -19,8 +19,6 @@ import styled, { css, useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Close } from 'design/Icon';
 
-import type { propTypes } from 'design/system';
-
 import type { NotificationItem, NotificationItemContent } from './types';
 
 interface NotificationProps {
@@ -30,11 +28,18 @@ interface NotificationProps {
   getColor(theme): string;
   isAutoRemovable: boolean;
   autoRemoveDurationMs?: number;
+  // Workaround until `styled` gets types.
+  // Once the types are available, we can switch the type of Notification props to:
+  //
+  //     NotificationProps & React.ComponentProps<typeof Container>
+  //
+  // and remove the next line.
+  [key: string]: any;
 }
 
 const defaultAutoRemoveDurationMs = 10_000; // 10s
 
-export function Notification(props: NotificationProps & propTypes) {
+export function Notification(props: NotificationProps) {
   const {
     item,
     onRemove,
@@ -73,6 +78,7 @@ export function Notification(props: NotificationProps & propTypes) {
       size={0}
       ml={1}
       mr={-1}
+      alignSelf="baseline"
       style={{ visibility: isHovered ? 'visible' : 'hidden' }}
       onClick={e => {
         e.stopPropagation();
@@ -118,7 +124,7 @@ function getRenderedContent(
 
   if (typeof content === 'string') {
     return (
-      <Flex justifyContent="space-between" width="100%">
+      <Flex alignItems="center" justifyContent="space-between" width="100%">
         <Text
           typography="body1"
           fontSize={13}
