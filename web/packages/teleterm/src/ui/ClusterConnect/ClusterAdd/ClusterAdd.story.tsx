@@ -19,7 +19,7 @@ import React from 'react';
 import { ClusterAddPresentation } from './ClusterAdd';
 
 export default {
-  title: 'Teleterm/ClusterAdd',
+  title: 'Teleterm/ModalsHost/ClusterAdd',
 };
 
 export const Story = () => {

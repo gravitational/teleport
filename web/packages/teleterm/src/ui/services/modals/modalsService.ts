@@ -136,7 +136,7 @@ export class ModalsService extends ImmutableStore<State> {
   }
 }
 
-export interface DialogBase {
+export interface DialogNone {
   kind: 'none';
 }
 
@@ -144,7 +144,6 @@ export interface DialogClusterConnect {
   kind: 'cluster-connect';
   clusterUri?: RootClusterUri;
   reason?: ClusterConnectReason;
-  onSuccess?(clusterUri: string): void;
   onSuccess?(clusterUri: RootClusterUri): void;
   onCancel?(): void;
 }
@@ -167,14 +166,12 @@ export interface DialogClusterLogout {
 
 export interface DialogDocumentsReopen {
   kind: 'documents-reopen';
-
   onConfirm?(): void;
-
   onCancel?(): void;
 }
 
 export type Dialog =
-  | DialogBase
   | DialogClusterConnect
   | DialogClusterLogout
-  | DialogDocumentsReopen;
+  | DialogDocumentsReopen
+  | DialogNone;
