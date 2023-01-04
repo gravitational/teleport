@@ -243,6 +243,7 @@ func TestAuthPOST(t *testing.T) {
 
 			res := p.makeRequestWithHeaders(t, "/x-teleport-auth", test.headers)
 
+			require.NoError(t, res.Body.Close())
 			require.Equal(t, test.outStatusCode, res.StatusCode)
 
 			var cookieValue string
