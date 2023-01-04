@@ -16,7 +16,6 @@ package gcp
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -68,7 +67,7 @@ func TestForwarder_getToken(t *testing.T) {
 			},
 			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
-				require.True(t, errors.Is(err, context.DeadlineExceeded))
+				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
 		},
 		{
