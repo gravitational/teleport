@@ -245,7 +245,7 @@ func TestSSODiagnostic(t *testing.T) {
 			idp := newFakeIDP(t, false /* tls */)
 
 			// create role referenced in request.
-			role, err := types.NewRole("access", types.RoleSpecV5{
+			role, err := types.NewRole("access", types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins: []string{"dummy"},
 				},
@@ -809,7 +809,7 @@ func TestUsernameClaim(t *testing.T) {
 	diagCtx := auth.SSODiagContext{}
 
 	// Create role that will be mapped to the user.
-	role, err := types.NewRole("access", types.RoleSpecV5{
+	role, err := types.NewRole("access", types.RoleSpecV6{
 		Allow: types.RoleConditions{},
 	})
 	require.NoError(t, err)
@@ -1007,10 +1007,10 @@ func TestOIDCAuthRequest(t *testing.T) {
 
 	idp := newFakeIDP(t, false /* tls */)
 
-	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	access1Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+	access1Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1022,7 +1022,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access2Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+	access2Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1034,7 +1034,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access3Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+	access3Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1046,7 +1046,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	readerRole, err := auth.CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+	readerRole, err := auth.CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{

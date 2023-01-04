@@ -226,7 +226,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	}
 
 	// SAML connector validation requires the roles in mappings exist.
-	role, err := types.NewRole("admin", types.RoleSpecV5{})
+	role, err := types.NewRole("admin", types.RoleSpecV6{})
 	require.NoError(t, err)
 	err = a.CreateRole(ctx, role)
 	require.NoError(t, err)
@@ -303,7 +303,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	require.NoError(t, err)
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a})
 
-	_, err = auth.CreateRole(ctx, a, "baz", types.RoleSpecV5{})
+	_, err = auth.CreateRole(ctx, a, "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -436,7 +436,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Error(t, err)
 
 	// create role referenced in request.
-	role, err := types.NewRole("access", types.RoleSpecV5{
+	role, err := types.NewRole("access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"dummy"},
 		},
@@ -499,7 +499,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.NoError(t, err)
 
 	// SAML connector validation requires the roles in mappings exist.
-	connectorRole, err := types.NewRole("baz", types.RoleSpecV5{})
+	connectorRole, err := types.NewRole("baz", types.RoleSpecV6{})
 	require.NoError(t, err)
 	err = a.CreateRole(ctx, connectorRole)
 	require.NoError(t, err)
@@ -679,13 +679,13 @@ func TestSAMLAuthRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV5{})
+	_, err = auth.CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	access1Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+	access1Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -697,7 +697,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access2Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+	access2Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -709,7 +709,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access3Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+	access3Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -721,7 +721,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	readerRole, err := auth.CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+	readerRole, err := auth.CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{

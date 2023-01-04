@@ -40,7 +40,7 @@ func TestUsageReport(t *testing.T) {
 	}
 
 	m.apiGetters.MockedGetRoles = func() ([]types.Role, error) {
-		return []types.Role{&types.RoleV5{}, &types.RoleV5{}}, nil
+		return []types.Role{&types.RoleV6{}, &types.RoleV6{}}, nil
 	}
 
 	m.apiGetters.MockedGetGithubConnectors = func() ([]types.GithubConnector, error) {
