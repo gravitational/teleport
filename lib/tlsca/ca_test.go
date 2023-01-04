@@ -346,5 +346,4 @@ func TestGCPExtensions(t *testing.T) {
 	out, err := FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(out, &identity))
-	require.Equal(t, "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15", out.RouteToApp.SessionID)
 }
