@@ -72,8 +72,7 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 			"in your teleport config or put the license into the default search "+
 			"location at %v", filepath.Join(cfg.DataDir, defaults.LicenseFile))
 	}
-
-	logger.Infof("Using license from %v %v.", cfg.Auth.LicenseFile, licenseFile.License)
+	authPlugin.SetLicense(licenseFile.KeyPair)
 
 	// Now when license is activated, initialize the OSS process
 	ossProcess, err := service.NewTeleport(cfg)

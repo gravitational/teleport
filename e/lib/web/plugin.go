@@ -97,6 +97,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(p.oidcLoginConsole))
 
 	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
+	h.GET("/enterprise/license", h.WithAuth(p.getLicense))
 
 	h.POST("/enterprise/accessrequest", h.WithClusterClientProvider(p.createAccessRequestHandle))
 	h.PUT("/enterprise/accessrequest", h.WithClusterClientProvider(p.reviewAccessRequestHandle))
@@ -104,6 +105,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/accessrequest/:requestId", h.WithClusterClientProvider(p.getAccessRequestHandle))
 	h.GET("/enterprise/accessrequest", h.WithAuth(p.getAccessRequestsHandle))
 	h.GET("/enterprise/resourcerequestroles", h.WithAuth(p.getResourceRequestRolesHandle))
+
+	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
 
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))

@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -17,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/release"
 )
 
 const (
@@ -61,6 +63,8 @@ type Plugin struct {
 	authorizer auth.Authorizer
 	// emitter is events emitter, used to submit discrete events.
 	emitter apievents.Emitter
+	// license is the license file used to start the auth server
+	license *liblicense.License
 }
 
 // GetName returns plugin name
@@ -83,6 +87,11 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	return nil
 }
 
+// SetLicense sets the license
+func (p *Plugin) SetLicense(licenseFile *liblicense.License) {
+	p.license = licenseFile
+}
+
 // RegisterAuthServices registers Auth Services (GRPC)
 func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	authServer, ok := server.(*auth.GRPCServer)
@@ -95,6 +104,10 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	gRPCServer, err := authServer.GetServer()
 	if err != nil {
 		return trace.BadParameter("missing proto server")
+	}
+
+	if p.license != nil {
+		authServer.AuthServer.SetLicense(p.license)
 	}
 
 	// Register Cloud APIs.
@@ -137,6 +150,25 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		return trace.Wrap(err)
 	}
 	authServer.AuthServer.SetOIDCService(oas)
+
+	// Create the ReleaseClient
+	if p.license != nil {
+		releaseTLSConfig, err := liblicense.MakeTLSConfig(*p.license)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		releaseClient, err := release.NewClient(
+			release.ClientConfig{
+				TLSConfig:         releaseTLSConfig,
+				ReleaseServerAddr: release.GetServerAddr(),
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authServer.AuthServer.SetReleaseService(*releaseClient)
+	}
 
 	return nil
 }
