@@ -5,49 +5,29 @@ import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mo
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
 
-const platform = 'darwin';
-
 export class MockMainProcessClient implements MainProcessClient {
+  configService: ReturnType<typeof createConfigService>;
+
+  constructor(private runtimeSettings: Partial<RuntimeSettings> = {}) {
+    this.configService = createConfigService(
+      createMockFileStorage(),
+      this.getRuntimeSettings().platform
+    );
+  }
   getRuntimeSettings(): RuntimeSettings {
-    return {
-      platform,
-      dev: true,
-      userDataDir: '',
-      binDir: '',
-      certsDir: '',
-      kubeConfigsDir: '',
-      defaultShell: '',
-      tshd: {
-        insecure: true,
-        requestedNetworkAddress: '',
-        binaryPath: '',
-        homeDir: '',
-        flags: [],
-      },
-      sharedProcess: {
-        requestedNetworkAddress: '',
-      },
-      tshdEvents: {
-        requestedNetworkAddress: '',
-      },
-      installationId: '123e4567-e89b-12d3-a456-426614174000',
-    };
+    return { ...defaultRuntimeSettings, ...this.runtimeSettings };
   }
 
   getResolvedChildProcessAddresses = () =>
     Promise.resolve({ tsh: '', shared: '' });
 
   openTerminalContextMenu() {}
-
   openClusterContextMenu() {}
-
   openTabContextMenu() {}
 
   showFileSaveDialog() {
     return Promise.resolve({ canceled: false, filePath: '' });
   }
-
-  configService = createConfigService(createMockFileStorage(), platform);
 
   fileStorage = createMockFileStorage();
 
@@ -56,4 +36,35 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   forceFocusWindow() {}
+
+  async symlinkTshMacOs() {
+    return true;
+  }
+  async removeTshSymlinkMacOs() {
+    return true;
+  }
 }
+
+const defaultRuntimeSettings = {
+  platform: 'darwin' as const,
+  dev: true,
+  userDataDir: '',
+  binDir: '',
+  certsDir: '',
+  kubeConfigsDir: '',
+  defaultShell: '',
+  tshd: {
+    insecure: true,
+    requestedNetworkAddress: '',
+    binaryPath: '',
+    homeDir: '',
+    flags: [],
+  },
+  sharedProcess: {
+    requestedNetworkAddress: '',
+  },
+  tshdEvents: {
+    requestedNetworkAddress: '',
+  },
+  installationId: '123e4567-e89b-12d3-a456-426614174000',
+};

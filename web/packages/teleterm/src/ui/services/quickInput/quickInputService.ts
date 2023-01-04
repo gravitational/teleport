@@ -68,6 +68,14 @@ export class QuickInputService extends Store<State> {
       'tsh proxy db',
       new parsers.QuickTshProxyDbParser(databaseSuggester)
     );
+    this.quickCommandParser.registerParserForCommand(
+      'tsh install',
+      new parsers.QuickNoArgumentsParser({ kind: 'command.tsh-install' })
+    );
+    this.quickCommandParser.registerParserForCommand(
+      'tsh uninstall',
+      new parsers.QuickNoArgumentsParser({ kind: 'command.tsh-uninstall' })
+    );
   }
 
   state: State = {

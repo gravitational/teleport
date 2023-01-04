@@ -537,7 +537,6 @@ test('picking a command suggestion in an empty input autocompletes the command',
     kind: 'suggestion.cmd',
     token: 'tsh ssh',
     data: {
-      name: 'autocomplete.tsh-ssh',
       displayName: 'tsh ssh',
       description: '',
     },
@@ -564,7 +563,6 @@ test('picking a command suggestion in an input with a single space preserves the
     kind: 'suggestion.cmd',
     token: 'tsh ssh',
     data: {
-      name: 'autocomplete.tsh-ssh',
       displayName: 'tsh ssh',
       description: '',
     },

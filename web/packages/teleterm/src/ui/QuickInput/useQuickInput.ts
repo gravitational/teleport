@@ -31,7 +31,7 @@ import {
 import { routing } from 'teleterm/ui/uri';
 import { KeyboardShortcutType } from 'teleterm/services/config';
 
-import { retryWithRelogin } from '../utils';
+import { assertUnreachable, retryWithRelogin } from '../utils';
 
 export default function useQuickInput() {
   const appContext = useAppContext();
@@ -121,6 +121,17 @@ export default function useQuickInput() {
           localClusterUri,
         });
         break;
+      }
+      case 'command.tsh-install': {
+        commandLauncher.executeCommand('tsh-install', undefined);
+        break;
+      }
+      case 'command.tsh-uninstall': {
+        commandLauncher.executeCommand('tsh-uninstall', undefined);
+        break;
+      }
+      default: {
+        assertUnreachable(command);
       }
     }
 

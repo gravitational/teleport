@@ -145,7 +145,7 @@ node-pty](https://github.com/microsoft/node-pty#dependencies).
 
 ### Linux
 
-To create an RPM package for an arm64 target you need to provide `USE_SYSTEM_FPM=1` env var.
+To create arm64 deb and RPM packages you need to provide `USE_SYSTEM_FPM=1` env var.
 
 ### macOS
 
