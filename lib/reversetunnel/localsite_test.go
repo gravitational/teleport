@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -36,6 +37,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestRemoteConnCleanup(t *testing.T) {
 	t.Parallel()
@@ -82,10 +88,15 @@ func TestRemoteConnCleanup(t *testing.T) {
 	go func() {
 		site.handleHeartbeat(conn1, nil, reqs)
 		cancel()
+		close(reqs)
 	}()
 
 	// send an initial heartbeat
-	reqs <- &ssh.Request{Type: "heartbeat"}
+	select {
+	case reqs <- &ssh.Request{Type: "heartbeat"}:
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out attempting to send initial site heartbeat")
+	}
 
 	// create a fake session
 	fakeSession := newSessionTrackingConn(conn1, &mockRemoteConnConn{})
@@ -94,7 +105,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	// should not force the connection to close since there is still an active session
 	for i := 0; i <= missedHeartBeatThreshold+1; i++ {
 		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+		clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker = 3
 		clock.Advance(srv.offlineThreshold)
 	}
 
@@ -103,17 +114,21 @@ func TestRemoteConnCleanup(t *testing.T) {
 	require.False(t, sconn.closed.Load())
 
 	// send another heartbeat to reset exceeding the threshold
-	reqs <- &ssh.Request{Type: "heartbeat"}
+	select {
+	case reqs <- &ssh.Request{Type: "heartbeat"}:
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out attempting to send second site heartbeat")
+	}
 
 	// close the fake session
-	clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+	clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker = 3
 	require.NoError(t, fakeSession.Close())
 
 	// advance the clock to trigger missing a heartbeat, the last advance
 	// should force the connection to close since there are no active sessions
 	for i := 0; i <= missedHeartBeatThreshold; i++ {
 		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+		clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker = 3
 		clock.Advance(srv.offlineThreshold)
 	}
 
@@ -121,7 +136,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	select {
 	case <-ctx.Done():
 	case <-time.After(30 * time.Second): // artificially high to prevent flakiness
-		t.Fatal("LocalSite heart beat handler never terminated")
+		t.Fatal("LocalSite heartbeat handler never terminated")
 	}
 
 	// assert the connections were closed
