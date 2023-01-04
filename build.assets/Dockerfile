@@ -31,7 +31,8 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.1 && \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DWITH_EXAMPLES=OFF . && \
     make && \
-    make install
+    make install && \
+    make clean
 
 # Install libfido2.
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
@@ -44,7 +45,8 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
         -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
     make && \
-    make install
+    make install  && \
+    make clean
 
 FROM ubuntu:18.04 AS buildbox
 
