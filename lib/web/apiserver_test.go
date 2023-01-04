@@ -57,6 +57,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -926,7 +927,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	}
 	for i, req := range reqs {
 		t.Run(fmt.Sprintf("tc %v", i), func(t *testing.T) {
-			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions"), req)
+			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions", "web"), req)
 			require.Error(t, err)
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -2028,7 +2029,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	clt := s.client(t)
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	ua := "test-ua"
 	req.Header.Set("User-Agent", ua)
@@ -2068,7 +2069,7 @@ func TestLogin(t *testing.T) {
 
 	clt := s.client(t)
 	ua := "test-ua"
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", ua)
 
@@ -6150,7 +6151,7 @@ func (s *WebSuite) login(clt *TestWebClient, cookieToken string, reqToken string
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -6778,7 +6779,7 @@ func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqDa
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -6873,6 +6874,40 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 
 	// Verify that the userContext returned contains the correct Access Request ID.
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
+}
+
+func TestWithLimiterHandlerFunc(t *testing.T) {
+	const burst = 20
+	limiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{
+				Period:  time.Minute,
+				Average: 10,
+				Burst:   burst,
+			},
+		},
+		Clock: &timetools.FreezedTime{
+			CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+		},
+	})
+	require.NoError(t, err)
+	h := &Handler{limiter: limiter}
+	hf := h.WithLimiterHandlerFunc(func(http.ResponseWriter, *http.Request, httprouter.Params) (interface{}, error) {
+		return nil, nil
+	})
+
+	// Verify that a valid burst is allowed.
+	r := &http.Request{}
+	for i := 0; i < burst; i++ {
+		r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", i)
+		_, err = hf(nil, r, nil)
+		require.NoError(t, err, "WithLimiterHandlerFunc failed unexpectedly")
+	}
+
+	// Verify that exceeding the limit causes errors.
+	r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", burst)
+	_, err = hf(nil, r, nil)
+	require.True(t, trace.IsLimitExceeded(err), "WithLimiterHandlerFunc returned err = %T, want trace.LimitExceededError", err)
 }
 
 // kubeClusterConfig defines the cluster to be created
