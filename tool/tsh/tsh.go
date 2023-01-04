@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -1700,7 +1701,6 @@ func listNodesAllClusters(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	default:
-
 
 	}
 	return nil

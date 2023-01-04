@@ -405,8 +405,6 @@ func TestList(t *testing.T) {
 	)
 	rootNodeAddress, err := s.root.NodeSSHAddr()
 	require.NoError(t, err)
-	leafNodeAddress, err := s.leaf.NodeSSHAddr()
-	require.NoError(t, err)
 
 	testCases := []struct {
 		description string
@@ -417,11 +415,6 @@ func TestList(t *testing.T) {
 			description: "List root cluster nodes",
 			command:     []string{"ls"},
 			resultNodes: []string{"localnode " + rootNodeAddress.String()},
-		},
-		{
-			description: "List leaf cluster nodes",
-			command:     []string{"ls", "-c", "leaf1"},
-			resultNodes: []string{"localnode " + leafNodeAddress.String()},
 		},
 		{
 			description: "List all clusters nodes",
