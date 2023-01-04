@@ -62,7 +62,6 @@ var reVariable = regexp.MustCompile(
 // or a literal value like "prod". Call Interpolate on the returned Expression
 // to get the final value based on traits or other dynamic values.
 func NewExpression(exprStr string) (*StringExpression, error) {
-	var prefix, suffix string
 	match := reVariable.FindStringSubmatch(exprStr)
 	if len(match) == 0 {
 		if strings.Contains(exprStr, "{{") || strings.Contains(exprStr, "}}") {
@@ -71,11 +70,11 @@ func NewExpression(exprStr string) (*StringExpression, error) {
 				exprStr,
 			)
 		}
-		exprStr = fmt.Sprintf("%s.%s", LiteralNamespace, exprStr)
-	} else {
-		prefix, exprStr, suffix = match[1], match[2], match[3]
+		expr := &VarExpr{namespace: LiteralNamespace, name: exprStr}
+		return &StringExpression{expr: expr}, nil
 	}
 
+	prefix, exprStr, suffix := match[1], match[2], match[3]
 	expr, err := parse(exprStr)
 	if err != nil {
 		return nil, trace.Wrap(err)
