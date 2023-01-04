@@ -32,9 +32,10 @@ type waitFlags struct {
 func wait(flags waitFlags) {
 	// We get parameters from environment variables
 	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
-	ctx, _ := signal.NotifyContext(
+	ctx, cancel := signal.NotifyContext(
 		context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt,
 	)
+	defer cancel()
 
 	if flags.duration != 0 {
 		err := waitDuration(ctx, flags.duration)
