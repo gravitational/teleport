@@ -1473,7 +1473,7 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, account := range role.GetGCPServiceAccounts(types.Allow) {
-				accounts[account] = struct{}{}
+				accounts[strings.ToLower(account)] = struct{}{}
 			}
 		}
 	}
@@ -1655,6 +1655,8 @@ func (m *AzureIdentityMatcher) String() string {
 
 // GCPServiceAccountMatcher matches a role against GCP service account.
 type GCPServiceAccountMatcher struct {
+	// ServiceAccount is a GCP service account to match, e.g. teleport@example-123456.iam.gserviceaccount.com.
+	// It can also be a wildcard *, but that is only respected for Deny rules.
 	ServiceAccount string
 }
 
