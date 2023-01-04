@@ -29,7 +29,7 @@ import {
 } from './ClusterLogin';
 
 export default {
-  title: 'Teleterm/ClusterLogin',
+  title: 'Teleterm/ModalsHost/ClusterLogin',
 };
 
 function makeProps(): ClusterLoginPresentationProps {

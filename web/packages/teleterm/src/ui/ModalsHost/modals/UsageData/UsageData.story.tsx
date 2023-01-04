@@ -19,7 +19,7 @@ import React from 'react';
 import { UsageData } from './UsageData';
 
 export default {
-  title: 'Teleterm/UsageData',
+  title: 'Teleterm/ModalsHost/UsageData',
 };
 
 export const Dialog = () => (
