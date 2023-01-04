@@ -24,7 +24,7 @@ import (
 
 func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	client := newClient(true, nil, nil)
+	client := NewInsecureWebClient()
 	//nolint:bodyclose // resp should be nil, so there will be no body to close.
 	resp, err := client.Get("https://fakedomain.example.com")
 	// Client should try to proxy through nonexistent server at localhost.
@@ -37,7 +37,7 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 func TestNewInsecureWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	t.Setenv("NO_PROXY", "fakedomain.example.com")
-	client := newClient(true, nil, nil)
+	client := NewInsecureWebClient()
 	//nolint:bodyclose // resp should be nil, so there will be no body to close.
 	resp, err := client.Get("https://fakedomain.example.com")
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)

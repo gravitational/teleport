@@ -36,6 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func NewInsecureWebClient() *http.Client {
+	return newClient(true, nil, nil)
+}
+
 func newClient(insecure bool, pool *x509.CertPool, extraHeaders map[string]string) *http.Client {
 	return &http.Client{
 		Transport: otelhttp.NewTransport(
