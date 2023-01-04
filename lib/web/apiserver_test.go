@@ -1897,6 +1897,7 @@ func TestActiveSessions(t *testing.T) {
 		require.Equal(t, s.node.GetInfo().GetHostname(), session.ServerHostname)
 		require.Equal(t, s.srvID, session.ServerAddr)
 		require.Equal(t, s.server.ClusterName(), session.ClusterName)
+		require.ElementsMatch(t, []types.SessionParticipantMode{"peer"}, session.ParticipantModes)
 	}
 }
 
