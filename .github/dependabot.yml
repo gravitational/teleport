@@ -8,12 +8,16 @@ updates:
       # Deprecated APIs, requires manual changes.
       # TODO(xacrimon): Update Firestore and solve deprecations.
       - dependency-name: cloud.google.com/go/firestore
+      # Depends on newer Firestore version.
+      - dependency-name: cloud.google.com/go/iam
+      - dependency-name: cloud.google.com/go/kms
+      - dependency-name: github.com/fsouza/fake-gcs-server
+      - dependency-name: google.golang.org/api
+      - dependency-name: google.golang.org/genproto
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # TODO(greedy52): Update mongo-driver and fix API changes.
       - dependency-name: go.mongodb.org/mongo-driver
-      # TODO(codingllama): Allow /x/crypto updates after upstream patch.
-      - dependency-name: golang.org/x/crypto
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
@@ -27,8 +31,7 @@ updates:
       - dependency-name: github.com/pkg/sftp
       - dependency-name: github.com/sirupsen/logrus
       - dependency-name: github.com/vulcand/predicate
-      # TODO(tross): Update after Firestore is updated
-      - dependency-name: google.golang.org/genproto
+      - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
@@ -40,10 +43,10 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      # TODO(codingllama): Allow /x/crypto updates after upstream patch.
-      - dependency-name: golang.org/x/crypto
       # TODO(tross): Update after Firestore is updated
       - dependency-name: google.golang.org/genproto
+      # Forked/replaced dependencies
+      - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10
     reviewers:
       - codingllama

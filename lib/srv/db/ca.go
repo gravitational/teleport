@@ -208,10 +208,10 @@ func (s *Server) updateCACert(ctx context.Context, database types.Database, file
 	var contents []byte
 
 	// Get the current CA version.
-	version, err := s.cfg.CADownloader.GetVersion(ctx, database, filePath)
+	version, err := s.cfg.CADownloader.GetVersion(ctx, database, filepath.Base(filePath))
 	// If getting the CA version is not supported, download it.
 	if trace.IsNotImplemented(err) {
-		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filePath)
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -231,7 +231,7 @@ func (s *Server) updateCACert(ctx context.Context, database types.Database, file
 
 	// Check if the CA contents were already downloaded. If not, download them.
 	if contents == nil {
-		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filePath)
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
 		if err != nil {
 			return trace.Wrap(err)
 		}

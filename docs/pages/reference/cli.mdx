@@ -2184,12 +2184,12 @@ $ tctl create -f cluster.yaml
 Delete a resource:
 
 ```code
-$ tctl rm [<resource-type/resource-name>]
+$ tctl rm <resource-type/resource-name>
 ```
 
 #### Arguments
 
-- `[<resource-type/resource-name>]` Resource to delete
+- `<resource-type/resource-name>` Resource to delete
   - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens`]
   - `<resource name>` Resource name to delete
 
@@ -2208,14 +2208,14 @@ $ tctl rm users/admin
 Print a YAML declaration of various Teleport resources:
 
 ```code
-$ tctl get [<flags>] [<resource-type/resource-name>],...
+$ tctl get [<flags>] <resource-type/resource-name>,...
 ```
 
 #### Arguments
 
-- `[<resource-type/resource-name>]` Resource to get
-  - `<resource type>` Type of a resource \[for example: `user,cluster,token`]
-  - `<resource name>` Resource name to get
+- `<resource-type/resource-name>` The resource to get
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token`]
+  - `<resource name>` The name of the resource
 
 #### Flags
 
@@ -2260,6 +2260,61 @@ $ tctl get clusters,users
 
 </ScopedBlock>
 
+### tctl edit
+
+Modify a Teleport resource using your preferred text editor.
+
+```code
+$ tctl edit <resource-type/resource-name>
+```
+
+The text editor is selected by checking the following, in order of precedence:
+
+- the `TELEPORT_EDITOR` environment variable
+- the `VISUAL` environment variable
+- the `EDITOR` environment variable
+- defaulting to `vi`
+
+`tctl` will fetch the resource from the backend and open it in the selected editor.
+When the editor process terminates, `tctl` will push the updates to the Teleport cluster.
+To abandon the edit, close the editor without saving the file.
+
+Some graphical editors like VS Code launch a background process rather than running
+in the foreground. This prevents `tctl` from properly detecting when the editor
+process terminates. To work around this, check whether your editor supports a "wait"
+option that waits for files to be closed before terminating. For example, to edit a
+Teleport resource with VS Code, you can set `TELEPORT_EDITOR="code --wait"`.
+
+**Note:** Renaming resources with `tctl edit` is not supported since Teleport resources
+often refer to other resources by name. To rename a resource, we recommend you:
+
+- fetch the resource with `tctl get` and redirect the output to a file
+- change the name of the resource in the file
+- save the new resource with `tctl create -f`
+- update any references to the old resource
+
+#### Arguments
+
+- `<resource-type/resource-name>` The resource to edit
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token`]
+  - `<resource name>` The name of the resource
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+```code
+# edit the sre role
+$ tctl edit role/sre
+
+# edit the alice user with the nano editor
+$ TELEPORT_EDITOR=nano tctl edit user/alice
+```
+
+  
 ### tctl status
 
 Report cluster status:
