@@ -778,18 +778,41 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
             data_cap: 0,
         };
 
-        // e.decompress consumes e, so we need to call it separately, after populating the fields
-        // above.
-        let mut data = e.decompress()?;
-        res.data_ptr = data.as_mut_ptr();
-        res.data_len = data.len();
-        res.data_cap = data.capacity();
+        let w: u16 = e.width;
+        let h: u16 = e.height;
+
+        let mut encoded = Vec::with_capacity(8192);
+        encode_png(&mut encoded, w, h, e.decompress()?);
+
+        res.data_ptr = encoded.as_mut_ptr();
+        res.data_len = encoded.len();
+        res.data_cap = encoded.capacity();
 
         // Prevent the data field from being freed while Go handles it.
         // It will be dropped once CGOBitmap is dropped (see below).
-        mem::forget(data);
+        mem::forget(encoded);
 
         Ok(res)
+    }
+}
+
+pub fn encode_png(dest: &mut Vec<u8>, width: u16, height: u16, mut data: Vec<u8>) {
+    swap(&mut data);
+
+    let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_color(png::ColorType::Rgba);
+
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(&data).unwrap();
+    writer.finish().unwrap();
+}
+
+fn swap(data: &mut Vec<u8>) {
+    let mut i = 0;
+    while i < data.len() {
+        (data[i], data[i + 2], data[i+3]) = (data[i + 2], data[i], 255);
+        i += 4;
     }
 }
 
