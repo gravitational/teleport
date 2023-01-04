@@ -578,7 +578,7 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 }
 
 func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Response {
-	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "web", "renew"), nil)
 	require.NoError(t, err)
 	return resp
 }
@@ -775,7 +775,7 @@ func TestWebSessionsCRUD(t *testing.T) {
 	// now delete session
 	_, err = pack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests trying to use this session will fail
@@ -983,11 +983,13 @@ func TestClusterNodesGet(t *testing.T) {
 			Labels:      []ui.Label{},
 			SSHLogins:   []string{pack.login},
 		},
-		{ClusterName: clusterName,
-			Name:      "server2",
-			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
-			Tunnel:    false,
-			SSHLogins: []string{pack.login}},
+		{
+			ClusterName: clusterName,
+			Name:        "server2",
+			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:      false,
+			SSHLogins:   []string{pack.login},
+		},
 	})
 
 	// Get nodes using shortcut.
@@ -1127,7 +1129,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					ID: session.ID("not a uuid"),
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "login: missing login",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1135,7 +1138,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					Login: "",
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "server: missing server",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1919,7 +1923,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	_, err = stream.Read(out)
 	require.NoError(t, err)
 
-	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// wait until we timeout or detect that connection has been closed
@@ -3595,7 +3599,8 @@ func TestClusterAppsGet(t *testing.T) {
 		App: &types.AppV3{
 			Metadata: types.Metadata{Name: "app2"},
 			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	// Test URIs with tcp is filtered out of result.
@@ -3604,7 +3609,8 @@ func TestClusterAppsGet(t *testing.T) {
 		App: &types.AppV3{
 			Metadata: types.Metadata{Name: "app3"},
 			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	// Register apps.
@@ -3643,7 +3649,6 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}})
-
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -3732,7 +3737,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Len(t, sessions, len(applications))
 
 	// Logout from Telport.
-	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
@@ -4478,7 +4483,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// now delete session
 	_, err = newPack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests to use this session will fail
@@ -5329,7 +5334,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 }
 
 func TestDiagnoseKubeConnection(t *testing.T) {
-
 	var (
 		validKubeUsers              = []string{}
 		multiKubeUsers              = []string{"user1", "user2"}
