@@ -431,7 +431,7 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	if aws.RDSProxy.Name != "" || aws.RDSProxy.CustomEndpointName != "" {
 		return DatabaseTypeRDSProxy, true
 	}
-	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ClusterID != "" {
+	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ResourceID != "" || aws.RDS.ClusterID != "" {
 		return DatabaseTypeRDS, true
 	}
 	return "", false
