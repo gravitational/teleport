@@ -473,6 +473,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 		serverSelectionTimeoutMS = envValue
 	}
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
+	query.Set("retrywrites", "false")
 
 	address := url.URL{
 		Scheme:   connstring.SchemeMongoDB,

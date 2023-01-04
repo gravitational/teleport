@@ -228,7 +228,6 @@ func (e *Engine) getCosmosDBConnectionString(ctx context.Context, sessionCtx *co
 		Password:    pass,
 		PasswordSet: true,
 		Database:    sessionCtx.DatabaseName,
-		RetryWrites: false,
 	}, nil
 }
 
