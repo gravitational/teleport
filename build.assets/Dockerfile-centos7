@@ -180,7 +180,7 @@ ARG NODE_VERSION
 ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-arm64.tar.xz"
 RUN curl -O -L ${NODE_URL}
 RUN mkdir -p /usr/local/node
-RUN tar --strip-components 1 -xzvf node-v* -C /usr/local/node
+RUN tar --strip-components 1 -xvf node-v* -C /usr/local/node
 RUN node --version
 RUN corepack enable yarn
 
