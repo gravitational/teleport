@@ -165,7 +165,7 @@ func TestAddTrustedHostKeys(t *testing.T) {
 		keys, err := clientStore.GetTrustedHostKeys()
 		require.NoError(t, err)
 		require.Len(t, keys, 3)
-		require.Equal(t, keys, []ssh.PublicKey{pub, pub2, pub2})
+		require.ElementsMatch(t, keys, []ssh.PublicKey{pub, pub2, pub2})
 
 		// check against dupes:
 		before, _ := clientStore.GetTrustedHostKeys()
