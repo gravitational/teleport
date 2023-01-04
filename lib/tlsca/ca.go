@@ -164,7 +164,7 @@ type Identity struct {
 	AWSRoleARNs []string
 	// AzureIdentities is a list of allowed Azure identities user can assume.
 	AzureIdentities []string
-	// GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
+	// GCPServiceAccounts is a list of allowed GCP service accounts that the user can assume.
 	GCPServiceAccounts []string
 	// ActiveRequests is a list of UUIDs of active requests for this Identity.
 	ActiveRequests []string
@@ -407,11 +407,11 @@ var (
 	AzureIdentityASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 17}
 
 	// AppGCPServiceAccountASN1ExtensionOID is an extension ID used when encoding/decoding
-	// GCP service account into a certificate.
+	// the chosen GCP service account into a certificate.
 	AppGCPServiceAccountASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 18}
 
 	// GCPServiceAccountASN1ExtensionOID is an extension ID used when encoding/decoding
-	// allowed GCP service account into a certificate.
+	// the list of allowed GCP service accounts into a certificate.
 	GCPServiceAccountASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 19}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
