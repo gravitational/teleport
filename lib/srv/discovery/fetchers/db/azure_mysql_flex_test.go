@@ -45,6 +45,9 @@ func TestAzureMySQLFlexFetchers(t *testing.T) {
 		AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
 			Subscriptions: []*armsubscription.Subscription{azureSub},
 		}),
+		AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
+			NoAuth: true,
+		}),
 		AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
 			Servers: []*armmysqlflexibleservers.Server{azMySQLFlexServer},
 		}),

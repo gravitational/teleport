@@ -45,6 +45,9 @@ func TestAzurePostgresFlexFetchers(t *testing.T) {
 		AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
 			Subscriptions: []*armsubscription.Subscription{azureSub},
 		}),
+		AzurePostgres: azure.NewPostgresServerClient(&azure.ARMPostgresMock{
+			NoAuth: true,
+		}),
 		AzurePostgresFlex: azure.NewPostgresFlexServersClientByAPI(&azure.ARMPostgresFlexServerMock{
 			Servers: []*armpostgresqlflexibleservers.Server{azPostgresFlexServer},
 		}),
