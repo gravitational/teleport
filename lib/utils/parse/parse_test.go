@@ -31,7 +31,7 @@ func TestVariable(t *testing.T) {
 		title string
 		in    string
 		err   error
-		out   StringExpression
+		out   Expression
 	}{
 		{
 			title: "no curly bracket prefix",
@@ -76,42 +76,42 @@ func TestVariable(t *testing.T) {
 		{
 			title: "valid with brackets",
 			in:    `{{internal["foo"]}}`,
-			out: StringExpression{
+			out: Expression{
 				expr: variable("internal", "foo"),
 			},
 		},
 		{
 			title: "string literal",
 			in:    `foo`,
-			out: StringExpression{
+			out: Expression{
 				expr: variable(LiteralNamespace, "foo"),
 			},
 		},
 		{
 			title: "external with no brackets",
 			in:    "{{external.foo}}",
-			out: StringExpression{
+			out: Expression{
 				expr: variable("external", "foo"),
 			},
 		},
 		{
 			title: "internal with no brackets",
 			in:    "{{internal.bar}}",
-			out: StringExpression{
+			out: Expression{
 				expr: variable("internal", "bar"),
 			},
 		},
 		{
 			title: "internal with spaces removed",
 			in:    "  {{  internal.bar  }}  ",
-			out: StringExpression{
+			out: Expression{
 				expr: variable("internal", "bar"),
 			},
 		},
 		{
 			title: "variable with prefix and suffix",
 			in:    "  hello,  {{  internal.bar  }}  there! ",
-			out: StringExpression{
+			out: Expression{
 				prefix: "hello,  ",
 				expr:   variable("internal", "bar"),
 				suffix: "  there!",
@@ -120,14 +120,14 @@ func TestVariable(t *testing.T) {
 		{
 			title: "variable with local function",
 			in:    "{{email.local(internal.bar)}}",
-			out: StringExpression{
+			out: Expression{
 				expr: emailLocal(variable("internal", "bar")),
 			},
 		},
 		{
 			title: "regexp replace",
 			in:    `{{regexp.replace(internal.foo, "bar-(.*)", "$1")}}`,
-			out: StringExpression{
+			out: Expression{
 				expr: regexpReplace(variable("internal", "foo"), "bar-(.*)", "$1"),
 			},
 		},
