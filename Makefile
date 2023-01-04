@@ -1178,14 +1178,4 @@ build-ui-e: ensure-js-deps
 
 .PHONY: build-ui-docker
 build-ui-docker:
-	docker build --build-arg NPM_CMD=build-ui-oss -f ./build.assets/Dockerfile-web -t webui .
-	docker run --name build-webassets -d webui
-	docker cp build-webassets:/webapp/webassets/. $(PWD)/webassets
-	docker rm -f build-webassets
-
-.PHONY: build-ui-e-docker
-build-ui-e-docker:
-	docker build --build-arg NPM_CMD=build-ui-e -f ./build.assets/Dockerfile-web -t webui-e .
-	docker run --name build-webassets-e -d webui-e
-	docker cp build-webassets-e:/webapp/webassets/e/. $(PWD)/webassets/e
-	docker rm -f build-webassets-e
+	$(MAKE) -C build.assets ui

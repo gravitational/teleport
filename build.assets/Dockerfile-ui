@@ -1,0 +1,2 @@
+FROM node:16.18.1-slim
+RUN apt update && apt install -y git g++ make python3 tree

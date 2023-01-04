@@ -234,6 +234,16 @@ buildbox-teleterm: buildbox
 		--cache-from $(BUILDBOX_TELETERM) \
 		--tag $(BUILDBOX_TELETERM) -f Dockerfile-teleterm .
 
+.PHONY: buildbox-ui
+buildbox-ui: buildbox
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_UI) 2>&1 >/dev/null; then docker pull $(BUILDBOX_UI) || true; fi;
+	docker build \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
+		--cache-from $(BUILDBOX) \
+		--tag $(BUILDBOX_UI) -f Dockerfile-ui .
 
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
@@ -251,6 +261,11 @@ endif
 teleterm: buildbox-teleterm
 	docker run $(WEBAPPSDOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
 		bash -c "cd ../webapps && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+
+.PHONY:ui
+ui: buildbox-ui
+	docker run -v "$$(pwd)/../":/teleport $(BUILDBOX_UI) \
+		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
@@ -390,7 +405,7 @@ enter/teleterm: buildbox-teleterm
 # Don't use this target directly; call named Makefile targets like release-amd64.
 #
 .PHONY:release
-release: buildbox
+release: buildbox ui
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
