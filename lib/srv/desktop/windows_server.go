@@ -1060,16 +1060,6 @@ func timer() func() int64 {
 	}
 }
 
-func contains(s []utils.NetAddr, str string) bool {
-	for _, v := range s {
-		if v.String() == str {
-			return true
-		}
-	}
-
-	return false
-}
-
 // generateUserCert queries LDAP for the passed username's SID and generates
 // a private key / public certificate pair for the given Windows username.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop) (certDER, keyDER []byte, err error) {
