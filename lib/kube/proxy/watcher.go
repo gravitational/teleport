@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -215,14 +216,15 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 	errs = append(errs, s.deleteKubernetesServer(ctx, name))
 
 	s.fwd.mu.Lock()
+	sessions := maps.Values(s.fwd.sessions)
+	s.fwd.mu.Unlock()
 	// close active sessions
-	for _, sess := range s.fwd.sessions {
+	for _, sess := range sessions {
 		if sess.ctx.kubeCluster == name {
 			// TODO(tigrato): check if we should send errors to each client
 			errs = append(errs, sess.Close())
 		}
 	}
-	s.fwd.mu.Unlock()
 
 	return trace.NewAggregate(errs...)
 }
