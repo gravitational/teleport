@@ -82,6 +82,7 @@ type Clients interface {
 	io.Closer
 }
 
+// GCPClients is an interface for providing GCP API clients.
 type GCPClients interface {
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
