@@ -37,6 +37,11 @@ message Cluster {
   // Only present in situations where detailed
   // information is queried from the auth server.
   Features features = 8;
+  // auth_cluster_id is the unique cluster ID that is set once
+  // during the first auth server startup.
+  // Only present in situations where detailed
+  // information is queried from the auth server.
+  string auth_cluster_id = 9;
 }
 
 // LoggedInUser describes a logged-in user
