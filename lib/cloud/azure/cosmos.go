@@ -16,12 +16,15 @@ package azure
 
 import (
 	"context"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // armCosmosDatabaseAccountsClient is an interface defines a subset of functions of
@@ -33,7 +36,8 @@ type armCosmosDatabaseAccountsClient interface {
 
 // cosmosDatabaseAccountsClient is an Azure CosmosDB database accounts client.
 type cosmosDatabaseAccountsClient struct {
-	api armCosmosDatabaseAccountsClient
+	api     armCosmosDatabaseAccountsClient
+	fncache *utils.FnCache
 }
 
 // NewCosmosDatabaseAccountsClient creates a new Azure SQL Server client by subscription and
@@ -44,16 +48,48 @@ func NewCosmosDatabaseAccountsClient(subscription string, cred azcore.TokenCrede
 		return nil, trace.Wrap(err)
 	}
 
-	return &cosmosDatabaseAccountsClient{api}, nil
+	fncache, err := newDefaultCosmosFnCache()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &cosmosDatabaseAccountsClient{api, fncache}, nil
 }
 
-// NewSQLClientByAPI creates a new Azure SQL Serverclient by ARM API client.
-func NewCosmosDatabaseAccountsClientByAPI(api armCosmosDatabaseAccountsClient) CosmosDatabaseAccountsClient {
-	return &cosmosDatabaseAccountsClient{api}
+// NewSQLClientByAPI creates a new Azure SQL Serverclient by ARM API client and
+// cache options.
+func NewCosmosDatabaseAccountsClientByAPI(api armCosmosDatabaseAccountsClient, fncache *utils.FnCache) CosmosDatabaseAccountsClient {
+	return &cosmosDatabaseAccountsClient{api, fncache}
 }
 
-// GetKey fetches the CosmosDB account key kind.
+// GetKey fetches the CosmosDB account key kind. It caches the Azure API result
+// for a short period because this API can take a few seconds to complete and
+// also avoids getting rate limit errors.
 func (c *cosmosDatabaseAccountsClient) GetKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) (string, error) {
+	return utils.FnCacheGet(ctx, c.fncache, key, func(ctx context.Context) (string, error) {
+		return c.getKey(ctx, resourceGroup, accountName, key)
+	})
+}
+
+// RegenerateKey regenerates a CosmosDB account key.
+func (c *cosmosDatabaseAccountsClient) RegenerateKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) error {
+	poller, err := c.api.BeginRegenerateKey(ctx, resourceGroup, accountName, armcosmos.DatabaseAccountRegenerateKeyParameters{
+		KeyKind: &key,
+	}, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// getKey retrieves the CosmosDB account key using Azure API.
+func (c *cosmosDatabaseAccountsClient) getKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) (string, error) {
 	resp, err := c.api.ListKeys(ctx, resourceGroup, accountName, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -73,19 +109,11 @@ func (c *cosmosDatabaseAccountsClient) GetKey(ctx context.Context, resourceGroup
 	}
 }
 
-// RegenerateKey regenerates a CosmosDB account key.
-func (c *cosmosDatabaseAccountsClient) RegenerateKey(ctx context.Context, resourceGroup string, accountName string, key armcosmos.KeyKind) error {
-	poller, err := c.api.BeginRegenerateKey(ctx, resourceGroup, accountName, armcosmos.DatabaseAccountRegenerateKeyParameters{
-		KeyKind: &key,
-	}, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = poller.PollUntilDone(ctx, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+// newDefaultCosmosFnCache initialze a utils.FnCache with default values.
+func newDefaultCosmosFnCache() (*utils.FnCache, error) {
+	return utils.NewFnCache(utils.FnCacheConfig{
+		TTL:             10 * time.Second,
+		CleanupInterval: 20 * time.Second,
+		ReloadOnErr:     true,
+	})
 }

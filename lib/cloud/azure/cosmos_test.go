@@ -22,10 +22,13 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestGetKey(t *testing.T) {
+func TestCosmosGetKey(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -82,7 +85,9 @@ func TestGetKey(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			cl := NewCosmosDatabaseAccountsClientByAPI(tc.client)
+			fncache, err := newDefaultCosmosFnCache()
+			require.NoError(t, err)
+			cl := NewCosmosDatabaseAccountsClientByAPI(tc.client, fncache)
 			res, err := cl.GetKey(ctx, "resource-group", "database-account", tc.key)
 			tc.expectErr(t, err)
 			require.Equal(t, tc.expectedValue, res)
@@ -90,7 +95,71 @@ func TestGetKey(t *testing.T) {
 	}
 }
 
-func TestRegenerateKey(t *testing.T) {
+func TestCosmosGetKeyCache(t *testing.T) {
+	ctx := context.Background()
+	ttl := 10 * time.Second
+
+	setupCosmosDBClient := func(t *testing.T) (CosmosDatabaseAccountsClient, *ARMCosmosDatabaseAccountsMock, clockwork.FakeClock) {
+		clock := clockwork.NewFakeClock()
+		fncache, err := utils.NewFnCache(utils.FnCacheConfig{
+			TTL:     ttl,
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		mock := &ARMCosmosDatabaseAccountsMock{PrimaryMasterKey: "firstkeyvalue"}
+		return NewCosmosDatabaseAccountsClientByAPI(mock, fncache), mock, clock
+	}
+
+	t.Run("return cached key", func(t *testing.T) {
+		cl, mock, clock := setupCosmosDBClient(t)
+
+		// Fetch it the first time, no cache is present, so it should return the
+		// information from mock.
+		firstKey, err := cl.GetKey(ctx, "", "", armcosmos.KeyKindPrimary)
+		require.NoError(t, err)
+		require.Equal(t, "firstkeyvalue", firstKey)
+
+		// Update the mock and issue a second GetKey request. This time it should
+		// return the cached result.
+		mock.PrimaryMasterKey = "secondkeyvalue"
+		secondKey, err := cl.GetKey(ctx, "", "", armcosmos.KeyKindPrimary)
+		require.NoError(t, err)
+		require.Equal(t, "firstkeyvalue", secondKey)
+
+		// Advance in time to make the cache expire and issue another request.
+		// Now it should return the latest value from mock.
+		clock.Advance(ttl + 1)
+		thirdKey, err := cl.GetKey(ctx, "", "", armcosmos.KeyKindPrimary)
+		require.NoError(t, err)
+		require.Equal(t, "secondkeyvalue", thirdKey)
+	})
+
+	t.Run("return Azure error", func(t *testing.T) {
+		cl, mock, clock := setupCosmosDBClient(t)
+
+		// Fetch it the first time, no error, so return the contents from mock.
+		firstKey, err := cl.GetKey(ctx, "", "", armcosmos.KeyKindPrimary)
+		require.NoError(t, err)
+		require.Equal(t, "firstkeyvalue", firstKey)
+
+		// Update mock to return error but since there is cache, it should
+		// return no error.
+		mock.NoAuth = true
+		secondKey, err := cl.GetKey(ctx, "", "", armcosmos.KeyKindPrimary)
+		require.NoError(t, err)
+		require.Equal(t, "firstkeyvalue", secondKey)
+
+		// Advance in time to make the cache expire and issue another request.
+		// Now it should return error.
+		clock.Advance(ttl + 1)
+		_, err = cl.GetKey(ctx, "", "", armcosmos.KeyKindPrimary)
+		require.Error(t, err)
+	})
+}
+
+func TestCosmosRegenerateKey(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -131,11 +200,14 @@ func TestRegenerateKey(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			fncache, err := newDefaultCosmosFnCache()
+			require.NoError(t, err)
+
 			caseCtx, caseCtxCancel := context.WithCancel(ctx)
 			defer caseCtxCancel()
 
 			doneCh := make(chan error)
-			cl := NewCosmosDatabaseAccountsClientByAPI(tc.client)
+			cl := NewCosmosDatabaseAccountsClientByAPI(tc.client, fncache)
 
 			go func() {
 				doneCh <- cl.RegenerateKey(caseCtx, "resource-group", "database-account", tc.key)
