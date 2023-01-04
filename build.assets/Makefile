@@ -22,7 +22,8 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 GOLANG_VERSION ?= go1.19.4
-RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
+# run lint-rust check locally before merging code after you bump this
+RUST_VERSION ?= 1.66.0
 NODE_VERSION ?= 16.13.2
 LIBBPF_VERSION ?= 0.7.0-teleport
 
