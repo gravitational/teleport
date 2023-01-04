@@ -945,14 +945,14 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.Stdin = os.Stdin
 	}
 
-	if c.ClientStore == nil {
+	if tc.ClientStore == nil {
 		// sometimes we need to use external auth without using local auth
 		// methods, e.g. in automation daemons.
 		if c.SkipLocalAuth {
 			if len(c.AuthMethods) == 0 {
 				return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 			}
-			c.ClientStore = NewMemClientStore()
+			tc.ClientStore = NewMemClientStore()
 		} else {
 			clientStore, err := NewFSClientStore(c.KeysDir)
 			if err != nil {
@@ -964,7 +964,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 				clientStore.KeyStore = NewMemKeyStore()
 			}
 
-			c.ClientStore = clientStore
+			tc.ClientStore = clientStore
 		}
 	}
 
@@ -975,7 +975,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	tc.eventsCh = make(chan events.EventFields, 1024)
 
 	localAgentCfg := LocalAgentConfig{
-		ClientStore: c.ClientStore,
+		ClientStore: tc.ClientStore,
 		Agent:       c.Agent,
 		ProxyHost:   tc.WebProxyHost(),
 		Username:    c.Username,
