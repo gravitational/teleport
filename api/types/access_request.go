@@ -30,7 +30,7 @@ import (
 
 // AccessRequest is a request for temporarily granted roles
 type AccessRequest interface {
-	Resource
+	ResourceWithLabels
 	// GetUser gets the name of the requesting user
 	GetUser() string
 	// GetRoles gets the roles being requested by the user
@@ -103,6 +103,7 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// GetAllLabels returns the labels for this request.
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -412,6 +413,36 @@ func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
 }
 
+func (a *AccessRequestV3) GetStaticLabels() map[string]string {
+	return a.Metadata.Labels
+}
+
+// SetStaticLabels sets the app static labels.
+func (a *AccessRequestV3) SetStaticLabels(sl map[string]string) {
+	a.Metadata.Labels = sl
+}
+
+func (a *AccessRequestV3) GetAllLabels() map[string]string {
+	return a.Metadata.Labels
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (a *AccessRequestV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+// Origin returns the origin value of the resource.
+func (a *AccessRequestV3) Origin() string {
+	return a.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (a *AccessRequestV3) SetOrigin(origin string) {
+	a.Metadata.SetOrigin(origin)
+}
+
 // String returns a text representation of this AccessRequest
 func (r *AccessRequestV3) String() string {
 	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
@@ -623,6 +654,14 @@ func (a AccessRequests) ToMap() map[string]AccessRequest {
 		m[accessRequest.GetName()] = accessRequest
 	}
 	return m
+}
+
+// AsResources returns these access requests as resources with labels.
+func (a AccessRequests) AsResources() (resources ResourcesWithLabels) {
+	for _, accessRequest := range a {
+		resources = append(resources, accessRequest)
+	}
+	return resources
 }
 
 // Len returns the slice length.
