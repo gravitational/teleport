@@ -545,8 +545,10 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 
 	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
+	offlineTimer := s.clock.NewTimer(s.offlineThreshold)
 	defer func() {
 		proxyResyncTicker.Stop()
+		offlineTimer.Stop()
 		logger.Warn("Closing remote connection to agent.")
 		s.removeRemoteConn(rconn)
 		if err := rconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
@@ -614,8 +616,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 
 			rconn.setLastHeartbeat(s.clock.Now().UTC())
 			rconn.markValid()
-		// Note that time.After is re-created everytime a request is processed.
-		case t := <-s.clock.After(s.offlineThreshold):
+		case t := <-offlineTimer.Chan():
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
 			// terminate and remove the connection after missing more than missedHeartBeatThreshold heartbeats if
@@ -630,7 +631,14 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 
 				logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", count)
 			}
+
+			offlineTimer.Reset(s.offlineThreshold)
 		}
+
+		if !offlineTimer.Stop() {
+			<-offlineTimer.Chan()
+		}
+		offlineTimer.Reset(s.offlineThreshold)
 	}
 }
 

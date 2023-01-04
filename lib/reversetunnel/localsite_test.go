@@ -105,7 +105,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	// should not force the connection to close since there is still an active session
 	for i := 0; i <= missedHeartBeatThreshold+1; i++ {
 		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker = 3
+		clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker
 		clock.Advance(srv.offlineThreshold)
 	}
 
@@ -121,14 +121,14 @@ func TestRemoteConnCleanup(t *testing.T) {
 	}
 
 	// close the fake session
-	clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker = 3
+	clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker
 	require.NoError(t, fakeSession.Close())
 
 	// advance the clock to trigger missing a heartbeat, the last advance
 	// should force the connection to close since there are no active sessions
-	for i := 0; i <= missedHeartBeatThreshold; i++ {
+	for i := 0; i <= missedHeartBeatThreshold+1; i++ {
 		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker = 3
+		clock.BlockUntil(3) // periodic ticker + heartbeat timer + resync ticker
 		clock.Advance(srv.offlineThreshold)
 	}
 
