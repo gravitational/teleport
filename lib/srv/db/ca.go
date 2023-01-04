@@ -75,6 +75,7 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeAWSKeyspaces,
+		types.DatabaseTypeDynamoDB,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure:
 
@@ -163,7 +164,8 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	//
 	// AWS MemoryDB uses same CA as ElastiCache.
 	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB:
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeDynamoDB:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL))}, nil
 
 	// Each Cloud SQL instance has its own CA.
@@ -206,10 +208,10 @@ func (s *Server) updateCACert(ctx context.Context, database types.Database, file
 	var contents []byte
 
 	// Get the current CA version.
-	version, err := s.cfg.CADownloader.GetVersion(ctx, database, filePath)
+	version, err := s.cfg.CADownloader.GetVersion(ctx, database, filepath.Base(filePath))
 	// If getting the CA version is not supported, download it.
 	if trace.IsNotImplemented(err) {
-		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filePath)
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -229,7 +231,7 @@ func (s *Server) updateCACert(ctx context.Context, database types.Database, file
 
 	// Check if the CA contents were already downloaded. If not, download them.
 	if contents == nil {
-		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filePath)
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -286,7 +288,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 		types.DatabaseTypeRedshiftServerless:
 		return d.downloadFromURL(redshiftCAURLForDatabase(database))
 	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB:
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeDynamoDB:
 		return d.downloadFromURL(amazonRootCA1URL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)

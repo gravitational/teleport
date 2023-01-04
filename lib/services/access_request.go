@@ -112,16 +112,21 @@ func (r *RequestIDs) IsEmpty() bool {
 	return len(r.AccessRequests) < 1
 }
 
-// DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
-type DynamicAccessCore interface {
-	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+// AccessRequestGetter defines the interface for fetching access request resources.
+type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// GetPluginData loads all plugin data matching the supplied filter.
 	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
+}
+
+// DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
+type DynamicAccessCore interface {
+	AccessRequestGetter
+	// CreateAccessRequest stores a new access request.
+	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+	// DeleteAccessRequest deletes an access request.
+	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// UpdatePluginData updates a per-resource PluginData entry.
 	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
