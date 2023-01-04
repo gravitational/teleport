@@ -6951,11 +6951,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(
-		cfg.authServer.ClusterName(),
-		proxyAuthClient,
-		proxyLockWatcher,
-	)
+	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: cfg.authServer.ClusterName(),
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
