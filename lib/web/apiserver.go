@@ -505,12 +505,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Forwards traces to the configured upstream collector
 	h.POST("/webapi/traces", h.WithAuth(h.traces))
 
+	// App sessions
+	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
+
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
-	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
-	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
-	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
-
+	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteSession))
+	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
