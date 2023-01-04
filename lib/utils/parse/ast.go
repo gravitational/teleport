@@ -23,10 +23,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // Expr is a node in the AST.
