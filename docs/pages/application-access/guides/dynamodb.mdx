@@ -1,12 +1,12 @@
 ---
-title: Database Access with AWS DynamoDB
+title: Access AWS DynamoDB as an Application
 description: How to access AWS DynamoDB as an Application with Teleport.
 ---
 
 Access to AWS DynamoDB can be provided by [**Teleport Application
 Access**](../../application-access/introduction.mdx) for the AWS Console and
 API. This is an alternative to accessing DynamoDB through the Teleport Database
-service, as described in our []
+service, as described in our [Database Access with AWS DynamoDB](../../database-access/guides/aws-dynamodb.mdx) guide.
 
 This guide will help you to:
 
@@ -15,10 +15,10 @@ This guide will help you to:
 - Connect to your DynamoDB databases through the Teleport Application Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-![DynamoDB Self-Hosted](../../../img/database-access/guides/dynamodb_selfhosted.png)
+![DynamoDB Self-Hosted](../../../img/application-access/guides/dynamodb_selfhosted.png)
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-![DynamoDB Cloud](../../../img/database-access/guides/dynamodb_cloud.png)
+![DynamoDB Cloud](../../../img/application-access/guides/dynamodb_cloud.png)
 </ScopedBlock>
 
 ## Prerequisites
@@ -69,6 +69,7 @@ Resources](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/acce
 </Admonition>
 
 ## Step 2/5. Configure the Teleport IAM role mapping
+
 The next step is to give your Teleport users permissions to assume IAM roles in
 your Teleport cluster.
 
