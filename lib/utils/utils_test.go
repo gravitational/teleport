@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -615,6 +616,56 @@ func TestReadAtMost(t *testing.T) {
 			data, err := ReadAtMost(r, tc.limit)
 			require.Equal(t, []byte(tc.data), data)
 			require.ErrorIs(t, err, tc.err)
+		})
+	}
+}
+
+func TestByteCount(t *testing.T) {
+	tt := []struct {
+		name     string
+		size     int64
+		expected string
+	}{
+		{
+			name:     "1 byte",
+			size:     1,
+			expected: "1 B",
+		},
+		{
+			name:     "2 byte2",
+			size:     2,
+			expected: "2 B",
+		},
+		{
+			name:     "1kb",
+			size:     1000,
+			expected: "1.0 kB",
+		},
+		{
+			name:     "1mb",
+			size:     1000_000,
+			expected: "1.0 MB",
+		},
+		{
+			name:     "1gb",
+			size:     1000_000_000,
+			expected: "1.0 GB",
+		},
+		{
+			name:     "1tb",
+			size:     1000_000_000_000,
+			expected: "1.0 TB",
+		},
+		{
+			name:     "1.6 kb",
+			size:     1600,
+			expected: "1.6 kB",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, ByteCount(tc.size), tc.expected)
 		})
 	}
 }
