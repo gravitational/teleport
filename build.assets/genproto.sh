@@ -13,7 +13,7 @@ main() {
   trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
   rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
 
-  # Generate Gogo protos (default).
+  # Generate Gogo protos.
   buf generate --template=buf-gogo.gen.yaml api/proto
   buf generate --template=buf-gogo.gen.yaml proto
 
@@ -23,11 +23,9 @@ main() {
     --path=api/proto/teleport/devicetrust/ \
     --path=api/proto/teleport/loginrule/ \
     --path=proto/teleport/lib/multiplexer/
+  buf generate --template=lib/prehog/buf.gen.yaml lib/prehog/proto
 
   cp -r github.com/gravitational/teleport/* .
-
-  # Generate prehog protos.
-  buf generate --template=lib/prehog/buf.gen.yaml lib/prehog/proto
 }
 
 main "$@"
