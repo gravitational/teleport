@@ -2976,7 +2976,7 @@ impl FileRenameInformation {
         w.write_u8(Boolean::to_u8(&self.replace_if_exists).unwrap())?;
         // RootDirectory. For network operations, this value MUST be zero.
         w.write_u8(0)?;
-        w.write_u32::<LittleEndian>(self.file_name.len() as u32)?;
+        w.write_u32::<LittleEndian>(self.file_name.len())?;
         w.extend_from_slice(&util::to_unicode(&self.file_name.path, false));
         Ok(w)
     }
@@ -2998,7 +2998,7 @@ impl FileRenameInformation {
     }
 
     fn size(&self) -> u32 {
-        Self::BASE_SIZE + self.file_name.len() as u32
+        Self::BASE_SIZE + self.file_name.len()
     }
 }
 
@@ -3746,7 +3746,7 @@ impl ClientDriveSetInformationResponse {
     fn new(req: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
         Self {
             device_io_reply: DeviceIoResponse::new(&req.device_io_request, io_status),
-            length: req.set_buffer.size() as u32,
+            length: req.set_buffer.size(),
         }
     }
 
