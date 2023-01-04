@@ -292,7 +292,7 @@ func walk(node ast.Node, depth int) (Expr, error) {
 	case *ast.Ident:
 		return buildVarExpr([]string{e.Name})
 	case *ast.BasicLit:
-		value, err := fetchStringLit(e)
+		value, err := getStringLit(e)
 		if err != nil {
 			return nil, trace.BadParameter("unexpected literal: %s", err)
 		}
@@ -309,7 +309,7 @@ func parseCallExpr(e *ast.CallExpr, depth int) ([]string, []Expr, error) {
 		fields = append(fields, call.Name)
 	case *ast.SelectorExpr:
 		// Selector expression looks like email.local(parameter)
-		namespace, err := fetchIdentifier(call.X)
+		namespace, err := getIdentifier(call.X)
 		if err != nil {
 			return nil, nil, trace.BadParameter("unexpected namespace in selector: %s", err)
 		}
@@ -346,18 +346,18 @@ func parseSelectorExpr(e *ast.SelectorExpr, depth int, fields []string) ([]strin
 }
 
 func parseIndexExpr(e *ast.IndexExpr) ([]string, error) {
-	namespace, err := fetchIdentifier(e.X)
+	namespace, err := getIdentifier(e.X)
 	if err != nil {
 		return nil, trace.BadParameter("unexpected namespace in index: %s", err)
 	}
-	name, err := fetchStringLit(e.Index)
+	name, err := getStringLit(e.Index)
 	if err != nil {
 		return nil, trace.BadParameter("unexpected name in index: %s", err)
 	}
 	return []string{namespace, name}, nil
 }
 
-func fetchIdentifier(e ast.Node) (string, error) {
+func getIdentifier(e ast.Node) (string, error) {
 	v, ok := e.(*ast.Ident)
 	if !ok {
 		return "", trace.BadParameter("expected identifier, got: %T", e)
@@ -365,7 +365,7 @@ func fetchIdentifier(e ast.Node) (string, error) {
 	return v.Name, nil
 }
 
-func fetchStringLit(e ast.Node) (string, error) {
+func getStringLit(e ast.Node) (string, error) {
 	v, ok := e.(*ast.BasicLit)
 	if !ok {
 		return "", trace.BadParameter("expected identifier, got: %T", e)
