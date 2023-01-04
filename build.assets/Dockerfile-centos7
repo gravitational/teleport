@@ -175,6 +175,13 @@ ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
+# Install node.
+ARG NODE_VERSION
+ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-arm64.tar.xz"
+RUN curl -L ${NODE_URL} && \
+    tar --strip-components 1 -xzvf node-v* -C /usr/local
+RUN corepack enable yarn
+
 ARG BUILDARCH
 
 # Install PAM module and policies for testing.

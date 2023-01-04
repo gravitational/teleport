@@ -169,6 +169,7 @@ buildbox-centos7:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
