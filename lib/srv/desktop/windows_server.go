@@ -245,7 +245,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(cfg.Heartbeat.NonADHosts) == 0 {
+	if len(cfg.Heartbeat.StaticHosts) > 0 {
 		if err := cfg.LDAPConfig.Check(); err != nil {
 			return trace.Wrap(err)
 		}
