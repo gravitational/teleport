@@ -1007,6 +1007,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 				Addr:   addr,
 				Domain: s.cfg.Domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
+				NonAD:  nonAD,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1081,7 +1082,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	}
 
 	var activeDirectorySID string
-	if !contains(s.cfg.Heartbeat.NonADHosts, desktop.GetAddr()) {
+	if !desktop.NonAD() {
 		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

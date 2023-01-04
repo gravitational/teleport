@@ -155,6 +155,8 @@ type WindowsDesktop interface {
 	GetDomain() string
 	// GetHostID returns the ID of the Windows Desktop Service reporting the desktop.
 	GetHostID() string
+	// NonAD checks whether host is part of Active Directory
+	NonAD() bool
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -192,6 +194,11 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// NonAD checks whether host is part of Active Directory
+func (d *WindowsDesktopV3) NonAD() bool {
+	return d.Spec.NonAD
 }
 
 // GetAddr returns the network address of this host.
