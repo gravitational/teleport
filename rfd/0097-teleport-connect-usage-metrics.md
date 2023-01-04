@@ -1,7 +1,7 @@
 ---
 authors: Grzegorz Zdunek (grzegorz.zdunek@goteleport.com)
 state: draft
- ---
+---
 
 # RFD 97 - Teleport Connect usage metrics
 

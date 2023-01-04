@@ -15,10 +15,21 @@ on:
   pull_request:
     paths-ignore:
       - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths-ignore:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
-    name: Skipped
+    name: Unit Tests (Go)
     runs-on: ubuntu-latest
 
     permissions:

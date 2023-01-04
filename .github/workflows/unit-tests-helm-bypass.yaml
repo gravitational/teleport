@@ -15,10 +15,13 @@ on:
   pull_request:
     paths-ignore:
       - 'examples/chart/**'
+  merge_group:
+    paths-ignore:
+      - 'examples/chart/**'
 
 jobs:
   test:
-    name: Skipped
+    name: Unit Tests (Helm)
     runs-on: ubuntu-latest
 
     permissions:

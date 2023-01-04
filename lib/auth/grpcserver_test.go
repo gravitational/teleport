@@ -19,7 +19,9 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
@@ -42,6 +44,7 @@ import (
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -742,6 +745,164 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	}
 }
 
+func TestCreateAppSession_deviceExtensions(t *testing.T) {
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	// Create an user for testing.
+	user, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	// Register an application.
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "llamaapp",
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: "llamaapp.example.com",
+		})
+	require.NoError(t, err, "NewAppV3 failed")
+	appServer, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err, "NewAppServerV3FromApp failed")
+	_, err = authServer.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err, "UpsertApplicationServer failed")
+
+	wantExtensions := &tlsca.DeviceExtensions{
+		DeviceID:     "device1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	tests := []struct {
+		name       string
+		modifyUser func(u *TestIdentity)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "no device extensions",
+			// Absence of errors is enough here, this is mostly to make sure the base
+			// scenario works.
+		},
+		{
+			name: "user with device extensions",
+			modifyUser: func(u *TestIdentity) {
+				lu := u.I.(LocalUser)
+				lu.Identity.DeviceExtensions = *wantExtensions
+				u.I = lu
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err, "FromSubject failed")
+
+				if diff := cmp.Diff(*wantExtensions, gotIdentity.DeviceExtensions, protocmp.Transform()); diff != "" {
+					t.Errorf("DeviceExtensions mismatch (-want +got)\n%s", diff)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			u := TestUser(user.GetName())
+			if test.modifyUser != nil {
+				test.modifyUser(&u)
+			}
+
+			userClient, err := testServer.NewClient(u)
+			require.NoError(t, err, "NewClient failed")
+
+			session, err := userClient.CreateAppSession(ctx, types.CreateAppSessionRequest{
+				Username:    user.GetName(),
+				PublicAddr:  app.GetPublicAddr(),
+				ClusterName: testServer.ClusterName(),
+			})
+			require.NoError(t, err, "CreateAppSession failed")
+
+			block, _ := pem.Decode(session.GetTLSCert())
+			require.NotNil(t, block, "Decode failed")
+			gotCert, err := x509.ParseCertificate(block.Bytes)
+			require.NoError(t, err, "ParserCertificate failed")
+
+			if test.assertCert != nil {
+				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
+func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+
+	// Create an user for testing.
+	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"})
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err, "GenerateKeyPair failed")
+
+	wantExtensions := &tlsca.DeviceExtensions{
+		DeviceID:     "device1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	tests := []struct {
+		name       string
+		modifyUser func(u *TestIdentity)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "no device extensions",
+			// Absence of errors is enough here, this is mostly to make sure the base
+			// scenario works.
+		},
+		{
+			name: "user with device extensions",
+			modifyUser: func(u *TestIdentity) {
+				lu := u.I.(LocalUser)
+				lu.Identity.DeviceExtensions = *wantExtensions
+				u.I = lu
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err, "FromSubject failed")
+
+				if diff := cmp.Diff(*wantExtensions, gotIdentity.DeviceExtensions, protocmp.Transform()); diff != "" {
+					t.Errorf("DeviceExtensions mismatch (-want +got)\n%s", diff)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			u := TestUser(user.GetName())
+			if test.modifyUser != nil {
+				test.modifyUser(&u)
+			}
+
+			userClient, err := testServer.NewClient(u)
+			require.NoError(t, err, "NewClient failed")
+
+			resp, err := userClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				PublicKey: pub,
+				Username:  user.GetName(),
+				Expires:   testServer.Clock().Now().Add(1 * time.Hour),
+			})
+			require.NoError(t, err, "GenerateUserCerts failed")
+
+			block, _ := pem.Decode(resp.TLS)
+			require.NotNil(t, block, "Decode failed")
+			gotCert, err := x509.ParseCertificate(block.Bytes)
+			require.NoError(t, err, "ParserCertificate failed")
+
+			if test.assertCert != nil {
+				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -832,9 +993,17 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
+	// Used for device trust tests.
+	wantDeviceExtensions := tlsca.DeviceExtensions{
+		DeviceID:     "device-id1",
+		AssetTag:     "device-assettag1",
+		CredentialID: "device-credentialid1",
+	}
+
 	tests := []struct {
-		desc string
-		opts generateUserSingleUseCertTestOpts
+		desc      string
+		newClient func() (*Client, error) // optional, makes a new client for the test.
+		opts      generateUserSingleUseCertTestOpts
 	}{
 		{
 			desc: "ssh using webauthn",
@@ -969,7 +1138,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkInitErr: require.Error,
 			},
 		},
-
 		{
 			desc: "fail - mfa challenge fail",
 			opts: generateUserSingleUseCertTestOpts{
@@ -988,10 +1156,106 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkAuthErr: require.Error,
 			},
 		},
+		{
+			desc: "device extensions copied SSH cert",
+			newClient: func() (*Client, error) {
+				u := TestUser(user.GetName())
+				u.TTL = 1 * time.Hour
+
+				// Add device extensions to the fake user's identity.
+				localUser := u.I.(LocalUser)
+				localUser.Identity.DeviceExtensions = wantDeviceExtensions
+				u.I = localUser
+
+				return srv.NewClient(u)
+			},
+			opts: generateUserSingleUseCertTestOpts{
+				// Same as SSH options. Nothing special here.
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_SSH,
+					NodeName:  "node-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					// SSH certificate.
+					sshRaw := c.GetSSH()
+					require.NotEmpty(t, sshRaw, "Got empty single-use SSH certificate")
+
+					sshCert, err := sshutils.ParseCertificate(sshRaw)
+					require.NoError(t, err, "ParseCertificate failed")
+					gotSSH := tlsca.DeviceExtensions{
+						DeviceID:     sshCert.Extensions[teleport.CertExtensionDeviceID],
+						AssetTag:     sshCert.Extensions[teleport.CertExtensionDeviceAssetTag],
+						CredentialID: sshCert.Extensions[teleport.CertExtensionDeviceCredentialID],
+					}
+					if diff := cmp.Diff(wantDeviceExtensions, gotSSH, protocmp.Transform()); diff != "" {
+						t.Errorf("SSH DeviceExtensions mismatch (-want +got)\n%s", diff)
+					}
+				},
+			},
+		},
+		{
+			desc: "device extensions copied TLS cert",
+			newClient: func() (*Client, error) {
+				u := TestUser(user.GetName())
+				u.TTL = 1 * time.Hour
+
+				// Add device extensions to the fake user's identity.
+				localUser := u.I.(LocalUser)
+				localUser.Identity.DeviceExtensions = wantDeviceExtensions
+				u.I = localUser
+
+				return srv.NewClient(u)
+			},
+			opts: generateUserSingleUseCertTestOpts{
+				// Same as Database options. Nothing special here.
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+					},
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					// TLS certificate.
+					tlsRaw := c.GetTLS()
+					require.NotEmpty(t, tlsRaw, "Got empty single-use TLS certificate")
+
+					block, _ := pem.Decode(tlsRaw)
+					require.NotNil(t, block, "Decode failed (TLS PEM)")
+					tlsCert, err := x509.ParseCertificate(block.Bytes)
+					require.NoError(t, err, "ParseCertificate failed")
+
+					singleUseIdentity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+					require.NoError(t, err, "FromSubject failed")
+					gotTLS := singleUseIdentity.DeviceExtensions
+					if diff := cmp.Diff(wantDeviceExtensions, gotTLS, protocmp.Transform()); diff != "" {
+						t.Errorf("TLS DeviceExtensions mismatch (-want +got)\n%s", diff)
+					}
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			testGenerateUserSingleUseCert(ctx, t, cl, tt.opts)
+			testClient := cl
+			if tt.newClient != nil {
+				var err error
+				testClient, err = tt.newClient()
+				require.NoError(t, err, "newClient failed")
+			}
+
+			testGenerateUserSingleUseCert(ctx, t, testClient, tt.opts)
 		})
 	}
 }
