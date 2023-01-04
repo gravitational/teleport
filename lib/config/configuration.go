@@ -98,6 +98,10 @@ type CommandLineFlags struct {
 
 	// --labels flag
 	Labels string
+
+	// --installers flag
+	Installers string
+
 	// --pid-file flag
 	PIDFile string
 	// DiagnosticAddr is listen address for diagnostic endpoint
@@ -277,6 +281,30 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
 		cfg.Auth.StorageConfig.Params["path"] = cfg.DataDir
+	}
+
+	if len(fc.Global.Installers) > 0 {
+		cfg.Installers = fc.Global.Installers
+	}
+
+	// set up instance-level labels
+	if fc.Global.Labels != nil {
+		cfg.Labels = make(map[string]string)
+		for k, v := range fc.Global.Labels {
+			cfg.Labels[k] = v
+		}
+	}
+
+	// set up instance-level command labels
+	if fc.Global.Commands != nil {
+		cfg.CmdLabels = make(services.CommandLabels)
+		for _, cmdLabel := range fc.Global.Commands {
+			cfg.CmdLabels[cmdLabel.Name] = &types.CommandLabelV2{
+				Period:  types.NewDuration(cmdLabel.Period),
+				Command: cmdLabel.Command,
+				Result:  "",
+			}
+		}
 	}
 
 	// If a backend is specified, override the defaults.
@@ -1041,6 +1069,38 @@ func getPostgresDefaultPort(cfg *service.Config) int {
 		return cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
 	}
 	return cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
+}
+
+// applyVersionControlDefaults sets default values for version control related parameters. Must be called *after*
+// ssh config has been fully initialized, since some default values are taken from there.
+func applyVersionControlDefaults(cfg *service.Config) {
+	// for convenience sake, we permit the version control system to "inherit" capabilites
+	// from an active SSH service. If the ssh service is active, then the version control system
+	// is effecively just automating something that could already be done manually. If it is not
+	// enabled, then we have to assume that teleport may be catagorically forbidden to affect
+	// remote commands or filesystem changes on this machine unless labels/installers are explicitly
+	// defined.
+	if !cfg.SSH.Enabled {
+		return
+	}
+
+	if len(cfg.Labels) == 0 && len(cfg.CmdLabels) == 0 {
+		if cfg.SSH.Labels != nil {
+			labels := make(map[string]string, len(cfg.SSH.Labels))
+			for k, v := range cfg.SSH.Labels {
+				labels[k] = v
+			}
+			cfg.Labels = labels
+		}
+
+		if cfg.SSH.CmdLabels != nil {
+			cfg.CmdLabels = cfg.SSH.CmdLabels.Clone()
+		}
+	}
+
+	if len(cfg.Installers) == 0 {
+		cfg.Installers = []string{types.Wildcard}
+	}
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
@@ -2212,6 +2272,27 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 		cfg.SSH.PermitUserEnvironment = true
 	}
 
+	// we interpret cli-provided labels as applying to instance-level labels as well, since
+	// teleport is being started as a monolithic entity with unique labels (as opposed to
+	// the various auto-discovery scenarios where what labels apply to the specific instance
+	// is ambiguous).
+	if clf.Labels != "" {
+		cfg.Labels, cfg.CmdLabels, err = parseLabels(clf.Labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if clf.Installers != "" {
+		cfg.Installers, err = parseInstallers(clf.Installers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// applyVersionControlDefaults sets up default values for the the version control system
+	applyVersionControlDefaults(cfg)
+
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)
 
@@ -2248,6 +2329,27 @@ func parseLabels(spec string) (map[string]string, services.CommandLabels, error)
 	}
 
 	return static, dynamic, nil
+}
+
+func parseInstallers(spec string) ([]string, error) {
+	var installers []string
+	for _, s := range strings.Split(spec, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+
+		// proper validation happens elsewhere, but its useful to check that the general
+		// format of the installer reference looks sane here.
+		parts := strings.Split(s, "/")
+		if len(parts) != 1 && len(parts) != 2 {
+			return nil, trace.BadParameter("invalid installer ref %q, expected something like 'local-script/my-script', 'local-script', or '*'", s)
+		}
+
+		installers = append(installers, s)
+	}
+
+	return installers, nil
 }
 
 // parseLabelsApply reads in the labels command line flag and tries to

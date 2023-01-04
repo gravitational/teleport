@@ -17,8 +17,15 @@ limitations under the License.
 package versioncontrol
 
 import (
+	"github.com/gravitational/teleport"
 	vc "github.com/gravitational/teleport/api/versioncontrol"
 )
+
+// Current gets the versioncontrol target that represents the currently installed
+// teleport version.
+func Current() vc.Target {
+	return vc.NewTarget(vc.Normalize(teleport.Version))
+}
 
 // Visitor is a helper for aggregating information about observed targets. Useful for
 // getting newest/oldest version observed during iteration/pagination. Zero value omits

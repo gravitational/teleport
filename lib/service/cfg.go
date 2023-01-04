@@ -83,6 +83,15 @@ type Config struct {
 	// Hostname is a node host name
 	Hostname string
 
+	// Installers is the list of supported version-control installers.
+	Installers []string
+
+	// Labels are the static instance-level labels.
+	Labels map[string]string
+
+	// CmdLabels are the instance-level command labels.
+	CmdLabels services.CommandLabels
+
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 

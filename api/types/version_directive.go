@@ -391,6 +391,16 @@ func (s *VersionDirectiveStanza) OnCreateChecks() error {
 	return nil
 }
 
+func (s *InstanceSelector) MatchesService(service SystemRole) bool {
+	for _, ss := range s.Services {
+		if service == ss {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (d *VersionDirectiveV1) setStaticFields() {
 	if d.Version == "" {
 		d.Version = V1

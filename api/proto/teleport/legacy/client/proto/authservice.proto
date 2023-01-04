@@ -1908,6 +1908,13 @@ message UpstreamInventoryHello {
   // instance can claim its hostname to be). This value exists only to assist users in correlating
   // instance resources with hosts.
   string Hostname = 4;
+  // Installers is a list of local version control installer matchers in preference order. Used by the
+  // the version control system to determine which installers to run on an instance.
+  repeated string Installers = 5;
+  // Labels are the statically known subset of instance labels.
+  map<string, string> StaticLabels = 6;
+
+  // TODO(fspmarshall): determine what to do about dynamic instance labels.
 }
 
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.
@@ -1925,6 +1932,8 @@ message InventoryHeartbeat {
   // we should be able to cut down on network usage fairly significantly by moving static values
   // to the hello message and only heartbeating dynamic values here).
   types.ServerV2 SSHServer = 1;
+
+  // TODO(fspmarshall): figure out dynamic instance label heartbeating.
 }
 
 // InventoryExec attempts to execute an job on a downstream instance.

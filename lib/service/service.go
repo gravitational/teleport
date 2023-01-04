@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/siddontang/go/log"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/acme"
@@ -114,6 +115,8 @@ import (
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	libvc "github.com/gravitational/teleport/lib/versioncontrol"
+	vcscript "github.com/gravitational/teleport/lib/versioncontrol/script"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -315,6 +318,12 @@ type TeleportProcess struct {
 	backend backend.Backend
 	// auditLog is the initialized audit log
 	auditLog events.IAuditLog
+
+	// cmdLabels are the instance-level command labels.
+	cmdLabels *labels.Dynamic
+
+	// scriptExecutor manages execution of remote scripts for the version control system.
+	scriptExecutor *vcscript.Executor
 
 	// inventorySetupDelay lets us inject a one-time delay in the makeInventoryControlStream
 	// method that helps reduce log spam in the event of slow instance cert acquisition.
@@ -898,6 +907,18 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cloudLabels.Start(supervisor.ExitContext())
 	}
 
+	var cmdLabels *labels.Dynamic
+	if len(cfg.CmdLabels) != 0 {
+		cmdLabels, err = labels.NewDynamic(supervisor.ExitContext(), &labels.DynamicConfig{
+			Labels: cfg.CmdLabels,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cmdLabels.Start()
+	}
+
 	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
 		cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -913,6 +934,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
+		cmdLabels:           cmdLabels,
 		instanceRoles:       make(map[types.SystemRole]string),
 		Identities:          make(map[types.SystemRole]*auth.Identity),
 		connectors:          make(map[types.SystemRole]*Connector),
@@ -948,10 +970,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
 	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID: cfg.HostUUID,
-		Version:  teleport.Version,
-		Services: process.getInstanceRoles(),
-		Hostname: cfg.Hostname,
+		ServerID:     cfg.HostUUID,
+		Version:      teleport.Version,
+		Services:     process.getInstanceRoles(),
+		Hostname:     cfg.Hostname,
+		Installers:   cfg.Installers,
+		StaticLabels: cfg.Labels,
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
@@ -963,6 +987,53 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			process.log.Warnf("Failed to respond to inventory ping (id=%d): %v", ping.ID, err)
 		}
 	})
+
+	var supportLocalScriptInstall bool
+	for _, ref := range cfg.Installers {
+		// accept any permutation of `<kind>[/<name>]` where `<kind>` is `*`, `local_script`, or `local-script`. We're stricter about
+		// naming when it comes to cluster-level config objects, but it pays to be a little more flexible here, since agent configuration
+		// is more difficult to update.
+		switch strings.Split(ref, "/")[0] {
+		case types.Wildcard, types.SubKindLocalScript, string(types.InstallerKindLocalScript):
+			supportLocalScriptInstall = true
+			continue
+		}
+
+		// as long as we recognized at least one install reference, this might actually have been done on purpose, to
+		// have this instance automatically switch to using a different installer after the next time it upgrades. For that
+		// reason, we only fail later if *none* of the installers are recognized.
+		log.Warnf("Unknown installer reference: %q (teleport doesn't know how to upgrade itself with this)", ref)
+	}
+
+	if !supportLocalScriptInstall && len(cfg.Installers) != 0 {
+		return nil, trace.BadParameter("no recognized installer refs in %q (hint: try using values like '*' or 'local-script')", cfg.Installers)
+	}
+
+	if supportLocalScriptInstall {
+		execDir := filepath.Join(cfg.DataDir, teleport.ExecDir)
+		if err := os.MkdirAll(execDir, teleport.SharedDirMode); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+
+		process.scriptExecutor, err = vcscript.NewExecutor(vcscript.ExecutorConfig{
+			Current: libvc.Current(),
+			Dir:     filepath.Join(cfg.DataDir, teleport.ExecDir),
+			Shell:   cfg.SSH.Shell,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		process.inventoryHandle.RegisterExecScriptHandler(func(sender inventory.DownstreamSender, msg types.ExecScript) {
+			result := process.scriptExecutor.Exec(msg)
+			err := sender.Send(process.ExitContext(), proto.InventoryExecResult{
+				ExecScript: &result,
+			})
+			if err != nil {
+				process.log.Warnf("Failed to emit ExecScript result (type=%q, id=%d): %v", result.Type, result.ID, err)
+			}
+		})
+	}
 
 	serviceStarted := false
 
@@ -4756,6 +4827,10 @@ func (process *TeleportProcess) Close() error {
 
 	if process.inventoryHandle != nil {
 		process.inventoryHandle.Close()
+	}
+
+	if process.cmdLabels != nil {
+		process.cmdLabels.Close()
 	}
 
 	return trace.NewAggregate(errors...)

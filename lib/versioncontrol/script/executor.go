@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	vc "github.com/gravitational/teleport/api/versioncontrol"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -47,8 +48,6 @@ const (
 const fileMode os.FileMode = 0600
 
 const createOpts int = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
-
-const defaultShell = "/bin/sh"
 
 // ExecutorConfig configures a script executor.
 type ExecutorConfig struct {
@@ -80,7 +79,7 @@ func NewExecutor(cfg ExecutorConfig) (*Executor, error) {
 	}
 
 	if cfg.Shell == "" {
-		cfg.Shell = defaultShell
+		cfg.Shell = defaults.DefaultShell
 	}
 
 	if cfg.Clock == nil {

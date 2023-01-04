@@ -83,6 +83,46 @@ func (t VersionControlInstallerKind) Check() error {
 	}
 }
 
+type VersionControlInstallerPreference struct {
+	kind string
+	name string
+}
+
+func ParseVersionControlInstallerPreference(s string) VersionControlInstallerPreference {
+	parts := strings.SplitN(s, "/", 2)
+	kind := parts[0]
+	switch kind {
+	case SubKindLocalScript:
+		kind = string(InstallerKindLocalScript)
+	}
+
+	var name string
+	if len(parts) == 2 {
+		name = parts[1]
+	}
+
+	return VersionControlInstallerPreference{
+		kind: kind,
+		name: name,
+	}
+}
+
+func (p *VersionControlInstallerPreference) MatchKind(kind VersionControlInstallerKind) bool {
+	if p.kind == Wildcard {
+		return true
+	}
+
+	return p.kind == string(kind)
+}
+
+func (p *VersionControlInstallerPreference) MatchName(name string) bool {
+	if p.name == Wildcard || p.name == "" {
+		return true
+	}
+
+	return p.name == name
+}
+
 // Iter iterates all installers in the set.
 func (s *VersionControlInstallerSet) Iter(fn func(i VersionControlInstaller)) {
 	for _, installer := range s.LocalScript {

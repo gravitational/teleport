@@ -49,6 +49,9 @@ type DownstreamCreateFunc func(ctx context.Context) (client.DownstreamInventoryC
 // DownstreamPingHandler is a function that handles ping messages that come down the inventory control stream.
 type DownstreamPingHandler func(sender DownstreamSender, msg proto.DownstreamInventoryPing)
 
+// DownstreamExecScriptHandler is a function that handles ExecScript messages that come down the inventory control stream.
+type DownstreamExecScriptHandler func(sender DownstreamSender, msg types.ExecScript)
+
 // DownstreamHandle is a persistent handle used to interact with the current downstream half of the inventory
 // control stream. This handle automatically re-creates the control stream if it fails. The latest (or next, if
 // currently unhealthy) control stream send-half can be accessed/awaited via the Sender() channel. The intended usage
@@ -63,6 +66,9 @@ type DownstreamHandle interface {
 	// RegisterPingHandler registers a handler for downstream ping messages, returning
 	// a de-registration function.
 	RegisterPingHandler(DownstreamPingHandler) (unregister func())
+	// RegisterExecScriptHandler registers a handler for downstream exec script messages,
+	// returning a de-registration function.
+	RegisterExecScriptHandler(DownstreamExecScriptHandler) (unregister func())
 	// CloseContext gets the close context of the downstream handle.
 	CloseContext() context.Context
 	// Close closes the downstream handle.
@@ -87,10 +93,11 @@ type DownstreamSender interface {
 func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
 	ctx, cancel := context.WithCancel(context.Background())
 	handle := &downstreamHandle{
-		senderC:      make(chan DownstreamSender),
-		pingHandlers: make(map[uint64]DownstreamPingHandler),
-		closeContext: ctx,
-		cancel:       cancel,
+		senderC:            make(chan DownstreamSender),
+		pingHandlers:       make(map[uint64]DownstreamPingHandler),
+		execScriptHandlers: make(map[uint64]DownstreamExecScriptHandler),
+		closeContext:       ctx,
+		cancel:             cancel,
 	}
 	go handle.run(fn, hello)
 	return handle
@@ -113,12 +120,13 @@ func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.Invent
 }
 
 type downstreamHandle struct {
-	mu           sync.Mutex
-	handlerNonce uint64
-	pingHandlers map[uint64]DownstreamPingHandler
-	senderC      chan DownstreamSender
-	closeContext context.Context
-	cancel       context.CancelFunc
+	mu                 sync.Mutex
+	handlerNonce       uint64
+	pingHandlers       map[uint64]DownstreamPingHandler
+	execScriptHandlers map[uint64]DownstreamExecScriptHandler
+	senderC            chan DownstreamSender
+	closeContext       context.Context
+	cancel             context.CancelFunc
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -203,8 +211,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
 			case proto.InventoryExec:
-				// TODO(fspmarshall): handle exec message
-				log.Warnf("Unhandled exec message: %+v", m)
+				h.handleExec(sender, m)
 			default:
 				return trace.BadParameter("unexpected downstream message type: %T", m)
 			}
@@ -231,6 +238,23 @@ func (h *downstreamHandle) handlePing(sender DownstreamSender, msg proto.Downstr
 	}
 }
 
+func (h *downstreamHandle) handleExec(sender DownstreamSender, msg proto.InventoryExec) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if m := msg.ExecScript; m != nil {
+		if len(h.execScriptHandlers) == 0 {
+			log.Warnf("Got exec-script message with no handlers registered (type=%q, id=%d).", m.Type, m.ID)
+		}
+
+		for _, handler := range h.execScriptHandlers {
+			go handler(sender, *m)
+		}
+	} else {
+		log.Warnf("Unknown InventoryExec message variant: %+v (missing expected field ExecScript).", msg)
+	}
+}
+
 func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (unregister func()) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -241,6 +265,19 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		delete(h.pingHandlers, nonce)
+	}
+}
+
+func (h *downstreamHandle) RegisterExecScriptHandler(handler DownstreamExecScriptHandler) (unregister func()) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	nonce := h.handlerNonce
+	h.handlerNonce++
+	h.execScriptHandlers[nonce] = handler
+	return func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(h.execScriptHandlers, nonce)
 	}
 }
 
@@ -360,6 +397,23 @@ type InstanceStateRef struct {
 	QualifiedPendingControlLog   []types.InstanceControlLogEntry
 	UnqualifiedPendingControlLog []types.InstanceControlLogEntry
 	LastHeartbeat                types.Instance
+}
+
+// IterLogEntry iterates all log entries, include pending/qualified entries.
+func (r *InstanceStateRef) IterLogEntries(fn func(types.InstanceControlLogEntry)) {
+	for _, entry := range r.QualifiedPendingControlLog {
+		fn(entry)
+	}
+
+	for _, entry := range r.UnqualifiedPendingControlLog {
+		fn(entry)
+	}
+
+	if r.LastHeartbeat != nil {
+		for _, entry := range r.LastHeartbeat.GetControlLog() {
+			fn(entry)
+		}
+	}
 }
 
 // InstanceStateUpdate encodes additional pending control log entries that should be included in future heartbeats. Used by

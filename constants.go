@@ -371,6 +371,9 @@ const (
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
+	// ExecDir is the subdirectory for ExecScript operations
+	ExecDir = "exec"
+
 	// Syslog is a mode for syslog logging
 	Syslog = "syslog"
 

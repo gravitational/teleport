@@ -134,6 +134,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
 		StringVar(&ccf.ConfigString)
 	start.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web").StringVar(&ccf.Labels)
+	start.Flag("installers",
+		"Comma-separated list of installer matchers in order of preference, for example 'local-script/my-script,*'").StringVar(&ccf.Installers)
 	start.Flag("diag-addr",
 		"Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
