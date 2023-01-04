@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -538,6 +539,77 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 					}
 					test.assertFn(t, cap)
 				})
+			}
+		})
+	}
+}
+
+func TestAuthPreferenceV2_CheckAndSetDefaults_deviceTrust(t *testing.T) {
+	tests := []struct {
+		name     string
+		authPref *types.AuthPreferenceV2
+		wantErr  string
+	}{
+		{
+			name: "Mode default",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: "", // "off" for OSS, "optional" for Enterprise.
+					},
+				},
+			},
+		},
+		{
+			name: "Mode=off",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: constants.DeviceTrustModeOff,
+					},
+				},
+			},
+		},
+		{
+			name: "Mode=optional",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: constants.DeviceTrustModeOptional,
+					},
+				},
+			},
+		},
+		{
+			name: "Mode=required",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: constants.DeviceTrustModeRequired,
+					},
+				},
+			},
+		},
+		{
+			name: "Mode invalid",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: "bad",
+					},
+				},
+			},
+			wantErr: "device trust mode",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.authPref.CheckAndSetDefaults()
+			if test.wantErr == "" {
+				assert.NoError(t, err, "CheckAndSetDefaults returned non-nil error")
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "CheckAndSetDefaults mismatch")
+				assert.True(t, trace.IsBadParameter(err), "gotErr is not a trace.BadParameter error")
 			}
 		})
 	}

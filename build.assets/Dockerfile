@@ -22,16 +22,15 @@ RUN apt-get update && \
 # libudev-zero replaces systemd's libudev
 RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = "4154cf252c17297f98a8ca33693ead003b4509da" ] && \
+    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
     make install-static && \
     make clean
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.1 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = "58b3319b8c3ec15171cb00f01a3a1e9d400899e1" ] && \
+    [ "$(git rev-parse HEAD)" = '5c1bb892c94b6ae2ef99e3c6673d5e0857242f38' ] && \
     cmake \
-        -DCBOR_CUSTOM_ALLOC=ON \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DWITH_EXAMPLES=OFF . && \
@@ -43,7 +42,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = "659a02679f99fd34a44e06e35dce90794f6ecc86" ] && \
+    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -197,7 +196,7 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
      rm -r bats-core-1.2.1)
 
 # Install shellcheck.
-RUN scversion='v0.8.0' && \
+RUN scversion='v0.9.0' && \
     curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
@@ -223,7 +222,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.10.0" && \
+    VERSION="1.11.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \

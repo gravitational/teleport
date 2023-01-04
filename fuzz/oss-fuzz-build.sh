@@ -77,8 +77,9 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLLogin fuzz_mssql_login
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
-   FuzzMongoRead fuzz_mongo_read
+# Disabled until we can update the mongoDB driver
+#  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
+#   FuzzMongoRead fuzz_mongo_read
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthn \
     FuzzParseCredentialCreationResponseBody fuzz_parse_credential_creation_response_body
@@ -106,6 +107,9 @@ build_teleport_api_fuzzers() {
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/aws \
     FuzzParseElastiCacheEndpoint fuzz_parse_elasti_cache_endpoint
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/aws \
+    FuzzParseDynamoDBEndpoint fuzz_parse_dynamodb_endpoint
 
   cd -
 

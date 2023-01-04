@@ -1159,6 +1159,43 @@ func TestGetAndList_Nodes(t *testing.T) {
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
 }
 
+// TestStreamSessionEventsRBAC ensures that session events can not be streamed
+// by users who lack the read permission on the session resource.
+func TestStreamSessionEventsRBAC(t *testing.T) {
+	t.Parallel()
+
+	role, err := types.NewRoleV3("deny-sessions", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"*": []string{types.Wildcard},
+			},
+		},
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindSession, []string{types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	srv := newTestTLSServer(t)
+
+	user, err := CreateUser(srv.Auth(), "user", role)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	_, errC := clt.StreamSessionEvents(context.Background(), "foo", 0)
+	select {
+	case err := <-errC:
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+	case <-time.After(1 * time.Second):
+		require.FailNow(t, "expected access denied error but stream succeeded")
+	}
+}
+
 // TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()
@@ -2360,6 +2397,148 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 0)
 	require.Empty(t, cmp.Diff(testResources[:0], resp.Resources))
+}
+
+func TestListDatabaseServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	numInitialResources := 5
+
+	// Create test Database Services.
+	for i := 0; i < numInitialResources; i++ {
+		name := uuid.NewString()
+		s, err := types.NewDatabaseServiceV1(types.Metadata{
+			Name: name,
+		}, types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
+				{
+					Labels: &types.Labels{
+						"env": []string{name},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseService(ctx, s)
+		require.NoError(t, err)
+	}
+
+	listServicesResp, err := srv.Auth().ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	databaseServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+
+	testResources := make([]types.ResourceWithLabels, len(databaseServices))
+	for i, server := range databaseServices {
+		testResources[i] = server
+	}
+
+	// Create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// User is not allowed to list DatabseServices
+	_, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Read operations")
+
+	// Change the user's role to allow them to list DatabaseServices
+	currentAllowRules := role.GetRules(types.Allow)
+	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RO())))
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources)
+
+	require.Empty(t, cmp.Diff(databaseServices, usersViewDBServices))
+
+	// User is not allowed to Upsert DatabaseServices
+	extraDatabaseService, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name: "extra",
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"extra"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Create/Update operations")
+
+	currentAllowRules = role.GetRules(types.Allow)
+	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RW())))
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources+1)
+
+	// User can also delete a single or multiple DatabaseServices because they have RW permissions now
+	err = clt.DeleteDatabaseService(ctx, extraDatabaseService.GetName())
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources)
+
+	// After removing all resources, we should have 0 resources being returned.
+	err = clt.DeleteAllDatabaseServices(ctx)
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, usersViewDBServices)
 }
 
 func TestListResources_NeedTotalCountFlag(t *testing.T) {
@@ -3589,6 +3768,116 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 			found, err := clt.GetActiveSessionTrackers(ctx)
 			require.NoError(t, err)
 			require.Equal(t, testCase.hasAccess, len(found) != 0)
+		})
+	}
+}
+
+func TestListReleasesPermissions(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	tt := []struct {
+		Name         string
+		Role         types.RoleSpecV5
+		ErrAssertion require.BoolAssertionFunc
+	}{
+		{
+			Name: "no permission error if user has allow rule to list downloads",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDownload},
+					Verbs:     []string{types.VerbList},
+				}}},
+			},
+			ErrAssertion: require.False,
+		},
+		{
+			Name: "permission error if user deny allow rule to list downloads",
+			Role: types.RoleSpecV5{
+				Deny: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDownload},
+					Verbs:     []string{types.VerbList},
+				}}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "permission error if user has no rules regarding downloads",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertion: require.True,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.ListReleases(ctx)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
+		})
+	}
+}
+
+func TestGetLicensePermissions(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	tt := []struct {
+		Name         string
+		Role         types.RoleSpecV5
+		ErrAssertion require.BoolAssertionFunc
+	}{
+		{
+			Name: "no permission error if user has allow rule to read license",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindLicense},
+					Verbs:     []string{types.VerbRead},
+				}}},
+			},
+			ErrAssertion: require.False,
+		},
+		{
+			Name: "permission error if user deny allow rule to read license",
+			Role: types.RoleSpecV5{
+				Deny: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindLicense},
+					Verbs:     []string{types.VerbRead},
+				}}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "permission error if user has no rules regarding license",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertion: require.True,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.GetLicense(ctx)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
 		})
 	}
 }

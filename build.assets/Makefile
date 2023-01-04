@@ -27,7 +27,8 @@ GOLANG_VERSION ?= go1.19.4
 
 NODE_VERSION ?= 16.18.1
 
-RUST_VERSION ?= 1.64.0 # don't bump this without checking GLIBC compatibility
+# run lint-rust check locally before merging code after you bump this
+RUST_VERSION ?= 1.66.0
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -42,7 +43,7 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 PROTOC_VER ?= 3.20.3
-# Keep in sync with api/proto/buf.yaml (and buf.lock).
+# Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
@@ -88,33 +89,33 @@ export
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build
-build: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
+build: buildbox-centos7
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release
 
 #
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build-binaries
-build-binaries: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' full
+build-binaries: buildbox-centos7
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
 
 #
 # Build 'teleport' Enterprise release inside a docker container
 #
 .PHONY:build-enterprise-binaries
-build-enterprise-binaries: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) clean full
+build-enterprise-binaries: buildbox-centos7
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) clean full
 
 #
 # Build 'teleport' FIPS release inside a docker container
 # This builds Enterprise binaries only.
 #
 .PHONY:build-binaries-fips
-build-binaries-fips: buildbox-fips
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_FIPS) \
+build-binaries-fips: buildbox-centos7-fips
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
 #
@@ -411,10 +412,6 @@ release-386:
 release-arm: buildbox-arm
 	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
 
-.PHONY: release-arm64
-release-arm64: buildbox-arm
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
-
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7
 	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
@@ -422,6 +419,59 @@ release-amd64-centos7: buildbox-centos7
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: buildbox-centos7-fips
 	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+
+# #############################################################################
+# Legacy Drone ARM build targets
+# #############################################################################
+
+.PHONY: release-arm64
+release-arm64: buildbox-arm
+	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
+
+# #############################################################################
+# GHA release build targets
+# #############################################################################
+
+#
+# The `release-oss` and `release-enterprise` make targets are for building OSS 
+# and Enterprise releases from GitHub actions. These make targets execute in a
+# container based on a caller-supplied `BUILDBOX` image.
+#
+# Unlike the other release targets, these release targets do not attempt to
+# automatically construct the buildbox image at build time - the build box 
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the 
+# make command line
+#
+# Separating the construction of build environment from the actual build itself 
+# allows us to use the appropriate GHA actions to pre-build the buildbox 
+# image, so that the image construction works nicely with GHA.
+#
+
+define RELEASE_RECIPE
+		docker run \
+			--rm \
+			--platform linux/$(ARCH) \
+			--memory-swap -1 \
+			-h buildbox \
+			-e GOMODCACHE=$(GOMODCACHE) \
+			-e GOCACHE=$(GOCACHE) \
+			-v "/tmp:/tmp" \
+			-v "$(WORKSPACE):/go/teleport" \
+			-w /go/teleport \
+			-u 1000:1000 \
+			$(BUILDBOX) \
+		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+endef
+
+.PHONY: release-oss
+release-oss:
+	$(call RELEASE_RECIPE,full build-archive)
+
+.PHONY: release-enterprise
+release-enterprise:
+	$(call RELEASE_RECIPE,release-unix-only)
+
+# #############################################################################
 
 #
 # Create a Teleport FIPS package using the build container.

@@ -16,7 +16,6 @@ limitations under the License.
 
 package db
 
-//nolint:goimports
 import (
 	"context"
 	"crypto/tls"
@@ -42,24 +41,32 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	// Import to register Cassandra engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	// Import to register Elasticsearch engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
-	// Import to register MongoDB engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
+	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	// Import to register Postgres engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
-	// Import to register Redis engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/redis"
-	// Import to register Snowflake engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func init() {
+	common.RegisterEngine(cassandra.NewEngine, defaults.ProtocolCassandra)
+	common.RegisterEngine(elasticsearch.NewEngine, defaults.ProtocolElasticsearch)
+	common.RegisterEngine(mongodb.NewEngine, defaults.ProtocolMongoDB)
+	common.RegisterEngine(mysql.NewEngine, defaults.ProtocolMySQL)
+	common.RegisterEngine(postgres.NewEngine, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
+	common.RegisterEngine(redis.NewEngine, defaults.ProtocolRedis)
+	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
+	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
+	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
+}
 
 // Config is the configuration for a database proxy server.
 type Config struct {
@@ -292,6 +299,10 @@ func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
 
 // New returns a new database server.
 func New(ctx context.Context, config Config) (*Server, error) {
+	if err := common.CheckEngines(defaults.DatabaseProtocols...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err := config.CheckAndSetDefaults(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -615,6 +626,11 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start cloud users that will be monitoring cloud users.
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
+	// Start hearbeating the Database Service itself.
+	if err := s.startServiceHeartbeat(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -640,12 +656,51 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// If the agent doesn’t have any static databases configured, send a
-	// heartbeat without error to make the component “ready”.
-	if len(s.cfg.Databases) == 0 && s.cfg.OnHeartbeat != nil {
-		s.cfg.OnHeartbeat(nil)
+	// Start the cloud-based databases CA renewer.
+	go s.startCARenewer(ctx)
+
+	return nil
+}
+
+// startServiceHeartbeat sends the current DatabaseService server info.
+func (s *Server) startServiceHeartbeat() error {
+	getDatabaseServiceServerInfo := func() (types.Resource, error) {
+		expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+		resource, err := types.NewDatabaseServiceV1(types.Metadata{
+			Name:      s.cfg.HostID,
+			Namespace: apidefaults.Namespace,
+			Expires:   &expires,
+		}, types.DatabaseServiceSpecV1{
+			ResourceMatchers: services.ResourceMatchersToTypes(s.cfg.ResourceMatchers),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return resource, nil
 	}
 
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Context:         s.closeContext,
+		Component:       teleport.ComponentDatabase,
+		Mode:            srv.HeartbeatModeDatabaseService,
+		Announcer:       s.cfg.AccessPoint,
+		GetServerInfo:   getDatabaseServiceServerInfo,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		OnHeartbeat:     s.cfg.OnHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := heartbeat.Run(); err != nil {
+			s.log.WithError(err).Error("Heartbeat ended with error")
+		}
+	}()
 	return nil
 }
 
@@ -813,6 +868,23 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
+		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
+		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
+			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
+				connectionDiagnosticID,
+				&types.ConnectionDiagnosticTrace{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "Access denied when accessing Database. Please check the Error message for more information.",
+					Error:   err.Error(),
+				},
+			)
+
+			if diagErr != nil {
+				return trace.Wrap(diagErr)
+			}
+		}
+
 		return trace.Wrap(err)
 	}
 	return nil

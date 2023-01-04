@@ -21,6 +21,17 @@ const (
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
 
+	// DefaultReleaseServerAddr is the default release service URL
+	DefaultReleaseServerAddr = "rlz.teleport.sh"
+
+	// ReleaseServerEnvVar is the environment variable used to overwrite
+	// the default release server address
+	ReleaseServerEnvVar = "RELEASE_SERVER_HOSTPORT"
+
+	// EnterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
+	// releases on the release server
+	EnterpriseReleaseEndpoint = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
@@ -121,6 +132,9 @@ const (
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
+
+	// KindDatabaseService is a database service resource.
+	KindDatabaseService = "db_service"
 
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
@@ -283,6 +297,9 @@ const (
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
 
+	// KindInstance represents a teleport instance independent of any specific service.
+	KindInstance = "instance"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
@@ -382,6 +399,9 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
+	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

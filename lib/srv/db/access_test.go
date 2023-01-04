@@ -52,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -64,8 +64,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -82,6 +82,10 @@ import (
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	registerTestSnowflakeEngine()
+	registerTestElasticsearchEngine()
+	registerTestSQLServerEngine()
+	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
 }
 
@@ -559,7 +563,7 @@ func TestGCPRequireSSL(t *testing.T) {
 			withCloudSQLPostgres("postgres", cloudSQLAuthToken)(t, ctx, testCtx),
 			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 		},
-		GCPSQL: &cloud.GCPSQLAdminClientMock{
+		GCPSQL: &mocks.GCPSQLAdminClientMock{
 			EphemeralCert: ephemeralCert,
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
@@ -599,7 +603,7 @@ func TestGCPRequireSSL(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func init() {
+func registerTestSQLServerEngine() {
 	// Override SQL Server engine that is used normally with the test one
 	// that mocks connection dial and Kerberos auth.
 	common.RegisterEngine(newTestSQLServerEngine, defaults.ProtocolSQLServer)
@@ -1238,6 +1242,8 @@ type testContext struct {
 	cassandra map[string]testCassandra
 	// elasticsearch is a collection of Elasticsearch databases the test uses.
 	elasticsearch map[string]testElasticsearch
+	// dynamodb is a collection of DynamoDB databases the test uses.
+	dynamodb map[string]testDynamoDB
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1301,6 +1307,14 @@ type testElasticsearch struct {
 	// db is the test elasticsearch database server.
 	db *elasticsearch.TestServer
 	// resource is the resource representing this elasticsearch database.
+	resource types.Database
+}
+
+// testDynamoDB represents a single proxied DynamoDB database.
+type testDynamoDB struct {
+	// db is the test Dynamodb database server.
+	db *dynamodb.TestServer
+	// resource is the resource representing this DynamoDB database.
 	resource types.Database
 }
 
@@ -1728,6 +1742,34 @@ func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbS
 	return db, proxy, nil
 }
 
+// dynamodbClient returns a DynamoDB test client.
+func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbService, dbUser string) (*dynamodb.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolDynamoDB,
+		Username:    dbUser,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := dynamodb.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
@@ -1790,6 +1832,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		snowflake:     make(map[string]testSnowflake),
 		elasticsearch: make(map[string]testElasticsearch),
 		cassandra:     make(map[string]testCassandra),
+		dynamodb:      make(map[string]testDynamoDB),
 		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
@@ -1813,9 +1856,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	testCtx.mux, err = multiplexer.New(multiplexer.Config{
-		ID:                  "test",
-		Listener:            listener,
-		EnableProxyProtocol: true,
+		ID:                          "test",
+		Listener:                    listener,
+		EnableExternalProxyProtocol: true,
 	})
 	require.NoError(t, err)
 
@@ -1857,7 +1900,11 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyLockWatcher)
+	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: testCtx.clusterName,
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
@@ -1927,9 +1974,17 @@ type agentParams struct {
 	// NoStart indicates server should not be started.
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
-	GCPSQL *cloud.GCPSQLAdminClientMock
+	GCPSQL *mocks.GCPSQLAdminClientMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
+	// CADownloader defines the CA downloader.
+	CADownloader CADownloader
+	// CloudClients is the cloud API clients for database service.
+	CloudClients clients.Clients
+	// AWSMatchers is a list of AWS databases matchers.
+	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of Azure databases matchers.
+	AzureMatchers []services.AzureMatcher
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -1937,7 +1992,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 		p.HostID = c.hostID
 	}
 	if p.GCPSQL == nil {
-		p.GCPSQL = &cloud.GCPSQLAdminClientMock{
+		p.GCPSQL = &mocks.GCPSQLAdminClientMock{
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
 					IpConfiguration: &sqladmin.IpConfiguration{
@@ -1945,6 +2000,25 @@ func (p *agentParams) setDefaults(c *testContext) {
 					},
 				},
 			},
+		}
+	}
+	if p.CADownloader == nil {
+		p.CADownloader = &fakeDownloader{
+			cert: []byte(fixtures.TLSCACertPEM),
+		}
+	}
+
+	if p.CloudClients == nil {
+		p.CloudClients = &clients.TestCloudClients{
+			STS:                &mocks.STSMock{},
+			RDS:                &mocks.RDSMock{},
+			Redshift:           &mocks.RedshiftMock{},
+			RedshiftServerless: &mocks.RedshiftServerlessMock{},
+			ElastiCache:        &mocks.ElastiCacheMock{},
+			MemoryDB:           &mocks.MemoryDBMock{},
+			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                &mocks.IAMMock{},
+			GCPSQL:             p.GCPSQL,
 		}
 	}
 }
@@ -1966,7 +2040,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 	})
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient, lockWatcher)
+	dbAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: c.clusterName,
+		AccessPoint: c.authClient,
+		LockWatcher: lockWatcher,
+	})
 	require.NoError(t, err)
 
 	// Create test database auth tokens generator.
@@ -2009,22 +2087,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 				Emitter: c.emitter,
 			})
 		},
-		CADownloader: &fakeDownloader{
-			cert: []byte(fixtures.TLSCACertPEM),
-		},
-		OnReconcile: p.OnReconcile,
-		LockWatcher: lockWatcher,
-		CloudClients: &clients.TestCloudClients{
-			STS:                &cloud.STSMock{},
-			RDS:                &cloud.RDSMock{},
-			Redshift:           &cloud.RedshiftMock{},
-			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
-			ElastiCache:        &cloud.ElastiCacheMock{},
-			MemoryDB:           &cloud.MemoryDBMock{},
-			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:                &cloud.IAMMock{},
-			GCPSQL:             p.GCPSQL,
-		},
+		CADownloader:  p.CADownloader,
+		OnReconcile:   p.OnReconcile,
+		LockWatcher:   lockWatcher,
+		CloudClients:  p.CloudClients,
+		AWSMatchers:   p.AWSMatchers,
+		AzureMatchers: p.AzureMatchers,
 	})
 	require.NoError(t, err)
 

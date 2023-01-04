@@ -63,12 +63,11 @@ package rdpclient
 #include <librdprs.h>
 */
 import "C"
+
 import (
 	"context"
-	"errors"
 	"fmt"
 	"image"
-	"io"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -80,6 +79,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func init() {
@@ -277,9 +277,39 @@ func (c *Client) start() {
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if errCode := C.read_rdp_output(c.rustClient); errCode != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", errCode)
+		res := C.read_rdp_output(c.rustClient)
+
+		// Copy the returned message and free the C memory.
+		userMessage := C.GoString(res.user_message)
+		C.free_c_string(res.user_message)
+
+		// If the disconnect was initiated by the server or for
+		// an unknown reason, try to alert the user as to why via
+		// a TDP error message.
+		if res.disconnect_code != C.DisconnectCodeClient {
+			if err := c.cfg.Conn.WriteMessage(tdp.Error{
+				Message: fmt.Sprintf("The Windows Desktop disconnected: %v", userMessage),
+			}); err != nil {
+				c.cfg.Log.WithError(err).Error("error sending server disconnect reason over TDP")
+			}
 		}
+
+		// Select the logger to use based on the error code.
+		logf := c.cfg.Log.Infof
+		if res.err_code == C.ErrCodeFailure {
+			logf = c.cfg.Log.Errorf
+		}
+
+		// Log a message to the user.
+		var logPrefix string
+		if res.disconnect_code == C.DisconnectCodeClient {
+			logPrefix = "the RDP client ended the session with message: %v"
+		} else if res.disconnect_code == C.DisconnectCodeServer {
+			logPrefix = "the RDP server ended the session with message: %v"
+		} else {
+			logPrefix = "the RDP session ended unexpectedly with message: %v"
+		}
+		logf(logPrefix, userMessage)
 	}()
 
 	// User input streaming worker goroutine.
@@ -295,8 +325,11 @@ func (c *Client) start() {
 		var mouseX, mouseY uint32
 		for {
 			msg, err := c.cfg.Conn.ReadMessage()
-			if errors.Is(err, io.EOF) {
+			if utils.IsOKNetworkError(err) {
 				return
+			} else if tdp.IsNonFatalErr(err) {
+				c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
+				continue
 			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
@@ -404,7 +437,7 @@ func (c *Client) start() {
 						return
 					}
 				} else {
-					c.cfg.Log.Warning("Recieved an empty clipboard message")
+					c.cfg.Log.Warning("Received an empty clipboard message")
 				}
 			case tdp.SharedDirectoryAnnounce:
 				if c.cfg.AllowDirectorySharing {
@@ -818,26 +851,6 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 // the TDP connection to the browser.
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
-		// In the case that the session ends due to an RDP server disconnect,
-		// the TDP connection will still be open at this point. Therefore
-		// we can ask for the RDP server disconnect reason here and send it
-		// back to the user via TDP.
-		res := C.get_server_disconnect_reason(c.rustClient)
-		if res.err != C.ErrCodeSuccess {
-			c.cfg.Log.Errorf("error getting server disconnect reason: %v", res.err)
-		} else {
-			reason := C.GoString(res.reason)
-			C.free_c_string(res.reason)
-			if reason != "" {
-				c.cfg.Log.Errorf("RDP server disconnected with reason: %v", reason)
-				if err := c.cfg.Conn.WriteMessage(tdp.Error{
-					Message: fmt.Sprintf("The Windows Desktop disconnected. %v", reason),
-				}); err != nil {
-					c.cfg.Log.WithError(err).Error("error sending server disconnect reason over TDP")
-				}
-			}
-		}
-
 		// Ensure the RDP connection is closed
 		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")

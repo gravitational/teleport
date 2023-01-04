@@ -1,220 +1,194 @@
-<ScopedBlock scope={["oss"]}>
-<Tabs>
-    <TabItem label="Debian/Ubuntu (DEB)">
-        ```code
-        # Download Teleport's PGP public key
-        $ sudo curl https://apt.releases.teleport.dev/gpg \
-          -o /usr/share/keyrings/teleport-archive-keyring.asc
-        # Source variables about OS version
-        $ source /etc/os-release
-        # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
-        # file for each major release of Teleport.
-        # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
-        # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
-        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-          https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
-         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-
-        $ sudo apt-get update
-        $ sudo apt-get install teleport
-        ```
-    </TabItem>
-    <TabItem label="Amazon Linux 2/RHEL (RPM)">
-        ```code
-        # Source variables about OS version
-        $ source /etc/os-release
-        # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
-        # file for each major release of Teleport.
-        # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-        # and the codename your distro was forked from instead of '$ID'
-        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
-        $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
-        $ sudo yum install teleport
-        #
-        # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-        # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
-        #
-        # Optional:  Using DNF on newer distributions
-        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-        # $ sudo dnf install teleport
-        ```
-    </TabItem>
-
-    <TabItem label="Tarball">
-        ```code
-        $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
-        # <checksum> <filename>
-        $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-        $ shasum -a 256 teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-        # Verify that the checksums match
-        $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-        $ cd teleport
-        $ sudo ./install
-        ```
-    </TabItem>
-
-    <TabItem label="ARMv7 (32-bit)">
-        ```code
-        $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz.sha256
-        # <checksum> <filename>
-        $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-        $ shasum -a 256 teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-        # Verify that the checksums match
-        $ tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-        $ cd teleport
-        $ sudo ./install
-        ```
-  </TabItem>
-
-  <TabItem label="ARM64/ARMv8 (64-bit)">
-        ```code
-        $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz.sha256
-        # <checksum> <filename>
-        $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-        $ shasum -a 256 teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-        # Verify that the checksums match
-        $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-        $ cd teleport
-        $ sudo ./install
-        ```
-  </TabItem>
-
-  <TabItem label="Debian/Ubuntu Legacy (DEB)">
-        ```code
-        # Using this APT repo may result in breaking upgrades upon "apt upgrade" as all major versions will be
-        # published under the same component. We recommend following the instructions in the
-        # "Debian/Ubuntu (DEB)" tab instead.
-        # Download Teleport's PGP public key
-        $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
-          -o /usr/share/keyrings/teleport-archive-keyring.asc
-        # Add the Teleport APT repository
-        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main" \
-         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-
-        $ sudo apt-get update
-        $ sudo apt-get install teleport
-        ```
-  </TabItem>
-
-  <TabItem label="Amazon Linux 2/RHEL Legacy (RPM)">
-        ```code
-        $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-        $ sudo yum install teleport
-
-        # Optional:  Using DNF on newer distributions
-        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-        # $ sudo dnf install teleport
-        ```
-  </TabItem>
-
-</Tabs>
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+<ScopedBlock scope={["enterprise", "cloud"]}>
 
 Visit the [Downloads Page](https://dashboard.gravitational.com/web/downloads) in
 the customer portal and select the URL for your package of choice.
 
 Next, use the appropriate commands for your environment to install your package.
 
-For example, use the following commands to install Teleport on a machine with an
-x86-64 chip via tarball:
-
-```code
-$ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
-# <checksum> <filename>
-$ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-$ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-# Verify that the checksums match
-$ tar -xvf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-$ cd teleport-ent
-$ sudo ./install
-```
-
-For FedRAMP/FIPS-compliant installations of Teleport Enterprise, package URLs
-will be slightly different:
-
-```code
-$ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz.sha256
-# <checksum> <filename>
-$ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
-$ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
-# Verify that the checksums match
-$ tar -xvf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
-$ cd teleport-ent
-$ sudo ./install
-```
-
 </ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-<Tabs>
-    <TabItem label="Debian/Ubuntu (DEB)">
-        ```code
-        # Download Teleport's PGP public key
-        $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
-          -o /usr/share/keyrings/teleport-archive-keyring.asc
-        # Source variables about OS version
-        $ source /etc/os-release
-        # Add the Teleport APT repository for v(=cloud.major_version=). You'll need to update this
-        # file for each major release of Teleport.
-        # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
-        # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-apt-repos/main.go#L26
-        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-          https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=cloud.major_version=)" \
-         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-        $ sudo apt-get update
-        $ sudo apt-get install teleport
-        ```
-    </TabItem>
-    <TabItem label="Amazon Linux 2/RHEL (RPM)">
-        ```code
-        # Source variables about OS version
-        $ source /etc/os-release
-        # Add the Teleport YUM repository for v(=cloud.major_version=). You'll need to update this
-        # file for each major release of Teleport.
-        # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-        # and the codename your distro was forked from instead of '$ID'
-        $ sudo yum-config-manager \
-            --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=cloud.major_version=)/teleport.repo")
-        $ sudo yum install teleport
-        ```
-    </TabItem>
-    <TabItem label="Tarball">
-        ```code
-        $ curl https://get.gravitational.com/teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz.sha256
-        # <checksum> <filename>
-        $ curl -O https://get.gravitational.com/teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
-        $ shasum -a 256 teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
-        # Verify that the checksums match
-        $ tar -xzf teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
-        $ cd teleport
-        $ sudo ./install
-        ```
-    </TabItem>
-    <TabItem label="ARMv7 (32-bit)">
-        ```code
-        $ curl https://get.gravitational.com/teleport-v(=cloud.version=)-linux-arm-bin.tar.gz.sha256
-        # <checksum> <filename>
-        $ curl -O https://get.gravitational.com/teleport-v(=cloud.version=)-linux-arm-bin.tar.gz
-        $ shasum -a 256 teleport-v(=cloud.version=)-linux-arm-bin.tar.gz
-        # Verify that the checksums match
-        $ tar -xzf teleport-v(=cloud.version=)-linux-arm-bin.tar.gz
-        $ cd teleport
-        $ sudo ./install
-        ```
+
+<Tabs dropdownView dropdownCaption="Teleport Edition">
+  <TabItem label="Open Source" scope="oss">
+  <Tabs>
+  <TabItem label="Debian/Ubuntu (DEB)" scope="oss">
+
+  Add the Teleport repository to your repository list:
+
+  ```code
+  # Download Teleport's PGP public key
+  $ sudo curl https://apt.releases.teleport.dev/gpg \
+  -o /usr/share/keyrings/teleport-archive-keyring.asc
+  # Source variables about OS version
+  $ source /etc/os-release
+  # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
+  # file for each major release of Teleport.
+  # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+  # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
+  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
+  $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
+  | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+
+  $ sudo apt-get update
+  $ sudo apt-get install teleport
+  ```
+
   </TabItem>
-  <TabItem label="ARM64/ARMv8 (64-bit)">
-        ```code
-        $ curl https://get.gravitational.com/teleport-v(=cloud.version=)-linux-arm64-bin.tar.gz.sha256
-        # <checksum> <filename>
-        $ curl -O https://get.gravitational.com/teleport-v(=cloud.version=)-linux-arm64-bin.tar.gz
-        $ shasum -a 256 teleport-v(=cloud.version=)-linux-arm64-bin.tar.gz
-        # Verify that the checksums match
-        $ tar -xzf teleport-v(=cloud.version=)-linux-arm64-bin.tar.gz
-        $ cd teleport
-        $ sudo ./install
-        ```
+  <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="oss">
+
+  ```code
+  # Source variables about OS version
+  $ source /etc/os-release
+  # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
+  # file for each major release of Teleport.
+  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
+  # and the codename your distro was forked from instead of '$ID'
+  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
+  $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
+  $ sudo yum install teleport
+  #
+  # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
+  # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
+  #
+  # Optional:  Use DNF on newer distributions
+  # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+  # $ sudo dnf install teleport
+  ```
+
+  </TabItem>
+  <TabItem label="Tarball" scope="oss">
+
+  ```code
+  $ curl https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH" description="The CPU architecture of the system Teleport will be installed on"/>-bin.tar.gz.sha256
+  # <checksum> <filename>
+  $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  $ shasum -a 256 teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  # Verify that the checksums match
+  $ tar -xvf teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  $ cd teleport
+  $ sudo ./install
+  ```
+
+  </TabItem>
+  </Tabs>
+  </TabItem>
+  <TabItem label="Enterprise" scope="enterprise">
+
+  In the example commands below, update `$SYSTEM-ARCH` with the appropriate
+  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
+  will update after one is filled out.
+
+  <Tabs>
+  <TabItem label="Debian/Ubuntu (DEB)" scope="enterprise">
+
+  After Downloading the `.deb` file for your system architecture, install it with
+  `dpkg`. The example below assumes the `root` user:
+
+  ```code
+  $ dpkg -i ~/Downloads/teleport-ent_(=teleport.version=)_<Var name="$SYSTEM-ARCH" description="The CPU architecture of the system Teleport will be installed on"/>.deb
+  Selecting previously unselected package teleport-ent.
+  (Reading database ... 30810 files and directories currently installed.)
+  Preparing to unpack teleport-ent_(=teleport.version=)_$SYSTEM_ARCH.deb ...
+  Unpacking teleport-ent (=teleport.version=) ...
+  Setting up teleport-ent (=teleport.version=) ...
+  ```
+
+  </TabItem>
+  <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="enterprise">
+
+  After Downloading the `.rpm` file for your system architecture, install it with `rpm`:
+
+  ```code
+  $ rpm -i ~/Downloads/teleport-ent-(=teleport.version=).<Var name="$SYSTEM-ARCH"/>.rpm
+  warning: teleport-ent-(=teleport.version=).$SYSTEM-ARCH.rpm: Header V4 RSA/SHA512 Signature, key ID 6282c411: NOKEY
+  ```
+
+  </TabItem>
+  <TabItem label="Tarball" scope="enterprise">
+
+  ```code
+  $ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
+  # <checksum> <filename>
+  $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  $ shasum -a 256 teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  # Verify that the checksums match
+  $ tar -xvf teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  $ cd teleport
+  $ sudo ./install
+  ```
+
+  For FedRAMP/FIPS-compliant installations of Teleport Enterprise, package URLs
+  will be slightly different:
+
+  ```code
+  $ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz.sha256
+  # <checksum> <filename>
+  $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz
+  $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz
+  # Verify that the checksums match
+  $ tar -xvf teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz
+  $ cd teleport-ent
+  $ sudo ./install
+  ```
+
+  </TabItem>
+  </Tabs>
+  </TabItem>
+  <TabItem label="Cloud" scope="cloud">
+
+  In the example commands below, update `$SYSTEM-ARCH` with the appropriate
+  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
+  will update after one is filled out.
+
+  <Tabs>
+  <TabItem label="Debian/Ubuntu (DEB)" scope="cloud">
+
+  After Downloading the `.deb` file for your system architecture, install it with
+  `dpkg`. The example below assumes the `root` user:
+
+  ```code
+  $ dpkg -i ~/Downloads/teleport-ent_(=cloud.version=)_<Var name="$SYSTEM-ARCH"/>.deb
+  Selecting previously unselected package teleport-ent.
+  (Reading database ... 30810 files and directories currently installed.)
+  Preparing to unpack teleport-ent_(=cloud.version=)_$SYSTEM_ARCH.deb ...
+  Unpacking teleport-ent (=cloud.version=) ...
+  Setting up teleport-ent (=cloud.version=) ...
+  ```
+
+  </TabItem>
+  <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="cloud">
+
+  After Downloading the `.rpm` file for your system architecture, install it with `rpm`:
+
+  ```code
+  $ rpm -i ~/Downloads/teleport-ent-(=cloud.version=).<Var name="$SYSTEM-ARCH"/>.rpm
+  warning: teleport-ent-(=cloud.version=).$SYSTEM-ARCH.rpm: Header V4 RSA/SHA512 Signature, key ID 6282c411: NOKEY
+  ```
+
+  </TabItem>
+  <TabItem label="Tarball" scope="cloud">
+
+  ```code
+  $ curl https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
+  # <checksum> <filename>
+  $ curl -O https://cdn.teleport.dev/teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
+  $ shasum -a 256 teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
+  # Verify that the checksums match
+  $ tar -xvf teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport
+  $ sudo ./install
+  ```
+
+  </TabItem>
+  </Tabs>
+  <Details title="Is my Teleport instance compatible with Teleport Cloud?">
+
+  Before installing a `teleport` binary with a version besides v(=cloud.major_version=),
+  read our compatibility rules to ensure that the binary is compatible with
+  Teleport Cloud.
+
+  (!docs/pages/includes/compatibility.mdx!)
+
+  </Details>
   </TabItem>
 </Tabs>
-</ScopedBlock>

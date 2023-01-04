@@ -165,7 +165,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 					},
 					Expires: test.expiresAt,
 				},
@@ -221,7 +221,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			expectedToken: "generated-token",
 		},
 		{
-			name:               "validate URL parameters termporary session",
+			name:               "validate URL parameters temporary session",
 			sessionCredentials: credentials.NewStaticCredentials("id", "secret", "sessiontoken"),
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				values := r.URL.Query()
@@ -269,7 +269,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 					},
 					Expires: time.Now().Add(24 * time.Hour),
 				},

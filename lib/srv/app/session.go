@@ -19,6 +19,7 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
 	"path/filepath"
 	"sync"
 	"time"
@@ -49,7 +50,7 @@ const sessionChunkCloseTimeout = 1 * time.Hour
 
 var errSessionChunkAlreadyClosed = errors.New("session chunk already closed")
 
-// sessionChunk holds an open request forwarder and audit log for an app session.
+// sessionChunk holds an open request handler and stream closer for an app session.
 //
 // An app session is only bounded by the lifetime of the certificate in
 // the caller's identity, so we create sessionChunks to track and record
@@ -63,12 +64,12 @@ type sessionChunk struct {
 	closeC chan struct{}
 	// id is the session chunk's uuid, which is used as the id of its session upload.
 	id string
-	// fwd can rewrite and forward requests to the target application.
-	fwd *forward.Forwarder
 	// streamCloser closes the session chunk stream.
 	streamCloser utils.WriteContextCloser
-	// sessionCtx contains common context parameters for an App session.
-	sessionCtx *common.SessionContext
+	// audit is the session chunk audit logger.
+	audit common.Audit
+	// handler handles requests for this session chunk.
+	handler http.Handler
 
 	// inflightCond protects and signals change of inflight
 	inflightCond *sync.Cond
@@ -112,25 +113,19 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	}
 
 	// Create the stream writer that will write this chunk to the audit log.
-	streamWriter, err := s.newStreamWriter(app, sess.id)
+	streamWriter, err := s.newStreamWriter(sess.id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.streamCloser = streamWriter
 
-	// Create session context.
 	audit, err := common.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.sessionCtx = &common.SessionContext{
-		Identity: identity,
-		App:      app,
-		ChunkID:  sess.id,
-		Audit:    audit,
-	}
+	sess.audit = audit
 
 	for _, opt := range opts {
 		if err = opt(ctx, sess, identity, app); err != nil {
@@ -141,13 +136,12 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	// Put the session chunk in the cache so that upcoming requests can use it for
 	// 5 minutes or the time until the certificate expires, whichever comes first.
 	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
-	err = s.cache.set(identity.RouteToApp.SessionID, sess, ttl)
-	if err != nil {
+	if err = s.cache.set(identity.RouteToApp.SessionID, sess, ttl); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// only emit a session chunk if we didnt get an error making the new session chunk
-	if err := sess.sessionCtx.Audit.OnSessionChunk(ctx, sess.sessionCtx, s.c.HostID); err != nil {
+	if err := sess.audit.OnSessionChunk(ctx, s.c.HostID, sess.id, identity, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
@@ -178,21 +172,19 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(s.closeContext,
 		&transportConfig{
-			audit:        sess.sessionCtx.Audit,
 			app:          app,
 			publicPort:   s.proxyPort,
 			cipherSuites: s.c.CipherSuites,
 			jwt:          jwt,
 			traits:       traits,
 			log:          s.log,
-			user:         identity.Username,
 		})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	delegate := forward.NewHeaderRewriter()
-	sess.fwd, err = forward.New(
+	fwd, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
@@ -203,13 +195,18 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sess.handler = fwd
 	return nil
 }
 
-// withAWSForwarder is a sessionOpt that uses forwarder of the AWS signning
-// service.
-func (s *Server) withAWSForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	sess.fwd = s.awsSigner.Forwarder
+// withAWSSigner is a sessionOpt that uses an AWS signing service handler.
+func (s *Server) withAWSSigner(_ context.Context, sess *sessionChunk, _ *tlsca.Identity, _ types.Application) error {
+	sess.handler = s.awsHandler
+	return nil
+}
+
+func (s *Server) withAzureForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	sess.handler = s.azureHandler
 	return nil
 }
 
@@ -261,8 +258,7 @@ func (s *sessionChunk) close(ctx context.Context) error {
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
 	s.log.Debugf("Closed session chunk %s", s.id)
-	err := s.streamCloser.Close(ctx)
-	return trace.Wrap(err)
+	return trace.Wrap(s.streamCloser.Close(ctx))
 }
 
 func (s *Server) closeSession(sess *sessionChunk) {
@@ -274,7 +270,7 @@ func (s *Server) closeSession(sess *sessionChunk) {
 // newStreamWriter creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (s *Server) newStreamWriter(app types.Application, chunkID string) (events.StreamWriter, error) {
+func (s *Server) newStreamWriter(chunkID string) (events.StreamWriter, error) {
 	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -286,7 +282,7 @@ func (s *Server) newStreamWriter(app types.Application, chunkID string) (events.
 	}
 
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(app, chunkID, recConfig)
+	streamer, err := s.newStreamer(chunkID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -314,7 +310,7 @@ func (s *Server) newStreamWriter(app types.Application, chunkID string) (events.
 // of the server and the session, sync streamer sends the events
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
-func (s *Server) newStreamer(app types.Application, chunkID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
+func (s *Server) newStreamer(chunkID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
 	if services.IsRecordSync(recConfig.GetMode()) {
 		s.log.Debugf("Using sync streamer for session chunk %v.", chunkID)
 		return s.c.AuthClient, nil
