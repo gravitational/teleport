@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // DownstreamInventoryControlStream is the client/agent side of a bidirectional stream established
@@ -219,6 +221,29 @@ func (c *Client) PingInventory(ctx context.Context, req proto.InventoryPingReque
 	}
 
 	return *rsp, nil
+}
+
+func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
+	// set up cancelable context so that Stream.Done can close the stream if the caller
+	// halts early.
+	ctx, cancel := context.WithCancel(ctx)
+
+	instances, err := c.grpc.GetInstances(ctx, &filter, c.callOpts...)
+	if err != nil {
+		cancel()
+		return stream.Fail[types.Instance](trail.FromGRPC(err))
+	}
+	return stream.Func[types.Instance](func() (types.Instance, error) {
+		instance, err := instances.Recv()
+		if err != nil {
+			if trace.IsEOF(err) {
+				// io.EOF signals that stream has completed successfully
+				return nil, io.EOF
+			}
+			return nil, trail.FromGRPC(err)
+		}
+		return instance, nil
+	}, cancel)
 }
 
 func newDownstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamClient, cancel context.CancelFunc) DownstreamInventoryControlStream {
