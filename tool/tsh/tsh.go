@@ -1845,7 +1845,7 @@ func onListNodes(cf *CLIConf) error {
 		return nodes[i].GetHostname() < nodes[j].GetHostname()
 	})
 
-	if err := printNodes(nodes, cf.Format, cf.Verbose); err != nil {
+	if err := printNodes(nodes, cf); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1884,20 +1884,9 @@ func listNodesAllClusters(cf *CLIConf) error {
 	group, groupCtx := errgroup.WithContext(cf.Context)
 	group.SetLimit(4)
 
-	nodeListingsResultChan := make(chan nodeListings)
-	nodeListingsCollectChan := make(chan nodeListings)
-	go func() {
-		var listings nodeListings
-		for {
-			select {
-			case items := <-nodeListingsResultChan:
-				listings = append(listings, items...)
-			case <-groupCtx.Done():
-				nodeListingsCollectChan <- listings
-				return
-			}
-		}
-	}()
+	// mu guards access to listings
+	var mu sync.Mutex
+	var listings nodeListings
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		group.Go(func() error {
@@ -1912,23 +1901,25 @@ func listNodesAllClusters(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			var listings nodeListings
 			for _, site := range sites {
 				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 
+				localListings := make(nodeListings, 0, len(nodes))
 				for _, node := range nodes {
-					listings = append(listings, nodeListing{
+					localListings = append(localListings, nodeListing{
 						Proxy:   profile.ProxyURL.Host,
 						Cluster: site.Name,
 						Node:    node,
 					})
 				}
+				mu.Lock()
+				listings = append(listings, localListings...)
+				mu.Unlock()
 			}
 
-			nodeListingsCollectChan <- listings
 			return nil
 		})
 
@@ -1942,32 +1933,38 @@ func listNodesAllClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	listings := <-nodeListingsResultChan
 	sort.Sort(listings)
 
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printNodesWithClusters(listings, cf.Verbose)
+		if err := printNodesWithClusters(listings, cf.Verbose, cf.Stdout()); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeNodesWithClusters(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+
+		if _, err := fmt.Fprintln(cf.Stdout(), out); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(listings) == 0 {
-		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+		if _, err := fmt.Fprintln(cf.Stderr(), missingPrincipalsFooter); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
 }
 
-func printNodesWithClusters(nodes []nodeListing, verbose bool) {
+func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer) error {
 	var rows [][]string
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, verbose))
@@ -1978,7 +1975,10 @@ func printNodesWithClusters(nodes []nodeListing, verbose bool) {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func serializeNodesWithClusters(nodes []nodeListing, format string) (string, error) {
@@ -2127,20 +2127,26 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	return trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
 }
 
-func printNodes(nodes []types.Server, format string, verbose bool) error {
-	format = strings.ToLower(format)
+func printNodes(nodes []types.Server, conf *CLIConf) error {
+	format := strings.ToLower(conf.Format)
 	switch format {
 	case teleport.Text, "":
-		printNodesAsText(nodes, verbose)
+		if err := printNodesAsText(conf.Stdout(), nodes, conf.Verbose); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeNodes(nodes, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		if _, err := fmt.Fprintln(conf.Stdout(), out); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.Names:
 		for _, n := range nodes {
-			fmt.Println(n.GetHostname())
+			if _, err := fmt.Fprintln(conf.Stdout(), n.GetHostname()); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
@@ -2148,7 +2154,9 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(nodes) == 0 {
-		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+		if _, err := fmt.Fprintln(conf.Stderr(), missingPrincipalsFooter); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -2190,7 +2198,7 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 	return row
 }
 
-func printNodesAsText(nodes []types.Server, verbose bool) {
+func printNodesAsText(output io.Writer, nodes []types.Server, verbose bool) error {
 	var rows [][]string
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow("", "", n, verbose))
@@ -2206,7 +2214,11 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 	case false:
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func sortedLabels(labels map[string]string) string {
@@ -2813,11 +2825,11 @@ func onSSH(cf *CLIConf) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-				printNodesAsText(nodes, true)
-				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
-				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
-				fmt.Fprintf(os.Stderr, "\n")
+				fmt.Fprintf(cf.Stderr(), "error: ambiguous host could match multiple nodes\n\n")
+				printNodesAsText(cf.Stderr(), nodes, true)
+				fmt.Fprintf(cf.Stderr(), "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
+				fmt.Fprintf(cf.Stderr(), "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
+				fmt.Fprintf(cf.Stderr(), "\n")
 				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
