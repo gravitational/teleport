@@ -39,14 +39,14 @@ func TestAWSMetadata(t *testing.T) {
 		DBInstances: []*rds.DBInstance{
 			// Standalone RDS instance.
 			{
-				DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:1234567890:db:postgres-rds"),
+				DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:postgres-rds"),
 				DBInstanceIdentifier:             aws.String("postgres-rds"),
 				DbiResourceId:                    aws.String("db-xyz"),
 				IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 			},
 			// Instance that is a part of an Aurora cluster.
 			{
-				DBInstanceArn:        aws.String("arn:aws:rds:us-east-1:1234567890:db:postgres-aurora-1"),
+				DBInstanceArn:        aws.String("arn:aws:rds:us-east-1:123456789012:db:postgres-aurora-1"),
 				DBInstanceIdentifier: aws.String("postgres-aurora-1"),
 				DBClusterIdentifier:  aws.String("postgres-aurora"),
 			},
@@ -54,14 +54,14 @@ func TestAWSMetadata(t *testing.T) {
 		DBClusters: []*rds.DBCluster{
 			// Aurora cluster.
 			{
-				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:postgres-aurora"),
+				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:postgres-aurora"),
 				DBClusterIdentifier: aws.String("postgres-aurora"),
 				DbClusterResourceId: aws.String("cluster-xyz"),
 			},
 		},
 		DBProxies: []*rds.DBProxy{
 			{
-				DBProxyArn:  aws.String("arn:aws:rds:us-east-1:1234567890:db-proxy:prx-resource-id"),
+				DBProxyArn:  aws.String("arn:aws:rds:us-east-1:123456789012:db-proxy:prx-resource-id"),
 				DBProxyName: aws.String("rds-proxy"),
 			},
 		},
@@ -77,7 +77,7 @@ func TestAWSMetadata(t *testing.T) {
 	redshift := &RedshiftMock{
 		Clusters: []*redshift.Cluster{
 			{
-				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-west-1:1234567890:namespace:namespace-id"),
+				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-west-1:123456789012:namespace:namespace-id"),
 				ClusterIdentifier:   aws.String("redshift-cluster-1"),
 			},
 			{
@@ -91,7 +91,7 @@ func TestAWSMetadata(t *testing.T) {
 	elasticache := &ElastiCacheMock{
 		ReplicationGroups: []*elasticache.ReplicationGroup{
 			{
-				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789:replicationgroup:my-redis"),
+				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789012:replicationgroup:my-redis"),
 				ReplicationGroupId:       aws.String("my-redis"),
 				ClusterEnabled:           aws.Bool(true),
 				TransitEncryptionEnabled: aws.Bool(true),
@@ -104,7 +104,7 @@ func TestAWSMetadata(t *testing.T) {
 	memorydb := &MemoryDBMock{
 		Clusters: []*memorydb.Cluster{
 			{
-				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789:cluster:my-cluster"),
+				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789012:cluster:my-cluster"),
 				Name:       aws.String("my-cluster"),
 				TLSEnabled: aws.Bool(true),
 				ACLName:    aws.String("my-user-group"),
@@ -137,7 +137,7 @@ func TestAWSMetadata(t *testing.T) {
 			},
 			outAWS: types.AWS{
 				Region:    "us-west-1",
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				RDS: types.RDS{
 					InstanceID: "postgres-rds",
 					ResourceID: "db-xyz",
@@ -154,7 +154,7 @@ func TestAWSMetadata(t *testing.T) {
 			},
 			outAWS: types.AWS{
 				Region:    "us-east-1",
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				RDS: types.RDS{
 					ClusterID:  "postgres-aurora",
 					ResourceID: "cluster-xyz",
@@ -170,7 +170,7 @@ func TestAWSMetadata(t *testing.T) {
 			},
 			outAWS: types.AWS{
 				Region:    "us-east-1",
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				RDS: types.RDS{
 					ClusterID:  "postgres-aurora",
 					ResourceID: "cluster-xyz",
@@ -185,7 +185,7 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				Region:    "us-west-1",
 				Redshift: types.Redshift{
 					ClusterID: "redshift-cluster-1",
@@ -216,7 +216,7 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "123456789",
+				AccountID: "123456789012",
 				Region:    "us-west-1",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID:       "my-redis",
@@ -235,7 +235,7 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "123456789",
+				AccountID: "123456789012",
 				Region:    "us-west-1",
 				MemoryDB: types.MemoryDB{
 					ClusterName:  "my-cluster",
@@ -254,7 +254,7 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				Region:    "us-east-1",
 				RDSProxy: types.RDSProxy{
 					Name:       "rds-proxy",
@@ -271,7 +271,7 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				Region:    "us-east-1",
 				RDSProxy: types.RDSProxy{
 					Name:               "rds-proxy",

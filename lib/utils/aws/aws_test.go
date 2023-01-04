@@ -93,22 +93,22 @@ func TestExtractCredFromAuthHeader(t *testing.T) {
 // TestFilterAWSRoles verifies filtering AWS role ARNs by AWS account ID.
 func TestFilterAWSRoles(t *testing.T) {
 	acc1ARN1 := Role{
-		ARN:     "arn:aws:iam::1234567890:role/EC2FullAccess",
+		ARN:     "arn:aws:iam::123456789012:role/EC2FullAccess",
 		Display: "EC2FullAccess",
 		Name:    "EC2FullAccess",
 	}
 	acc1ARN2 := Role{
-		ARN:     "arn:aws:iam::1234567890:role/EC2ReadOnly",
+		ARN:     "arn:aws:iam::123456789012:role/EC2ReadOnly",
 		Display: "EC2ReadOnly",
 		Name:    "EC2ReadOnly",
 	}
 	acc1ARN3 := Role{
-		ARN:     "arn:aws:iam::1234567890:role/path/to/customrole",
+		ARN:     "arn:aws:iam::123456789012:role/path/to/customrole",
 		Display: "customrole",
 		Name:    "path/to/customrole",
 	}
 	acc2ARN1 := Role{
-		ARN:     "arn:aws:iam::0987654321:role/test-role",
+		ARN:     "arn:aws:iam::210987654321:role/test-role",
 		Display: "test-role",
 		Name:    "test-role",
 	}
@@ -125,12 +125,12 @@ func TestFilterAWSRoles(t *testing.T) {
 	}{
 		{
 			name:      "first account roles",
-			accountID: "1234567890",
+			accountID: "123456789012",
 			outARNs:   Roles{acc1ARN1, acc1ARN2, acc1ARN3},
 		},
 		{
 			name:      "second account roles",
-			accountID: "0987654321",
+			accountID: "210987654321",
 			outARNs:   Roles{acc2ARN1},
 		},
 		{
@@ -146,18 +146,18 @@ func TestFilterAWSRoles(t *testing.T) {
 
 func TestRoles(t *testing.T) {
 	arns := []string{
-		"arn:aws:iam::1234567890:role/test-role",
-		"arn:aws:iam::1234567890:role/EC2FullAccess",
-		"arn:aws:iam::1234567890:role/path/to/EC2FullAccess",
+		"arn:aws:iam::123456789012:role/test-role",
+		"arn:aws:iam::123456789012:role/EC2FullAccess",
+		"arn:aws:iam::123456789012:role/path/to/EC2FullAccess",
 	}
-	roles := FilterAWSRoles(arns, "1234567890")
+	roles := FilterAWSRoles(arns, "123456789012")
 	require.Len(t, roles, 3)
 
 	t.Run("Sort", func(t *testing.T) {
 		roles.Sort()
-		require.Equal(t, "arn:aws:iam::1234567890:role/EC2FullAccess", roles[0].ARN)
-		require.Equal(t, "arn:aws:iam::1234567890:role/path/to/EC2FullAccess", roles[1].ARN)
-		require.Equal(t, "arn:aws:iam::1234567890:role/test-role", roles[2].ARN)
+		require.Equal(t, "arn:aws:iam::123456789012:role/EC2FullAccess", roles[0].ARN)
+		require.Equal(t, "arn:aws:iam::123456789012:role/path/to/EC2FullAccess", roles[1].ARN)
+		require.Equal(t, "arn:aws:iam::123456789012:role/test-role", roles[2].ARN)
 	})
 
 	t.Run("FindRoleByARN", func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestRoles(t *testing.T) {
 		})
 
 		t.Run("not found", func(t *testing.T) {
-			_, found := roles.FindRoleByARN("arn:aws:iam::1234567889:role/unknown")
+			_, found := roles.FindRoleByARN("arn:aws:iam::123456788912:role/unknown")
 			require.False(t, found)
 		})
 	})

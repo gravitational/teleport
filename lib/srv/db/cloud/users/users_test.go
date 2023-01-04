@@ -135,7 +135,7 @@ func mustCreateElastiCacheDatabase(t *testing.T, name string, userGroupIDs ...st
 		Name: name,
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
-		URI:      "master.redis-cluster.1234567890.use1.cache.amazonaws.com:6379",
+		URI:      "master.redis-cluster.123456789012.use1.cache.amazonaws.com:6379",
 		AWS: types.AWS{
 			ElastiCache: types.ElastiCache{
 				UserGroupIDs: userGroupIDs,
@@ -176,7 +176,7 @@ func mustCreateRDSDatabase(t *testing.T, name string) types.Database {
 func elastiCacheUser(name string, groupIDs ...string) *elasticache.User {
 	return &elasticache.User{
 		UserId:       aws.String(name),
-		ARN:          aws.String("arn:aws:elasticache:us-east-1:1234567890:user:" + name),
+		ARN:          aws.String("arn:aws:elasticache:us-east-1:123456789012:user:" + name),
 		UserName:     aws.String(name),
 		UserGroupIds: aws.StringSlice(groupIDs),
 	}
@@ -184,7 +184,7 @@ func elastiCacheUser(name string, groupIDs ...string) *elasticache.User {
 
 func memoryDBUser(name string, aclNames ...string) *memorydb.User {
 	return &memorydb.User{
-		ARN:      aws.String("arn:aws:memorydb:us-east-1:1234567890:user/" + name),
+		ARN:      aws.String("arn:aws:memorydb:us-east-1:123456789012:user/" + name),
 		Name:     aws.String(name),
 		ACLNames: aws.StringSlice(aclNames),
 	}
