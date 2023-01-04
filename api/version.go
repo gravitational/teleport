@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "12.0.0-tcsc-drone-dev.02"
+	Version = "12.0.0-tcsc-drone-dev.03"
 )
 
 // Gitref variable is automatically set to the output of git-describe

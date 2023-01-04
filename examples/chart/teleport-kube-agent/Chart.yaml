@@ -1,4 +1,4 @@
-.version: &version "12.0.0-tcsc-drone-dev.02"
+.version: &version "12.0.0-tcsc-drone-dev.03"
 
 name: teleport-kube-agent
 apiVersion: v2
