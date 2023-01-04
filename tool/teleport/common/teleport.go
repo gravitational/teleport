@@ -376,11 +376,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 	waitCmd := app.Command(teleport.WaitSubCommand, "Used internally by Teleport to wait until a specific condition is reached.").Hidden()
 	waitNoResolveCmd := waitCmd.Command("no-resolve", "Used internally to wait until a domain stops resolving IP addresses.")
-	waitNoResolveCmd.Arg("domain", "Domain that is resolved ").StringVar(&waitFlags.domain)
-	waitNoResolveCmd.Flag("period", "").Default(waitNoResolveDefaultPeriod).DurationVar(&waitFlags.period)
-	waitNoResolveCmd.Flag("timeout", "").Default(waitNoResolveDefaultTimeout).DurationVar(&waitFlags.timeout)
+	waitNoResolveCmd.Arg("domain", "Domain that is resolved.").StringVar(&waitFlags.domain)
+	waitNoResolveCmd.Flag("period", "Resolution try period. A jitter is applied.").Default(waitNoResolveDefaultPeriod).DurationVar(&waitFlags.period)
+	waitNoResolveCmd.Flag("timeout", "Stops waiting after this duration and exits in error.").Default(waitNoResolveDefaultTimeout).DurationVar(&waitFlags.timeout)
 	waitDurationCmd := waitCmd.Command("duration", "Used internally to wait a given duration before exiting.")
-	waitDurationCmd.Arg("duration", "").DurationVar(&waitFlags.duration)
+	waitDurationCmd.Arg("duration", "Duration to wait before exit.").DurationVar(&waitFlags.duration)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
