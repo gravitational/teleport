@@ -8,15 +8,11 @@ updates:
       # Deprecated APIs, requires manual changes.
       # TODO(xacrimon): Update Firestore and solve deprecations.
       - dependency-name: cloud.google.com/go/firestore
-      # depends on newer Firestore version
+      # Depends on newer Firestore version.
       - dependency-name: cloud.google.com/go/iam
-      # depends on newer Firestore version
       - dependency-name: cloud.google.com/go/kms
-      # depends on newer Firestore version
       - dependency-name: github.com/fsouza/fake-gcs-server
-      # depends on newer Firestore version
       - dependency-name: google.golang.org/api
-      # depends on newer Firestore version
       - dependency-name: google.golang.org/genproto
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
