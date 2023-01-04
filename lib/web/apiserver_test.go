@@ -1417,7 +1417,7 @@ func TestTerminal(t *testing.T) {
 			name: "node recording mode",
 			recordingConfig: types.SessionRecordingConfigV2{
 				Spec: types.SessionRecordingConfigSpecV2{
-					Mode: types.RecordAtNode,
+					Mode: types.RecordAtNodeSync,
 				},
 			},
 		},
