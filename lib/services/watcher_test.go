@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -934,4 +935,113 @@ func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
 	})
 	require.NoError(t, err)
 	return s
+}
+
+// TestAccessRequestWatcher tests that access request resource watcher properly receives
+// and dispatches updates to access request resources.
+func TestAccessRequestWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.DynamicAccessCore
+		types.Events
+	}
+
+	dynamicAccessService := local.NewDynamicAccessService(bk)
+	w, err := services.NewAccessRequestWatcher(ctx, services.AccessRequestWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				DynamicAccessCore: dynamicAccessService,
+				Events:            local.NewEventsService(bk),
+			},
+		},
+		AccessRequestsC: make(chan types.AccessRequests, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Initially there are no access requests so watcher should send an empty list.
+	select {
+	case changeset := <-w.AccessRequestsC:
+		require.Len(t, changeset, 0)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add an access request.
+	accessRequest1 := newAccessRequest(t, uuid.NewString())
+	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest1))
+
+	// The first event is always the current list of access requests.
+	select {
+	case changeset := <-w.AccessRequestsC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], accessRequest1))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second access request.
+	accessRequest2 := newAccessRequest(t, uuid.NewString())
+	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest2))
+
+	// Watcher should detect the access request list change.
+	select {
+	case changeset := <-w.AccessRequestsC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the second event.")
+	}
+
+	// Change the second access request
+	accessRequest2.SetState(types.RequestState_APPROVED)
+	require.NoError(t, dynamicAccessService.UpsertAccessRequest(ctx, accessRequest2))
+
+	// Watcher should detect the access request list change.
+	select {
+	case changeset := <-w.AccessRequestsC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the updated event.")
+	}
+
+	// Delete the first access request.
+	require.NoError(t, dynamicAccessService.DeleteAccessRequest(ctx, accessRequest1.GetName()))
+
+	// Watcher should detect the access request list change.
+	select {
+	case changeset := <-w.AccessRequestsC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], accessRequest2))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+func newAccessRequest(t *testing.T, name string) types.AccessRequest {
+	accessRequest, err := types.NewAccessRequest(name, "test-user", "role1")
+	accessRequest.SetState(types.RequestState_PENDING)
+	require.NoError(t, err)
+	return accessRequest
 }
