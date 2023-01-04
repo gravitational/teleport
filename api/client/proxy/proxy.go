@@ -73,7 +73,7 @@ func parse(addr string) (*url.URL, error) {
 
 // HTTPRoundTripper is a wrapper for http.Transport that
 // - adds extra HTTP headers to all requests, and
-// - downgrades requests to plain HTTP when using a plain HTTP proxy at localhost.
+// - downgrades requests to plain HTTP when proxy is at localhost and the wrapped http.Transport has TLSClientConfig.InsecureSkipVerify set to true.
 type HTTPRoundTripper struct {
 	*http.Transport
 	// extraHeaders is a map of extra HTTP headers to be included in requests.
