@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	cloud.google.com/go/container v1.9.0
-	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
@@ -23,9 +22,9 @@ require (
 	github.com/alicebob/miniredis/v2 v2.23.1
 	github.com/aquasecurity/libbpfgo v0.2.5-libbpf-0.7.0
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.44.163
+	github.com/aws/aws-sdk-go v1.44.171
 	github.com/aws/aws-sdk-go-v2 v1.17.3
-	github.com/aws/aws-sdk-go-v2/config v1.18.6
+	github.com/aws/aws-sdk-go-v2/config v1.18.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.7
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.21
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.77.0
@@ -42,7 +41,6 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.5.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
-	github.com/fsouza/fake-gcs-server v1.42.2
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -121,6 +119,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.2
 	go.opentelemetry.io/otel/trace v1.11.2
 	go.opentelemetry.io/proto/otlp v0.19.0
+	golang.org/x/crypto v0.2.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 	golang.org/x/mod v0.7.0
 	golang.org/x/net v0.4.0
@@ -130,7 +129,6 @@ require (
 	golang.org/x/term v0.3.0
 	golang.org/x/text v0.5.0
 	golang.org/x/tools v0.4.0
-	google.golang.org/api v0.103.0
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
@@ -159,14 +157,11 @@ require (
 require (
 	cloud.google.com/go/firestore v1.6.1
 	cloud.google.com/go/iam v0.8.0
+	cloud.google.com/go/kms v1.6.0
+	github.com/fsouza/fake-gcs-server v1.42.2
+	google.golang.org/api v0.103.0
 	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
 )
-
-// DO NOT UPDATE crypto beyond v0.2.0, the commit below breaks compatibility
-// with OpenSSH <= 7.6.
-// We are working on landing a patch upstream.
-// https://github.com/golang/crypto/commit/6fad3dfc18918c2ac9c112e46b32473bd2e5e2f9
-require golang.org/x/crypto v0.2.0 // DO NOT UPDATE
 
 // Indirect mailgun dependencies.
 // Updating causes breaking changes.
@@ -367,4 +362,6 @@ replace (
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
+	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
+	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221221152432-903e65687e59
 )

@@ -86,11 +86,12 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	apiCluster := &api.Cluster{
-		Uri:          cluster.URI.String(),
-		Name:         cluster.Name,
-		ProxyHost:    cluster.GetProxyHost(),
-		Connected:    cluster.Connected(),
-		LoggedInUser: newAPILoggedInUser(cluster.LoggedInUser),
+		Uri:           cluster.URI.String(),
+		Name:          cluster.Name,
+		ProxyHost:     cluster.GetProxyHost(),
+		Connected:     cluster.Connected(),
+		AuthClusterId: cluster.AuthClusterID,
+		LoggedInUser:  newAPILoggedInUser(cluster.LoggedInUser),
 	}
 
 	// Only include features in the api response if they

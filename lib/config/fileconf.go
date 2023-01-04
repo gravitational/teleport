@@ -54,7 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// FileConfig structre represents the teleport configuration stored in a config file
+// FileConfig structure represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.
@@ -1931,7 +1931,7 @@ type WindowsDesktopService struct {
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
 	// Discovery configures desktop discovery via LDAP.
-	Discovery service.LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
+	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
@@ -1969,6 +1969,23 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+}
+
+// LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
+type LDAPDiscoveryConfig struct {
+	// BaseDN is the base DN to search for desktops.
+	// Use the value '*' to search from the root of the domain,
+	// or leave blank to disable desktop discovery.
+	BaseDN string `yaml:"base_dn"`
+	// Filters are additional LDAP filters to apply to the search.
+	// See: https://ldap.com/ldap-filters/
+	Filters []string `yaml:"filters"`
+	// LabelAttributes are LDAP attributes to apply to hosts discovered
+	// via LDAP. Teleport labels hosts by prefixing the attribute with
+	// "ldap/" - for example, a value of "location" here would result in
+	// discovered desktops having a label with key "ldap/location" and
+	// the value being the value of the "location" attribute.
+	LabelAttributes []string `yaml:"label_attributes"`
 }
 
 // TracingService contains configuration for the tracing_service.
