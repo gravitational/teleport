@@ -1153,7 +1153,7 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
-    while wait_for_fd(tcp_fd as usize) {
+    while wait_for_fd(tcp_fd) {
         let mut err = CGOErrCode::ErrCodeSuccess;
         let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
             // This callback can be called multiple times per rdp_client.read()
