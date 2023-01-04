@@ -55,6 +55,7 @@ export const Online = () => {
     name: 'localhost',
     connected: true,
     proxyHost: 'localhost:3080',
+    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
   });
 
   return renderState(state, rootClusterDoc);
@@ -68,6 +69,7 @@ export const Offline = () => {
     name: 'localhost',
     connected: false,
     proxyHost: 'localhost:3080',
+    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
   });
 
   return renderState(state, rootClusterDoc);
@@ -81,6 +83,7 @@ export const Notfound = () => {
     name: 'localhost',
     connected: true,
     proxyHost: 'localhost:3080',
+    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
   });
   return renderState(state, leafClusterDoc);
 };

@@ -31,6 +31,7 @@ describe('restoring workspace', () => {
           connected: true,
           leaf: false,
           proxyHost: 'test:3030',
+          authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
           loggedInUser: {
             activeRequestsList: [],
             name: 'Alice',
