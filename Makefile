@@ -450,7 +450,7 @@ build-archive:
 # tctl, and tsh.
 #
 .PHONY:
-release-unix: clean full build-archive
+release-unix: clean docker-ui full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
