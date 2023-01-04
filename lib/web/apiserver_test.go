@@ -6861,7 +6861,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessRequestID := accessReq.GetMetadata().Name
 
 	// Make a request to renew the session with the ID of the access request.
-	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "renew"), renewSessionRequest{
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "web", "renew"), renewSessionRequest{
 		AccessRequestID: accessRequestID,
 	})
 	require.NoError(t, err)
@@ -7389,7 +7389,7 @@ func TestLogout(t *testing.T) {
 	require.Len(t, clusters, 1)
 
 	// logout from proxy 1
-	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// ensure proxy 1 invalidated the session
