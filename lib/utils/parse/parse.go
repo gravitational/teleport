@@ -261,7 +261,6 @@ func parse(exprStr string) (Expr, error) {
 		return nil, trace.BadParameter("failed to parse: %q, error: %s", exprStr, err)
 	}
 	expr, err := walk(parsedExpr, 0)
-	fmt.Printf("parsed %s\n", expr)
 	return expr, trace.Wrap(err)
 }
 
@@ -320,16 +319,13 @@ func parseCallExpr(e *ast.CallExpr, depth int) ([]string, []Expr, error) {
 	}
 
 	args := make([]Expr, 0, len(e.Args))
-	fmt.Printf("parseCallExpr (%v) %d %v\n", fields, len(e.Args), e.Args)
 	for i := range e.Args {
 		arg, err := walk(e.Args[i], depth+1)
-		fmt.Printf("parseCallExpr for (%v) %v %v\n", fields, arg, err)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		args = append(args, arg)
 	}
-	fmt.Printf("parseCallExpr return (%v) %v\n", fields, args)
 	return fields, args, nil
 }
 
