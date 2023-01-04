@@ -91,6 +91,9 @@ Due to this design, we should rely on the other pair of keys when rotating. For
 example, if we're rotating the primary keys, we should use secondary ones during
 this period, and vice-versa.
 
+**Note:** After key rotation is complete, connections established using the
+previous key will start to get authentication errors and should be remade.
+
 ## Alternatives
 
 ### MongoDB RBAC
