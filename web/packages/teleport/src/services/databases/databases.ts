@@ -24,6 +24,7 @@ import type {
   CreateDatabaseRequest,
   Database,
   UpdateDatabaseRequest,
+  DatabaseIamPolicyResponse,
 } from './types';
 
 class DatabaseService {
@@ -47,6 +48,13 @@ class DatabaseService {
 
   fetchDatabase(clusterId: string, dbName: string): Promise<Database> {
     return api.get(cfg.getDatabaseUrl(clusterId, dbName)).then(makeDatabase);
+  }
+
+  fetchDatabaseIamPolicy(
+    clusterId: string,
+    dbName: string
+  ): Promise<DatabaseIamPolicyResponse> {
+    return api.get(cfg.getDatabaseIamPolicyUrl(clusterId, dbName));
   }
 
   updateDatabase(

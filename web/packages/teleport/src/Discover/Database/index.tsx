@@ -20,7 +20,6 @@ import { Database as DatabaseIcon } from 'design/Icon';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { Resource } from 'teleport/Discover/flow';
-import { InstallActiveDirectory } from 'teleport/Discover/Desktop/InstallActiveDirectory';
 import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
 import {
   Database,
@@ -32,6 +31,7 @@ import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
 import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
 import { MutualTls } from 'teleport/Discover/Database/MutualTls';
 import { TestConnection } from 'teleport/Discover/Database/TestConnection';
+import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
 
 export const DatabaseResource: Resource<Database> = {
   kind: ResourceKind.Database,
@@ -50,16 +50,16 @@ export const DatabaseResource: Resource<Database> = {
         case DatabaseLocation.AWS:
           configureResourceViews = [
             {
-              title: 'Deploy Database Agent',
-              component: InstallActiveDirectory,
+              title: 'Register a Database',
+              component: CreateDatabase,
             },
             {
-              title: 'Register a Database',
-              component: InstallActiveDirectory,
+              title: 'Deploy Database Agent',
+              component: DownloadScript,
             },
             {
               title: 'Configure IAM Policy',
-              component: InstallActiveDirectory,
+              component: IamPolicy,
             },
           ];
 

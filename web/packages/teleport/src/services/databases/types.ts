@@ -45,6 +45,20 @@ export type CreateDatabaseRequest = {
   protocol: DbProtocol;
   uri: string;
   labels?: AgentLabel[];
-  // TODO (lisa or ryan): marco will work on including aws object fields
-  // eg: aws account id and resource id
+  awsRds?: AwsRds;
+};
+
+export type AwsRds = {
+  accountId: string;
+  resourceId: string;
+};
+
+export type DatabaseIamPolicyResponse = {
+  type: string;
+  aws: DatabaseIamPolicyAws;
+};
+
+export type DatabaseIamPolicyAws = {
+  policy_document: string;
+  placeholders: string;
 };

@@ -74,7 +74,9 @@ export function TextSelectCopyMulti({ lines, bash = true }: Props) {
               <Flex>
                 <Flex>
                   {bash && <Box mr="1">{`$`}</Box>}
-                  <div className="text-to-copy">{line.text}</div>
+                  <div className="text-to-copy">
+                    <pre css={{ margin: 0 }}>{line.text}</pre>
+                  </div>
                 </Flex>
                 <Box
                   pr={3}

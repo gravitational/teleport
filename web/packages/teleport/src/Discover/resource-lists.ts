@@ -52,7 +52,7 @@ export const resourceTypes: ResourceType[] = [
     name: 'Self-Hosted PostgreSQL',
     key: 'self-postgres',
     type: 'Self-Hosted',
-    popular: true,
+    popular: false,
   },
   {
     name: 'Self-Hosted MySQL/MariaDB',
