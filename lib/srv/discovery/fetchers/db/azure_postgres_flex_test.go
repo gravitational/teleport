@@ -36,7 +36,7 @@ func TestAzurePostgresFlexFetchers(t *testing.T) {
 	azureSub := makeAzureSubscription(t, "sub123")
 	azPostgresFlexServer, azPostgresFlexDB := makeAzurePostgresFlexServer(t, "postgres-flex", "sub123", "group 1", "East US", map[string]string{"env": "prod"})
 	azureMatchers := []services.AzureMatcher{{
-		Types:        []string{services.AzureMatcherPostgresFlex},
+		Types:        []string{services.AzureMatcherPostgres},
 		ResourceTags: types.Labels{"env": []string{"prod"}},
 		Regions:      []string{"eastus"},
 	}}
