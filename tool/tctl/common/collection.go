@@ -784,32 +784,6 @@ func stripInternalTeleportLabels(verbose bool, labels map[string]string) string 
 	return types.LabelsAsString(labels, nil)
 }
 
-func (c *windowsDesktopAndServiceCollection) WriteText(w io.Writer) error {
-	var rows [][]string
-	for _, d := range c.desktops {
-		labels := stripInternalTeleportLabels(c.verbose, d.desktop.GetAllLabels())
-		rows = append(rows, []string{d.service.GetHostname(), d.desktop.GetAddr(),
-			d.desktop.GetDomain(), labels, d.service.GetTeleportVersion()})
-	}
-	headers := []string{"Host", "Address", "AD Domain", "Labels", "Version"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.desktops)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, c.desktops)
-}
-
 type tokenCollection struct {
 	tokens []types.ProvisionToken
 }
@@ -950,7 +924,7 @@ type databaseServiceCollection struct {
 	databaseServices []types.DatabaseService
 }
 
-func (c *databaseServiceCollection) resources() (r []types.Resource) {
+func (c *databaseServiceCollection) Resources() (r []types.Resource) {
 	for _, service := range c.databaseServices {
 		r = append(r, service)
 	}
@@ -986,7 +960,7 @@ func databaseResourceMatchersToString(in []*types.DatabaseResourceMatcher) strin
 // ------------------------------------ --------------------------------------
 // a6065ee9-d5ee-4555-8d47-94a78625277b (Labels: <all databases>)
 // d4e13f2b-0a55-4e0a-b363-bacfb1a11294 (Labels: env=[prod],aws-tag=[xyz abc])
-func (c *databaseServiceCollection) writeText(w io.Writer) error {
+func (c *databaseServiceCollection) WriteText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name", "Resource Matchers"})
 
 	for _, dbService := range c.databaseServices {
