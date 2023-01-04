@@ -290,7 +290,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: "cluster-name",
+		AccessPoint: s.authClient,
+		LockWatcher: lockWatcher,
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
