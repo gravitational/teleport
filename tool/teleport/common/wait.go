@@ -55,7 +55,8 @@ func waitDuration(ctx context.Context, duration time.Duration) error {
 	if duration == 0 {
 		return trace.BadParameter("no duration provided")
 	}
-	timeoutCtx, _ := context.WithTimeout(ctx, duration)
+	timeoutCtx, cancel := context.WithTimeout(ctx, duration)
+	defer cancel()
 
 	<-timeoutCtx.Done()
 
