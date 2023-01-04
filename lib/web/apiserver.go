@@ -510,8 +510,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
-	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteSession))
-	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewSession))
+	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteWebSession))
+	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
@@ -1721,14 +1721,14 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 	}
 }
 
-// deleteSession is called to sign out user
+// deleteWebSession is called to sign out user
 //
 // DELETE /v1/webapi/sessions/:sid
 //
 // Response:
 //
 // {"message": "ok"}
-func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	err := h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1756,14 +1756,14 @@ type renewSessionRequest struct {
 	ReloadUser bool `json:"reloadUser"`
 }
 
-// renewSession updates this existing session with a new session.
+// renewWebSession updates this existing session with a new session.
 //
 // Depending on request fields sent in for extension, the new session creation can vary depending on:
 //   - AccessRequestID (opt): appends roles approved from access request to currently assigned roles or,
 //   - Switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
-func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
