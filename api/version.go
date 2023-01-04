@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "12.0.0-dev.hatchmerge.5"
+	Version = "12.0.0-dev.hatchmerge.7"
 )
 
 // Gitref variable is automatically set to the output of git-describe
