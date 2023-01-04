@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -67,11 +66,15 @@ func (f *azurePostgresFlexServerFetcher) NewDatabaseFromServer(server *armpostgr
 // is available.
 func (f *azurePostgresFlexServerFetcher) isAvailable(server *armpostgresqlflexibleservers.Server, log logrus.FieldLogger) bool {
 	state := armpostgresqlflexibleservers.ServerState(azure.StringVal(server.Properties.State))
-	switch {
-	case state == armpostgresqlflexibleservers.ServerStateReady:
+	switch state {
+	case armpostgresqlflexibleservers.ServerStateReady, armpostgresqlflexibleservers.ServerStateUpdating:
 		return true
-	case slices.Contains(armpostgresqlflexibleservers.PossibleServerStateValues(), state):
-		// server state is known but it's not "ready".
+	case armpostgresqlflexibleservers.ServerStateDisabled,
+		armpostgresqlflexibleservers.ServerStateDropping,
+		armpostgresqlflexibleservers.ServerStateStarting,
+		armpostgresqlflexibleservers.ServerStateStopped,
+		armpostgresqlflexibleservers.ServerStateStopping:
+		// server state is known and it's not available.
 		return false
 	}
 	log.Warnf("Unknown status type: %q. Assuming Azure PostgreSQL Flexible server %q is available.",

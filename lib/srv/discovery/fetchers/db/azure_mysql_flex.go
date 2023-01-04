@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -67,11 +66,15 @@ func (f *azureMySQLFlexServerFetcher) NewDatabaseFromServer(server *armmysqlflex
 // is available.
 func (f *azureMySQLFlexServerFetcher) isAvailable(server *armmysqlflexibleservers.Server, log logrus.FieldLogger) bool {
 	state := armmysqlflexibleservers.ServerState(azure.StringVal(server.Properties.State))
-	switch {
-	case state == armmysqlflexibleservers.ServerStateReady:
+	switch state {
+	case armmysqlflexibleservers.ServerStateReady, armmysqlflexibleservers.ServerStateUpdating:
 		return true
-	case slices.Contains(armmysqlflexibleservers.PossibleServerStateValues(), state):
-		// server state is known but it's not "ready".
+	case armmysqlflexibleservers.ServerStateDisabled,
+		armmysqlflexibleservers.ServerStateDropping,
+		armmysqlflexibleservers.ServerStateStarting,
+		armmysqlflexibleservers.ServerStateStopped,
+		armmysqlflexibleservers.ServerStateStopping:
+		// server state is known and it's not available.
 		return false
 	}
 	log.Warnf("Unknown status type: %q. Assuming Azure MySQL Flexible server %q is available.",
