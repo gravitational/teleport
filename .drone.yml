@@ -679,7 +679,6 @@ steps:
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
-  - git submodule update --init --recursive webassets
   - Reset-Git -Workspace $Workspace
   environment:
     GITHUB_PRIVATE_KEY:
@@ -958,7 +957,6 @@ steps:
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
-  - git submodule update --init --recursive webassets
   - Reset-Git -Workspace $Workspace
   environment:
     GITHUB_PRIVATE_KEY:
@@ -18342,6 +18340,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4ee929f27fa8c612b5903dc240cc04285f6ab1ba78c59fbd87a50c4e4dd7f3c0
+hmac: 7e76ca71ec5f9fd7da4b991f60e6cc04e5afda7ce5f1eade71b24b0ec5ad96f1
 
 ...

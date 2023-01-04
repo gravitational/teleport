@@ -1177,5 +1177,5 @@ build-ui-e: ensure-js-deps
 	yarn build-ui-e
 
 .PHONY: docker-ui
-build-ui-docker:
+docker-ui:
 	$(MAKE) -C build.assets ui

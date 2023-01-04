@@ -168,7 +168,6 @@ func updateWindowsSubreposStep(workspace string) step {
 			`Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY`,
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
-			`git submodule update --init --recursive webassets`,
 			`Reset-Git -Workspace $Workspace`,
 		},
 	}
