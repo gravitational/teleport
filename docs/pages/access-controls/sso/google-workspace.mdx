@@ -170,32 +170,16 @@ correct Google Workspace plan.
 
 ### Create an OAuth client ID
 
-#### Determine your callback URL
-
-You'll need a callback URL in order to complete the creation of an OAuth client ID with Google. For
-most deployments, this URL is your `public_addr` value. This consists of a domain name and port number.
-
-Most deployments use port 443 or port 3080. The callback URL you use might look like the following examples (replace example.teleport.com or example.teleport.sh with your cluster's value):
-
-Teleport Cloud: `https://example.teleport.sh:443/v1/webapi/oidc/callback`
-
-Teleport Enterprise: `https://example.teleport.com:443/v1/webapi/oidc/callback`
-
-Teleport Enterprise: `https://example.teleport.com:3080/v1/webapi/oidc/callback`
-
-Some clusters may specify a different port.
-
 #### Configure the OAuth Client ID
 
 In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient)
 page of the GCP console, select "Web application" as the Application type, pick a name, then add
-the callback URL you gathered in the [Determine your callback URL](#determine-your-callback-url)
-section in the Callback URI field.
+the callback URL. For most deployments, the callback URL is your `public_addr` value.
 
 The following is an example of an entry in the Callback URI field:
 
 ```txt
-https://example.teleport.com:443/v1/webapi/oidc/callback
+https://example.teleport.com/v1/webapi/oidc/callback
 ```
 
     ![OAuth client ID creation](../../../img/googleoidc/clientid-creation.png)
