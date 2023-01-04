@@ -219,6 +219,7 @@ func tagPipelines() []pipeline {
 		trigger:         triggerTag,
 		uploadArtifacts: true,
 		srcRefVar:       "DRONE_TAG",
+		workflowRefVar:  "DRONE_TAG",
 	}))
 
 	// Only amd64 Windows is supported for now.

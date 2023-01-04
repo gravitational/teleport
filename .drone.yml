@@ -1284,7 +1284,8 @@ trigger:
     - gravitational/*
   branch:
     include:
-    - tcsc/gha-drone-updates
+    - master
+    - branch/*
 workspace:
   path: /go
 clone:
@@ -1310,22 +1311,14 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Determine workflow revision
-  image: docker:git
-  commands:
-  - set DRONE_BRANCH=master
-  - cd "/go/src/github.com/gravitational/teleport"
-  - "if [[ ! -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$(git rev-parse @:e)\"
-    >> .DRONE.ENV\nelse\n\techo \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE.ENV\nfi"
-  - cat .DRONE.ENV
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport"
   - source .DRONE.ENV
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow-ref
-    $WORKFLOW_REF -workflow release-linux-arm64.yml -input oss-teleport-ref=${DRONE_COMMIT}
+  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
+    release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH} -input oss-teleport-ref=${DRONE_COMMIT}
     -input upload-artifacts=false
   environment:
     GHA_APP_KEY:
@@ -5045,22 +5038,14 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Determine workflow revision
-  image: docker:git
-  commands:
-  - set DRONE_BRANCH=master
-  - cd "/go/src/github.com/gravitational/teleport"
-  - "if [[ ! -z $DRONE_TAG ]]; then\n\techo \"WORKFLOW_REF=$(git rev-parse @:e)\"
-    >> .DRONE.ENV\nelse\n\techo \"WORKFLOW_REF=$DRONE_TAG\" >> .DRONE.ENV\nfi"
-  - cat .DRONE.ENV
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport"
   - source .DRONE.ENV
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow-ref
-    $WORKFLOW_REF -workflow release-linux-arm64.yml -input oss-teleport-ref=${DRONE_TAG}
+  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
+    release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input oss-teleport-ref=${DRONE_TAG}
     -input upload-artifacts=true
   environment:
     GHA_APP_KEY:
@@ -18284,6 +18269,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 68ba5daf38f5de10ba346785cf93ed9e6c100d7f3a9e724b9fbc05454e3ce65c
+hmac: c101a0e4e088e2ac905a603a944eb6d5a6824255c42e98bd31512086639613b7
 
 ...

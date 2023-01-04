@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.0.0-tcsc-drone-dev.01
+VERSION=12.0.0-tcsc-drone-dev.02
 
 DOCKER_IMAGE ?= teleport
 
@@ -628,6 +628,7 @@ test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 		| tee $(TEST_LOG_DIR)/ci.json \
 		| ${RENDER_TESTS})
 
+
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
@@ -908,8 +909,10 @@ update-api-import-path:
 update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
-	git tag api/$(GITTAG)
+	git tag api/$(GITTAG)	
+	(cd e && git tag $(GITTAG) && git push origin $(GITTAG)) 
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
+	
 
 .PHONY: test-package
 test-package: remove-temp-files
