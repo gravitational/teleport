@@ -76,6 +76,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
 		dbConfigCreateFlags              createDatabaseConfigFlags
 		systemdInstallFlags              installSystemdFlags
+		waitFlags                        waitFlags
 	)
 
 	// define commands:
@@ -89,7 +90,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
-	waitNoResolve := app.Command(teleport.WaitNoResolveSubCommand, "Used internally by Teleport to wait until the TELEPORT_WAIT_NO_RESOLVE_DOMAIN stops resolving IP addresses.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -374,6 +374,14 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes")
 	dumpNodeConfigure.Flag("node-name", "Name for the teleport node.").StringVar(&dumpFlags.NodeName)
 
+	waitCmd := app.Command(teleport.WaitSubCommand, "Used internally by Teleport to wait until a specific condition is reached.").Hidden()
+	waitNoResolveCmd := waitCmd.Command("no-resolve", "Used internally to wait until a domain stops resolving IP addresses.")
+	waitNoResolveCmd.Arg("domain", "Domain that is resolved ").StringVar(&waitFlags.domain)
+	waitNoResolveCmd.Flag("period", "").Default(waitNoResolveDefaultPeriod).DurationVar(&waitFlags.period)
+	waitNoResolveCmd.Flag("timeout", "").Default(waitNoResolveDefaultTimeout).DurationVar(&waitFlags.timeout)
+	waitDurationCmd := waitCmd.Command("duration", "Used internally to wait a given duration before exiting.")
+	waitDurationCmd.Arg("duration", "").DurationVar(&waitFlags.duration)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -429,8 +437,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
 		srv.RunAndExit(teleport.ParkSubCommand)
-	case waitNoResolve.FullCommand():
-		srv.RunAndExit(teleport.WaitNoResolveSubCommand)
+	case waitNoResolveCmd.FullCommand(), waitDurationCmd.FullCommand():
+		wait(waitFlags)
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():
