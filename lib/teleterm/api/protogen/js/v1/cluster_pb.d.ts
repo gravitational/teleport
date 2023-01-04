@@ -34,6 +34,9 @@ export class Cluster extends jspb.Message {
     getFeatures(): Features | undefined;
     setFeatures(value?: Features): Cluster;
 
+    getAuthClusterId(): string;
+    setAuthClusterId(value: string): Cluster;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Cluster.AsObject;
@@ -54,6 +57,7 @@ export namespace Cluster {
         leaf: boolean,
         loggedInUser?: LoggedInUser.AsObject,
         features?: Features.AsObject,
+        authClusterId: string,
     }
 }
 

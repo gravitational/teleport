@@ -53,9 +53,14 @@ type Cluster struct {
 	clock clockwork.Clock
 	// Auth server features
 	// only present where the auth client can be queried
-	// and set with GetClusterFeatures
+	// and set with EnrichWithDetails
 	Features     *proto.Features
 	LoggedInUser LoggedInUser
+	// AuthClusterID is the unique cluster ID that is set once
+	// during the first auth server startup.
+	// Only present where the auth client can be queried
+	// and set with EnrichWithDetails
+	AuthClusterID string
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -68,8 +73,9 @@ func (c *Cluster) Connected() bool {
 // and enabled enterprise features. This method requires a valid cert.
 func (c *Cluster) EnrichWithDetails(ctx context.Context) (*Cluster, error) {
 	var (
-		pingResponse proto.PingResponse
-		caps         *types.AccessCapabilities
+		pingResponse  proto.PingResponse
+		caps          *types.AccessCapabilities
+		authClusterID string
 	)
 
 	err := addMetadataToRetryableError(ctx, func() error {
@@ -98,6 +104,12 @@ func (c *Cluster) EnrichWithDetails(ctx context.Context) (*Cluster, error) {
 			return trace.Wrap(err)
 		}
 
+		clusterName, err := authClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authClusterID = clusterName.GetClusterID()
+
 		return nil
 	})
 	if err != nil {
@@ -110,6 +122,7 @@ func (c *Cluster) EnrichWithDetails(ctx context.Context) (*Cluster, error) {
 	c.LoggedInUser = user
 
 	c.Features = pingResponse.ServerFeatures
+	c.AuthClusterID = authClusterID
 
 	return c, nil
 }
