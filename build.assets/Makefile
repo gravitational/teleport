@@ -18,7 +18,8 @@ OS ?= linux
 ARCH ?= amd64
 BUILDBOX_VERSION=teleport9
 GOLANG_VERSION ?= go1.17.11
-RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
+# run lint-rust check locally before merging code after you bump this
+RUST_VERSION ?= 1.66.0
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
 
