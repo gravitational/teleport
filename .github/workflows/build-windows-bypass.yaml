@@ -21,6 +21,15 @@ on:
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+  merge_group:
+    # We only build tsh on Windows so only consider Go code as tsh doesn't
+    # run any Rust.
+    paths-ignore:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   build:
