@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.0.0-dev.hatchmerge.1
+VERSION=12.0.0-dev.hatchmerge.5
 
 DOCKER_IMAGE ?= teleport
 
@@ -1176,6 +1176,6 @@ build-ui: ensure-js-deps
 build-ui-e: ensure-js-deps
 	yarn build-ui-e
 
-.PHONY: build-ui-docker
+.PHONY: docker-ui
 build-ui-docker:
 	$(MAKE) -C build.assets ui
