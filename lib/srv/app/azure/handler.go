@@ -287,19 +287,23 @@ const getTokenTimeout = time.Second * 5
 func (s *handler) getToken(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 	key := cacheKey{managedIdentity, scope}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, getTokenTimeout)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	token, err := utils.FnCacheGet(timeoutCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
-		return s.getAccessToken(ctx, managedIdentity, scope)
-	})
+	var tokenResult *azcore.AccessToken
+	var errorResult error
 
-	if err != nil {
-		if timeoutCtx.Err() == err {
-			return nil, trace.Wrap(err, "timeout waiting for access token for %v", getTokenTimeout)
-		}
-		return nil, trace.Wrap(err)
+	go func() {
+		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
+			return s.getAccessToken(ctx, managedIdentity, scope)
+		})
+		cancel()
+	}()
+
+	select {
+	case <-s.Clock.After(getTokenTimeout):
+		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
+	case <-cancelCtx.Done():
+		return tokenResult, errorResult
 	}
-
-	return token, nil
 }

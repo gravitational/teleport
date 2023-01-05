@@ -28,7 +28,7 @@ import (
 func TestForwarder_getToken(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	type testCase struct {
 		name string
 
 		config HandlerConfig
@@ -38,7 +38,11 @@ func TestForwarder_getToken(t *testing.T) {
 
 		wantToken *azcore.AccessToken
 		checkErr  require.ErrorAssertionFunc
-	}{
+	}
+
+	var tests []testCase
+
+	tests = []testCase{
 		{
 			name: "base case",
 			config: HandlerConfig{
@@ -60,8 +64,18 @@ func TestForwarder_getToken(t *testing.T) {
 		{
 			name: "timeout",
 			config: HandlerConfig{
+				Clock: clockwork.NewFakeClock(),
 				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-					time.Sleep(getTokenTimeout * 2)
+					// find the fake clock from above
+					var clock clockwork.FakeClock
+					for _, test := range tests {
+						if test.name == "timeout" {
+							clock = test.config.Clock.(clockwork.FakeClock)
+						}
+					}
+
+					clock.Advance(getTokenTimeout)
+					clock.Sleep(getTokenTimeout * 2)
 					return &azcore.AccessToken{Token: "foobar"}, nil
 				},
 			},
