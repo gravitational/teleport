@@ -389,8 +389,8 @@ build-archive:
 	@echo "---> Created $(RELEASE).tar.gz."
 	
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-unix - Produces binary release tarballs for both OSS and 
+# Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
 release-unix: clean full build-archive
@@ -398,6 +398,14 @@ release-unix: clean full build-archive
 		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
+
+#
+# make release-unix-only - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
 # make release-windows-unsigned - Produces a binary release archive containing only tsh.
