@@ -46,7 +46,7 @@ func TestNewInsecureWebClientNoProxy(t *testing.T) {
 	require.Contains(t, err.Error(), "no such host")
 }
 
-func TestNewClientWithPoolHTTPProxy(t *testing.T) {
+func TestNewSecureWebClientHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	client := newClient(false, nil, nil)
 	//nolint:bodyclose // resp should be nil, so there will be no body to close.
@@ -58,7 +58,7 @@ func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 	require.Contains(t, err.Error(), "no such host")
 }
 
-func TestNewClientWithPoolNoProxy(t *testing.T) {
+func TestNewSecureWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	t.Setenv("NO_PROXY", "fakedomain.example.com")
 	client := newClient(false, nil, nil)
