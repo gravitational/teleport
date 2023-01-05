@@ -43,9 +43,9 @@ const (
 
 // Constants for each ingress path.
 const (
-	pathDirect  = "direct"
-	pathALPN    = "alpn"
-	pathUnknown = "unknown"
+	PathDirect  = "direct"
+	PathALPN    = "alpn"
+	PathUnknown = "unknown"
 )
 
 var commonLabels = []string{"ingress_path", "ingress_service"}
@@ -169,24 +169,24 @@ func (r *Reporter) getIngressPath(conn net.Conn) string {
 
 	// An empty address indicates alpn routing is disabled.
 	if r.alpnAddr == "" {
-		return pathDirect
+		return PathDirect
 	}
 
 	// If the IP is unspecified we only check if the ports match.
 	if r.unspecifiedIP {
 		_, port, err := net.SplitHostPort(addr.String())
 		if err != nil {
-			return pathUnknown
+			return PathUnknown
 		}
 		if port == r.alpnPort {
-			return pathALPN
+			return PathALPN
 		}
-		return pathDirect
+		return PathDirect
 	}
 	if r.alpnAddr == addr.String() {
-		return pathALPN
+		return PathALPN
 	}
-	return pathDirect
+	return PathDirect
 }
 
 // getRealLocalAddr returns the underlying local address if proxy protocol is being used.
