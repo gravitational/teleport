@@ -37,66 +37,48 @@ import (
 )
 
 func TestPlainHttpFallback(t *testing.T) {
-	testCases := []struct {
-		desc            string
-		handler         http.HandlerFunc
-		actionUnderTest func(ctx context.Context, addr string, insecure bool) error
-	}{
-		{
-			desc: "HostCredentials",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.RequestURI != "/v1/webapi/host/credentials" {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(proto.Certs{})
-			},
-			actionUnderTest: func(ctx context.Context, addr string, insecure bool) error {
-				_, err := client.HostCredentials(ctx, addr, insecure, types.RegisterUsingTokenRequest{})
-				return err
-			},
-		},
+	ctx := context.Background()
+	var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+		if r.RequestURI != "/v1/webapi/host/credentials" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(proto.Certs{})
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.desc, func(t *testing.T) {
-			ctx := context.Background()
+	t.Run("Allowed on insecure & loopback", func(t *testing.T) {
+		httpSvr := httptest.NewServer(handler)
+		defer httpSvr.Close()
 
-			t.Run("Allowed on insecure & loopback", func(t *testing.T) {
-				httpSvr := httptest.NewServer(testCase.handler)
-				defer httpSvr.Close()
+		_, err := client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), true /* insecure */, types.RegisterUsingTokenRequest{})
+		require.NoError(t, err)
+	})
 
-				err := testCase.actionUnderTest(ctx, httpSvr.Listener.Addr().String(), true /* insecure */)
-				require.NoError(t, err)
-			})
+	t.Run("Denied on secure", func(t *testing.T) {
+		httpSvr := httptest.NewServer(handler)
+		defer httpSvr.Close()
 
-			t.Run("Denied on secure", func(t *testing.T) {
-				httpSvr := httptest.NewServer(testCase.handler)
-				defer httpSvr.Close()
+		_, err := client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), false /* secure */, types.RegisterUsingTokenRequest{})
+		require.Error(t, err)
+	})
 
-				err := testCase.actionUnderTest(ctx, httpSvr.Listener.Addr().String(), false /* secure */)
-				require.Error(t, err)
-			})
+	t.Run("Denied on non-loopback", func(t *testing.T) {
+		nonLoopbackSvr := httptest.NewUnstartedServer(handler)
 
-			t.Run("Denied on non-loopback", func(t *testing.T) {
-				nonLoopbackSvr := httptest.NewUnstartedServer(testCase.handler)
+		// replace the test-supplied loopback listener with the first available
+		// non-loopback address
+		nonLoopbackSvr.Listener.Close()
+		l, err := net.Listen("tcp", "0.0.0.0:0")
+		require.NoError(t, err)
+		nonLoopbackSvr.Listener = l
+		nonLoopbackSvr.Start()
+		defer nonLoopbackSvr.Close()
 
-				// replace the test-supplied loopback listener with the first available
-				// non-loopback address
-				nonLoopbackSvr.Listener.Close()
-				l, err := net.Listen("tcp", "0.0.0.0:0")
-				require.NoError(t, err)
-				nonLoopbackSvr.Listener = l
-				nonLoopbackSvr.Start()
-				defer nonLoopbackSvr.Close()
-
-				err = testCase.actionUnderTest(ctx, nonLoopbackSvr.Listener.Addr().String(), true /* insecure */)
-				require.Error(t, err)
-			})
-		})
-	}
+		_, err = client.HostCredentials(ctx, nonLoopbackSvr.Listener.Addr().String(), true /* insecure */, types.RegisterUsingTokenRequest{})
+		require.Error(t, err)
+	})
 }
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {
