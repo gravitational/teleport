@@ -413,35 +413,35 @@ func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 }
 
 // GetStaticLabels returns the access request static labels.
-func (a *AccessRequestV3) GetStaticLabels() map[string]string {
-	return a.Metadata.Labels
+func (r *AccessRequestV3) GetStaticLabels() map[string]string {
+	return r.Metadata.Labels
 }
 
 // SetStaticLabels sets the access request static labels.
-func (a *AccessRequestV3) SetStaticLabels(sl map[string]string) {
-	a.Metadata.Labels = sl
+func (r *AccessRequestV3) SetStaticLabels(sl map[string]string) {
+	r.Metadata.Labels = sl
 }
 
 // GetAllLabels returns the access request static labels.
-func (a *AccessRequestV3) GetAllLabels() map[string]string {
-	return a.Metadata.Labels
+func (r *AccessRequestV3) GetAllLabels() map[string]string {
+	return r.Metadata.Labels
 }
 
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
-func (a *AccessRequestV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
+func (r *AccessRequestV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, values, nil)
 }
 
 // Origin returns the origin value of the resource.
-func (a *AccessRequestV3) Origin() string {
-	return a.Metadata.Origin()
+func (r *AccessRequestV3) Origin() string {
+	return r.Metadata.Origin()
 }
 
 // SetOrigin sets the origin value of the resource.
-func (a *AccessRequestV3) SetOrigin(origin string) {
-	a.Metadata.SetOrigin(origin)
+func (r *AccessRequestV3) SetOrigin(origin string) {
+	r.Metadata.SetOrigin(origin)
 }
 
 // String returns a text representation of this AccessRequest
