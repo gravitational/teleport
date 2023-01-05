@@ -410,9 +410,9 @@ var (
 	// the chosen GCP service account into a certificate.
 	AppGCPServiceAccountASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 18}
 
-	// GCPServiceAccountASN1ExtensionOID is an extension ID used when encoding/decoding
+	// GCPServiceAccountsASN1ExtensionOID is an extension ID used when encoding/decoding
 	// the list of allowed GCP service accounts into a certificate.
-	GCPServiceAccountASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 19}
+	GCPServiceAccountsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 19}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -609,7 +609,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	for i := range id.GCPServiceAccounts {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
-				Type:  GCPServiceAccountASN1ExtensionOID,
+				Type:  GCPServiceAccountsASN1ExtensionOID,
 				Value: id.GCPServiceAccounts[i],
 			})
 	}
@@ -870,7 +870,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.RouteToApp.GCPServiceAccount = val
 			}
-		case attr.Type.Equal(GCPServiceAccountASN1ExtensionOID):
+		case attr.Type.Equal(GCPServiceAccountsASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
 				id.GCPServiceAccounts = append(id.GCPServiceAccounts, val)
