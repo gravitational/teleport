@@ -2996,7 +2996,6 @@ func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	return trail.FromGRPC(err)
 }
 
-<<<<<<< HEAD
 // GetLicense returns the license used to start the teleport enterprise auth server
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
 	resp, err := c.grpc.GetLicense(ctx, &proto.GetLicenseRequest{})

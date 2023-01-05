@@ -303,11 +303,10 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetInstaller(); r != nil {
 		out.Resource = r
 		return &out, nil
-<<<<<<< HEAD
 	} else if r := in.GetDatabaseService(); r != nil {
-=======
+		out.Resource = r
+		return &out, nil
 	} else if r := in.GetPlugin(); r != nil {
->>>>>>> e66918a056 (plugin events (partial))
 		out.Resource = r
 		return &out, nil
 	} else {
