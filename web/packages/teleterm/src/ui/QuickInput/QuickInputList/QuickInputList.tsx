@@ -24,6 +24,10 @@ import { Cli, Server, Person, Database } from 'design/Icon';
 import * as types from 'teleterm/ui/services/quickInput/types';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
+  // Ideally, this property would be described by the suggestion object itself rather than depending
+  // on `kind`. But for now we need it just for a single suggestion kind anyway.
+  const shouldSuggestionsStayInPlace =
+    props.items[0]?.kind === 'suggestion.cmd';
   const activeItemRef = useRef<HTMLDivElement>();
   const { items, activeItem } = props;
   if (items.length === 0) {
@@ -60,7 +64,7 @@ const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
 
   return (
     <StyledGlobalSearchResults
-      position={props.position}
+      position={shouldSuggestionsStayInPlace ? null : props.position}
       ref={ref}
       tabIndex={-1}
       data-attr="quickpicker.list"
@@ -75,18 +79,22 @@ export default QuickInputList;
 
 function CmdItem(props: { item: types.SuggestionCmd }) {
   return (
-    <Flex alignItems="center">
+    <Flex alignItems="baseline">
       <SquareIconBackground color="#512FC9">
         <Cli fontSize="10px" />
       </SquareIconBackground>
-      <Box mr={2}>{props.item.data.displayName}</Box>
+      {/* Equivalent of flex-shrink: 0, but styled-system doesn't support flex-shrink. */}
+      <Box flex="0 0 auto" mr={2}>
+        {props.item.data.displayName}
+      </Box>
+      <Box color="text.secondary">{props.item.data.description}</Box>
     </Flex>
   );
 }
 
 function SshLoginItem(props: { item: types.SuggestionSshLogin }) {
   return (
-    <Flex alignItems="center">
+    <Flex alignItems="baseline">
       <SquareIconBackground color="#FFAB00">
         <Person fontSize="10px" />
       </SquareIconBackground>
@@ -104,7 +112,7 @@ function ServerItem(props: { item: types.SuggestionServer }) {
   ));
 
   return (
-    <Flex alignItems="center" p={1} minWidth="300px">
+    <Flex alignItems="baseline" p={1} minWidth="300px">
       <SquareIconBackground color="#4DB2F0">
         <Server fontSize="10px" />
       </SquareIconBackground>
@@ -125,7 +133,7 @@ function DatabaseItem(props: { item: types.SuggestionDatabase }) {
   ));
 
   return (
-    <Flex alignItems="center" p={1} minWidth="300px">
+    <Flex alignItems="baseline" p={1} minWidth="300px">
       <SquareIconBackground color="#4DB2F0">
         <Database fontSize="10px" />
       </SquareIconBackground>

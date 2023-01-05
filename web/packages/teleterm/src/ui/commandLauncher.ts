@@ -24,6 +24,7 @@ import {
 } from 'teleterm/ui/uri';
 import { tsh } from 'teleterm/ui/services/clusters/types';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
+import { Platform } from 'teleterm/mainProcess/types';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
@@ -89,6 +90,50 @@ const commands = {
       doc.login = login;
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
+    },
+  },
+
+  'tsh-install': {
+    displayName: '',
+    description: '',
+    run(ctx: IAppContext) {
+      ctx.mainProcessClient.symlinkTshMacOs().then(
+        isSymlinked => {
+          if (isSymlinked) {
+            ctx.notificationsService.notifyInfo(
+              'tsh successfully installed in PATH'
+            );
+          }
+        },
+        error => {
+          ctx.notificationsService.notifyError({
+            title: 'Could not install tsh in PATH',
+            description: `Ran into an error: ${error}`,
+          });
+        }
+      );
+    },
+  },
+
+  'tsh-uninstall': {
+    displayName: '',
+    description: '',
+    run(ctx: IAppContext) {
+      ctx.mainProcessClient.removeTshSymlinkMacOs().then(
+        isRemoved => {
+          if (isRemoved) {
+            ctx.notificationsService.notifyInfo(
+              'tsh successfully removed from PATH'
+            );
+          }
+        },
+        error => {
+          ctx.notificationsService.notifyError({
+            title: 'Could not remove tsh from PATH',
+            description: `Ran into an error: ${error}`,
+          });
+        }
+      );
     },
   },
 
@@ -164,19 +209,32 @@ const commands = {
       }
     },
   },
+};
 
-  'autocomplete.tsh-ssh': {
+const autocompleteCommands: {
+  displayName: string;
+  description: string;
+  platforms?: Array<Platform>;
+}[] = [
+  {
     displayName: 'tsh ssh',
     description: 'Run shell or execute a command on a remote SSH node',
-    run() {},
   },
-  'autocomplete.tsh-proxy-db': {
+  {
     displayName: 'tsh proxy db',
-    description:
-      'Start local TLS proxy for database connections when using Teleport',
-    run() {},
+    description: 'Start a local proxy for a database connection',
   },
-};
+  {
+    displayName: 'tsh install',
+    description: 'Install tsh in PATH',
+    platforms: ['darwin'],
+  },
+  {
+    displayName: 'tsh uninstall',
+    description: 'Uninstall tsh from PATH',
+    platforms: ['darwin'],
+  },
+];
 
 export class CommandLauncher {
   appContext: IAppContext;
@@ -190,9 +248,12 @@ export class CommandLauncher {
   }
 
   getAutocompleteCommands() {
-    return Object.entries(commands)
-      .filter(([key]) => key.startsWith('autocomplete.'))
-      .map(([key, value]) => ({ name: key, ...value }));
+    const { platform } = this.appContext.mainProcessClient.getRuntimeSettings();
+
+    return autocompleteCommands.filter(command => {
+      const platforms = command.platforms;
+      return !command.platforms || platforms.includes(platform);
+    });
   }
 }
 

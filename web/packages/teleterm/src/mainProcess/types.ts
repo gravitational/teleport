@@ -42,6 +42,16 @@ export type MainProcessClient = {
     isDirectory?: boolean;
   }): Promise<void>;
   forceFocusWindow(): void;
+  /**
+   * The promise returns true if tsh got successfully symlinked, false if the user closed the
+   * osascript prompt. The promise gets rejected if osascript encountered an error.
+   */
+  symlinkTshMacOs(): Promise<boolean>;
+  /**
+   * The promise returns true if the tsh symlink got removed, false if the user closed the osascript
+   * prompt. The promise gets rejected if osascript encountered an error.
+   */
+  removeTshSymlinkMacOs(): Promise<boolean>;
 };
 
 export type ChildProcessAddresses = {

@@ -1,8 +1,8 @@
-import { ChildProcess, fork, spawn } from 'child_process';
+import { ChildProcess, fork, spawn, exec } from 'child_process';
 import path from 'path';
-
 import fs from 'fs/promises';
 
+import { promisify } from 'util';
 import {
   app,
   dialog,
@@ -201,6 +201,52 @@ export default class MainProcess {
 
     ipcMain.handle('main-process-force-focus-window', () => {
       this.windowsManager.forceFocusWindow();
+    });
+
+    // Used in the `tsh install` command on macOS to make the bundled tsh available in PATH.
+    // Returns true if tsh got successfully installed, false if the user closed the osascript
+    // prompt. Throws an error when osascript fails.
+    ipcMain.handle('main-process-symlink-tsh-macos', async () => {
+      const source = this.settings.tshd.binaryPath;
+      const target = '/usr/local/bin/tsh';
+      const prompt =
+        'Teleport Connect wants to create a symlink for tsh in /usr/local/bin.';
+      const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf '${source}' '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
+
+      try {
+        await promisify(exec)(command);
+        this.logger.info(`Created the symlink to ${source} under ${target}`);
+        return true;
+      } catch (error) {
+        // Ignore the error if the user canceled the prompt.
+        // https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_error_codes.html#//apple_ref/doc/uid/TP40000983-CH220-SW2
+        if (error instanceof Error && error.message.includes('-128')) {
+          return false;
+        }
+        this.logger.error(error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('main-process-remove-tsh-symlink-macos', async () => {
+      const target = '/usr/local/bin/tsh';
+      const prompt =
+        'Teleport Connect wants to remove a symlink for tsh from /usr/local/bin.';
+      const command = `osascript -e "do shell script \\"rm '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
+
+      try {
+        await promisify(exec)(command);
+        this.logger.info(`Removed the symlink under ${target}`);
+        return true;
+      } catch (error) {
+        // Ignore the error if the user canceled the prompt.
+        // https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_error_codes.html#//apple_ref/doc/uid/TP40000983-CH220-SW2
+        if (error instanceof Error && error.message.includes('-128')) {
+          return false;
+        }
+        this.logger.error(error);
+        throw error;
+      }
     });
 
     subscribeToTerminalContextMenuEvent();

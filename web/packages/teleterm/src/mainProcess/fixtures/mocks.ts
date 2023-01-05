@@ -3,56 +3,36 @@ import { ConfigService } from 'teleterm/services/config';
 import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
 import { keyboardShortcutsConfigProvider } from 'teleterm/services/config/providers/keyboardShortcutsConfigProvider';
 
-const platform = 'darwin';
-
 export class MockMainProcessClient implements MainProcessClient {
+  configService: ConfigService;
+
+  constructor(private runtimeSettings: Partial<RuntimeSettings> = {}) {
+    this.configService = {
+      get: () => ({
+        keyboardShortcuts: keyboardShortcutsConfigProvider.getDefaults(
+          this.getRuntimeSettings().platform
+        ),
+        appearance: {
+          fonts: {},
+        },
+      }),
+      update: () => undefined,
+    } as unknown as ConfigService;
+  }
   getRuntimeSettings(): RuntimeSettings {
-    return {
-      platform,
-      dev: true,
-      userDataDir: '',
-      binDir: '',
-      certsDir: '',
-      kubeConfigsDir: '',
-      defaultShell: '',
-      tshd: {
-        insecure: true,
-        requestedNetworkAddress: '',
-        binaryPath: '',
-        homeDir: '',
-        flags: [],
-      },
-      sharedProcess: {
-        requestedNetworkAddress: '',
-      },
-      tshdEvents: {
-        requestedNetworkAddress: '',
-      },
-    };
+    return { ...defaultRuntimeSettings, ...this.runtimeSettings };
   }
 
   getResolvedChildProcessAddresses = () =>
     Promise.resolve({ tsh: '', shared: '' });
 
   openTerminalContextMenu() {}
-
   openClusterContextMenu() {}
-
   openTabContextMenu() {}
 
   showFileSaveDialog() {
     return Promise.resolve({ canceled: false, filePath: '' });
   }
-
-  configService = {
-    get: () => ({
-      keyboardShortcuts: keyboardShortcutsConfigProvider.getDefaults(platform),
-      appearance: {
-        fonts: {},
-      },
-    }),
-    update: () => undefined,
-  } as unknown as ConfigService;
 
   fileStorage = createMockFileStorage();
 
@@ -61,4 +41,34 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   forceFocusWindow() {}
+
+  async symlinkTshMacOs() {
+    return true;
+  }
+  async removeTshSymlinkMacOs() {
+    return true;
+  }
 }
+
+const defaultRuntimeSettings = {
+  platform: 'darwin' as const,
+  dev: true,
+  userDataDir: '',
+  binDir: '',
+  certsDir: '',
+  kubeConfigsDir: '',
+  defaultShell: '',
+  tshd: {
+    insecure: true,
+    requestedNetworkAddress: '',
+    binaryPath: '',
+    homeDir: '',
+    flags: [],
+  },
+  sharedProcess: {
+    requestedNetworkAddress: '',
+  },
+  tshdEvents: {
+    requestedNetworkAddress: '',
+  },
+};
