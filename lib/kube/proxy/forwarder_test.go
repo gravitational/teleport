@@ -581,7 +581,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServers = tt.kubeServers
-			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV5{
+			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					KubeUsers:        tt.roleKubeUsers,
@@ -1294,10 +1294,10 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 		assert      require.ErrorAssertionFunc
 	}
 
-	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{})
+	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{
+	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxKubernetesConnections: 5,
 		},

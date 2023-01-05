@@ -1569,9 +1569,8 @@ message PluginDataUpdateParams {
     // Expect optionally indicates the expected state of fields prior to this update.
     map<string, string> Expect = 5 [ (gogoproto.jsontag) = "expect,omitempty" ];
 }
-
-// RoleV5 represents role resource specification
-message RoleV5 {
+// RoleV6 represents role resource specification
+message RoleV6 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -1584,11 +1583,11 @@ message RoleV5 {
     // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a role specification
-    RoleSpecV5 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    RoleSpecV6 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// RoleSpecV5 is role specification for RoleV5.
-message RoleSpecV5 {
+// RoleSpecV6 is role specification for RoleV6.
+message RoleSpecV6 {
     // Options is for OpenSSH options like agent forwarding.
     RoleOptions Options = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];
@@ -1871,6 +1870,28 @@ message RoleConditions {
     repeated string HostGroups = 21 [ (gogoproto.jsontag) = "host_groups,omitempty" ];
     // HostSudoers is a list of entries to include in a users sudoer file
     repeated string HostSudoers = 22 [ (gogoproto.jsontag) = "host_sudoers,omitempty" ];
+
+    // AzureIdentities is a list of Azure identities this role is allowed to assume.
+    repeated string AzureIdentities = 23 [(gogoproto.jsontag) = "azure_identities,omitempty"];
+
+  // KubernetesResources is the Kubernetes Resources this Role grants access to.
+  repeated KubernetesResource KubernetesResources = 24 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
+  ];
+}
+
+// KubernetesResource is the Kubernetes resource identifier.
+message KubernetesResource {
+  // Kind specifies the Kubernetes Resource type.
+  // At the moment only "pod" is supported.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // Namespace is the resource namespace.
+  // It supports wildcards.
+  string Namespace = 2 [(gogoproto.jsontag) = "namespace,omitempty"];
+  // Name is the resource name.
+  // It supports wildcards.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
