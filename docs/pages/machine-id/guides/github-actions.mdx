@@ -21,8 +21,7 @@ GitHub Actions with Teleport can be applied as both a viable and secure solution
 CI/CD platform is needed.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
-Actions runners. GitHub Enterprise Server requires
-[additional configuration](#github-enterprise-server).
+Actions runners as well as GitHub Enterprise Server.
 
 ## Prerequisites
 
@@ -39,6 +38,9 @@ GitHub Actions will need its own join token in order to join the cluster.
 Using a text editor of your choice, create the configuration YAML file `tokenconfig.yaml` for the
 join token that resembles the following:
 
+<Tabs>
+<TabItem label="GitHub">
+
 ```yaml
 kind: token
 version: v2
@@ -53,6 +55,34 @@ spec:
     allow:
       - repository: gravitational/example
 ```
+
+</TabItem>
+<TabItem label="GitHub Enterprise Server">
+From Teleport 11.1.4, users with Teleport Enterprise are able to permit CI/CD
+runs within GitHub Enterprise Server instances to authenticate using the
+GitHub join method.
+
+This is configured by an additional `enterprise_server_host` field in the Token
+resource. This should be set to the host of your GHES instance.
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: github-token
+  expires: "2100-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: github-demo
+  github:
+    enterprise_server_host: your.ghes.instance.example.com
+    allow:
+      - repository: gravitational/example
+```
+
+</TabItem>
+</Tabs>
 
 Let's go over the token configuration YAML in more detail:
 
@@ -205,36 +235,6 @@ your CI/CD pipeline.
 Most importantly, ensure that the role you assign to your GitHub Actions bot has
 access to only the resources in your Teleport cluster that your CI/CD needs to
 interact with.
-
-## GitHub Enterprise Server
-
-From Teleport 11.1.4, users with Teleport Enterprise are able to permit CI/CD
-runs within GitHub Enterprise Server instances to authenticate using the
-GitHub join method.
-
-This is configured by an additional `enterprise_server_host` field in the Token
-resource. This should be set to the host of your GHES instance.
-
-For example:
-
-```yaml
-kind: token
-version: v2
-metadata:
-  name: github-token
-  expires: "2100-01-01T00:00:00Z"
-spec:
-  roles: [Bot]
-  join_method: github
-  bot_name: github-demo
-  github:
-    # Configure `enterprise_server_host` to the host of your GHES instance.
-    enterprise_server_host: your.ghes.instance.example.com
-    allow:
-      - repository: gravitational/example
-```
-
-Follow the rest of the instructions above as normal.
 
 ## Next steps
 
