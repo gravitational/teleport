@@ -27,7 +27,7 @@ windows_desktop_service:
     # The security identifier of the service account specified by the username
     # field above. This looks like a string starting with "S-".
     #
-    # An administrator with access to the domain controller can obtain this value
+    # Any AD user with permission to read user objects can obtain this value value
     # by opening a PowerShell and running
     # ```
     # Get-AdUser -Identity $LDAP_USERNAME | Select SID
