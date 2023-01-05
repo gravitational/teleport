@@ -391,8 +391,8 @@ enter/teleterm: buildbox-teleterm
 #
 .PHONY:release
 release: buildbox
+	@echo "Build Assets Release"
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
-		/usr/bin/make build-ui && \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 # These are aliases used to make build commands uniform.

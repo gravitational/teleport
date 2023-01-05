@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.0.0-dev.hatchmerge.23
+VERSION=12.0.0-dev.hatchmerge.24
 
 DOCKER_IMAGE ?= teleport
 
@@ -403,7 +403,7 @@ clean-ui:
 .PHONY:
 export
 release:
-	@echo "---> $(RELEASE_MESSAGE)"
+	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
 else
