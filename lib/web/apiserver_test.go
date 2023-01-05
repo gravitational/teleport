@@ -3245,9 +3245,9 @@ func TestClusterDatabasesGet(t *testing.T) {
 	}})
 
 	// Test with a role that defines database names and users.
-	extraRole := &types.RoleV6{
+	extraRole := &types.RoleV5{
 		Metadata: types.Metadata{Name: "extra-role"},
-		Spec: types.RoleSpecV6{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				DatabaseNames: []string{"name1"},
 				DatabaseUsers: []string{"user1"},
