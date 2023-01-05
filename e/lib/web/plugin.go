@@ -89,12 +89,12 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.POST("/webapi/saml/acs", h.WithMetaRedirect(p.samlACSHandle))
 	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(p.samlACSHandle))
 	h.GET("/webapi/saml/sso", h.WithMetaRedirect(p.samlSSO))
-	h.POST("/webapi/saml/login/console", httplib.MakeHandler(p.samlSSOConsole))
+	h.POST("/webapi/saml/login/console", h.WithLimiter(p.samlSSOConsole))
 
 	// OIDC callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(p.oidcLoginWeb))
 	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(p.oidcCallback))
-	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(p.oidcLoginConsole))
+	h.POST("/webapi/oidc/login/console", h.WithLimiter(p.oidcLoginConsole))
 
 	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
 	h.GET("/enterprise/license", h.WithAuth(p.getLicense))
