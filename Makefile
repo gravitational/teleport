@@ -1079,6 +1079,13 @@ update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
+#
+#    Usage:
+#    - tsh login --proxy=platform.teleport.sh
+#    - tsh app login drone
+#    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
+#    - tsh proxy app --port=8080 drone
+#    - make dronegen
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen
