@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -36,6 +37,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestRemoteConnCleanup(t *testing.T) {
 	t.Parallel()
@@ -57,7 +63,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
 
-	// setup the site
+	// set up the site
 	srv := &server{
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
@@ -72,7 +78,9 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// add a connection
 	rconn := &mockRemoteConnConn{}
-	sconn := &mockedSSHConn{}
+	sconn := &mockedSSHConn{
+		closeCh: make(chan struct{}),
+	}
 	conn1, err := site.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
 	require.NoError(t, err)
 
@@ -90,11 +98,17 @@ func TestRemoteConnCleanup(t *testing.T) {
 	// create a fake session
 	fakeSession := newSessionTrackingConn(conn1, &mockRemoteConnConn{})
 
-	// advance the clock to trigger missing a heartbeat, the last advance
+	const blocker = 3 // periodic ticker + heartbeat timer + resync ticker
+
+	// advance the clock to trigger missing a heartbeat, exceeding the missedHeartBeatThreshold
 	// should not force the connection to close since there is still an active session
-	for i := 0; i <= missedHeartBeatThreshold+1; i++ {
+	for i := 0; i <= missedHeartBeatThreshold*2; i++ {
 		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+		select {
+		case <-notifyWhen(clock, blocker):
+		case <-time.After(15 * time.Second):
+			t.Fatal("time out waiting for clock")
+		}
 		clock.Advance(srv.offlineThreshold)
 	}
 
@@ -106,27 +120,59 @@ func TestRemoteConnCleanup(t *testing.T) {
 	reqs <- &ssh.Request{Type: "heartbeat"}
 
 	// close the fake session
-	clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+	select {
+	case <-notifyWhen(clock, blocker):
+	case <-time.After(15 * time.Second):
+		t.Fatal("time out waiting for clock")
+	}
 	require.NoError(t, fakeSession.Close())
 
-	// advance the clock to trigger missing a heartbeat, the last advance
+	// advance the clock to trigger missing a heartbeats, exceeding missedHeartBeatThreshold
 	// should force the connection to close since there are no active sessions
-	for i := 0; i <= missedHeartBeatThreshold; i++ {
-		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+	for i, closed := 0, false; !closed; i++ {
+		// allow some leeway to prevent test flakes in case a clock advance is missed
+		if i > missedHeartBeatThreshold*2 {
+			t.Fatalf("offline node not detected after %d missed heartbeats, threshold=%d", i, missedHeartBeatThreshold)
+		}
+		select {
+		case <-sconn.closeCh: // the ssh conn was closed by the heartbeat loop ending
+			closed = true
+		case <-notifyWhen(clock, 3): // the offline threshold timer is waiting, advance the clock and continue
+		case <-time.After(15 * time.Second):
+			t.Fatal("time out waiting for heartbeat loop to process offline connection")
+		}
 		clock.Advance(srv.offlineThreshold)
 	}
 
-	// wait for handleHeartbeat to finish
+	// wait for handleHeartbeat to exit
 	select {
-	case <-ctx.Done():
-	case <-time.After(30 * time.Second): // artificially high to prevent flakiness
-		t.Fatal("LocalSite heart beat handler never terminated")
+	case <-ctx.Done(): // closed before goroutine above exits
+	case <-time.After(15 * time.Second):
+		t.Fatal("local site heartbeat handler never terminated")
 	}
 
 	// assert the connections were closed
 	require.True(t, conn1.closed.Load())
 	require.True(t, sconn.closed.Load())
+}
+
+// notifyWhen is a convenience wrapper around FakeClock.BlockUntil
+// to allow it to be used with select
+func notifyWhen(fc clockwork.FakeClock, n int) <-chan struct{} {
+	ch := make(chan struct{})
+
+	go func() {
+		defer close(ch)
+
+		fc.BlockUntil(n)
+
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}()
+
+	return ch
 }
 
 func TestLocalSiteOverlap(t *testing.T) {
@@ -280,6 +326,7 @@ func TestProxyResync(t *testing.T) {
 	rconn := &mockRemoteConnConn{}
 	sconn := &mockedSSHConn{
 		channelFn: channelCreator,
+		closeCh:   make(chan struct{}),
 	}
 
 	// add a connection
@@ -388,13 +435,20 @@ func (*mockRemoteConnConn) RemoteAddr() net.Addr {
 
 type mockedSSHConn struct {
 	ssh.Conn
-	closed atomic.Bool
+	closed  atomic.Bool
+	closeCh chan struct{}
 
 	channelFn func(string) ssh.Channel
 }
 
 func (c *mockedSSHConn) Close() error {
 	c.closed.Store(true)
+
+	select {
+	case c.closeCh <- struct{}{}:
+	default:
+	}
+
 	return nil
 }
 
