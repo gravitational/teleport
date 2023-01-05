@@ -536,7 +536,7 @@ func TestInactivityTimeout(t *testing.T) {
 func TestLockInForce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// If all goes well, the client will be closed by the time cleanup happens,
 	// so change the assertion on closing the client to expect it to fail.
@@ -618,7 +618,7 @@ func TestLockInForce(t *testing.T) {
 // forwarding is built upon.
 func TestDirectTCPIP(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// Startup a test server that will reply with "hello, world\n"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -671,7 +671,7 @@ func TestDirectTCPIP(t *testing.T) {
 
 func TestAdvertiseAddr(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// No advertiseAddr was set in fixture, should default to srvAddress.
 	require.Equal(t, f.ssh.srv.Addr(), f.ssh.srv.AdvertiseAddr())
@@ -730,13 +730,13 @@ func TestAgentForwardPermission(t *testing.T) {
 	require.NotContains(t, string(output), "SSH_AUTH_SOCK")
 }
 
-// TestMaxSesssions makes sure that MaxSessions RBAC rules prevent
+// TestMaxSessions makes sure that MaxSessions RBAC rules prevent
 // too many concurrent sessions.
 func TestMaxSessions(t *testing.T) {
 	t.Parallel()
 
 	const maxSessions int64 = 2
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(f.user)
@@ -1130,7 +1130,7 @@ func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
 
 func TestAllowedUsers(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
@@ -1161,7 +1161,7 @@ func TestAllowedUsers(t *testing.T) {
 
 func TestAllowedLabels(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	tests := []struct {
 		desc       string
@@ -1219,7 +1219,7 @@ func TestAllowedLabels(t *testing.T) {
 // certificates. The main check is the certificate algorithms.
 func TestKeyAlgorithms(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
@@ -1236,7 +1236,7 @@ func TestKeyAlgorithms(t *testing.T) {
 
 func TestInvalidSessionID(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	session, err := f.ssh.clt.NewSession(ctx)
@@ -1257,7 +1257,7 @@ func TestSessionHijack(t *testing.T) {
 		t.Skipf("user %v is not found, skipping test", teleportTestUser)
 	}
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// user 1 has access to the server
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
@@ -1535,7 +1535,7 @@ func TestProxyRoundRobin(t *testing.T) {
 func TestProxyDirectAccess(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
@@ -1635,7 +1635,7 @@ func TestPTY(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -1653,7 +1653,7 @@ func TestEnv(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -1665,7 +1665,8 @@ func TestEnv(t *testing.T) {
 // TestNoAuth tries to log in with no auth methods and should be rejected
 func TestNoAuth(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
+
 	_, err := tracessh.Dial(context.Background(), "tcp", f.ssh.srv.Addr(), &ssh.ClientConfig{})
 	require.Error(t, err)
 }
@@ -1673,7 +1674,7 @@ func TestNoAuth(t *testing.T) {
 // TestPasswordAuth tries to log in with empty pass and should be rejected
 func TestPasswordAuth(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	config := &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.Password("")},
 		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
@@ -1732,7 +1733,7 @@ var _ timetools.TimeProvider = (*fakeClock)(nil)
 
 func TestLimiter(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	fClock := &fakeClock{
@@ -1867,7 +1868,8 @@ func TestLimiter(t *testing.T) {
 // server and expecting a response in return.
 func TestServerAliveInterval(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
+
 	ok, _, err := f.ssh.clt.SendRequest(context.Background(), teleport.KeepAliveReqType, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
