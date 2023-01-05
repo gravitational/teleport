@@ -43,6 +43,11 @@ CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 CGOFLAG_TSH = $(CGOFLAG)
 endif
 
+# Is this build targeting the same OS & architecture it is being compiled on, or
+# will it require cross-compilation? We need to know this (especially for ARM) so we 
+# can set the cross-compiler path (and possibly feature flags) correctly. 
+IS_CROSS_BUILD = $(if $(filter-out $(ARCH), $(shell go env GOARCH)),yes)
+
 ifeq ("$(OS)","linux")
 # Link static version of libgcc to reduce system dependencies.
 CGOFLAG ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
@@ -54,7 +59,11 @@ CGOFLAG_TSH = $(CGOFLAG)
 endif
 # ARM64 builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm64")
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced 
+# featureset. Also, if we 're not guaranteed to be building natively on an arm64 system
+# then we'll need to configure the cross compiler.
+CGOFLAG = CGO_ENABLED=1 $(if $(IS_CROSS_BUILD),CC=aarch64-linux-gnu-gcc)
+
 CGOFLAG_TSH = $(CGOFLAG)
 endif
 endif
