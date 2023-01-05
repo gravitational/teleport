@@ -497,6 +497,7 @@ const (
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar     = "TELEPORT_GCLOUD_SECRET"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -642,10 +643,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 
-	gcp := app.Command("gcp", "Access GCP API.").Interspersed(false)
-	gcp.Arg("command", "`gcloud` command and subcommands arguments that are going to be forwarded to GCP CLI.").StringsVar(&cf.GCPCommandArgs)
-	gcp.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
-	gcp.Alias("gcloud")
+	gcloud := app.Command("gcloud", "Access GCP API.").Interspersed(false)
+	gcloud.Arg("command", "`gcloud` command and subcommands arguments that are going to be forwarded to GCP CLI.").StringsVar(&cf.GCPCommandArgs)
+	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Alias("gcp")
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -710,11 +711,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
 
-	proxyGCP := proxy.Command("gcp", "Start local proxy for GCP access.")
-	proxyGCP.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
-	proxyGCP.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
-	proxyGCP.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
-	proxyGCP.Alias("gcloud")
+	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
+	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyGcloud.Alias("gcp")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1106,8 +1107,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAWS(&cf)
 	case proxyAzure.FullCommand():
 		err = onProxyCommandAzure(&cf)
-	case proxyGCP.FullCommand():
-		err = onProxyCommandGCP(&cf)
+	case proxyGcloud.FullCommand():
+		err = onProxyCommandGCloud(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1147,8 +1148,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onAWS(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
-	case gcp.FullCommand():
-		err = onGCP(&cf)
+	case gcloud.FullCommand():
+		err = onGcloud(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -37,7 +38,7 @@ const (
 	gcloudCLIBinaryName = "gcloud"
 )
 
-func onGCP(cf *CLIConf) error {
+func onGcloud(cf *CLIConf) error {
 	app, err := pickActiveGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -87,12 +88,12 @@ func newGCPApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToApp)
 
 // getGCPSecret will return fresh secret to use or read it from environment.
 func getGCPSecret() (string, error) {
-	secret := os.Getenv("TELEPORT_GCP_SECRET")
+	secret := os.Getenv(gcloudSecretEnvVar)
 	if secret != "" {
 		return secret, nil
 	}
 
-	return utils.CryptoRandomHex(10)
+	return utils.CryptoRandomHex(auth.TokenLenBytes)
 }
 
 // StartLocalProxies sets up local proxies for serving GCP clients.
@@ -134,14 +135,13 @@ func (a *gcpApp) Close() error {
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 	envVars := map[string]string{
-		// TODO: verify secret in calls somehow
+		// Env var CLOUDSDK_AUTH_ACCESS_TOKEN is one of the available ways of providing access token
+		// https://cloud.google.com/sdk/docs/authorizing#:~:text=If%20you%20already,access%20token%20value.
 		"CLOUDSDK_AUTH_ACCESS_TOKEN": a.secret,
 
-		// Needed for gcloud CLI to accept our certs.
-		// This isn't portable and applications may have to set different env variables,
-		// add the application cert to system root store (not recommended, ultimate fallback)
-		// or use equivalent of --insecure flag.
-		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.app.Name),
+		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
+		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.app.Name),
 	}
 
 	// Set proxy settings.
@@ -210,17 +210,6 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// // backend expects the tokens to be signed with web session private key
-	// ws, err := tc.GetAppSession(a.cf.Context, types.GetAppSessionRequest{SessionID: a.app.SessionID})
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
-
-	// wsPK, err := utils.ParsePrivateKey(ws.GetPriv())
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
@@ -310,7 +299,14 @@ func (s SortedGCPServiceAccounts) Len() int {
 	return len(s)
 }
 
-// Less compares items by name.
+// Less compares items. Given two accounts, it first compares the project (i.e. what goes after @)
+// and if they are equal proceeds to compare the service account name (what goes before @).
+// Example of sorted list:
+// - test-0@example-100200.iam.gserviceaccount.com
+// - test-1@example-123456.iam.gserviceaccount.com
+// - test-2@example-123456.iam.gserviceaccount.com
+// - test-3@example-123456.iam.gserviceaccount.com
+// - test-0@other-999999.iam.gserviceaccount.com
 func (s SortedGCPServiceAccounts) Less(i, j int) bool {
 	beforeI, afterI, _ := strings.Cut(s[i], "@")
 	beforeJ, afterJ, _ := strings.Cut(s[j], "@")
@@ -398,14 +394,14 @@ func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to GCP app using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
 	}
 	name := cf.AppName
 	if name != "" {
 		app, err := findApp(profile.Apps, name)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to GCP app using 'tsh app login' first")
+				return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -418,7 +414,7 @@ func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
 	}
 	gcpApps := getGCPApps(profile.Apps)
 	if len(gcpApps) == 0 {
-		return nil, trace.NotFound("Please login to GCP App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
 	}
 	if len(gcpApps) > 1 {
 		var names []string

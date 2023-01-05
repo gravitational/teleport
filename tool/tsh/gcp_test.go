@@ -15,6 +15,7 @@
 package main
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -166,6 +167,94 @@ test-0@other-999999.iam.gserviceaccount.com
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, formatGCPServiceAccounts(tt.accounts))
+		})
+	}
+}
+
+func TestSortedGCPServiceAccounts(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "empty",
+			args: nil,
+			want: nil,
+		},
+		{
+			name: "unsorted accounts",
+			args: []string{
+				"test-3@example-123456.iam.gserviceaccount.com",
+				"test-2@example-123456.iam.gserviceaccount.com",
+				"test-1@example-123456.iam.gserviceaccount.com",
+				"test-0@example-100200.iam.gserviceaccount.com",
+				"test-0@other-999999.iam.gserviceaccount.com",
+			},
+			want: []string{
+				"test-0@example-100200.iam.gserviceaccount.com",
+				"test-1@example-123456.iam.gserviceaccount.com",
+				"test-2@example-123456.iam.gserviceaccount.com",
+				"test-3@example-123456.iam.gserviceaccount.com",
+				"test-0@other-999999.iam.gserviceaccount.com",
+			},
+		},
+		{
+			name: "invalid accounts",
+			args: []string{
+				"",
+				"@",
+				"@@@",
+				"test-3_example-123456.iam.gserviceaccount.com",
+				"test-2_example-123456.iam.gserviceaccount.com",
+				"test-1_example-123456.iam.gserviceaccount.com",
+				"test-0_example-100200.iam.gserviceaccount.com",
+				"test-0_other-999999.iam.gserviceaccount.com",
+			},
+			want: []string{
+				"",
+				"@",
+				"test-0_example-100200.iam.gserviceaccount.com",
+				"test-0_other-999999.iam.gserviceaccount.com",
+				"test-1_example-123456.iam.gserviceaccount.com",
+				"test-2_example-123456.iam.gserviceaccount.com",
+				"test-3_example-123456.iam.gserviceaccount.com",
+				"@@@",
+			},
+		},
+		{
+			name: "mixed invalid and valid accounts",
+			args: []string{
+				"",
+				"@",
+				"@@@",
+				"test-3_example-123456.iam.gserviceaccount.com",
+				"test-2_example-123456.iam.gserviceaccount.com",
+				"test-3@example-123456.iam.gserviceaccount.com",
+				"test-2@example-123456.iam.gserviceaccount.com",
+				"test-1_example-123456.iam.gserviceaccount.com",
+				"test-0@example-100200.iam.gserviceaccount.com",
+				"test-0_other-999999.iam.gserviceaccount.com",
+			},
+			want: []string{
+				"",
+				"@",
+				"test-0_other-999999.iam.gserviceaccount.com",
+				"test-1_example-123456.iam.gserviceaccount.com",
+				"test-2_example-123456.iam.gserviceaccount.com",
+				"test-3_example-123456.iam.gserviceaccount.com",
+				"@@@",
+				"test-0@example-100200.iam.gserviceaccount.com",
+				"test-2@example-123456.iam.gserviceaccount.com",
+				"test-3@example-123456.iam.gserviceaccount.com",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acc := SortedGCPServiceAccounts(tt.args)
+			sort.Sort(acc)
+			require.Equal(t, tt.want, []string(acc))
 		})
 	}
 }

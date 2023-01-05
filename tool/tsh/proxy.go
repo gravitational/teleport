@@ -753,8 +753,8 @@ func onProxyCommandAzure(cf *CLIConf) error {
 	return nil
 }
 
-// onProxyCommandGCP creates local proxes for GCP apps.
-func onProxyCommandGCP(cf *CLIConf) error {
+// onProxyCommandGCloud creates local proxies for GCP apps.
+func onProxyCommandGCloud(cf *CLIConf) error {
 	gcpApp, err := pickActiveGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
