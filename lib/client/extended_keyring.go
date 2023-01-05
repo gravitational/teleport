@@ -520,7 +520,7 @@ func promptMFAChallengeExtensionHandler(r *extendedKeyring) extensionHandler {
 			return nil, trace.Wrap(err)
 		}
 
-		mfaResp, err := PromptMFAChallenge(context.Background(), &challengeReq, req.ProxyAddr, &challengeOpts)
+		mfaResp, err := promptMFAStandalone(context.Background(), &challengeReq, req.ProxyAddr, &challengeOpts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

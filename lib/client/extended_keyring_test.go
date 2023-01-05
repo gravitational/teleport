@@ -23,15 +23,20 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 func newTestExtendedKeyring(t *testing.T, opts ...ExtendedKeyringOpt) *extendedKeyring {
@@ -224,4 +229,65 @@ func TestExtendedKeyringKeyExtension(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = callKeyExtension(keyring)
 	require.True(t, trace.IsNotFound(err), "Expected not found error but got %v", err)
+}
+
+func TestExtendedKeyringPromptMFAExtension(t *testing.T) {
+	oldPromptStandalone := PromptMFAStandalone
+	t.Cleanup(func() {
+		PromptMFAStandalone = oldPromptStandalone
+	})
+
+	const proxy1 = "proxy1.goteleport.com"
+	// the values below are arbitrary and are only used to test agent communication.
+	challenge := &proto.MFAAuthenticateChallenge{
+		TOTP: &proto.TOTPChallenge{},
+		WebauthnChallenge: &webauthn.CredentialAssertion{
+			PublicKey: &webauthn.PublicKeyCredentialRequestOptions{
+				Challenge: []byte("test"),
+				Extensions: &webauthn.AuthenticationExtensionsClientInputs{
+					AppId: "test",
+				},
+			},
+		},
+	}
+	challengeResp := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthn.CredentialAssertionResponse{
+				Response: &webauthn.AuthenticatorAssertionResponse{
+					Signature: []byte("test"),
+				},
+				Extensions: &webauthn.AuthenticationExtensionsClientOutputs{
+					AppId: true,
+				},
+			},
+		},
+	}
+	opts := &PromptMFAChallengeOpts{
+		HintBeforePrompt:        "some hint explaining the imminent prompt",
+		PromptDevicePrefix:      "llama",
+		Quiet:                   true,
+		AllowStdinHijack:        true,
+		AuthenticatorAttachment: wancli.AttachmentPlatform,
+		PreferOTP:               true,
+	}
+
+	promptCalled := false
+	*PromptMFAStandalone = func(
+		gotCtx context.Context, gotChallenge *proto.MFAAuthenticateChallenge, gotProxy string,
+		gotOpts *PromptMFAChallengeOpts,
+	) (*proto.MFAAuthenticateResponse, error) {
+		promptCalled = true
+		assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
+		assert.Equal(t, proxy1, gotProxy, "proxy mismatch")
+		assert.Equal(t, opts, gotOpts, "opts mismatch")
+		return challengeResp, nil
+	}
+
+	keyring := newTestExtendedKeyring(t, WithPromptMFAChallengeExtension())
+	gotResp, err := callPromptMFAChallengeExtension(keyring, proxy1, challenge, opts)
+	require.NoError(t, err)
+
+	require.NoError(t, err, "callPromptMFAChallengeExtension errored")
+	assert.Equal(t, challengeResp, gotResp, "challenge response mismatch")
+	require.True(t, promptCalled, "Mocked PromptMFAStandlone not called")
 }
