@@ -178,6 +178,11 @@ ENV GOPATH="/go" \
     PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install node.
+RUN yum install -y \
+    centos-release-scl \
+    rh-python36 && \
+    scl enable rh-python36 bash
+
 ARG NODE_VERSION
 ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
