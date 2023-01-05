@@ -1,0 +1,18 @@
+name: Add issues to projects
+
+on:
+  issues:
+    types:
+      - opened
+
+jobs:
+  add-application-access-issues:
+    name: Add application access issues to project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/add-to-project@v0.4.0
+        with:
+          project-url: https://github.com/orgs/gravitational/projects/54
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          labeled: application-access
+          label-operator: OR
