@@ -22,17 +22,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// GCPMiddleware implements a simplified version of MSI server serving auth tokens.
-type GCPMiddleware struct {
+// AuthorizationCheckerMiddleware is a middleware that checks `Authorization` header of incoming requests.
+// If the header is missing, the request is passed through.
+// If it is present, the middleware checks it is a bearer token with value matching the secret.
+type AuthorizationCheckerMiddleware struct {
 	// Log is the Logger.
 	Log logrus.FieldLogger
-	// Secret to be provided by the client.
+	// Secret is the expected value of a bearer token.
 	Secret string
 }
 
-var _ LocalProxyHTTPMiddleware = &GCPMiddleware{}
+var _ LocalProxyHTTPMiddleware = (*AuthorizationCheckerMiddleware)(nil)
 
-func (m *GCPMiddleware) CheckAndSetDefaults() error {
+// CheckAndSetDefaults checks configuration validity and sets defaults.
+func (m *AuthorizationCheckerMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
 		m.Log = logrus.WithField(trace.Component, "gcp")
 	}
@@ -43,7 +46,8 @@ func (m *GCPMiddleware) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (m *GCPMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
+// HandleRequest checks Authorization header, which must be either missing or set to the secret value of a bearer token.
+func (m *AuthorizationCheckerMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	auth := req.Header.Get("Authorization")
 	if auth == "" {
 		m.Log.Debugf("No Authorization header present, ignoring request.")
@@ -54,7 +58,7 @@ func (m *GCPMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request)
 
 	if subtle.ConstantTimeCompare([]byte(auth), []byte(expectedAuth)) != 1 {
 		m.Log.Debugf("Invalid Authorization header value %q, expected %q.", auth, expectedAuth)
-		trace.WriteError(rw, trace.BadParameter("Invalid Authorization header"))
+		trace.WriteError(rw, trace.AccessDenied("Invalid Authorization header"))
 		return true
 	}
 

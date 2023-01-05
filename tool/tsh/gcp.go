@@ -219,7 +219,7 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 		ParentContext:      a.cf.Context,
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{appCerts},
-		HTTPMiddleware: &alpnproxy.GCPMiddleware{
+		HTTPMiddleware: &alpnproxy.AuthorizationCheckerMiddleware{
 			Secret: a.secret,
 		},
 	})

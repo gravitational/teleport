@@ -22,8 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGCPMiddleware_HandleRequest(t *testing.T) {
-	middleware := &GCPMiddleware{Secret: "secret"}
+func TestAuthorizationCheckerMiddleware_HandleRequest(t *testing.T) {
+	middleware := &AuthorizationCheckerMiddleware{Secret: "secret"}
 	require.NoError(t, middleware.CheckAndSetDefaults())
 
 	tests := []struct {
@@ -48,7 +48,7 @@ func TestGCPMiddleware_HandleRequest(t *testing.T) {
 			name:    "block requests with invalid secret",
 			headers: map[string]string{"Authorization": "Bearer invalid secret"},
 			want:    true,
-			code:    400,
+			code:    403,
 		},
 	}
 	for _, tt := range tests {
