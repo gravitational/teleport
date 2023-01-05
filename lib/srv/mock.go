@@ -127,6 +127,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 	return &mockServer{
 		auth:        authServer,
+		datadir:     t.TempDir(),
 		MockEmitter: &events.MockEmitter{},
 		clock:       clock,
 	}
@@ -134,6 +135,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 type mockServer struct {
 	*events.MockEmitter
+	datadir   string
 	auth      *auth.Server
 	component string
 	clock     clockwork.FakeClock
@@ -141,23 +143,23 @@ type mockServer struct {
 
 // ID is the unique ID of the server.
 func (m *mockServer) ID() string {
-	return "test"
+	return "testID"
 }
 
 // HostUUID is the UUID of the underlying host. For the forwarding
 // server this is the proxy the forwarding server is running in.
 func (m *mockServer) HostUUID() string {
-	return "test"
+	return "testHostUUID"
 }
 
 // GetNamespace returns the namespace the server was created in.
 func (m *mockServer) GetNamespace() string {
-	return "test"
+	return "testNamespace"
 }
 
 // AdvertiseAddr is the publicly addressable address of this server.
 func (m *mockServer) AdvertiseAddr() string {
-	return "test"
+	return "testNamespace"
 }
 
 // Component is the type of server, forwarding or regular.
@@ -183,7 +185,7 @@ func (m *mockServer) GetSessionServer() rsession.Service {
 
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
-	return "test"
+	return m.datadir
 }
 
 // GetPAM returns PAM configuration for this server.

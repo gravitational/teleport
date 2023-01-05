@@ -176,13 +176,13 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 // actionForKindSession is a special checker that grants access to session
 // recordings.  It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid session.ID) error {
+func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) error {
 	extendContext := func(ctx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(namespace, sid)
 		ctx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
 // actionForKindSSHSession is a special checker that grants access to active SSH
@@ -2935,7 +2935,7 @@ func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) erro
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2943,7 +2943,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4150,7 +4150,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		return nil, e
 	}
 
-	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
+	if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
 		return createErrorChannel(err)
 	}
 

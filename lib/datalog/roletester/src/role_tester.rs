@@ -116,27 +116,27 @@ pub unsafe extern "C" fn process_access(input: *const c_uchar, input_len: size_t
 
     for pred in &r.predicates {
         if pred.name == types::facts::PredicateType::HasRole as i32 {
-            runtime.extend(&[HasRole(pred.atoms[0], pred.atoms[1])]);
+            runtime.extend([HasRole(pred.atoms[0], pred.atoms[1])]);
         } else if pred.name == types::facts::PredicateType::HasTrait as i32 {
-            runtime.extend(&[HasTrait(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+            runtime.extend([HasTrait(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
         } else if pred.name == types::facts::PredicateType::RoleAllowsLogin as i32 {
-            runtime.extend(&[RoleAllowsLogin(pred.atoms[0], pred.atoms[1])]);
+            runtime.extend([RoleAllowsLogin(pred.atoms[0], pred.atoms[1])]);
         } else if pred.name == types::facts::PredicateType::RoleDeniesLogin as i32 {
-            runtime.extend(&[RoleDeniesLogin(pred.atoms[0], pred.atoms[1])]);
+            runtime.extend([RoleDeniesLogin(pred.atoms[0], pred.atoms[1])]);
         } else if pred.name == types::facts::PredicateType::RoleAllowsNodeLabel as i32 {
-            runtime.extend(&[RoleAllowsNodeLabel(
+            runtime.extend([RoleAllowsNodeLabel(
                 pred.atoms[0],
                 pred.atoms[1],
                 pred.atoms[2],
             )]);
         } else if pred.name == types::facts::PredicateType::RoleDeniesNodeLabel as i32 {
-            runtime.extend(&[RoleDeniesNodeLabel(
+            runtime.extend([RoleDeniesNodeLabel(
                 pred.atoms[0],
                 pred.atoms[1],
                 pred.atoms[2],
             )]);
         } else if pred.name == types::facts::PredicateType::NodeHasLabel as i32 {
-            runtime.extend(&[NodeHasLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
+            runtime.extend([NodeHasLabel(pred.atoms[0], pred.atoms[1], pred.atoms[2])]);
         }
     }
 
@@ -231,8 +231,8 @@ pub unsafe extern "C" fn drop_output_struct(output: *mut Output) {
     if db.length > 0 {
         let s = std::slice::from_raw_parts_mut(db.access, db.length);
         let s = s.as_mut_ptr();
-        Box::from_raw(s);
+        drop(Box::from_raw(s));
     }
     // Drop struct
-    Box::from_raw(output);
+    drop(Box::from_raw(output));
 }

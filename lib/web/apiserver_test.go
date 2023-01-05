@@ -261,7 +261,6 @@ func newWebSuite(t *testing.T) *WebSuite {
 	s.node = node
 	s.srvID = node.ID()
 	require.NoError(t, s.node.Start())
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
@@ -3516,7 +3515,10 @@ func TestCreateAppSession(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.outUsername, sess.GetUser())
+			require.NotEmpty(t, response.CookieValue)
 			require.Equal(t, response.CookieValue, sess.GetName())
+			require.NotEmpty(t, response.SubjectCookieValue, "every session should create a secret token")
+			require.Equal(t, response.SubjectCookieValue, sess.GetBearerToken())
 		})
 	}
 }
@@ -4143,7 +4145,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	require.NoError(t, node.Start())
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
@@ -4670,4 +4671,60 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 
 	// Verify that the userContext returned contains the correct Access Request ID.
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
+}
+
+func TestLogout(t *testing.T) {
+	ctx := context.Background()
+	t.Parallel()
+	env := newWebPack(t, 2)
+
+	// create a logged in user for proxy 1
+	pack := env.proxies[0].authPack(t, "llama", nil /* roles */)
+
+	// ensure the client is authenticated
+	re, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	var clusters []ui.Cluster
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// create a client for proxy 2 with the token and cookies from proxy 1
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	jar.SetCookies(&env.proxies[1].webURL, pack.cookies)
+	clt2 := env.proxies[1].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
+
+	// ensure the second client is authenticated
+	re, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// logout from proxy 1
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions"))
+	require.NoError(t, err)
+
+	// ensure proxy 1 invalidated the session
+	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.AccessDenied("missing session cookie"))
+
+	// should still be authenticated to proxy 2 until the expiration loop kicks in
+	re, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// advance the clock to fire the expiration ticker
+	env.clock.Advance(time.Second)
+
+	// wait for the expiration loop to purge the session
+	require.Eventually(t, func() bool {
+		return env.proxies[1].handler.handler.auth.ActiveSessions() == 0
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// ensure proxy 2 invalidated the session
+	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }

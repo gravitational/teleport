@@ -217,9 +217,6 @@
         "gcp": {
             "$id": "#/properties/gcp",
             "type": "object",
-            "required": [
-                "credentialSecretName"
-            ],
             "properties": {
                 "projectId": {
                     "$id": "#/properties/gcp/properties/projectId",

@@ -2224,14 +2224,11 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// prepare dirs for uploader
-	streamingDir := []string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingLogsDir, apidefaults.Namespace}
+
+	// prepare directories for uploader
 	paths := [][]string{
-		// DELETE IN (5.1.0)
-		// this directory will no longer be used after migration to 5.1.0
-		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, apidefaults.Namespace},
-		// This directory will remain to be used after migration to 5.1.0
-		streamingDir,
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingSessionsDir, apidefaults.Namespace},
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.CorruptedSessionsDir, apidefaults.Namespace},
 	}
 	for _, path := range paths {
 		for i := 1; i < len(path); i++ {
@@ -2239,10 +2236,8 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 			log.Infof("Creating directory %v.", dir)
 			err := os.Mkdir(dir, 0o755)
 			err = trace.ConvertSystemError(err)
-			if err != nil {
-				if !trace.IsAlreadyExists(err) {
-					return trace.Wrap(err)
-				}
+			if err != nil && !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
 			}
 			if uid != nil && gid != nil {
 				log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
@@ -2254,7 +2249,11 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 		}
 	}
 
-	uploaderCfg.ScanDir = filepath.Join(streamingDir...)
+	uploadsDir := filepath.Join(paths[0]...)
+	corruptedDir := filepath.Join(paths[1]...)
+
+	uploaderCfg.ScanDir = uploadsDir
+	uploaderCfg.CorruptedDir = corruptedDir
 	uploaderCfg.EventsC = process.Config.UploadEventsC
 	fileUploader, err := filesessions.NewUploader(uploaderCfg)
 	if err != nil {
@@ -2280,7 +2279,7 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 	// by the client (aborted or crashed) and completes them. It will be closed once
 	// the uploader context is closed.
 	handler, err := filesessions.NewHandler(filesessions.Config{
-		Directory: filepath.Join(streamingDir...),
+		Directory: uploadsDir,
 	})
 	if err != nil {
 		return trace.Wrap(err)
