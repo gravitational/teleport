@@ -121,7 +121,7 @@ environments where the connection to the auth server is unreliable or high-laten
 ## Storage
 
 Session recordings are stored in Teleport's audit sessions backend, which is
-specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](config.mdx).
+specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](../reference/config.mdx).
 Teleport current supports the following session storage backends:
 
 - File: stores recordings on the local filesystem. Suitable for dev environments, demos,
@@ -147,8 +147,8 @@ should be noted that they are not TAR archives and cannot be read using the `tar
 ## Playback
 
 SSH and Kubernetes sessions can be played in Teleport's Web UI or by using
-the [`tsh play`](cli.mdx#tsh-play) command. Desktop session recordings can only be played back
-in the Web UI.
+the [`tsh play`](../reference/cli.mdx#tsh-play) command. Desktop session
+recordings can only be played back in the Web UI.
 
 In the Web UI, the session recordings page is populated by querying Teleport's
 audit log for session end events, which contain metadata about the recording.
@@ -179,6 +179,6 @@ complete it.
 ## Related reading
 
 - [Recording Proxy Mode](../server-access/guides/recording-proxy-mode.mdx)
-- [SSH session recording](../architecture/nodes.mdx#ssh-session-recording)
-- [SSH recording modes](./audit.mdx#modes)
+- [SSH session recording](./nodes.mdx#ssh-session-recording)
+- [SSH recording modes](../reference/audit.mdx#modes)
 - [Desktop Access recording](../desktop-access/reference/sessions.mdx)
