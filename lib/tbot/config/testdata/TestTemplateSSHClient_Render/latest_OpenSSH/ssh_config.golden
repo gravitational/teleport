@@ -5,7 +5,6 @@ Host *.tele.blackmesa.gov tele.blackmesa.gov
     UserKnownHostsFile "/test/dir/known_hosts"
     IdentityFile "/test/dir/key"
     CertificateFile "/test/dir/key-cert.pub"
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
     HostKeyAlgorithms rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
 
 # Flags for all tele.blackmesa.gov hosts except the proxy
