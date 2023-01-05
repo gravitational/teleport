@@ -84,8 +84,8 @@ type bufferedConn struct {
 }
 
 // NetConn returns the underlying net.Conn.
-func (c *bufferedConn) NetConn() net.Conn {
-	return c.Conn
+func (conn bufferedConn) NetConn() net.Conn {
+	return conn.Conn
 }
 
 func (conn bufferedConn) Read(p []byte) (int, error) { return conn.r.Read(p) }

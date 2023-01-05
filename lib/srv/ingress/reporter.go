@@ -21,7 +21,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -197,11 +196,13 @@ func getRealLocalAddr(conn net.Conn) net.Addr {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		conn = tlsConn.NetConn()
 	}
+	// Uwrap a alpnproxy.bufferedConn without exporting or causing a circular dependency.
 	if connGetter, ok := conn.(netConnGetter); ok {
 		conn = connGetter.NetConn()
 	}
-	if wrappedConn, ok := conn.(*multiplexer.Conn); ok {
-		conn = wrappedConn.Conn
+	// Unwrap a multiplexer.Conn without exporting or causing a circular dependency..
+	if connGetter, ok := conn.(netConnGetter); ok {
+		conn = connGetter.NetConn()
 	}
 	return conn.LocalAddr()
 }
