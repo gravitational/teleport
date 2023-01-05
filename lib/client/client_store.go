@@ -22,6 +22,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -40,20 +41,15 @@ type Store struct {
 	ProfileStore
 }
 
-// NewMemClientStore initializes an FS backed client store with the given key dir.
-func NewFSClientStore(dirPath string) (*Store, error) {
-	var err error
-	dirPath, err = initKeysDir(dirPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	logEntry := logrus.WithField(trace.Component, teleport.ComponentKeyStore)
+// NewMemClientStore initializes an FS backed client store with the given base dir.
+func NewFSClientStore(dirPath string) *Store {
+	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
 		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
-		KeyStore:          &FSKeyStore{logEntry, dirPath},
-		TrustedCertsStore: &FSTrustedCertsStore{logEntry, dirPath},
-		ProfileStore:      &FSProfileStore{logEntry, dirPath},
-	}, nil
+		KeyStore:          NewFSKeyStore(dirPath),
+		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
+		ProfileStore:      NewFSProfileStore(dirPath),
+	}
 }
 
 // NewMemClientStore initializes a new in-memory client store.
@@ -67,7 +63,7 @@ func NewMemClientStore() *Store {
 }
 
 // AddKey adds the given key to the key store. The key's trusted certificates are
-// added the the trusted certs store.
+// added to the trusted certs store.
 func (s *Store) AddKey(key *Key) error {
 	if err := s.KeyStore.AddKey(key); err != nil {
 		return trace.Wrap(err)

@@ -30,8 +30,7 @@ import (
 )
 
 func newTestFSTrustedCertsStore(t *testing.T) TrustedCertsStore {
-	fsTrustedCertsStore, err := NewFSTrustedCertsStore(t.TempDir())
-	require.NoError(t, err)
+	fsTrustedCertsStore := NewFSTrustedCertsStore(t.TempDir())
 	return fsTrustedCertsStore
 }
 

@@ -138,8 +138,7 @@ func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, a
 }
 
 func newTestFSClientStore(t *testing.T) *Store {
-	fsClientStore, err := NewFSClientStore(t.TempDir())
-	require.NoError(t, err)
+	fsClientStore := NewFSClientStore(t.TempDir())
 	return fsClientStore
 }
 

@@ -30,8 +30,7 @@ import (
 )
 
 func newTestFSKeyStore(t *testing.T) *FSKeyStore {
-	fsKeyStore, err := NewFSKeyStore(t.TempDir())
-	require.NoError(t, err)
+	fsKeyStore := NewFSKeyStore(t.TempDir())
 	return fsKeyStore
 }
 

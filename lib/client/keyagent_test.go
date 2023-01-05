@@ -249,8 +249,7 @@ func TestHostCertVerification(t *testing.T) {
 	s := makeSuite(t)
 
 	// Make a new local agent.
-	clientStore, err := NewFSClientStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	lka, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
 		ProxyHost:   s.hostname,
@@ -433,8 +432,7 @@ func TestHostKeyVerification(t *testing.T) {
 	s := makeSuite(t)
 
 	// make a new local agent
-	keystore, err := NewFSClientStore(s.keyDir)
-	require.NoError(t, err)
+	keystore := NewFSClientStore(s.keyDir)
 	lka, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: keystore,
 		ProxyHost:   s.hostname,
@@ -510,8 +508,7 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 
 	keygen := testauthority.New()
 
-	clientStore, err := NewFSClientStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	a, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
 		ProxyHost:   s.hostname,
@@ -559,8 +556,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	s := makeSuite(t)
 
 	// make a new local agent
-	clientStore, err := NewFSClientStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	lka, err := NewLocalAgent(
 		LocalAgentConfig{
 			ClientStore: clientStore,
@@ -708,8 +704,7 @@ func startDebugAgent(t *testing.T) error {
 
 func (s *KeyAgentTestSuite) newKeyAgent(t *testing.T) *LocalKeyAgent {
 	// make a new local agent
-	clientStore, err := NewFSClientStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	keyAgent, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
 		ProxyHost:   s.hostname,

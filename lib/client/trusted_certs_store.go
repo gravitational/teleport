@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -161,46 +162,42 @@ type FSTrustedCertsStore struct {
 	// log holds the structured logger.
 	log logrus.FieldLogger
 
-	// KeyDir is the directory where all keys are stored.
-	KeyDir string
+	// Dir is the directory where all keys are stored.
+	Dir string
 }
 
 // NewFSTrustedCertsStore creates a new instance of FSTrustedCertsStore.
-func NewFSTrustedCertsStore(dirPath string) (*FSTrustedCertsStore, error) {
-	var err error
-	dirPath, err = initKeysDir(dirPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewFSTrustedCertsStore(dirPath string) *FSTrustedCertsStore {
+	dirPath = profile.FullProfilePath(dirPath)
 	return &FSTrustedCertsStore{
-		log:    logrus.WithField(trace.Component, teleport.ComponentKeyStore),
-		KeyDir: dirPath,
-	}, nil
+		log: logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		Dir: dirPath,
+	}
 }
 
 // knownHostsPath returns the known_hosts file path.
 func (fs *FSTrustedCertsStore) knownHostsPath() string {
-	return keypaths.KnownHostsPath(fs.KeyDir)
+	return keypaths.KnownHostsPath(fs.Dir)
 }
 
 // proxyKeyDir returns the keys directory for the given proxy.
 func (fs *FSTrustedCertsStore) proxyKeyDir(proxy string) string {
-	return keypaths.ProxyKeyDir(fs.KeyDir, proxy)
+	return keypaths.ProxyKeyDir(fs.Dir, proxy)
 }
 
 // casDir returns path to trusted clusters certificates directory.
 func (fs *FSTrustedCertsStore) casDir(proxy string) string {
-	return keypaths.CAsDir(fs.KeyDir, proxy)
+	return keypaths.CAsDir(fs.Dir, proxy)
 }
 
 // clusterCAPath returns path to trusted cluster certificate.
 func (fs *FSTrustedCertsStore) clusterCAPath(proxy, clusterName string) string {
-	return keypaths.TLSCAsPathCluster(fs.KeyDir, proxy, clusterName)
+	return keypaths.TLSCAsPathCluster(fs.Dir, proxy, clusterName)
 }
 
 // tlsCAsPath returns the TLS CA certificates legacy path for the given KeyIndex.
 func (fs *FSTrustedCertsStore) tlsCAsPath(proxy string) string {
-	return keypaths.TLSCAsPath(fs.KeyDir, proxy)
+	return keypaths.TLSCAsPath(fs.Dir, proxy)
 }
 
 // GetTrustedCerts gets the trusted CA TLS certificates and SSH host keys for the given proxyHost.
@@ -231,7 +228,9 @@ func (fs *FSTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) (keys []s
 
 func (fs *FSTrustedCertsStore) getKnownHostsFile() (knownHosts []byte, retErr error) {
 	unlock, err := utils.FSTryReadLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return nil, trace.NotFound("please relogin, tsh user profile doesn't contain known_hosts: %s", fs.Dir)
+	} else if err != nil {
 		return nil, trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
 	}
 	defer utils.StoreErrorOf(unlock, &retErr)
@@ -250,10 +249,6 @@ func (fs *FSTrustedCertsStore) getKnownHostsFile() (knownHosts []byte, retErr er
 func (fs *FSTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
 	if proxyHost == "" {
 		return trace.BadParameter("proxyHost must be provided to add trusted certs")
-	}
-
-	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
-		return trace.ConvertSystemError(err)
 	}
 
 	for _, ca := range cas {
@@ -321,6 +316,10 @@ func (fs *FSTrustedCertsStore) writeClusterCertificates(proxyHost, clusterName s
 }
 
 func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
+	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
 	certsFile := fs.tlsCAsPath(proxyHost)
 	fp, err := os.OpenFile(certsFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
@@ -346,6 +345,10 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, 
 
 // addKnownHosts adds new entries to `known_hosts` file for the provided CAs.
 func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
+	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
 	// We're trying to serialize our writes to the 'known_hosts' file to avoid corruption, since there
 	// are cases when multiple tsh instances will try to write to it.
 	unlock, err := utils.FSTryWriteLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)

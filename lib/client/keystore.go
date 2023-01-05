@@ -89,24 +89,12 @@ type FSKeyStore struct {
 // NewFSKeyStore initializes a new FSClientStore.
 //
 // If dirPath is empty, sets it to ~/.tsh.
-func NewFSKeyStore(dirPath string) (s *FSKeyStore, err error) {
-	dirPath, err = initKeysDir(dirPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewFSKeyStore(dirPath string) *FSKeyStore {
+	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
 		log:    logrus.WithField(trace.Component, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
-	}, nil
-}
-
-// initKeysDir initializes the keystore root directory, usually `~/.tsh`.
-func initKeysDir(dirPath string) (string, error) {
-	dirPath = profile.FullProfilePath(dirPath)
-	if err := os.MkdirAll(dirPath, os.ModeDir|profileDirPerms); err != nil {
-		return "", trace.ConvertSystemError(err)
 	}
-	return dirPath, nil
 }
 
 // userKeyPath returns the private key path for the given KeyIndex.

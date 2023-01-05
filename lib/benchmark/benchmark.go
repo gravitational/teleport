@@ -283,10 +283,7 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		c.SSHProxyAddr = proxy
 	}
 
-	profileStore, err := client.NewFSProfileStore("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	profileStore := client.NewFSProfileStore("")
 	if err := c.LoadProfile(profileStore, proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -25,8 +25,7 @@ import (
 )
 
 func newTestFSProfileStore(t *testing.T) *FSProfileStore {
-	fsProfileStore, err := NewFSProfileStore(t.TempDir())
-	require.NoError(t, err)
+	fsProfileStore := NewFSProfileStore(t.TempDir())
 	return fsProfileStore
 }
 
@@ -46,7 +45,7 @@ func TestProfileStore(t *testing.T) {
 	testEachProfileStore(t, func(t *testing.T, profileStore ProfileStore) {
 		var dir string
 		if fsProfileStore, ok := profileStore.(*FSProfileStore); ok {
-			dir = fsProfileStore.KeyDir
+			dir = fsProfileStore.Dir
 		}
 		profiles := []*profile.Profile{
 			{

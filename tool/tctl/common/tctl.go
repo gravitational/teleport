@@ -344,15 +344,13 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
 
-	var clientStore *client.Store
-	var err error
+	clientStore := client.NewFSClientStore(cfg.TeleportHome)
 	if ccf.IdentityFilePath != "" {
+		var err error
 		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "")
-	} else {
-		clientStore, err = client.NewFSClientStore(cfg.TeleportHome)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	profile, err := clientStore.ReadProfileStatus(proxyAddr)

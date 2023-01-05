@@ -945,26 +945,20 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.Stdin = os.Stdin
 	}
 
+	// sometimes we need to use external auth without using local auth
+	// methods, e.g. in automation daemons.
+	if c.SkipLocalAuth {
+		if len(c.AuthMethods) == 0 {
+			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
+		}
+		tc.ClientStore = NewMemClientStore()
+	}
+
 	if tc.ClientStore == nil {
-		// sometimes we need to use external auth without using local auth
-		// methods, e.g. in automation daemons.
-		if c.SkipLocalAuth {
-			if len(c.AuthMethods) == 0 {
-				return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
-			}
-			tc.ClientStore = NewMemClientStore()
-		} else {
-			clientStore, err := NewFSClientStore(c.KeysDir)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
+		tc.ClientStore = NewFSClientStore(c.KeysDir)
+		if c.AddKeysToAgent == AddKeysToAgentOnly {
 			// Store client keys in memory, but still save trusted certs and profile to disk.
-			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				clientStore.KeyStore = NewMemKeyStore()
-			}
-
-			tc.ClientStore = clientStore
+			tc.ClientStore.KeyStore = NewMemKeyStore()
 		}
 	}
 

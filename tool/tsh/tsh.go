@@ -3246,10 +3246,7 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 		return client.NewMemClientStore(), nil
 	}
 
-	clientStore, err := client.NewFSClientStore(cf.HomePath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	clientStore := client.NewFSClientStore(cf.HomePath)
 
 	// Store client keys in memory, but still save trusted certs and profile to disk.
 	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {

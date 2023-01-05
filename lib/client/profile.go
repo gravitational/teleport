@@ -104,26 +104,22 @@ type FSProfileStore struct {
 	// log holds the structured logger.
 	log logrus.FieldLogger
 
-	// KeyDir is the directory where all keys are stored.
-	KeyDir string
+	// Dir is the directory where all keys are stored.
+	Dir string
 }
 
 // NewFSProfileStore creates a new instance of FSProfileStore.
-func NewFSProfileStore(dirPath string) (*FSProfileStore, error) {
-	var err error
-	dirPath, err = initKeysDir(dirPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewFSProfileStore(dirPath string) *FSProfileStore {
+	dirPath = profile.FullProfilePath(dirPath)
 	return &FSProfileStore{
-		log:    logrus.WithField(trace.Component, teleport.ComponentKeyStore),
-		KeyDir: dirPath,
-	}, nil
+		log: logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		Dir: dirPath,
+	}
 }
 
 // CurrentProfile returns the current profile.
 func (fs *FSProfileStore) CurrentProfile() (string, error) {
-	profileName, err := profile.GetCurrentProfileName(fs.KeyDir)
+	profileName, err := profile.GetCurrentProfileName(fs.Dir)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -132,7 +128,7 @@ func (fs *FSProfileStore) CurrentProfile() (string, error) {
 
 // ListProfiles returns a list of all profiles.
 func (fs *FSProfileStore) ListProfiles() ([]string, error) {
-	profileNames, err := profile.ListProfileNames(fs.KeyDir)
+	profileNames, err := profile.ListProfileNames(fs.Dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,7 +137,7 @@ func (fs *FSProfileStore) ListProfiles() ([]string, error) {
 
 // GetProfile returns the requested profile.
 func (fs *FSProfileStore) GetProfile(profileName string) (*profile.Profile, error) {
-	profile, err := profile.FromDir(fs.KeyDir, profileName)
+	profile, err := profile.FromDir(fs.Dir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,7 +147,11 @@ func (fs *FSProfileStore) GetProfile(profileName string) (*profile.Profile, erro
 // SaveProfile saves the given profile. If makeCurrent
 // is true, it makes this profile current.
 func (fs *FSProfileStore) SaveProfile(profile *profile.Profile, makeCurrent bool) error {
-	err := profile.SaveToDir(fs.KeyDir, makeCurrent)
+	if err := os.MkdirAll(fs.Dir, os.ModeDir|profileDirPerms); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	err := profile.SaveToDir(fs.Dir, makeCurrent)
 	return trace.Wrap(err)
 }
 
@@ -494,10 +494,7 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		ClusterName: clusterName,
 	}
 
-	store, err := NewFSKeyStore(p.Dir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	store := NewFSKeyStore(p.Dir)
 	key, err := store.GetKey(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
