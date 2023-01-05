@@ -33,7 +33,7 @@ describe('services/auth', () => {
     jest.spyOn(api, 'post').mockResolvedValue({});
 
     await auth.login(email, password, '');
-    expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, {
+    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, {
       user: email,
       pass: password,
       second_factor_token: '',
@@ -49,7 +49,7 @@ describe('services/auth', () => {
     };
 
     await auth.login(email, password, 'xxx');
-    expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, data);
+    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, data);
   });
 
   test('resetPassword()', async () => {
