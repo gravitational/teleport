@@ -157,7 +157,7 @@ func lookupInstallationID(ctx context.Context, args args) (int64, error) {
 
 func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag string, baselineTime time.Time, existingRuns github.RunIDSet) (*ghapi.WorkflowRun, error) {
 	// Now we need to wait and see if a new workflow is spawned
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
