@@ -251,7 +251,9 @@ you run `tsh ls`.
 
 <Details title="Hidden labels" opened={false}>
 
-Labels that should not be shown in the UI should be under the teleport.hidden namespace.
+If you wish to use labels for RBAC purposes but don't want to see the labels
+in the UI, you can put them in the hidden namespace by prefixing the label's
+key with teleport.hidden/.
 </Details>
 
 ## Step 3/3. Apply dynamic labels via commands
