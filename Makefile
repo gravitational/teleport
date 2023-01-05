@@ -221,6 +221,11 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
+# Is this build targeting the same OS & architecture it is being compiled on, or
+# will it require cross-compilation? We need to know this (especially for ARM) so we 
+# can set the cross-compiler path (and possibly feature flags) correctly. 
+IS_CROSS_BUILD = $(if $(filter-out $(ARCH), $(shell go env GOARCH)),yes)
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
@@ -233,8 +238,11 @@ CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 else ifeq ("$(ARCH)","arm64")
-# ARM64 builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced 
+# featureset. Also, if we 're not guaranteed to be building natively on an arm64 system
+# then we'll need to configure the cross compiler.
+
+CGOFLAG = CGO_ENABLED=1 $(if $(IS_CROSS_BUILD),CC=aarch64-linux-gnu-gcc)
 endif
 endif
 
@@ -430,11 +438,19 @@ build-archive:
 	@echo "---> Created $(RELEASE).tar.gz."
 	
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-unix - Produces binary release tarballs for both OSS and 
+# Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+#
+# make release-unix-only - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
