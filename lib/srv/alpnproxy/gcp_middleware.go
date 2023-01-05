@@ -15,6 +15,7 @@
 package alpnproxy
 
 import (
+	"crypto/subtle"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -51,7 +52,7 @@ func (m *GCPMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request)
 
 	expectedAuth := "Bearer " + m.Secret
 
-	if auth != expectedAuth {
+	if subtle.ConstantTimeCompare([]byte(auth), []byte(expectedAuth)) != 1 {
 		m.Log.Debugf("Invalid Authorization header value %q, expected %q.", auth, expectedAuth)
 		trace.WriteError(rw, trace.BadParameter("Invalid Authorization header"))
 		return true
