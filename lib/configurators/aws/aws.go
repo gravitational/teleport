@@ -545,8 +545,12 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 
 	for _, dbActions := range allActions {
 		statements = append(statements, dbActions.buildStatement(flags.DiscoveryService, boundary))
-		requireSecretsManager = requireSecretsManager || dbActions.requireSecretsManager
-		requireIAMEdit = requireIAMEdit || dbActions.requireIAMEdit
+
+		// Skip these for discovery service.
+		if !flags.DiscoveryService {
+			requireSecretsManager = requireSecretsManager || dbActions.requireSecretsManager
+			requireIAMEdit = requireIAMEdit || dbActions.requireIAMEdit
+		}
 	}
 
 	// For databases that need to access SecretsManager (and KMS).

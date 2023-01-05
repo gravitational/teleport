@@ -680,6 +680,31 @@ func TestAWSIAMDocuments(t *testing.T) {
 				},
 			},
 		},
+		"RDS (discovery service)": {
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{DiscoveryService: true},
+			fileConfig: &config.FileConfig{
+				Discovery: config.Discovery{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
