@@ -585,6 +585,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindApp, services.RW()),
 						types.NewRule(types.KindOktaGroups, services.RW()),
 						types.NewRule(types.KindOktaApps, services.RW()),
+						types.NewRule(types.KindAccessRequest, services.RW()),
 					},
 				},
 			})

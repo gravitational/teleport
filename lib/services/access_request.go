@@ -731,9 +731,9 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 	// adding role subselection support.
 
 	// user cannot review their own request
-	if c.User.GetName() == req.GetUser() {
-		return false, nil
-	}
+	//if c.User.GetName() == req.GetUser() {
+	//	return false, nil
+	//}
 
 	// method allocates new array if an override has already been
 	// called, so get the role list once in advance.
@@ -1580,11 +1580,13 @@ func roleAllowsResource(
 	}
 	err := roleSet.checkAccess(resource, AccessMFAParams{Verified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
+		fmt.Printf("Role allows resource access denied: %v\n", err)
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.
 		return false, nil
 	}
 	if err != nil {
+		fmt.Printf("Role allows resource unexpected error: %v\n", err)
 		// Unexpected error, return it.
 		return false, trace.Wrap(err)
 	}

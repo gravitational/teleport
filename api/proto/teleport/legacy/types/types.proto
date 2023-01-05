@@ -1862,6 +1862,12 @@ enum RequestState {
   // DENIED variant indicates that a request has been rejected by
   // an administrating party.
   DENIED = 3;
+  // PROCESSED variant indicates that a request that requires extra work
+  // after approval has been processed successfully.
+  PROCESSED = 4;
+  // CLEANED_UP variant indicates that a request that requires extra work
+  // after processing to clean up.
+  CLEANED_UP = 5;
 }
 
 // ThresholdIndexSet encodes a list of threshold indexes. One of the listed thresholds

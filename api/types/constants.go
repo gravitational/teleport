@@ -558,6 +558,8 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
+	KindOktaApps,
+	KindOktaGroups,
 }
 
 const (

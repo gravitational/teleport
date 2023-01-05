@@ -1601,6 +1601,7 @@ func (p *accessRequestCollector) initializationChan() <-chan struct{} {
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	accessRequests, err := p.AccessRequestGetter.GetAccessRequests(ctx, p.Filter)
+	p.Log.Infof("Get AR: %v", accessRequests)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1613,10 +1614,12 @@ func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Contex
 	p.current = newCurrent
 	p.defineCollectorAsInitialized()
 
+	p.Log.Infof("AR Initialized")
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	case p.AccessRequestsC <- accessRequests:
+		p.Log.Info("Sent the access requests")
 	}
 
 	return nil
@@ -1639,12 +1642,14 @@ func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Contex
 	defer p.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
+		p.Log.Infof("AR Deleted")
 		delete(p.current, event.Resource.GetName())
 		select {
 		case <-ctx.Done():
 		case p.AccessRequestsC <- resourcesToSlice(p.current):
 		}
 	case types.OpPut:
+		p.Log.Infof("AR Put")
 		accessRequest, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			p.Log.Warnf("Unexpected resource type %T.", event.Resource)

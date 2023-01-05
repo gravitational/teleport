@@ -545,11 +545,12 @@ func (s RequestStrategy) RequireReason() bool {
 
 // stateVariants allows iteration of the expected variants
 // of RequestState.
-var stateVariants = [4]RequestState{
+var stateVariants = [5]RequestState{
 	RequestState_NONE,
 	RequestState_PENDING,
 	RequestState_APPROVED,
 	RequestState_DENIED,
+	RequestState_PROCESSED,
 }
 
 // Parse attempts to interpret a value as a string representation
@@ -584,9 +585,19 @@ func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED
 }
 
+// IsProcessed request state
+func (s RequestState) IsProcessed() bool {
+	return s == RequestState_PROCESSED
+}
+
+// IsCleanedUp request state
+func (s RequestState) IsCleanedUp() bool {
+	return s == RequestState_CLEANED_UP
+}
+
 // IsResolved request state
 func (s RequestState) IsResolved() bool {
-	return s.IsApproved() || s.IsDenied()
+	return s.IsApproved() || s.IsDenied() || s.IsProcessed() || s.IsCleanedUp()
 }
 
 // key values for map encoding of request filter

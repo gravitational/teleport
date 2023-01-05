@@ -1526,6 +1526,12 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindKubeServer:
 		keyPrefix = []string{kubeServersPrefix}
 		unmarshalItemFunc = backendItemToKubernetesServer
+	case types.KindOktaApps:
+		keyPrefix = []string{oktaAppsPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindOktaApps)
+	case types.KindOktaGroups:
+		keyPrefix = []string{oktaGroupsPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindOktaGroups)
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1834,4 +1840,6 @@ const (
 	kubeServicesPrefix           = "kubeServices"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
 	loginTimePrefix              = "hostuser_interaction_time"
+	oktaAppsPrefix               = "oktaapps"
+	oktaGroupsPrefix             = "oktagroups"
 )
