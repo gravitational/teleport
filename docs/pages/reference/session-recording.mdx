@@ -4,11 +4,14 @@ description: An overview of Teleport's session recording and its configuration
 ---
 
 This page provides an overview of how Teleport records sessions and the various
-configuration options that apply to session recordings. The content that is
-captured depends on the type of the session.
+configuration options that apply to session recordings.
+
+## What session recordings capture
+
+The content that is captured depends on the type of the session.
 
 - SSH sessions: Teleport captures the entire pseudo-terminal (PTY) output
-  of the session
+  of the session.
 - Kubernetes sessions: Teleport captures the entire PTY output for
   `kubectl exec` invocations.
 - Desktop sessions: Teleport captures the contents of the desktop screen
@@ -19,6 +22,8 @@ captured depends on the type of the session.
   bucketed into 5-minute time intervals informally referred to as "chunks."
 - Database sessions: Teleport captures a stream of audit events
   related to the database being accessed.
+
+## Session recording configurations
 
 Teleport supports two different recording configurations: synchronous and
 asynchronous recording. Additionally, Teleport administrators can configure
@@ -49,17 +54,17 @@ and `proxy` identically (perform synchronous recording) and `node-sync` and
 `proxy-sync` identically (perform asynchronous recording).
 </Admonition>
 
-## Record at Node
+### Record at Node
 
 By default, Teleport performs recording at the SSH node. This is because Teleport's
 Proxy Server cannot see the SSH traffic to the node, it is encrypted end-to-end
 (from the SSH client to the SSH server).
 
-## Record at Proxy
+### Record at Proxy
 
 In some cases, it is desirable to perform the recording at Teleport's Proxy Server.
 For example, sessions to non-Teleport servers (like OpenSSH's `sshd`) can only be
-recorded at the proxy. This is referred to as *Recording Proxy Mode*.
+recorded at a Proxy Service instance. This is referred to as *Recording Proxy Mode*.
 
 In this mode, the Proxy Server terminates (decrypts) the SSH connection and establishes
 its own SSH connection to the destination server, effectively becoming an authorized
@@ -70,17 +75,17 @@ Proxy Server. Since the Proxy Server needs credentials to decrypt the SSH connec
 it must be properly secured and is a higher value target for an attacker than a proxy
 that cannot decrypt the data flowing through it.
 
-Additionally, the credentials that the proxy uses to decrypt the SSH connection are
+Additionally, the credentials that the Proxy Server uses to decrypt the SSH connection are
 provided via SSH Agent Forwarding, so Agent Forwarding must be enabled to record at
 the Proxy Server.
 
-## Synchronous recording
+### Synchronous recording
 
 When synchronous recording is enabled, the Teleport component doing the recording
-(which may be the node or the proxy depending on your configuration) submits each
-recording event to Teleport's Auth Server as it occurs. In this mode, failure to
-emit a recording event is considered fatal - the session will be terminated if an
-event cannot be recorded. This makes synchronous recording best suited for highly
+(which may be the Node or the Proxy Service instance depending on your configuration)
+submits each recording event to Teleport's Auth Server as it occurs. In this mode,
+failure to emit a recording event is considered fatal - the session will be terminated
+if an event cannot be recorded. This makes synchronous recording best suited for highly
 regulated environments where you need to be confident that all data is recorded.
 This also means that you need a reliable and low-latency connection to the Auth
 Server for the duration of the session to ensure that the session isn't interrupted
@@ -89,10 +94,10 @@ or terminated due to temporary connection loss.
 In synchronous recording modes, the Auth Server receives a stream of recording
 events and is responsible for assembling them into the final artifact and uploading
 it to the storage backend. Since data is streamed directly to the Auth Server,
-Teleport administrators don't need to be concerned with disk space on their nodes
-and proxies, as no recording data is written to those disks.
+Teleport administrators don't need to be concerned with disk space on their Nodes
+and Proxy Service instances, as no recording data is written to those disks.
 
-## Asynchronous recording
+### Asynchronous recording
 
 When asynchronous, recording events are written to the local filesystem
 during the session. When the session completes, Teleport assembles the parts into a
