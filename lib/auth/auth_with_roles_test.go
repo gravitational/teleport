@@ -3777,12 +3777,12 @@ func TestListReleasesPermissions(t *testing.T) {
 
 	tt := []struct {
 		Name         string
-		Role         types.RoleSpecV5
+		Role         types.RoleSpecV6
 		ErrAssertion require.BoolAssertionFunc
 	}{
 		{
 			Name: "no permission error if user has allow rule to list downloads",
-			Role: types.RoleSpecV5{
+			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindDownload},
 					Verbs:     []string{types.VerbList},
@@ -3792,7 +3792,7 @@ func TestListReleasesPermissions(t *testing.T) {
 		},
 		{
 			Name: "permission error if user deny allow rule to list downloads",
-			Role: types.RoleSpecV5{
+			Role: types.RoleSpecV6{
 				Deny: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindDownload},
 					Verbs:     []string{types.VerbList},
@@ -3802,7 +3802,7 @@ func TestListReleasesPermissions(t *testing.T) {
 		},
 		{
 			Name: "permission error if user has no rules regarding downloads",
-			Role: types.RoleSpecV5{
+			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{}},
 			},
 			ErrAssertion: require.True,
@@ -3832,12 +3832,12 @@ func TestGetLicensePermissions(t *testing.T) {
 
 	tt := []struct {
 		Name         string
-		Role         types.RoleSpecV5
+		Role         types.RoleSpecV6
 		ErrAssertion require.BoolAssertionFunc
 	}{
 		{
 			Name: "no permission error if user has allow rule to read license",
-			Role: types.RoleSpecV5{
+			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindLicense},
 					Verbs:     []string{types.VerbRead},
@@ -3847,7 +3847,7 @@ func TestGetLicensePermissions(t *testing.T) {
 		},
 		{
 			Name: "permission error if user deny allow rule to read license",
-			Role: types.RoleSpecV5{
+			Role: types.RoleSpecV6{
 				Deny: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindLicense},
 					Verbs:     []string{types.VerbRead},
@@ -3857,7 +3857,7 @@ func TestGetLicensePermissions(t *testing.T) {
 		},
 		{
 			Name: "permission error if user has no rules regarding license",
-			Role: types.RoleSpecV5{
+			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{}},
 			},
 			ErrAssertion: require.True,
