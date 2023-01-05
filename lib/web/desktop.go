@@ -52,6 +52,11 @@ func (h *Handler) desktopConnectHandle(
 	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
+	clusterName := p.ByName("site")
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing site in request URL")
+	}
+
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
 		return nil, trace.BadParameter("missing desktopName in request URL")
@@ -60,7 +65,7 @@ func (h *Handler) desktopConnectHandle(
 	log := sctx.cfg.Log.WithField("desktop-name", desktopName)
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, log, sctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, clusterName, log, sctx, site); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -81,6 +86,7 @@ func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
 	r *http.Request,
 	desktopName string,
+	clusterName string,
 	log *logrus.Entry,
 	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
@@ -165,7 +171,7 @@ func (h *Handler) createDesktopConnection(
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(sctx.cfg.RootClusterName, validServiceIDs)
+	serviceConn, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
