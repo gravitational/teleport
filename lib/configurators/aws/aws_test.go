@@ -603,7 +603,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				}},
 			},
 		},
-		"Redshift Serverless discovery": {
+		"Redshift Serverless discovery (database service)": {
 			target: roleTarget,
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
@@ -655,12 +655,37 @@ func TestAWSIAMDocuments(t *testing.T) {
 				},
 			},
 		},
+		"Redshift Serverless discovery (discovery service)": {
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{DiscoveryService: true},
+			fileConfig: &config.FileConfig{
+				Discovery: config.Discovery{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policy, policyErr := buildPolicyDocument(test.flags, test.fileConfig, test.target)
-			boundary, boundaryErr := buildPolicyBoundaryDocument(test.flags, test.fileConfig, test.target)
+			policy, policyErr := buildPolicyDocument(test.flags, test.fileConfig, test.target, false)
+			boundary, boundaryErr := buildPolicyDocument(test.flags, test.fileConfig, test.target, true)
 
 			if test.returnError {
 				require.Error(t, policyErr)
