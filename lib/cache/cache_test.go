@@ -78,6 +78,7 @@ type testPack struct {
 	apps              services.Apps
 	kubernetes        services.Kubernetes
 	databases         services.Databases
+	databaseServices  services.DatabaseServices
 	webSessionS       types.WebSessionInterface
 	webTokenS         types.WebTokenInterface
 	windowsDesktops   services.WindowsDesktops
@@ -193,6 +194,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
 	p.databases = local.NewDatabasesService(p.backend)
+	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 
 	return p, nil
@@ -224,6 +226,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
 		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -418,23 +421,24 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
-		Events:          p.cache,
-		Trust:           p.cache.trustCache,
-		ClusterConfig:   p.cache.clusterConfigCache,
-		Provisioner:     p.cache.provisionerCache,
-		Users:           p.cache.usersCache,
-		Access:          p.cache.accessCache,
-		DynamicAccess:   p.cache.dynamicAccessCache,
-		Presence:        p.cache.presenceCache,
-		Restrictions:    p.cache.restrictionsCache,
-		Apps:            p.cache.appsCache,
-		Kubernetes:      p.cache.kubernetesCache,
-		Databases:       p.cache.databasesCache,
-		AppSession:      p.cache.appSessionCache,
-		WebSession:      p.cache.webSessionCache,
-		WebToken:        p.cache.webTokenCache,
-		WindowsDesktops: p.cache.windowsDesktopsCache,
-		Backend:         nodeCacheBackend,
+		Events:           p.cache,
+		Trust:            p.cache.trustCache,
+		ClusterConfig:    p.cache.clusterConfigCache,
+		Provisioner:      p.cache.provisionerCache,
+		Users:            p.cache.usersCache,
+		Access:           p.cache.accessCache,
+		DynamicAccess:    p.cache.dynamicAccessCache,
+		Presence:         p.cache.presenceCache,
+		Restrictions:     p.cache.restrictionsCache,
+		Apps:             p.cache.appsCache,
+		Kubernetes:       p.cache.kubernetesCache,
+		Databases:        p.cache.databasesCache,
+		DatabaseServices: p.cache.databaseServicesCache,
+		AppSession:       p.cache.appSessionCache,
+		WebSession:       p.cache.webSessionCache,
+		WebToken:         p.cache.webTokenCache,
+		WindowsDesktops:  p.cache.windowsDesktopsCache,
+		Backend:          nodeCacheBackend,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
@@ -603,6 +607,7 @@ func TestCompletenessInit(t *testing.T) {
 			Restrictions:     p.restrictions,
 			Apps:             p.apps,
 			Kubernetes:       p.kubernetes,
+			DatabaseServices: p.databaseServices,
 			Databases:        p.databases,
 			WindowsDesktops:  p.windowsDesktops,
 			MaxRetryPeriod:   200 * time.Millisecond,
@@ -665,6 +670,7 @@ func TestCompletenessReset(t *testing.T) {
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
 		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -839,6 +845,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
 		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -911,6 +918,7 @@ func initStrategy(t *testing.T) {
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
 		Kubernetes:       p.kubernetes,
+		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -1367,7 +1375,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
+	role, err := types.NewRoleV3("role1", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -2220,6 +2228,119 @@ func TestDatabaseServers(t *testing.T) {
 	require.Equal(t, 0, len(out))
 }
 
+// TestDatabaseServices tests that CRUD operations on DatabaseServices are
+// replicated from the backend to the cache.
+func TestDatabaseServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	// Upsert DatabaseService into backend.
+	service, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name: uuid.NewString(),
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{Labels: &types.Labels{"env": []string{"prod"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = p.presenceS.UpsertDatabaseService(ctx, service)
+	require.NoError(t, err)
+
+	// Check that the DatabaseService is now in the backend.
+	listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single DatabaseService in it.
+	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the DatabaseService and upsert it into the backend again.
+	service.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertDatabaseService(context.Background(), service)
+	require.NoError(t, err)
+
+	// Check that the DatabaseService is in the backend and only one exists (so an
+	// update occurred).
+	listServicesResp, err = p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single DatabaseService in it.
+	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all DatabaseServices from the backend.
+	err = p.databaseServices.DeleteAllDatabaseServices(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, out)
+}
+
 // TestDatabases tests that CRUD operations on database resources are
 // replicated from the backend to the cache.
 func TestDatabases(t *testing.T) {
@@ -2589,7 +2710,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindStaticTokens:            &types.StaticTokensV2{},
 		types.KindToken:                   &types.ProvisionTokenV2{},
 		types.KindUser:                    &types.UserV2{},
-		types.KindRole:                    &types.RoleV5{Version: types.V4},
+		types.KindRole:                    &types.RoleV6{Version: types.V4},
 		types.KindNamespace:               &types.Namespace{},
 		types.KindNode:                    &types.ServerV2{},
 		types.KindProxy:                   &types.ServerV2{},
@@ -2606,6 +2727,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
 		types.KindKubeService:             &types.ServerV2{},
 		types.KindKubeServer:              &types.KubernetesServerV3{},
+		types.KindDatabaseService:         &types.DatabaseServiceV1{},
 		types.KindDatabaseServer:          &types.DatabaseServerV3{},
 		types.KindDatabase:                &types.DatabaseV3{},
 		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},

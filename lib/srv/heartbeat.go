@@ -86,7 +86,7 @@ type HeartbeatMode int
 // CheckAndSetDefaults checks values and sets defaults
 func (h HeartbeatMode) CheckAndSetDefaults() error {
 	switch h {
-	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp, HeartbeatModeDB, HeartbeatModeWindowsDesktopService, HeartbeatModeWindowsDesktop:
+	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp, HeartbeatModeDB, HeartbeatModeDatabaseService, HeartbeatModeWindowsDesktopService, HeartbeatModeWindowsDesktop:
 		return nil
 	default:
 		return trace.BadParameter("unrecognized mode")
@@ -108,6 +108,8 @@ func (h HeartbeatMode) String() string {
 		return "App"
 	case HeartbeatModeDB:
 		return "Database"
+	case HeartbeatModeDatabaseService:
+		return "DatabaseService"
 	case HeartbeatModeWindowsDesktopService:
 		return "WindowsDesktopService"
 	case HeartbeatModeWindowsDesktop:
@@ -133,6 +135,8 @@ const (
 	HeartbeatModeApp
 	// HeartbeatModeDB sets heatbeat to db
 	HeartbeatModeDB
+	// HeartbeatModeDatabaseService sets heatbeat mode to DatabaseService.
+	HeartbeatModeDatabaseService
 	// HeartbeatModeWindowsDesktopService sets heatbeat mode to windows desktop
 	// service.
 	HeartbeatModeWindowsDesktopService
@@ -221,7 +225,7 @@ func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter AnnouncePeriod")
 	}
 	if cfg.ServerTTL == 0 {
-		return trace.BadParameter("missing parmeter ServerTTL")
+		return trace.BadParameter("missing parameter ServerTTL")
 	}
 	if cfg.GetServerInfo == nil {
 		return trace.BadParameter("missing parameter GetServerInfo")
@@ -559,6 +563,27 @@ func (h *Heartbeat) announce() error {
 			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
 			h.notifySend()
 			h.setState(HeartbeatStateAnnounceWait)
+			return nil
+		case HeartbeatModeDatabaseService:
+			dbService, ok := h.current.(types.DatabaseService)
+			if !ok {
+				return trace.BadParameter("expected services.DatabaseService, got %#v", h.current)
+			}
+			keepAlive, err := h.Announcer.UpsertDatabaseService(h.cancelCtx, dbService)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			h.notifySend()
+			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
+			if err != nil {
+				h.reset(HeartbeatStateInit)
+				return trace.Wrap(err)
+			}
+			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+			h.nextKeepAlive = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+			h.keepAlive = keepAlive
+			h.keepAliver = keepAliver
+			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		default:
 			return trace.BadParameter("unknown mode %q", h.Mode)

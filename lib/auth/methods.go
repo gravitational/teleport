@@ -35,6 +35,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// maxUserAgentLen is the maximum length of a user agent that will be logged.
+	// There is no current consensus on what the maximum length of a User-Agent
+	// should be and there were reports of extremely large UAs especially from
+	// older versions of IE. 2048 was picked because it still allowed for very
+	// large UAs but keeps from causing logging issues. For reference Nginx
+	// defaults to 4k or 8k header size limits for ALL headers so 2k seems more
+	// than sufficient.
+	maxUserAgentLen = 2048
+)
+
 // AuthenticateUserRequest is a request to authenticate interactive user
 type AuthenticateUserRequest struct {
 	// Username is a username
@@ -121,7 +132,11 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	}
 	if req.ClientMetadata != nil {
 		event.RemoteAddr = req.ClientMetadata.RemoteAddr
-		event.UserAgent = req.ClientMetadata.UserAgent
+		if len(req.ClientMetadata.UserAgent) > maxUserAgentLen {
+			event.UserAgent = req.ClientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
+		} else {
+			event.UserAgent = req.ClientMetadata.UserAgent
+		}
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
@@ -480,18 +495,18 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		authority,
 	}
 
-	sourceIP := ""
-	if checker.PinSourceIP() {
-		md := req.ClientMetadata
-		if md == nil {
-			return nil, trace.Errorf("source IP pinning is enabled but client metadata is nil")
-		}
-		host, err := utils.Host(md.RemoteAddr)
+	clientIP := ""
+	if req.ClientMetadata != nil && req.ClientMetadata.RemoteAddr != "" {
+		host, err := utils.Host(req.ClientMetadata.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sourceIP = host
+		clientIP = host
 	}
+	if checker.PinSourceIP() && clientIP == "" {
+		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
+	}
+
 	certs, err := s.generateUserCert(certRequest{
 		user:                 user,
 		ttl:                  req.TTL,
@@ -501,7 +516,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		traits:               user.GetTraits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
-		sourceIP:             sourceIP,
+		clientIP:             clientIP,
 		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {

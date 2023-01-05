@@ -105,6 +105,11 @@ type ProvisionToken interface {
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
+
+	// GetSafeName returns the name of the token, sanitized appropriately for
+	// join methods where the name is secret. This should be used when logging
+	// the token name.
+	GetSafeName() string
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -363,14 +368,37 @@ func (p *ProvisionTokenV2) Expiry() time.Time {
 	return p.Metadata.Expiry()
 }
 
-// GetName returns server name
+// GetName returns the name of the provision token. This value can be secret!
+// Use GetSafeName where the name may be logged.
 func (p *ProvisionTokenV2) GetName() string {
 	return p.Metadata.Name
 }
 
-// SetName sets the name of the TrustedCluster.
+// SetName sets the name of the provision token.
 func (p *ProvisionTokenV2) SetName(e string) {
 	p.Metadata.Name = e
+}
+
+// GetSafeName returns the name of the token, sanitized appropriately for
+// join methods where the name is secret. This should be used when logging
+// the token name.
+func (p *ProvisionTokenV2) GetSafeName() string {
+	name := p.GetName()
+	if p.GetJoinMethod() != JoinMethodToken {
+		return name
+	}
+
+	// If the token name is short, we just blank the whole thing.
+	if len(name) < 16 {
+		return strings.Repeat("*", len(name))
+	}
+
+	// If the token name is longer, we can show the last 25% of it to help
+	// the operator identify it.
+	hiddenBefore := int(0.75 * float64(len(name)))
+	name = name[hiddenBefore:]
+	name = strings.Repeat("*", hiddenBefore) + name
+	return name
 }
 
 // String returns the human readable representation of a provisioning token.
@@ -455,6 +483,9 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 				JoinMethodGitHub,
 			)
 		}
+	}
+	if strings.Contains(a.EnterpriseServerHost, "/") {
+		return trace.BadParameter("'spec.github.enterprise_server_host' should not contain the scheme or path")
 	}
 	return nil
 }

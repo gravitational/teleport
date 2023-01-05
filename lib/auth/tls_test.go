@@ -1371,6 +1371,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	roleReq, err := services.NewAccessRequest(username, requestableRoleName)
 	require.NoError(t, err)
 	roleReq.SetState(types.RequestState_APPROVED)
+	roleReq.SetAccessExpiry(tt.clock.Now().Add(8 * time.Hour))
 	err = clt.CreateAccessRequest(ctx, roleReq)
 	require.NoError(t, err)
 
@@ -1710,7 +1711,6 @@ func TestGetCertAuthority(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
-		fmt.Printf("--> keyPair.Key: %v.\n", keyPair)
 		require.Nil(t, keyPair.Key)
 	}
 	for _, keyPair := range ca.GetActiveKeys().SSH {
@@ -1980,7 +1980,7 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
-		superImpersonatorRole, err := types.NewRoleV3("superimpersonator", types.RoleSpecV5{
+		superImpersonatorRole, err := types.NewRoleV3("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
 			},
@@ -1998,7 +1998,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
-		role, err := types.NewRoleV3("impersonate", types.RoleSpecV5{
+		role, err := types.NewRoleV3("impersonate", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{superImpersonator.GetName()},
 				Impersonate: &types.ImpersonateConditions{

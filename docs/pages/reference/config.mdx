@@ -3,64 +3,85 @@ title: Teleport Configuration Reference
 description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
 ---
 
-## teleport.yaml
+Teleport uses the YAML file format for configuration. A full configuration
+reference file is shown below. This provides comments and all available options
+for `teleport.yaml`. 
 
-Teleport uses the YAML file format for configuration. A full configuration reference
-file is shown below, this provides comments and all available options for `teleport.yaml`
-By default, it is stored in `/etc/teleport.yaml`.
+By default, Teleport reads its configuration from `/etc/teleport.yaml`.
 
-<Admonition type="danger" title="Before using this reference">
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+## Before using this reference
 
-- **Do not use this example configuration in production.**
+<Notice type="danger">
 
-  You must edit your configuration file to meet the needs of your environment.
-  Using a copy of the reference configuration will have unintended effects. To
-  create a configuration file that you can use as a starting point, run the
-  following command:
+Do not use this example configuration in production.
 
-  ```code
-  $ teleport configure -o file
-  ```
+</Notice>
 
-- You should back up your configuration file before making changes. This will
-  enable you to roll back to the previous configuration if you need to.
+You must edit your configuration file to meet the needs of your environment.
+Using a copy of the reference configuration will have unintended effects. To
+create a configuration file that you can use as a starting point, run the
+following command:
 
-</TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Teleport Cloud">
+```code
+$ teleport configure -o file
+```
 
-- **Do not use this example configuration in production.**
+There are also `configure` commands available for the SSH Service and Database
+Service. See our documentation on `teleport node configure` and `teleport db
+configure` in the [Teleport CLI Reference](cli.mdx#teleport).
 
-  You must edit your configuration file to meet the needs of your environment.
-  Using a copy of the reference configuration will have unintended effects. To
-  create a configuration file that you can use as a starting point, run the
-  following command:
+<Notice type="warning">
 
-  ```code
-  $ teleport configure -o file
-  ```
+You should back up your configuration file before making changes. This will
+enable you to roll back to the previous configuration if you need to.  
 
-- You should back up your configuration file before making changes. This will
-  enable you to roll back to the previous configuration if you need to.
+</Notice>
 
-- Teleport Cloud manages the Auth Service and Proxy Service for you. Your
-  Teleport resource services (e.g., the Application Service and Database
-  Service) should include the following configuration options to avoid
-  unintended effects:
+## Enabling Teleport services
 
-  ```yaml
-  auth_service:
-    enabled: no
+The `teleport` process can run multiple services. 
 
-  proxy_service:
-    enabled: no
-  ```
+For some services, you must enable the service within your Teleport
+configuration in order to start it. Other services are enabled by default. 
 
-</TabItem>
-</Tabs>
-</Admonition>
+To enable or disable a service, include the following in your Teleport
+configuration, replacing `service_name` with the name of your service (service
+names are listed below):
 
+```yaml
+service_name:
+  enabled: "no"
+```
+
+Teleport supports the following services:
+
+|Service|Configuration section|Enabled by default|
+|---|---|---|
+|Application Service|`app_service`|❌|
+|Auth Service|`auth_service`|✅|
+|Database Service|`db_service`|❌|
+|Discovery Service|`discovery_service`|❌|
+|Kubernetes Service|`kubernetes_service`|❌|
+|Proxy Service|`proxy_service`|✅|
+|SSH Service|`ssh_service`|✅|
+|Desktop Service|`windows_desktop_service`|❌|
+
+Teleport Cloud manages the Auth Service and Proxy Service for you. Instances of
+Teleport services (e.g., the Application Service and Database Service) should
+include the following configuration options to avoid unintended effects:
+
+```yaml
+auth_service:
+  enabled: false
+
+proxy_service:
+  enabled: false
+```
+
+## Reference configuration file
+
+This example configuration includes all possible configuration options in YAML
+format to demonstrate proper use of indentation:
 
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
@@ -753,6 +774,9 @@ app_service:
     debug_app: true
     apps:
     - name: "kubernetes-dashboard"
+      # Optional: For access to cloud provider APIs, specify the cloud
+      # provider. Allowed values are "AWS", "Azure", and "GCP".
+      cloud: ""
       # URI and Port of Application.
       uri: "http://10.0.1.27:8000"
       # Optionally skip TLS verification. default false

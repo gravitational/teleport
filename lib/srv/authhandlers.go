@@ -202,6 +202,14 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.AllowedResourceIDs = allowedResourceIDs
 	}
+	if previousIdentityExpires, ok := certificate.Extensions[teleport.CertExtensionPreviousIdentityExpires]; ok {
+		asTime, err := time.Parse(time.RFC3339, previousIdentityExpires)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.PreviousIdentityExpires = asTime
+	}
+
 	return identity, nil
 }
 
@@ -552,7 +560,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessChecker.Roles()) {
+	if osUser == teleport.SSHSessionJoinPrincipal && auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 		return nil
 	}
 

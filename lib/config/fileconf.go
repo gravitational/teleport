@@ -54,7 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// FileConfig structre represents the teleport configuration stored in a config file
+// FileConfig structure represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.
@@ -803,7 +803,7 @@ type Auth struct {
 	// environments where paranoid security is not needed
 	//
 	// Each token string has the following format: "role1,role2,..:token",
-	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
+	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
 	// Authentication holds authentication configuration information like authentication
@@ -887,6 +887,30 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+}
+
+// hasCustomNetworkingConfig returns true if any of the networking
+// configuration fields have values different from an empty Auth.
+func (a *Auth) hasCustomNetworkingConfig() bool {
+	empty := Auth{}
+	return a.ClientIdleTimeout != empty.ClientIdleTimeout ||
+		a.ClientIdleTimeoutMessage != empty.ClientIdleTimeoutMessage ||
+		a.WebIdleTimeout != empty.WebIdleTimeout ||
+		a.KeepAliveInterval != empty.KeepAliveInterval ||
+		a.KeepAliveCountMax != empty.KeepAliveCountMax ||
+		a.SessionControlTimeout != empty.SessionControlTimeout ||
+		a.ProxyListenerMode != empty.ProxyListenerMode ||
+		a.RoutingStrategy != empty.RoutingStrategy ||
+		a.TunnelStrategy != empty.TunnelStrategy ||
+		a.ProxyPingInterval != empty.ProxyPingInterval
+}
+
+// hasCustomSessionRecording returns true if any of the session recording
+// configuration fields have values different from an empty Auth.
+func (a *Auth) hasCustomSessionRecording() bool {
+	empty := Auth{}
+	return a.SessionRecording != empty.SessionRecording ||
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1028,9 +1052,13 @@ type AuthenticationConfig struct {
 	// Defaults to true if the Webauthn is configured, defaults to false
 	// otherwise.
 	Passwordless *types.BoolOption `yaml:"passwordless"`
+
+	// DeviceTrust holds settings related to trusted device verification.
+	// Requires Teleport Enterprise.
+	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
 }
 
-// Parse returns a types.AuthPreference (type, second factor, U2F).
+// Parse returns valid types.AuthPreference instance.
 func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
@@ -1050,6 +1078,14 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var dt *types.DeviceTrust
+	if a.DeviceTrust != nil {
+		dt, err = a.DeviceTrust.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -1060,6 +1096,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,
+		DeviceTrust:       dt,
 	})
 }
 
@@ -1145,6 +1182,20 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	return string(data), nil // OK, valid PEM file
+}
+
+// DeviceTrust holds settings related to trusted device verification.
+// Requires Teleport Enterprise.
+type DeviceTrust struct {
+	// Mode is the trusted device verification mode.
+	// Mirrors types.DeviceTrust.Mode.
+	Mode string `yaml:"mode,omitempty"`
+}
+
+func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
+	return &types.DeviceTrust{
+		Mode: dt.Mode,
+	}, nil
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -1535,8 +1586,10 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
-	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_severless"`
+	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1636,6 +1689,9 @@ type App struct {
 
 	// AWS contains additional options for AWS applications.
 	AWS *AppAWS `yaml:"aws,omitempty"`
+
+	// Cloud identifies the cloud instance the app represents.
+	Cloud string `yaml:"cloud,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -1875,7 +1931,7 @@ type WindowsDesktopService struct {
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
 	// Discovery configures desktop discovery via LDAP.
-	Discovery service.LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
+	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
@@ -1903,6 +1959,8 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
+	// SID is the Security Identifier for the service account specified by Username.
+	SID string `yaml:"sid"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// ServerName is the name of the LDAP server for TLS.
@@ -1911,6 +1969,23 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+}
+
+// LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
+type LDAPDiscoveryConfig struct {
+	// BaseDN is the base DN to search for desktops.
+	// Use the value '*' to search from the root of the domain,
+	// or leave blank to disable desktop discovery.
+	BaseDN string `yaml:"base_dn"`
+	// Filters are additional LDAP filters to apply to the search.
+	// See: https://ldap.com/ldap-filters/
+	Filters []string `yaml:"filters"`
+	// LabelAttributes are LDAP attributes to apply to hosts discovered
+	// via LDAP. Teleport labels hosts by prefixing the attribute with
+	// "ldap/" - for example, a value of "location" here would result in
+	// discovered desktops having a label with key "ldap/location" and
+	// the value being the value of the "location" attribute.
+	LabelAttributes []string `yaml:"label_attributes"`
 }
 
 // TracingService contains configuration for the tracing_service.
