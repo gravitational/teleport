@@ -87,7 +87,7 @@ func pushBuildCommands(b buildType) []string {
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
-	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
+	for _, arch := range []string{"amd64", "386", "arm"} {
 		for _, fips := range []bool{false, true} {
 			if arch != "amd64" && fips {
 				// FIPS mode only supported on linux/amd64
@@ -96,6 +96,16 @@ func pushPipelines() []pipeline {
 			ps = append(ps, pushPipeline(buildType{os: "linux", arch: arch, fips: fips}))
 		}
 	}
+
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:       buildType{os: "linux", arch: "arm64"},
+		trigger:         triggerPush,
+		namePrefix:      "push-",
+		uploadArtifacts: false,
+		slackOnError:    true,
+		srcRefVar:       "DRONE_COMMIT",
+		workflowRefVar:  "DRONE_BRANCH",
+	}))
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
@@ -158,14 +168,20 @@ func pushPipeline(b buildType) pipeline {
 			Volumes:     []volumeRef{volumeRefDocker},
 			Commands:    pushBuildCommands(b),
 		},
-		{
-			Name:  "Send Slack notification",
-			Image: "plugins/slack",
-			Settings: map[string]value{
-				"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
-			},
-			Template: []string{
-				`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
+		sendErrorToSlackStep(),
+	}
+	return p
+}
+
+func sendErrorToSlackStep() step {
+	return step{
+		Name:  "Send Slack notification",
+		Image: "plugins/slack",
+		Settings: map[string]value{
+			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+		},
+		Template: []string{
+			`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
 ` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
 *Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
 Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
@@ -173,9 +189,7 @@ Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.br
 Author: <https://github.com/{{ build.author }}|{{ build.author }}>
 <{{ build.link }}|Visit Drone build page ↗>
 `,
-			},
-			When: &condition{Status: []string{"failure"}},
 		},
+		When: &condition{Status: []string{"failure"}},
 	}
-	return p
 }
