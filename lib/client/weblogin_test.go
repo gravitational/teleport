@@ -39,13 +39,11 @@ import (
 func TestPlainHttpFallback(t *testing.T) {
 	testCases := []struct {
 		desc            string
-		path            string
 		handler         http.HandlerFunc
 		actionUnderTest func(ctx context.Context, addr string, insecure bool) error
 	}{
 		{
 			desc: "HostCredentials",
-			path: "/v1/webapi/host/credentials",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				if r.RequestURI != "/v1/webapi/host/credentials" {
 					w.WriteHeader(http.StatusNotFound)
