@@ -77,7 +77,8 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeAWSKeyspaces,
 		types.DatabaseTypeDynamoDB,
 		types.DatabaseTypeCloudSQL,
-		types.DatabaseTypeAzure:
+		types.DatabaseTypeAzure,
+		types.DatabaseTypeCosmosDBMongo:
 
 	default:
 		return nil
@@ -172,7 +173,7 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	case types.DatabaseTypeCloudSQL:
 		return []string{filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName()))}, nil
 
-	case types.DatabaseTypeAzure:
+	case types.DatabaseTypeAzure, types.DatabaseTypeCosmosDBMongo:
 		return []string{
 			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLBaltimore)),
 			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLDigiCert)),
@@ -293,7 +294,7 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 		return d.downloadFromURL(amazonRootCA1URL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
-	case types.DatabaseTypeAzure:
+	case types.DatabaseTypeAzure, types.DatabaseTypeCosmosDBMongo:
 		if strings.HasSuffix(azureCAURLBaltimore, hint) {
 			return d.downloadFromURL(azureCAURLBaltimore)
 		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -333,6 +334,84 @@ func TestDBCertSigning(t *testing.T) {
 			// Verify if the generated certificate can be verified with the correct CA.
 			_, err = dbCert.Verify(opts)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestCosmosMongoAuth(t *testing.T) {
+	// TODO(gabrielcorado): enable this test. It is passing but the data race
+	// detector is complaining. Seems to be a race condition when initializing
+	// the database server: Both managed users and server are calling the types.Database.
+	t.Skip()
+	ctx := context.Background()
+	user := "alice"
+	azureToken := "random-azure-token"
+	testCtx := setupTestContext(ctx, t)
+	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: []types.Database{
+			withAzureCosmosMongo("correct-token", azureToken)(t, ctx, testCtx),
+			withAzureCosmosMongo("incorrect-token", "invalid-one")(t, ctx, testCtx),
+		},
+		NoStart: true,
+		CosmosDatabaseAccountsClient: &mocks.AzureCosmosDatabaseAccountsMock{
+			Key: azureToken,
+		},
+	})
+	// time.Sleep(time.Second)
+	go testCtx.server.Start(ctx)
+	go testCtx.startHandlingConnections()
+
+	for _, tc := range []struct {
+		desc      string
+		service   string
+		dbUser    string
+		ping      bool
+		expectErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "readwrite user and correct authentication token",
+			service:   "correct-token",
+			dbUser:    "readwrite",
+			ping:      true,
+			expectErr: require.NoError,
+		},
+		{
+			desc:      "readonly user and correct authentication token",
+			service:   "correct-token",
+			dbUser:    "readonly",
+			ping:      true,
+			expectErr: require.NoError,
+		},
+		{
+			desc:      "readwrite user but incorrect authentication token",
+			service:   "incorrect-token",
+			dbUser:    "readwrite",
+			expectErr: require.Error,
+		},
+		{
+			desc:      "readonly user but incorrect authentication token",
+			service:   "incorrect-token",
+			dbUser:    "readonly",
+			expectErr: require.Error,
+		},
+		{
+			desc:      "invalid user",
+			service:   "correct-token",
+			dbUser:    "random-user",
+			expectErr: require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			mongoConn, err := testCtx.mongoClient(ctx, user, tc.service, tc.dbUser)
+			tc.expectErr(t, err)
+
+			if tc.ping {
+				require.NoError(t, mongoConn.Ping(ctx, nil))
+			}
+
+			require.NoError(t, mongoConn.Disconnect(ctx))
 		})
 	}
 }

@@ -18,12 +18,14 @@ package azure
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
@@ -564,4 +566,66 @@ func (m *ARMSQLManagedServerMock) NewListByResourceGroupPager(resourceGroupName 
 			},
 		}, nil
 	})
+}
+
+// ARMCosmosDatabaseAccountsMock mocks armCosmosDatabaseAccountsClient.
+type ARMCosmosDatabaseAccountsMock struct {
+	NoAuth               bool
+	PrimaryMasterKey     string
+	PrimaryReadOnlyKey   string
+	SecondaryMasterKey   string
+	SecondaryReadOnlyKey string
+	RegenerateKeyDone    bool
+}
+
+func (m *ARMCosmosDatabaseAccountsMock) ListKeys(ctx context.Context, resourceGroupName string, accountName string, options *armcosmos.DatabaseAccountsClientListKeysOptions) (armcosmos.DatabaseAccountsClientListKeysResponse, error) {
+	if m.NoAuth {
+		return armcosmos.DatabaseAccountsClientListKeysResponse{}, trace.AccessDenied("unauthorized")
+	}
+
+	return armcosmos.DatabaseAccountsClientListKeysResponse{
+		DatabaseAccountListKeysResult: armcosmos.DatabaseAccountListKeysResult{
+			PrimaryMasterKey:           &m.PrimaryMasterKey,
+			PrimaryReadonlyMasterKey:   &m.PrimaryReadOnlyKey,
+			SecondaryMasterKey:         &m.SecondaryMasterKey,
+			SecondaryReadonlyMasterKey: &m.SecondaryReadOnlyKey,
+		},
+	}, nil
+}
+
+func (m *ARMCosmosDatabaseAccountsMock) BeginRegenerateKey(ctx context.Context, resourceGroupName string, accountName string, keyToRegenerate armcosmos.DatabaseAccountRegenerateKeyParameters, options *armcosmos.DatabaseAccountsClientBeginRegenerateKeyOptions) (*runtime.Poller[armcosmos.DatabaseAccountsClientRegenerateKeyResponse], error) {
+	if m.NoAuth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
+	return newPollerHelper(m.RegenerateKeyDone, armcosmos.DatabaseAccountsClientRegenerateKeyResponse{})
+}
+
+// newPollerHelper returns a runtime.Poller which returns the result.
+func newPollerHelper[T any](done bool, res T) (*runtime.Poller[T], error) {
+	return runtime.NewPoller(nil, runtime.Pipeline{}, &runtime.NewPollerOptions[T]{
+		Handler: &armPollerHandler[T]{
+			done: done,
+			res:  res,
+		},
+	})
+}
+
+// armPoller implements runtime.PollingHandler.
+type armPollerHandler[T any] struct {
+	done bool
+	res  T
+}
+
+func (p *armPollerHandler[T]) Done() bool {
+	return p.done
+}
+
+func (p *armPollerHandler[T]) Poll(_ context.Context) (*http.Response, error) {
+	return nil, nil
+}
+
+func (p *armPollerHandler[T]) Result(_ context.Context, out *T) error {
+	*out = p.res
+	return nil
 }

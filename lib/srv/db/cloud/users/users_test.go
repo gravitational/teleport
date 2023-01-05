@@ -64,18 +64,23 @@ func TestUsers(t *testing.T) {
 	mdbMock.AddMockUser(memoryDBUser("bob", "acl1", "acl2"), managedTags)
 	mdbMock.AddMockUser(memoryDBUser("charlie", "acl2", "acl3"), managedTags)
 
+	// CosmosDB users mock.
+	cosMock := &mocks.AzureCosmosDatabaseAccountsMock{Key: "random-key"}
+
 	db1 := mustCreateElastiCacheDatabase(t, "db1", "group1")
 	db2 := mustCreateElastiCacheDatabase(t, "db2", "group2")
 	db3 := mustCreateElastiCacheDatabase(t, "db3", "group-not-found")
 	db4 := mustCreateElastiCacheDatabase(t, "db4" /*no group*/)
 	db5 := mustCreateRDSDatabase(t, "db5")
 	db6 := mustCreateMemoryDBDatabase(t, "db6", "acl1")
+	db7 := mustCreateCosmosDBDatabase(t, "mongo-cosmos")
 
 	users, err := NewUsers(Config{
 		Clients: &clients.TestCloudClients{
-			ElastiCache:    ecMock,
-			MemoryDB:       mdbMock,
-			SecretsManager: smMock,
+			ElastiCache:                 ecMock,
+			MemoryDB:                    mdbMock,
+			SecretsManager:              smMock,
+			AzureCosmosDatabaseAccounts: cosMock,
 		},
 		Clock: clock,
 		UpdateMeta: func(_ context.Context, database types.Database) error {
@@ -91,7 +96,7 @@ func TestUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("setup single database", func(t *testing.T) {
-		for _, database := range []types.Database{db1, db2, db3, db4, db5, db6} {
+		for _, database := range []types.Database{db1, db2, db3, db4, db5, db6, db7} {
 			users.setupDatabaseAndRotatePasswords(ctx, database)
 		}
 
@@ -101,13 +106,14 @@ func TestUsers(t *testing.T) {
 		requireDatabaseWithManagedUsers(t, users, db4, nil)
 		requireDatabaseWithManagedUsers(t, users, db5, nil)
 		requireDatabaseWithManagedUsers(t, users, db6, []string{"alice", "bob"})
+		requireDatabaseWithManagedUsers(t, users, db7, []string{"primary", "primaryReadonly", "secondary", "secondaryReadonly"})
 	})
 
 	t.Run("setup all databases", func(t *testing.T) {
 		clock.Advance(time.Hour)
 
 		// Remove db2.
-		users.setupAllDatabasesAndRotatePassowrds(ctx, types.Databases{db1, db3, db4, db5, db6})
+		users.setupAllDatabasesAndRotatePassowrds(ctx, types.Databases{db1, db3, db4, db5, db6, db7})
 
 		// Validate db1 is updated thourgh cfg.UpdateMeta.
 		requireDatabaseWithManagedUsers(t, users, db1, []string{"charlie", "dan"})
@@ -168,6 +174,21 @@ func mustCreateRDSDatabase(t *testing.T, name string) types.Database {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+	})
+	require.NoError(t, err)
+	return db
+}
+
+func mustCreateCosmosDBDatabase(t *testing.T, name string) types.Database {
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: name,
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      fmt.Sprintf("%s.mongo.cosmos.azure.com:10255", name),
+		Azure: types.Azure{
+			Name:       name,
+			ResourceID: fmt.Sprintf("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/database-access/providers/Microsoft.DocumentDB/databaseAccounts/%s", name),
+		},
 	})
 	require.NoError(t, err)
 	return db

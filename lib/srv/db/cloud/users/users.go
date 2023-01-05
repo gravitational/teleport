@@ -275,6 +275,7 @@ func makeFetchers(cfg Config) (map[string]Fetcher, error) {
 	newFetcherFuncs := []func(Config) (Fetcher, error){
 		newElastiCacheFetcher,
 		newMemoryDBFetcher,
+		newCosmosDBFetcher,
 	}
 
 	fetchersByType := make(map[string]Fetcher)

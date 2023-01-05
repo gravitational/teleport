@@ -17,6 +17,7 @@ limitations under the License.
 package mongodb
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"net"
@@ -186,6 +187,8 @@ func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, 
 		return s.handlePing(message)
 	case commandFind:
 		return s.handleFind(message)
+	case commandSaslStart:
+		return s.handleBasicAuth(message)
 	}
 	return nil, trace.NotImplemented("unsupported message: %v", message)
 }
@@ -204,6 +207,29 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return protocol.MakeOpMsg(authReply), nil
+}
+
+// handlBasicAuth makes response to the client's "saslStart" command.
+func (s *TestServer) handleBasicAuth(message protocol.Message) (protocol.Message, error) {
+	opmsg := message.(*protocol.MessageOpMsg)
+	_, userPass := opmsg.BodySection.Document.Lookup("payload").Binary()
+
+	// Split username and password.
+	_, pass, ok := bytes.Cut(bytes.TrimPrefix(userPass, []byte("\x00")), []byte("\x00"))
+	if !ok {
+		return nil, trace.BadParameter("malformed authentication")
+	}
+
+	if string(pass) != s.cfg.AuthToken {
+		return nil, trace.BadParameter("invalid password")
+	}
+
+	authReply, err := makeSaslReply()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return protocol.MakeOpMsg(authReply), nil
 }
 
@@ -271,10 +297,11 @@ func (s *TestServer) Close() error {
 }
 
 const (
-	commandAuth     = "authenticate"
-	commandIsMaster = "isMaster"
-	commandPing     = "ping"
-	commandFind     = "find"
+	commandAuth      = "authenticate"
+	commandIsMaster  = "isMaster"
+	commandPing      = "ping"
+	commandFind      = "find"
+	commandSaslStart = "saslStart"
 )
 
 // makeOKReply builds a generic document used to indicate success e.g.
@@ -302,5 +329,13 @@ func makeFindReply(result interface{}) ([]byte, error) {
 		"cursor": bson.M{
 			"firstBatch": result,
 		},
+	})
+}
+
+// makeSaslReply builds a document used as "saslStart" command reply.
+func makeSaslReply() ([]byte, error) {
+	return bson.Marshal(bson.M{
+		"ok":   1,
+		"done": true,
 	})
 }

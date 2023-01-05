@@ -142,6 +142,9 @@ type AzureClients interface {
 	// GetAzureManagedSQLServerClient returns an Azure ManagedSQL Server client
 	// for the specified subscription.
 	GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error)
+	// GetAzureCosmosDatabaseAccountsClient returns an Azure Cosmos database
+	// accounts for the specified subscription.
+	GetAzureCosmosDatabaseAccountsClient(subscription string) (azure.CosmosDatabaseAccountsClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -149,14 +152,15 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:            make(map[string]azure.DBServersClient),
-			azurePostgresClients:         make(map[string]azure.DBServersClient),
-			azureRedisClients:            azure.NewClientMap(azure.NewRedisClient),
-			azureRedisEnterpriseClients:  azure.NewClientMap(azure.NewRedisEnterpriseClient),
-			azureKubernetesClient:        make(map[string]azure.AKSClient),
-			azureVirtualMachinesClients:  azure.NewClientMap(azure.NewVirtualMachinesClient),
-			azureSQLServerClients:        azure.NewClientMap(azure.NewSQLClient),
-			azureManagedSQLServerClients: azure.NewClientMap(azure.NewManagedSQLClient),
+			azureMySQLClients:                  make(map[string]azure.DBServersClient),
+			azurePostgresClients:               make(map[string]azure.DBServersClient),
+			azureRedisClients:                  azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients:        azure.NewClientMap(azure.NewRedisEnterpriseClient),
+			azureKubernetesClient:              make(map[string]azure.AKSClient),
+			azureVirtualMachinesClients:        azure.NewClientMap(azure.NewVirtualMachinesClient),
+			azureSQLServerClients:              azure.NewClientMap(azure.NewSQLClient),
+			azureManagedSQLServerClients:       azure.NewClientMap(azure.NewManagedSQLClient),
+			azureCosmosDatabaseAccountsClients: azure.NewClientMap(azure.NewCosmosDatabaseAccountsClient),
 		},
 	}
 }
@@ -204,6 +208,9 @@ type azureClients struct {
 	// azureManagedSQLServerClient is the cached Azure Managed SQL Server
 	// client.
 	azureManagedSQLServerClients azure.ClientMap[azure.ManagedSQLServerClient]
+	// azureCosmosDatabaseAccountsClients is the cached Azure CosmosDB database
+	// accounts client.
+	azureCosmosDatabaseAccountsClients azure.ClientMap[azure.CosmosDatabaseAccountsClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -469,6 +476,12 @@ func (c *cloudClients) GetAzureSQLServerClient(subscription string) (azure.SQLSe
 	return c.azureSQLServerClients.Get(subscription, c.GetAzureCredential)
 }
 
+// GetAzureCosmosDatabaseAccountsClient returns an Azure Cosmos database
+// accounts for the specified subscription.
+func (c *cloudClients) GetAzureCosmosDatabaseAccountsClient(subscription string) (azure.CosmosDatabaseAccountsClient, error) {
+	return c.azureCosmosDatabaseAccountsClients.Get(subscription, c.GetAzureCredential)
+}
+
 // GetAzureManagedSQLServerClient returns an Azure client for listing managed
 // SQL servers.
 func (c *cloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
@@ -688,33 +701,34 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS                     rdsiface.RDSAPI
-	RDSPerRegion            map[string]rdsiface.RDSAPI
-	Redshift                redshiftiface.RedshiftAPI
-	RedshiftServerless      redshiftserverlessiface.RedshiftServerlessAPI
-	ElastiCache             elasticacheiface.ElastiCacheAPI
-	MemoryDB                memorydbiface.MemoryDBAPI
-	SecretsManager          secretsmanageriface.SecretsManagerAPI
-	IAM                     iamiface.IAMAPI
-	STS                     stsiface.STSAPI
-	GCPSQL                  gcp.SQLAdminClient
-	GCPGKE                  gcp.GKEClient
-	EC2                     ec2iface.EC2API
-	SSM                     ssmiface.SSMAPI
-	InstanceMetadata        InstanceMetadata
-	EKS                     eksiface.EKSAPI
-	AzureMySQL              azure.DBServersClient
-	AzureMySQLPerSub        map[string]azure.DBServersClient
-	AzurePostgres           azure.DBServersClient
-	AzurePostgresPerSub     map[string]azure.DBServersClient
-	AzureSubscriptionClient *azure.SubscriptionClient
-	AzureRedis              azure.RedisClient
-	AzureRedisEnterprise    azure.RedisEnterpriseClient
-	AzureAKSClientPerSub    map[string]azure.AKSClient
-	AzureAKSClient          azure.AKSClient
-	AzureVirtualMachines    azure.VirtualMachinesClient
-	AzureSQLServer          azure.SQLServerClient
-	AzureManagedSQLServer   azure.ManagedSQLServerClient
+	RDS                         rdsiface.RDSAPI
+	RDSPerRegion                map[string]rdsiface.RDSAPI
+	Redshift                    redshiftiface.RedshiftAPI
+	RedshiftServerless          redshiftserverlessiface.RedshiftServerlessAPI
+	ElastiCache                 elasticacheiface.ElastiCacheAPI
+	MemoryDB                    memorydbiface.MemoryDBAPI
+	SecretsManager              secretsmanageriface.SecretsManagerAPI
+	IAM                         iamiface.IAMAPI
+	STS                         stsiface.STSAPI
+	GCPSQL                      gcp.SQLAdminClient
+	GCPGKE                      gcp.GKEClient
+	EC2                         ec2iface.EC2API
+	SSM                         ssmiface.SSMAPI
+	InstanceMetadata            InstanceMetadata
+	EKS                         eksiface.EKSAPI
+	AzureMySQL                  azure.DBServersClient
+	AzureMySQLPerSub            map[string]azure.DBServersClient
+	AzurePostgres               azure.DBServersClient
+	AzurePostgresPerSub         map[string]azure.DBServersClient
+	AzureSubscriptionClient     *azure.SubscriptionClient
+	AzureRedis                  azure.RedisClient
+	AzureRedisEnterprise        azure.RedisEnterpriseClient
+	AzureAKSClientPerSub        map[string]azure.AKSClient
+	AzureAKSClient              azure.AKSClient
+	AzureVirtualMachines        azure.VirtualMachinesClient
+	AzureSQLServer              azure.SQLServerClient
+	AzureManagedSQLServer       azure.ManagedSQLServerClient
+	AzureCosmosDatabaseAccounts azure.CosmosDatabaseAccountsClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -877,6 +891,12 @@ func (c *TestCloudClients) GetAzureSQLServerClient(subscription string) (azure.S
 // SQL servers.
 func (c *TestCloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
 	return c.AzureManagedSQLServer, nil
+}
+
+// GetAzureCosmosDatabaseAccountsClient returns an Azure Cosmos database
+// accounts for the specified subscription.
+func (c *TestCloudClients) GetAzureCosmosDatabaseAccountsClient(subscription string) (azure.CosmosDatabaseAccountsClient, error) {
+	return c.AzureCosmosDatabaseAccounts, nil
 }
 
 // Close closes all initialized clients.
