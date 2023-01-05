@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -306,7 +305,7 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
-	return cmp.Equal(a, AWS{})
+	return protoEqual(&a, &AWS{})
 }
 
 // GetAWS returns the database AWS metadata.
@@ -329,7 +328,7 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 
 // IsEmpty returns true if Azure metadata is empty.
 func (a Azure) IsEmpty() bool {
-	return cmp.Equal(a, Azure{})
+	return protoEqual(&a, &Azure{})
 }
 
 // GetAzure returns Azure database server metadata.
@@ -432,7 +431,7 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	if aws.RDSProxy.Name != "" || aws.RDSProxy.CustomEndpointName != "" {
 		return DatabaseTypeRDSProxy, true
 	}
-	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ClusterID != "" {
+	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ResourceID != "" || aws.RDS.ClusterID != "" {
 		return DatabaseTypeRDS, true
 	}
 	return "", false
