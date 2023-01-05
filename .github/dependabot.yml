@@ -4,6 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
       # Deprecated APIs, requires manual changes.
       # TODO(xacrimon): Update Firestore and solve deprecations.
@@ -42,6 +44,8 @@ updates:
     directory: "/api"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
       # TODO(tross): Update after Firestore is updated
       - dependency-name: google.golang.org/genproto
@@ -57,6 +61,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
@@ -67,6 +73,8 @@ updates:
     directory: "/lib/srv/desktop/rdp/rdpclient"
     schedule:
       interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
