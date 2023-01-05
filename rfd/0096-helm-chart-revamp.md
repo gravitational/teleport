@@ -61,8 +61,7 @@ The resources in the chart would be split in two subdirectories,
 `templates/auth/` and `templates/proxy/` to clearly identify which resource is
 used by which teleport node. Common resources should be put in `templates/`.
 
-The chart would deploy two StatefulSets (instead of the previous deployment):
-one for the proxies and one for the auths.
+The chart would deploy two Deployments: one for the proxies and one for the auths.
 
 - the `teleport-proxy` Deployment: Those pods are stateless by default and can
   be upscaled even in standalone mode. Deploying those nodes using a Deployment
@@ -71,13 +70,11 @@ one for the proxies and one for the auths.
   recordings during a rollout if using the `proxy` mode. Teleport nodes
   are relying on `kube` ProvisionTokens to join the auth nodes on startup ([see
   RFD-0094](https://github.com/gravitational/teleport/blob/rfd/0096-helm-chart-revamp/rfd/0096-helm-chart-revamp.md)).
-- the `teleport-auth` StatefulSet: Those pods are stateful by default as they
-  store audit logs and the cluster state on disk. Those pods cannot be
-  replicated without remote backend for state and audit logs. For backward
-  compatibility reasons, the existing single volume will be mounted to those
-  pods. This will block the StatefulSet from being upscaled with persistence,
-  but it would have required a remote backend anyway (because our SQLite backend
-  does not support replication).
+- the `teleport-auth` Deployment:  Those pods cannot be
+  replicated without remote backend for state and audit logs. When persistence is
+  enabled, a single volume will be mounted to those pods and the update strategy
+  will be "re-create". For setups in which auth pods are stateless, the Deployment
+  can be scaled up.
 
 The main LB service should send traffic to the proxies, two additional services
 for in-cluster communication should be created: one for the proxies and one for
@@ -102,8 +99,8 @@ label recommendations](https://helm.sh/docs/chart_best_practices/labels/):
 | app.kubernetes.io/component  | `auth` or `proxy`                     | This is a common label for marking the different roles that pieces may play in an application. |
 
 Those labels should be applied to all deployed resources when applicable.
-This includes but does not limit to Pods, Deployments, StatefulSets,
-ConfigMaps, Secrets and Services.
+This includes but does not limit to Pods, Deployments, ConfigMaps,
+Secrets and Services.
 
 The `app: {{.Release.Name}}` label should stay on the auth pods for
 compatibility reasons.
