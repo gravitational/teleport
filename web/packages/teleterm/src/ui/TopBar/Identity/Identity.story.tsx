@@ -83,6 +83,8 @@ export function OneClusterWithActiveCluster() {
       name: 'alice',
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
+      requestableRolesList: [],
+      suggestedReviewersList: [],
     },
   };
 
@@ -178,6 +180,8 @@ export function ManyClustersWithActiveCluster() {
       name: activeIdentityRootCluster.userName,
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
+      requestableRolesList: [],
+      suggestedReviewersList: [],
     },
   };
 
@@ -245,6 +249,8 @@ export function LongNamesWithManyRoles() {
         'sales-center-floor-db-access',
       ],
       sshLoginsList: ['root'],
+      requestableRolesList: [],
+      suggestedReviewersList: [],
     },
   };
 
