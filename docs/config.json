@@ -1090,10 +1090,6 @@
           "slug": "/reference/audit/"
         },
         {
-          "title": "Session Recording",
-          "slug": "/reference/session-recording/"
-        },
-        {
           "title": "Authentication",
           "slug": "/reference/authentication/"
         },
@@ -1173,6 +1169,10 @@
         {
           "title": "Teleport Nodes",
           "slug": "/architecture/nodes/"
+        },
+        {
+          "title": "Session Recording",
+          "slug": "/architecture/session-recording/"
         },
         {
           "title": "TLS Routing",
