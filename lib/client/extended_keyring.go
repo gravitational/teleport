@@ -491,13 +491,19 @@ func callKeyExtension(agent agent.ExtendedAgent) (*profile.Profile, *ForwardedKe
 	return &profile, &forwardedKey, nil
 }
 
+// KeyExtensionResponse is a request object for the prompt-mfa-challenge@goteleport.com extension.
 type promptMFAChallengeRequest struct {
-	ProxyAddr         string
-	MFAChallengeBlob  []byte
-	ChallengeOptsBlob []byte
+	// ProxyAddr is the teleport proxy address that this challenge originated from.
+	ProxyAddr string
+	// MFAChallengeBlob is a json encoded *proto.MFAAuthenticateChallenge.
+	MFAChallengeBlob []byte
+	// MFAChallengeOptsBlob is a json encoded *proto.PromptMFAChallengeOpts.
+	MFAChallengeOptsBlob []byte
 }
 
+// KeyExtensionResponse is a response object for the prompt-mfa-challenge@goteleport.com extension.
 type promptMFAChallengeResponse struct {
+	// MFAChallengeResponseBlob is a json encoded *proto.MFAAuthenticateRespons.
 	MFAChallengeResponseBlob []byte
 }
 
@@ -516,7 +522,7 @@ func promptMFAChallengeExtensionHandler(r *extendedKeyring) extensionHandler {
 		}
 
 		var challengeOpts PromptMFAChallengeOpts
-		if err := json.Unmarshal(req.ChallengeOptsBlob, &challengeOpts); err != nil {
+		if err := json.Unmarshal(req.MFAChallengeOptsBlob, &challengeOpts); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -554,9 +560,9 @@ func callPromptMFAChallengeExtension(agent agent.ExtendedAgent, proxyAddr string
 	}
 
 	req := promptMFAChallengeRequest{
-		ProxyAddr:         proxyAddr,
-		MFAChallengeBlob:  challengeBlob,
-		ChallengeOptsBlob: challengeOptsBlob,
+		ProxyAddr:            proxyAddr,
+		MFAChallengeBlob:     challengeBlob,
+		MFAChallengeOptsBlob: challengeOptsBlob,
 	}
 
 	respBlob, err := agent.Extension(promptMFAChallengeAgentExtension, ssh.Marshal(req))
