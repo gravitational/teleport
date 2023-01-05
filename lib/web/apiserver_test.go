@@ -578,7 +578,7 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 }
 
 func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Response {
-	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "web", "renew"), nil)
 	require.NoError(t, err)
 	return resp
 }
@@ -775,7 +775,7 @@ func TestWebSessionsCRUD(t *testing.T) {
 	// now delete session
 	_, err = pack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests trying to use this session will fail
@@ -1129,7 +1129,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					ID: session.ID("not a uuid"),
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "login: missing login",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1137,7 +1138,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					Login: "",
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "server: missing server",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1921,7 +1923,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	_, err = stream.Read(out)
 	require.NoError(t, err)
 
-	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// wait until we timeout or detect that connection has been closed
@@ -3735,7 +3737,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Len(t, sessions, len(applications))
 
 	// Logout from Telport.
-	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
@@ -4481,7 +4483,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// now delete session
 	_, err = newPack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests to use this session will fail
@@ -6859,7 +6861,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessRequestID := accessReq.GetMetadata().Name
 
 	// Make a request to renew the session with the ID of the access request.
-	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "renew"), renewSessionRequest{
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "web", "renew"), renewSessionRequest{
 		AccessRequestID: accessRequestID,
 	})
 	require.NoError(t, err)
@@ -7387,7 +7389,7 @@ func TestLogout(t *testing.T) {
 	require.Len(t, clusters, 1)
 
 	// logout from proxy 1
-	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// ensure proxy 1 invalidated the session
