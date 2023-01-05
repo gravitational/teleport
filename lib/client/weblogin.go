@@ -283,19 +283,19 @@ func initClient(config ClientConfig) (*WebClient, *url.URL, error) {
 		}
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", config.ProxyAddr)
 	}
-	config.ProxyAddr = "https://" + net.JoinHostPort(host, port)
-	u, err := url.Parse(config.ProxyAddr)
+	proxyAddr := "https://" + net.JoinHostPort(host, port)
+	u, err := url.Parse(proxyAddr)
 	if err != nil {
-		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", config.ProxyAddr)
+		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 
 	if config.Insecure {
-		// Skip https cert verification, print a warning that this is insecure.
-		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to Teleport proxy %v\n", config.ProxyAddr)
+		// Skipping https cert verification, print a warning that this is insecure.
+		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to Teleport proxy %v\n", proxyAddr)
 	}
 
 	opt := roundtrip.HTTPClient(newClient(config.Insecure, config.Pool, config.ExtraHeaders))
-	clt, err := NewWebClient(config.ProxyAddr, opt)
+	clt, err := NewWebClient(proxyAddr, opt)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
