@@ -251,50 +251,33 @@ type SSHLoginPasswordless struct {
 	CustomPrompt wancli.LoginPrompt
 }
 
-// ClientConfig contains the client configuration.
-type ClientConfig struct {
-	// ProxyAddr is the target proxy address
-	ProxyAddr string
-	// Insecure turns off verification for x509 target proxy
-	Insecure bool
-	// Pool is x509 cert pool to use for server certificate verification
-	Pool *x509.CertPool
-	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
-	ExtraHeaders map[string]string
-}
-
 // initClient creates a new client to the HTTPS web proxy.
-func initClient(config ClientConfig) (*WebClient, *url.URL, error) {
+func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentClient,
 	})
-	log.Debugf(
-		"HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)",
-		config.ProxyAddr,
-		config.Insecure,
-		config.ExtraHeaders,
-	)
+	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
 
 	// validate proxy address
-	host, port, err := net.SplitHostPort(config.ProxyAddr)
+	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
 			log.Error(err)
 		}
-		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", config.ProxyAddr)
+		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
-	proxyAddr := "https://" + net.JoinHostPort(host, port)
+	proxyAddr = "https://" + net.JoinHostPort(host, port)
 	u, err := url.Parse(proxyAddr)
 	if err != nil {
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 
-	if config.Insecure {
+	if insecure {
 		// Skipping https cert verification, print a warning that this is insecure.
 		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to Teleport proxy %v\n", proxyAddr)
 	}
 
-	opt := roundtrip.HTTPClient(newClient(config.Insecure, config.Pool, config.ExtraHeaders))
+	opt := roundtrip.HTTPClient(newClient(insecure, pool, extraHeaders))
 	clt, err := NewWebClient(proxyAddr, opt)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -374,12 +357,7 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
 func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(ClientConfig{
-		ProxyAddr:    login.ProxyAddr,
-		Insecure:     login.Insecure,
-		Pool:         login.Pool,
-		ExtraHeaders: login.ExtraHeaders,
-	})
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -414,12 +392,7 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 //
 // Returns the SSH certificate if authn is successful or an error.
 func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
-	webClient, webURL, err := initClient(ClientConfig{
-		ProxyAddr:    login.ProxyAddr,
-		Insecure:     login.Insecure,
-		Pool:         login.Pool,
-		ExtraHeaders: login.ExtraHeaders,
-	})
+	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -490,12 +463,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
 func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(ClientConfig{
-		ProxyAddr:    login.ProxyAddr,
-		Insecure:     login.Insecure,
-		Pool:         login.Pool,
-		ExtraHeaders: login.ExtraHeaders,
-	})
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -563,12 +531,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 // HostCredentials is used to fetch host credentials for a node.
 func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	clt, _, err := initClient(ClientConfig{
-		ProxyAddr:    proxyAddr,
-		Insecure:     insecure,
-		Pool:         nil,
-		ExtraHeaders: nil,
-	})
+	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -588,12 +551,7 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 
 // GetWebConfig is used by teleterm to fetch webconfig.js from proxies
 func GetWebConfig(ctx context.Context, proxyAddr string, insecure bool) (*webclient.WebConfig, error) {
-	clt, _, err := initClient(ClientConfig{
-		ProxyAddr:    proxyAddr,
-		Insecure:     insecure,
-		Pool:         nil,
-		ExtraHeaders: nil,
-	})
+	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
