@@ -131,14 +131,14 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 			},
 		}
 	case recoveryCodesCopyClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
-			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
+		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesCopyClick{
+			UiRecoveryCodesCopyClick: &v1.UIRecoveryCodesCopyClickEvent{
 				Username: req.Username,
 			},
 		}
 	case recoveryCodesPrintClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
-			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
+		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesPrintClick{
+			UiRecoveryCodesPrintClick: &v1.UIRecoveryCodesPrintClickEvent{
 				Username: req.Username,
 			},
 		}
