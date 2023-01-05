@@ -196,7 +196,7 @@ func (k *Key) HostKeyCallback(hostname string) ssh.HostKeyCallback {
 					for _, ak := range k.AuthorizedHostKeys(hostname) {
 						authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(ak)
 						if err != nil {
-							log.Errorf("Failed to parse authorized key: %s; raw key: %s", err, string(ak))
+							log.Errorf("Failed to parse authorized key: %v; raw key: %s", err, string(ak))
 							return false
 						}
 						if apisshutils.KeysEqual(authorizedKey, key) {

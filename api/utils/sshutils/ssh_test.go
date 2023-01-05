@@ -127,6 +127,7 @@ func TestSSHMarshalEd25519(t *testing.T) {
 }
 
 func TestMatchesWildcard(t *testing.T) {
+	t.Parallel()
 	t.Run("Wildcard match", func(t *testing.T) {
 		require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
 		require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
