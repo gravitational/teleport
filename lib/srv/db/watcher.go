@@ -18,15 +18,22 @@ package db
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -160,6 +167,10 @@ func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels
 	if !ok {
 		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
+
+	if s.monitoredDatabases.isDiscoveryResource(database) {
+		s.cfg.discoveryResourceChecker.check(ctx, database)
+	}
 	return s.registerDatabase(ctx, database)
 }
 
@@ -197,4 +208,104 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 	// Database resources created via CLI, API, or discovery service are
 	// filtered by resource matchers.
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
+}
+
+type discoveryResourceChecker interface {
+	check(ctx context.Context, database types.Database)
+}
+
+type discoveryResourceCheckerImpl struct {
+	cloudClients clients.Clients
+	log          *logrus.Entry
+	cache        *utils.FnCache
+}
+
+func newDiscoveryResourceChecker(ctx context.Context, cloudClients clients.Clients) (discoveryResourceChecker, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:     10 * time.Minute,
+		Context: ctx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &discoveryResourceCheckerImpl{
+		cloudClients: cloudClients,
+		log:          logrus.WithField(trace.Component, teleport.ComponentDatabase),
+		cache:        cache,
+	}, nil
+}
+
+// check performs some quick checks to see whether this database agent can handle
+// the incoming database (likely created by discovery service), and logs a
+// warning with suggestions for this situation.
+func (c *discoveryResourceCheckerImpl) check(ctx context.Context, database types.Database) {
+	if database.Origin() != types.OriginCloud {
+		return
+	}
+
+	switch {
+	case database.IsAWSHosted():
+		c.checkAWS(ctx, database)
+	case database.IsAzure():
+		c.checkAzure(ctx, database)
+	default:
+		c.log.Debugf("Database %q has unknown cloud type %q.", database.GetName(), database.GetType())
+	}
+}
+
+func (c *discoveryResourceCheckerImpl) checkAWS(ctx context.Context, database types.Database) {
+	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
+		client, err := c.cloudClients.GetAWSSTSClient("")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return aws.GetIdentityWithClient(ctx, client)
+	})
+	if err != nil {
+		c.warn(err, database, "Failed to get AWS caller identity when checking a database created by the discovery service.")
+		return
+	}
+
+	meta := database.GetAWS()
+	if meta.AccountID != "" && meta.AccountID != identity.GetAccountID() {
+		c.warn(nil, database, fmt.Sprintf("The database agent's caller identity and discovered database %q have different AWS account IDs (%s vs %s).",
+			database.GetName(),
+			identity.GetAccountID(),
+			meta.AccountID,
+		))
+		return
+	}
+}
+
+func (c *discoveryResourceCheckerImpl) checkAzure(ctx context.Context, database types.Database) {
+	allSubIDs, err := utils.FnCacheGet(ctx, c.cache, types.CloudAzure, func(ctx context.Context) ([]string, error) {
+		client, err := c.cloudClients.GetAzureSubscriptionClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return client.ListSubscriptionIDs(ctx)
+	})
+	if err != nil {
+		c.warn(err, database, "Failed to get Azure subscription IDs when checking a database created by the discovery service.")
+		return
+	}
+
+	if rid, err := arm.ParseResourceID(database.GetAzure().ResourceID); err == nil {
+		if !slices.Contains(allSubIDs, rid.SubscriptionID) {
+			c.warn(nil, database, fmt.Sprintf("The discovered database %q is in a different subscription (ID: %s) than the database agent's tenant.",
+				database.GetName(),
+				rid.SubscriptionID,
+			))
+			return
+		}
+	}
+}
+
+func (c *discoveryResourceCheckerImpl) warn(err error, database types.Database, msg string) {
+	log := c.log.WithField("database", database)
+	if err != nil {
+		log = log.WithError(err)
+	}
+	log.Warnf("%s You can update \"db_service.resources\" section of this agent's config file to filter out unwanted resources. If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.", msg)
 }

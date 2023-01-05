@@ -2034,11 +2034,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		CADownloader: &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
 		},
-		OnReconcile:   p.OnReconcile,
-		LockWatcher:   lockWatcher,
-		CloudClients:  p.CloudClients,
-		AWSMatchers:   p.AWSMatchers,
-		AzureMatchers: p.AzureMatchers,
+		OnReconcile:              p.OnReconcile,
+		LockWatcher:              lockWatcher,
+		CloudClients:             p.CloudClients,
+		AWSMatchers:              p.AWSMatchers,
+		AzureMatchers:            p.AzureMatchers,
+		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
 
@@ -2488,6 +2489,12 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 		}
 		return database
 	}
+}
+
+type fakeDiscoveryResourceChecker struct {
+}
+
+func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{
