@@ -60,20 +60,15 @@ func (h *Handler) desktopConnectHandle(
 	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
-	clusterName := p.ByName("site")
-	if clusterName == "" {
-		return nil, trace.BadParameter("missing site in request URL")
-	}
-
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 
-	log := sctx.cfg.Log.WithField("desktop-name", desktopName)
+	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, clusterName, log, sctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
