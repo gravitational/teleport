@@ -62,3 +62,17 @@ export type DatabaseIamPolicyAws = {
   policy_document: string;
   placeholders: string;
 };
+
+export type DatabaseService = {
+  // name is the name of the database service.
+  name: string;
+  // matcherLabels is a map of label keys with list of label values
+  // that this service can discover databases with matching labels.
+  matcherLabels: Record<string, string[]>;
+};
+
+export type DatabaseServicesResponse = {
+  services: DatabaseService[];
+  startKey?: string;
+  totalCount?: number;
+};

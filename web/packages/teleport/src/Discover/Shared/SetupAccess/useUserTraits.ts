@@ -272,6 +272,7 @@ export function useUserTraits(props: AgentStepProps) {
     getSelectableOptions,
     dynamicTraits,
     staticTraits,
+    resourceState: props.resourceState,
   };
 }
 

@@ -23,9 +23,11 @@ import TextEditor from 'shared/components/TextEditor';
 
 import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { Tabs } from 'teleport/components/Tabs';
 
 import { HeaderSubtitle, ActionButtons, Mark, Header } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
+import { DatabaseEngine } from '../resources';
 
 import { useMutualTls, State } from './useMutualTls';
 
@@ -43,6 +45,7 @@ export function MutualTlsView({
   onNextStep,
   curlCmd,
   canUpdateDatabase,
+  dbEngine,
 }: State) {
   const [caCert, setCaCert] = useState('');
 
@@ -87,31 +90,7 @@ export function MutualTlsView({
               <InfoFilled fontSize={18} mr={1} mt="2px" />
               <Text bold>After Running the Command</Text>
             </Flex>
-            <Box>
-              <Text mb={1}>
-                Add the following to the PostgreSQL configuration file{' '}
-                <Mark>postgresql.conf</Mark>, to have your server accept{' '}
-                <Link
-                  href="https://www.postgresql.org/docs/current/ssl-tcp.html"
-                  target="_blank"
-                >
-                  TLS connections
-                </Link>
-                :
-              </Text>
-              <TextSelectCopyMulti
-                bash={false}
-                lines={[
-                  {
-                    text:
-                      `ssl = on\n` +
-                      `ssl_cert_file = '$PGDATA/server.crt'\n` +
-                      `ssl_key_file = '$PGDATA/server.key'\n` +
-                      `ssl_ca_file = '$PGDATA/server.cas'`,
-                  },
-                ]}
-              />
-            </Box>
+            <DbEngineInstructions dbEngine={dbEngine} />
           </StyledBox>
           <Box mb={5}>
             <Text bold>Add a copy of your CA certificate*</Text>
@@ -142,6 +121,171 @@ export function MutualTlsView({
       />
     </Box>
   );
+}
+
+function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
+  if (dbEngine === DatabaseEngine.PostgreSQL) {
+    return (
+      <Box>
+        <Text mb={1}>
+          Add the following to the PostgreSQL configuration file{' '}
+          <Mark>postgresql.conf</Mark>, to have your server accept{' '}
+          <Link
+            href="https://www.postgresql.org/docs/current/ssl-tcp.html"
+            target="_blank"
+          >
+            TLS connections
+          </Link>
+          :
+        </Text>
+        <TextSelectCopyMulti
+          bash={false}
+          lines={[
+            {
+              text:
+                `ssl = on\n` +
+                `ssl_cert_file = '$PGDATA/server.crt'\n` +
+                `ssl_key_file = '$PGDATA/server.key'\n` +
+                `ssl_ca_file = '$PGDATA/server.cas'`,
+            },
+          ]}
+        />
+      </Box>
+    );
+  }
+
+  if (dbEngine === DatabaseEngine.Mongo) {
+    return (
+      <Box>
+        <Text mb={3}>
+          Use the generated secrets to{' '}
+          <Link
+            href="https://www.mongodb.com/docs/manual/tutorial/configure-ssl/"
+            target="_blank"
+          >
+            enable mutual TLS
+          </Link>{' '}
+          in your
+          <Mark>mongod.conf</Mark> configuration file and restart the database:
+        </Text>
+        <Tabs
+          tabs={[
+            {
+              title: 'MongoDB 3.6 - 4.2',
+              content: (
+                <TextSelectCopyMulti
+                  bash={false}
+                  lines={[
+                    {
+                      text:
+                        `net:\n` +
+                        `  ssl:\n` +
+                        `    mode: requireSSL\n` +
+                        `    PEMKeyFile: /etc/certs/mongo.crt\n` +
+                        `    CAFile: /etc/certs/mongo.cas`,
+                    },
+                  ]}
+                />
+              ),
+            },
+            {
+              title: 'MongoDB 4.2+',
+              content: (
+                <TextSelectCopyMulti
+                  bash={false}
+                  lines={[
+                    {
+                      text:
+                        `net:\n` +
+                        `  tls:\n` +
+                        `    mode: requireTLS\n` +
+                        `    certificateKeyFile: /etc/certs/mongo.crt\n` +
+                        `    CAFile: /etc/certs/mongo.cas`,
+                    },
+                  ]}
+                />
+              ),
+            },
+          ]}
+        />
+      </Box>
+    );
+  }
+
+  if (dbEngine === DatabaseEngine.MySQL) {
+    return (
+      <Box>
+        <Text mb={3}>
+          To configure this database to accept TLS connections, add the
+          following to your configuration file, <Mark>mysql.cnf</Mark>:
+        </Text>
+        <Tabs
+          tabs={[
+            {
+              title: 'MySQL',
+              content: (
+                <>
+                  <TextSelectCopyMulti
+                    bash={false}
+                    lines={[
+                      {
+                        text:
+                          `[mysqld]\n` +
+                          `require_secure_transport=ON\n` +
+                          `ssl-ca=/path/to/server.cas\n` +
+                          `ssl-cert=/path/to/server.crt\n` +
+                          `ssl-key=/path/to/server.key`,
+                      },
+                    ]}
+                  />
+                  <Text mt={2}>
+                    See{' '}
+                    <Link
+                      href="https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html"
+                      target="_blank"
+                    >
+                      Configuring MySQL to Use Encrypted Connections
+                    </Link>{' '}
+                    for more details.
+                  </Text>
+                </>
+              ),
+            },
+            {
+              title: 'MariaDB',
+              content: (
+                <>
+                  <TextSelectCopyMulti
+                    bash={false}
+                    lines={[
+                      {
+                        text:
+                          `[mariadb]\n` +
+                          `require_secure_transport=ON\n` +
+                          `ssl-ca=/path/to/server.cas\n` +
+                          `ssl-cert=/path/to/server.crt\n` +
+                          `ssl-key=/path/to/server.key`,
+                      },
+                    ]}
+                  />
+                  <Text mt={2}>
+                    See{' '}
+                    <Link
+                      href="https://mariadb.com/docs/server/security/data-in-transit-encryption/enterprise-server/enable-tls/"
+                      target="_blank"
+                    >
+                      Enabling TLS on MariaDB Server
+                    </Link>{' '}
+                    for more details.
+                  </Text>
+                </>
+              ),
+            },
+          ]}
+        />
+      </Box>
+    );
+  }
 }
 
 const StyledBox = styled(Box)`

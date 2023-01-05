@@ -17,6 +17,8 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { DatabaseEngine } from '../resources';
+
 import { MutualTlsView } from './MutualTls';
 
 import type { State } from './useMutualTls';
@@ -25,9 +27,21 @@ export default {
   title: 'Teleport/Discover/Database/MutualTls',
 };
 
-export const Loaded = () => (
+export const LoadedPostgres = () => (
   <MemoryRouter>
     <MutualTlsView {...props} />
+  </MemoryRouter>
+);
+
+export const LoadedMongo = () => (
+  <MemoryRouter>
+    <MutualTlsView {...props} dbEngine={DatabaseEngine.Mongo} />
+  </MemoryRouter>
+);
+
+export const LoadedSqlMaria = () => (
+  <MemoryRouter>
+    <MutualTlsView {...props} dbEngine={DatabaseEngine.MySQL} />
   </MemoryRouter>
 );
 
@@ -60,4 +74,5 @@ const props: State = {
   onNextStep: () => null,
   canUpdateDatabase: true,
   curlCmd: `some curl command`,
+  dbEngine: DatabaseEngine.PostgreSQL,
 };

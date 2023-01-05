@@ -18,7 +18,7 @@ import React from 'react';
 
 import { Database as DatabaseIcon } from 'design/Icon';
 
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { ResourceKind, Finished } from 'teleport/Discover/Shared';
 import { Resource } from 'teleport/Discover/flow';
 import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
 import {
@@ -54,7 +54,7 @@ export const DatabaseResource: Resource<Database> = {
               component: CreateDatabase,
             },
             {
-              title: 'Deploy Database Agent',
+              title: 'Deploy Database Service',
               component: DownloadScript,
             },
             {
@@ -72,7 +72,7 @@ export const DatabaseResource: Resource<Database> = {
               component: CreateDatabase,
             },
             {
-              title: 'Deploy Database Agent',
+              title: 'Deploy Database Service',
               component: DownloadScript,
             },
             {
@@ -100,6 +100,11 @@ export const DatabaseResource: Resource<Database> = {
       {
         title: 'Test Connection',
         component: TestConnection,
+      },
+      {
+        title: 'Finished',
+        component: Finished,
+        hide: true,
       },
     ];
   },

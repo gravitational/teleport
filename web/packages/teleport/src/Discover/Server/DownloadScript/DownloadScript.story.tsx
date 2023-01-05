@@ -82,7 +82,7 @@ export const PollingError = () => {
     })
   );
   return (
-    <Provider timeout={20}>
+    <Provider timeout={50}>
       <DownloadScript />
     </Provider>
   );

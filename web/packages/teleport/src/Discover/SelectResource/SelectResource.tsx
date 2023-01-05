@@ -140,6 +140,13 @@ export function SelectResource(props: SelectResourceProps) {
                 props.onNext();
               }
             }
+
+            if (state.location === DatabaseLocation.AWS) {
+              if (state.engine === DatabaseEngine.PostgreSQL) {
+                props.onNext();
+              }
+            }
+
             // Unsupported databases will default to the modal popup.
             return setShowAddDB(true);
           }}

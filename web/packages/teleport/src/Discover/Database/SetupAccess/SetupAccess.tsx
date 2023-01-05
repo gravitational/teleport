@@ -30,8 +30,11 @@ import {
 import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
+import { DatabaseEngine, DatabaseLocation } from '../resources';
+
 import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
+import type { Database } from '../resources';
 
 export default function Container(props: AgentStepProps) {
   const state = useUserTraits(props);
@@ -44,6 +47,7 @@ export function SetupAccess(props: State) {
     initSelectedOptions,
     getFixedOptions,
     getSelectableOptions,
+    resourceState,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -98,6 +102,8 @@ export function SetupAccess(props: State) {
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
 
+  const { engine, location } = resourceState as Database;
+
   return (
     <SetupAccessWrapper
       {...restOfProps}
@@ -106,7 +112,7 @@ export function SetupAccess(props: State) {
       traitDescription="names and users"
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
-      infoContent={<Info />}
+      infoContent={<Info dbEngine={engine} dbLocation={location} />}
     >
       <Box mb={4}>
         Database Users
@@ -153,40 +159,16 @@ export function SetupAccess(props: State) {
   );
 }
 
-const Info = () => (
+const Info = (props: {
+  dbEngine: DatabaseEngine;
+  dbLocation: DatabaseLocation;
+}) => (
   <StyledBox mt={5}>
     <Flex mb={2}>
       <InfoFilled fontSize={18} mr={1} mt="2px" />
       <Text bold>To allow access using your Database Users</Text>
     </Flex>
-    <Box mb={3}>
-      <Text mb={1}>
-        Add the following entries to PostgreSQL's{' '}
-        <Link
-          href="https://www.postgresql.org/docs/current/auth-pg-hba-conf.html"
-          target="_blank"
-        >
-          host-based authentication
-        </Link>{' '}
-        file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL require's client
-        CA from clients connecting over TLS:
-      </Text>
-      <TextSelectCopyMulti
-        bash={false}
-        lines={[
-          {
-            text:
-              `hostssl all             all             ::/0                    cert\n` +
-              `hostssl all             all             0.0.0.0/0               cert\n`,
-          },
-        ]}
-      />
-      <Text mt={2}>
-        Note: Ensure that you have no higher-priority md5 authentication rules
-        that will match, otherwise PostgreSQL will offer them first, and the
-        certificate-based Teleport login will fail.
-      </Text>
-    </Box>
+    <DbEngineInstructions {...props} />
     <Box>
       <Text bold>Access Definition</Text>
       <ul
@@ -207,6 +189,156 @@ const Info = () => (
     </Box>
   </StyledBox>
 );
+
+function DbEngineInstructions({
+  dbEngine,
+  dbLocation,
+}: {
+  dbEngine: DatabaseEngine;
+  dbLocation: DatabaseLocation;
+}) {
+  switch (dbLocation) {
+    case DatabaseLocation.AWS:
+      if (dbEngine === DatabaseEngine.PostgreSQL) {
+        return (
+          <Box mb={3}>
+            <Text mb={2}>
+              Database users must allow{' '}
+              <Link
+                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html"
+                target="_blank"
+              >
+                IAM authentication
+              </Link>{' '}
+              in order to be used with Database Access for RDS. To enable, users
+              must have a <Mark>rds_iam</Mark> role:
+            </Text>
+            <TextSelectCopyMulti
+              bash={false}
+              lines={[
+                {
+                  text:
+                    `CREATE USER YOUR_USERNAME;\n` +
+                    `GRANT rds_iam TO YOUR_USERNAME;`,
+                },
+              ]}
+            />
+          </Box>
+        );
+      }
+      break;
+
+    // self-hosted databases
+    default:
+      if (dbEngine === DatabaseEngine.PostgreSQL) {
+        return (
+          <Box mb={3}>
+            <Text mb={2}>
+              Add the following entries to PostgreSQL's{' '}
+              <Link
+                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.PostgreSQL"
+                target="_blank"
+              >
+                host-based authentication
+              </Link>{' '}
+              file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL require's
+              client CA from clients connecting over TLS:
+            </Text>
+            <TextSelectCopyMulti
+              bash={false}
+              lines={[
+                {
+                  text:
+                    `hostssl all             all             ::/0                    cert\n` +
+                    `hostssl all             all             0.0.0.0/0               cert\n`,
+                },
+              ]}
+            />
+            <Text mt={2}>
+              Note: Ensure that you have no higher-priority md5 authentication
+              rules that will match, otherwise PostgreSQL will offer them first,
+              and the certificate-based Teleport login will fail.
+            </Text>
+          </Box>
+        );
+      }
+
+      if (dbEngine === DatabaseEngine.Mongo) {
+        return (
+          <Box mb={3}>
+            <Text mb={2}>
+              To create a user for this database, connect to this database using
+              the <Mark>mongosh</Mark>
+              or <Mark>mongo</Mark> shell and run the following command:
+            </Text>
+            <TextSelectCopyMulti
+              bash={false}
+              lines={[
+                {
+                  text:
+                    `db.getSiblingDB("$external").runCommand(\n` +
+                    `  {\n` +
+                    `    createUser: "CN=YOUR_USERNAME",\n` +
+                    `    roles: [\n` +
+                    `      { role: "readWriteAnyDatabase", db: "admin" }\n` +
+                    `    ]\n` +
+                    `  }\n` +
+                    `)`,
+                },
+              ]}
+            />
+          </Box>
+        );
+      }
+
+      if (dbEngine === DatabaseEngine.MySQL) {
+        return (
+          <Box mb={3}>
+            <Text mb={2}>
+              MySQL/MariaDB database user accounts must be configured to require
+              a valid client certificate.
+            </Text>
+            <Box mb={2}>
+              <Text bold>To create a new user:</Text>
+              <TextSelectCopyMulti
+                bash={false}
+                lines={[
+                  {
+                    text: `CREATE USER 'YOUR_USERNAME'@'%' REQUIRE SUBJECT '/CN=YOUR_USERNAME';`,
+                  },
+                ]}
+              />
+            </Box>
+            <Box mb={3}>
+              <Text bold>To update an existing user:</Text>
+              <TextSelectCopyMulti
+                bash={false}
+                lines={[
+                  {
+                    text: `ALTER USER 'YOUR_USERNAME'@'%' REQUIRE SUBJECT '/CN=YOUR_USERNAME';`,
+                  },
+                ]}
+              />
+            </Box>
+            <Box>
+              <Text>
+                By default, the created user may not have access to anything and
+                won't be able to connect, so let's grant it some permissions:
+              </Text>
+              <TextSelectCopyMulti
+                bash={false}
+                lines={[
+                  {
+                    text: "GRANT ALL ON ` % `.* TO 'YOUR_USERNAME'@'%';",
+                  },
+                ]}
+              />
+            </Box>
+          </Box>
+        );
+      }
+  }
+}
 
 const StyledBox = styled(Box)`
   max-width: 800px;

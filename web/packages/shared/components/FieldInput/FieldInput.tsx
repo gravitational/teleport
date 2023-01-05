@@ -17,6 +17,7 @@ limitations under the License.
 import React, { forwardRef } from 'react';
 import { Box, Input, LabelInput, Text } from 'design';
 
+import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useRule } from 'shared/components/Validation';
 
 const FieldInput = forwardRef<HTMLInputElement, Props>(
@@ -37,6 +38,7 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
       autoComplete = 'off',
       inputMode = 'text',
       readonly = false,
+      toolTipContent = null,
       ...styles
     },
     ref
@@ -69,8 +71,25 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
       <Box mb="4" {...styles}>
         {label ? (
           <LabelInput mb={0} hasError={hasError}>
-            {labelText}
-            {labelTip && <LabelTip text={labelTip} />}
+            {toolTipContent ? (
+              <>
+                <span
+                  css={{
+                    marginRight: '4px',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  {labelText}
+                  {labelTip && <LabelTip text={labelTip} />}
+                </span>
+                <ToolTipInfo children={toolTipContent} />
+              </>
+            ) : (
+              <>
+                {labelText}
+                {labelTip && <LabelTip text={labelTip} />}
+              </>
+            )}
             {$inputElement}
           </LabelInput>
         ) : (
@@ -105,6 +124,7 @@ type Props = {
   defaultValue?: string;
   min?: number;
   max?: number;
+  toolTipContent?: React.ReactNode;
   // TS: temporary handles ...styles
   [key: string]: any;
 };

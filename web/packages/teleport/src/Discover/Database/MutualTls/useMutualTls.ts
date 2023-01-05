@@ -26,6 +26,7 @@ import { resourceKindToJoinRole } from 'teleport/Discover/Shared/ResourceKind';
 import { DbMeta } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
+import type { Database } from '../resources';
 
 export function useMutualTls({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');
@@ -83,6 +84,7 @@ export function useMutualTls({ ctx, props }: Props) {
       meta.db.hostname,
       joinToken?.id
     ),
+    dbEngine: (props.resourceState as Database).engine,
   };
 }
 

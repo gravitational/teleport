@@ -17,7 +17,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine, DatabaseLocation } from '../resources';
 
 import { CreateDatabaseView } from './CreateDatabase';
 
@@ -27,9 +27,15 @@ export default {
   title: 'Teleport/Discover/Database/CreateDatabase',
 };
 
-export const Init = () => (
+export const InitSelfHosted = () => (
   <MemoryRouter>
     <CreateDatabaseView {...props} />
+  </MemoryRouter>
+);
+
+export const InitAws = () => (
+  <MemoryRouter>
+    <CreateDatabaseView {...props} dbLocation={DatabaseLocation.AWS} />
   </MemoryRouter>
 );
 
@@ -63,6 +69,7 @@ const props: State = {
   clearAttempt: () => null,
   registerDatabase: () => null,
   canCreateDatabase: true,
-  engine: DatabaseEngine.PostgreSQL,
   pollTimeout: Date.now() + 30000,
+  dbEngine: DatabaseEngine.PostgreSQL,
+  dbLocation: DatabaseLocation.SelfHosted,
 };

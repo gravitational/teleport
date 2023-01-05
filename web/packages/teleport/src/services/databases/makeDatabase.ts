@@ -16,9 +16,9 @@ limitations under the License.
 
 import { formatDatabaseInfo } from 'shared/services/databases';
 
-import { Database } from './types';
+import { Database, DatabaseService } from './types';
 
-export default function makeDatabase(json: any): Database {
+export function makeDatabase(json: any): Database {
   const { name, desc, protocol, type } = json;
 
   const labels = json.labels || [];
@@ -33,4 +33,30 @@ export default function makeDatabase(json: any): Database {
     users: json.database_users || [],
     hostname: json.hostname,
   };
+}
+
+export function makeDatabaseService(json: any): DatabaseService {
+  const { name, resource_matchers } = json;
+
+  return {
+    name,
+    matcherLabels: combineResourceMatcherLabels(resource_matchers || []),
+  };
+}
+
+function combineResourceMatcherLabels(
+  resourceMatchers: any[]
+): Record<string, string[]> {
+  const labelMap: Record<string, string[]> = {};
+
+  resourceMatchers.forEach(rm => {
+    Object.keys(rm.labels || []).forEach(key => {
+      if (!labelMap[key]) {
+        labelMap[key] = [];
+      }
+      labelMap[key] = [...labelMap[key], ...rm.labels[key]];
+    });
+  });
+
+  return labelMap;
 }

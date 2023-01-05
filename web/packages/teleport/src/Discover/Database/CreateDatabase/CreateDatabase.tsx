@@ -41,13 +41,14 @@ import {
   TextIcon,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
-import { getDatabaseProtocol } from '../resources';
+import { DatabaseLocation, getDatabaseProtocol } from '../resources';
 
 import { useCreateDatabase, State } from './useCreateDatabase';
 
 import type { AgentStepProps } from '../../types';
 import type { AgentLabel } from 'teleport/services/agents';
 import type { Attempt } from 'shared/hooks/useAttemptNext';
+import type { AwsRds } from 'teleport/services/databases';
 
 export function CreateDatabase(props: AgentStepProps) {
   const state = useCreateDatabase(props);
@@ -59,8 +60,9 @@ export function CreateDatabaseView({
   clearAttempt,
   registerDatabase,
   canCreateDatabase,
-  engine,
   pollTimeout,
+  dbEngine,
+  dbLocation,
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
@@ -69,23 +71,29 @@ export function CreateDatabaseView({
   // TODO(lisa): default ports depend on type of database.
   const [dbPort, setDbPort] = useState('5432');
 
-  // TODO (lisa or ryan): these depend on if user chose AWS options:
-  // const [awsAccountId, setAwsAccountId] = useState('')
-  // const [awsResourceId, setAwsResourceId] = useState('')
+  // TODO(lisa): refactor using ryan's example (reusable).
+  const [awsAccountId, setAwsAccountId] = useState('');
+  const [awsResourceId, setAwsResourceId] = useState('');
 
   function handleOnProceed(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
 
-    // TODO (lisa or ryan): preserve "self hosted" or "aws"
-    // and protocol on first step, and use it here.
+    let awsRds: AwsRds;
+    if (dbLocation === DatabaseLocation.AWS) {
+      awsRds = {
+        accountId: awsAccountId,
+        resourceId: awsResourceId,
+      };
+    }
+
     registerDatabase({
       labels,
       name: dbName,
       uri: `${dbUri}:${dbPort}`,
-      protocol: getDatabaseProtocol(engine),
-      // TODO (lisa or ryan) add AWS fields
+      protocol: getDatabaseProtocol(dbEngine),
+      awsRds,
     });
   }
 
@@ -115,44 +123,77 @@ export function CreateDatabaseView({
           )}
           {canCreateDatabase && (
             <>
-              <Box width="500px" mb={2}>
+              <Box width="500px">
                 <FieldInput
                   label="Database Name"
-                  rule={requiredField('database name is required')}
+                  // We need this name to comply with AWS policy name
+                  // since it will be used as part of the policy name
+                  // for the AWS flow.
+                  rule={conformNameWithAWSPolicyNameReq}
                   autoFocus
                   value={dbName}
                   placeholder="Enter database name"
                   onChange={e => setDbName(e.target.value)}
+                  toolTipContent="An identifier name for this new database for Teleport."
                 />
               </Box>
-              <Box width="500px" mb={2}>
+              <Flex width="500px">
                 <FieldInput
                   label="Database Connection Endpoint"
-                  rule={requiredField(
-                    'database connection endpoint is required'
-                  )}
+                  rule={requiredField('connection endpoint is required')}
                   value={dbUri}
                   placeholder="db.example.com"
                   onChange={e => setDbUri(e.target.value)}
+                  toolTipContent="Database location and connection information."
+                  width="50%"
+                  mr={2}
                 />
-              </Box>
-              <Box width="500px" mb={6}>
                 <FieldInput
                   label="Endpoint Port"
                   rule={requirePort}
                   value={dbPort}
                   placeholder="5432"
                   onChange={e => setDbPort(e.target.value)}
+                  width="50%"
                 />
-              </Box>
-              {/* TODO (lisa or ryan): add AWS input fields */}
-              <Box>
+              </Flex>
+              {dbLocation === DatabaseLocation.AWS && (
+                <>
+                  <Box width="500px">
+                    <FieldInput
+                      label="AWS Account ID"
+                      rule={requiredAwsAccountId}
+                      value={awsAccountId}
+                      placeholder="123456789012"
+                      onChange={e => setAwsAccountId(e.target.value)}
+                      toolTipContent="A 12-digit number that uniquely identifies your AWS account."
+                    />
+                  </Box>
+                  <Box width="500px" mb={6}>
+                    <FieldInput
+                      label="Resource ID"
+                      value={awsResourceId}
+                      rule={requiredField('database resource ID is required')}
+                      placeholder="db-ABCDE1234567..."
+                      onChange={e => setAwsResourceId(e.target.value)}
+                      toolTipContent={
+                        <Text>
+                          The unique identifier for your resource. For AWS
+                          database, may have the prefix <Mark light>db-</Mark>{' '}
+                          then follow with alphanumerics.
+                        </Text>
+                      }
+                    />
+                  </Box>
+                </>
+              )}
+              <Box mt={3}>
                 <Text bold>Labels (optional)</Text>
                 <Text mb={2}>
                   Labels make this new database discoverable by the database
-                  server. <br />
+                  service. <br />
                   Not defining labels is equivalent to asteriks (any database
-                  server can discover this database).
+                  service can discover this database).
                 </Text>
                 <LabelsCreater
                   labels={labels}
@@ -255,6 +296,40 @@ const requirePort = value => () => {
     return {
       valid: false,
       message: 'port must be 4 digits',
+    };
+  }
+  return {
+    valid: true,
+  };
+};
+
+// AWS_ACC_ID_REGEX only allows digits with length 12.
+export const AWS_ACC_ID_REGEX = /^\d{12}$/;
+const requiredAwsAccountId = value => () => {
+  const isValidId = value.match(AWS_ACC_ID_REGEX);
+  if (!isValidId) {
+    return {
+      valid: false,
+      message: 'aws account id must be 12 digits',
+    };
+  }
+  return {
+    valid: true,
+  };
+};
+
+// AWS_POLICY_NAME_REGEX only allows alphanumeric including the
+// following common characters: plus (+), equal (=), comma (,),
+// period (.), at (@), underscore (_), and hyphen (-).
+// As defined in: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+export const AWS_POLICY_NAME_REGEX = /^[\w@+=,.:/-]+$/;
+const conformNameWithAWSPolicyNameReq = value => () => {
+  const isValid = value.match(AWS_POLICY_NAME_REGEX);
+  if (!isValid) {
+    return {
+      valid: false,
+      message:
+        'name must be alphanumerics, including characters such as _ @ = , . + -',
     };
   }
   return {

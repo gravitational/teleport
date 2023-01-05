@@ -131,6 +131,7 @@ const cfg = {
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
+    databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
@@ -430,6 +431,12 @@ const cfg = {
     return generateResourcePath(cfg.api.nodesPath, {
       clusterId,
       ...params,
+    });
+  },
+
+  getDatabaseServicesUrl(clusterId: string) {
+    return generatePath(cfg.api.databaseServicesPath, {
+      clusterId,
     });
   },
 

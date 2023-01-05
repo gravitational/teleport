@@ -18,13 +18,14 @@ import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import { AgentResponse } from 'teleport/services/agents';
 
-import makeDatabase from './makeDatabase';
+import { makeDatabase, makeDatabaseService } from './makeDatabase';
 
 import type {
   CreateDatabaseRequest,
   Database,
   UpdateDatabaseRequest,
   DatabaseIamPolicyResponse,
+  DatabaseServicesResponse,
 } from './types';
 
 class DatabaseService {
@@ -55,6 +56,18 @@ class DatabaseService {
     dbName: string
   ): Promise<DatabaseIamPolicyResponse> {
     return api.get(cfg.getDatabaseIamPolicyUrl(clusterId, dbName));
+  }
+
+  fetchDatabaseServices(clusterId: string): Promise<DatabaseServicesResponse> {
+    return api.get(cfg.getDatabaseServicesUrl(clusterId)).then(json => {
+      const items = json?.items || [];
+
+      return {
+        services: items.map(makeDatabaseService),
+        startKey: json?.startKey,
+        totalCount: json?.totalCount,
+      };
+    });
   }
 
   updateDatabase(
