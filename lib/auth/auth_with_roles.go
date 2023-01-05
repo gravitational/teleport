@@ -2075,33 +2075,11 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 }
 
 // Ping gets basic info about the auth server.
+// The Ping method does not require special permissions since it only returns
+// basic status information.  This is an intentional design choice.  Alternative
+// methods should be used for relaying any sensitive information.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
-	// The Ping method does not require special permissions since it only returns
-	// basic status information.  This is an intentional design choice.  Alternative
-	// methods should be used for relaying any sensitive information.
-	cn, err := a.authServer.GetClusterName()
-	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
-	}
-	heartbeat, err := a.authServer.GetLicenseCheckResult(ctx)
-	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
-	}
-	var warnings []string
-	for _, notification := range heartbeat.Spec.Notifications {
-		if notification.Type == LicenseExpiredNotification {
-			warnings = append(warnings, notification.Text)
-		}
-	}
-	return proto.PingResponse{
-		ClusterName:     cn.GetClusterName(),
-		ServerVersion:   teleport.Version,
-		ServerFeatures:  modules.GetModules().Features().ToProto(),
-		ProxyPublicAddr: a.getProxyPublicAddr(),
-		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LicenseWarnings: warnings,
-		LoadAllCAs:      a.authServer.loadAllCAs,
-	}, nil
+	return a.authServer.Ping(ctx)
 }
 
 // getProxyPublicAddr gets the server's public proxy address.

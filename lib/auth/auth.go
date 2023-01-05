@@ -3906,6 +3906,51 @@ func (a *Server) SetPluginCredentials(ctx context.Context, name string, creds ty
 	return trace.Wrap(a.Services.Plugins.SetPluginCredentials(ctx, name, creds))
 }
 
+// Ping gets basic info about the auth server.
+func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
+	cn, err := a.GetClusterName()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	heartbeat, err := a.GetLicenseCheckResult(ctx)
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	var warnings []string
+	for _, notification := range heartbeat.Spec.Notifications {
+		if notification.Type == LicenseExpiredNotification {
+			warnings = append(warnings, notification.Text)
+		}
+	}
+	return proto.PingResponse{
+		ClusterName:     cn.GetClusterName(),
+		ServerVersion:   teleport.Version,
+		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ProxyPublicAddr: a.getProxyPublicAddr(),
+		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LicenseWarnings: warnings,
+		LoadAllCAs:      a.loadAllCAs,
+	}, nil
+}
+
+// getProxyPublicAddr gets the server's public proxy address.
+func (a *Server) getProxyPublicAddr() string {
+	if proxies, err := a.GetProxies(); err == nil {
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				continue
+			}
+			if _, err := utils.ParseAddr(addr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				continue
+			}
+			return addr
+		}
+	}
+	return ""
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
