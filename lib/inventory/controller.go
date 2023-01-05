@@ -435,6 +435,37 @@ func (c *Controller) handleHeartbeatMsg(handle *upstreamHandle, hb proto.Invento
 			return trace.Wrap(err)
 		}
 	}
+
+	if hb.CommandLabels != nil || hb.ImportedLabels != nil {
+		if err := c.handleLabelHBs(handle, hb); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (c *Controller) handleLabelHBs(handle *upstreamHandle, hb proto.InventoryHeartbeat) error {
+	tracker := &handle.stateTracker
+	tracker.mu.Lock()
+	defer tracker.mu.Unlock()
+
+	if hb.CommandLabels != nil {
+		if tracker.labels.CommandVals == nil {
+			// first command label hb, just use the mapping directly
+			tracker.labels.CommandVals = hb.CommandLabels.Values
+		} else {
+			// subsequent command label hbs are diffs, so just write to the existing mapping
+			for id, val := range hb.CommandLabels.Values {
+				tracker.labels.CommandVals[id] = val
+			}
+		}
+	}
+
+	if hb.ImportedLabels != nil {
+		tracker.labels.Imported = hb.ImportedLabels.Labels
+	}
+
 	return nil
 }
 

@@ -279,6 +279,26 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.StorageConfig.Params["path"] = cfg.DataDir
 	}
 
+	// set up instance-level labels
+	if fc.Global.Labels != nil {
+		cfg.Labels = make(map[string]string)
+		for k, v := range fc.Global.Labels {
+			cfg.Labels[k] = v
+		}
+	}
+
+	// set up instance-level command labels
+	if fc.Global.Commands != nil {
+		cfg.CmdLabels = make(services.CommandLabels)
+		for _, cmdLabel := range fc.Global.Commands {
+			cfg.CmdLabels[cmdLabel.Name] = &types.CommandLabelV2{
+				Period:  types.NewDuration(cmdLabel.Period),
+				Command: cmdLabel.Command,
+				Result:  "",
+			}
+		}
+	}
+
 	// If a backend is specified, override the defaults.
 	if fc.Storage.Type != "" {
 		// If the alternative name "dir" is given, update it to "lite".
@@ -1042,6 +1062,34 @@ func getPostgresDefaultPort(cfg *service.Config) int {
 		return cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
 	}
 	return cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
+}
+
+// applyVersionControlDefaults sets default values for version control related parameters. Must be called *after*
+// ssh config has been fully initialized, since some default values are taken from there.
+func applyVersionControlDefaults(cfg *service.Config) {
+	// For convenience's sake, we permit the version control system to "inherit" capabilities
+	// from an active SSH service. If the ssh service is active, then the version control system
+	// is effectively just automating something that could already be done manually. If it is not
+	// enabled, then we have to assume that teleport may be categorically forbidden to affect
+	// remote commands or filesystem changes on this machine unless labels/installers are explicitly
+	// defined.
+	if !cfg.SSH.Enabled {
+		return
+	}
+
+	if len(cfg.Labels) == 0 && len(cfg.CmdLabels) == 0 {
+		if cfg.SSH.Labels != nil {
+			labels := make(map[string]string, len(cfg.SSH.Labels))
+			for k, v := range cfg.SSH.Labels {
+				labels[k] = v
+			}
+			cfg.Labels = labels
+		}
+
+		if cfg.SSH.CmdLabels != nil {
+			cfg.CmdLabels = cfg.SSH.CmdLabels.Clone()
+		}
+	}
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
@@ -2218,6 +2266,20 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+
+	// we interpret cli-provided labels as applying to instance-level labels as well, since
+	// teleport is being started as a monolithic entity with unique labels (as opposed to
+	// the various auto-discovery scenarios where what labels apply to the specific instance
+	// is ambiguous).
+	if clf.Labels != "" {
+		cfg.Labels, cfg.CmdLabels, err = parseLabels(clf.Labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// applyVersionControlDefaults sets up default values for the the version control system
+	applyVersionControlDefaults(cfg)
 
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)

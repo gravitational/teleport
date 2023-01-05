@@ -30,9 +30,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/labels"
 )
 
 type fakeHeartbeatDriver struct {
+	heartbeatV2DriverCommon
 	handle  inventory.DownstreamHandle
 	streamC chan client.DownstreamInventoryControlStream
 
@@ -69,6 +71,10 @@ func (h *fakeHeartbeatDriver) FallbackAnnounce(ctx context.Context) (ok bool) {
 		h.fallbackErr--
 		return false
 	}
+	return true
+}
+
+func (h *fakeHeartbeatDriver) SupportsFallback() bool {
 	return true
 }
 
@@ -277,6 +283,132 @@ func TestHeartbeatV2Basics(t *testing.T) {
 		expect(hbv2AnnounceOk),
 		deny(hbv2AnnounceErr, hbv2FallbackOk, hbv2FallbackErr),
 	)
+}
+
+// TestInstanceLabelHeartbeatDriverBasics verifies basic expected behavior of
+// instance label hb driver.
+func TestInstanceLabelheartbeatDriverBasics(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		desc        string
+		commands    map[string][]string
+		commandKeys map[string]uint64
+		imported    map[string]string
+		expect      proto.InventoryHeartbeat
+	}{
+		{
+			desc: "command and imported labels",
+			commands: map[string][]string{
+				"hello": {"echo", "hello there!"},
+			},
+			commandKeys: map[string]uint64{
+				"hello": 1,
+			},
+			imported: map[string]string{
+				"cloud-key": "cloud-val",
+			},
+			expect: proto.InventoryHeartbeat{
+				CommandLabels: &proto.InstanceCommandLabelValues{
+					Values: map[uint64]string{
+						1: "hello there!",
+					},
+				},
+				ImportedLabels: &proto.ImportedInstanceLabels{
+					Labels: map[string]string{
+						"cloud-key": "cloud-val",
+					},
+				},
+			},
+		},
+		{
+			desc: "command labels only",
+			commands: map[string][]string{
+				"hello": {"echo", "hello there!"},
+			},
+			commandKeys: map[string]uint64{
+				"hello": 1,
+			},
+			expect: proto.InventoryHeartbeat{
+				CommandLabels: &proto.InstanceCommandLabelValues{
+					Values: map[uint64]string{
+						1: "hello there!",
+					},
+				},
+			},
+		},
+		{
+			desc: "imported labels only",
+			imported: map[string]string{
+				"cloud-key": "cloud-val",
+			},
+			expect: proto.InventoryHeartbeat{
+				ImportedLabels: &proto.ImportedInstanceLabels{
+					Labels: map[string]string{
+						"cloud-key": "cloud-val",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		var cmdLabels *labels.Dynamic
+		if tt.commands != nil {
+			commands := make(map[string]types.CommandLabel)
+			for key, cmd := range tt.commands {
+				commands[key] = &types.CommandLabelV2{
+					Period:  types.NewDuration(time.Minute),
+					Command: cmd,
+				}
+			}
+			var err error
+			cmdLabels, err = labels.NewDynamic(context.Background(), &labels.DynamicConfig{
+				Labels: commands,
+			})
+			require.NoError(t, err, "desc=%q", tt.desc)
+			cmdLabels.Sync() // make sure values are available immediately
+		}
+
+		var imported labels.Importer
+		if tt.imported != nil {
+			imported = labels.NewFakeImporter(tt.imported)
+		}
+		driver := &instanceLabelHeartbeatV2{
+			commandLabels:    cmdLabels,
+			commandLabelKeys: tt.commandKeys,
+			importedLabels:   imported,
+		}
+
+		require.True(t, driver.Poll(), "desc=%q", tt.desc)
+
+		hb, send := driver.getHeartbeat()
+		require.True(t, send, "desc=%q", tt.desc)
+
+		require.Equal(t, tt.expect, hb, "desc=%q", tt.desc)
+
+		// we didn't update prev state, so we still poll as needing announce.
+		require.True(t, driver.Poll(), "desc=%q", tt.desc)
+
+		driver.updatePrevState(hb)
+
+		// prev state has now been updated, and labels have not chaned, so we should
+		// no longer poll as needing announce.
+		require.False(t, driver.Poll(), "desc=%q", tt.desc)
+
+		// reset prev state
+		driver.OnStreamReset()
+
+		// reset sends us back to the initial state
+		hb2, send2 := driver.getHeartbeat()
+		require.True(t, send2, "desc=%v", tt.desc)
+
+		require.Equal(t, tt.expect, hb2, "desc=%v", tt.desc)
+
+		if cmdLabels != nil {
+			cmdLabels.Close()
+		}
+	}
 }
 
 type eventOpts struct {

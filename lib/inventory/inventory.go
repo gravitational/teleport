@@ -336,6 +336,9 @@ type instanceStateTracker struct {
 	// a given entry.
 	unqualifiedPendingControlLog []types.InstanceControlLogEntry
 
+	// labels tracks the unmerged labels for the instance.
+	labels instanceLabels
+
 	// lastHeartbeat is the last observed heartbeat for this instance. This field is filled lazily and
 	// will be nil if the instance only recently connected or joined. Operations that expect to be able to
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
@@ -350,6 +353,69 @@ type instanceStateTracker struct {
 	retryHeartbeat bool
 }
 
+// instanceLabels is the unmerged collection of labels associated with an instance. Note that
+// label precedence matters. For consistency reasons, we use the same label precedence as is
+// used in standard service heartbeats (command takes precedence over imported, which takes precedence
+// over static).
+type instanceLabels struct {
+	Static      map[string]string
+	Imported    map[string]string
+	CommandKeys map[string]uint64
+	CommandVals map[uint64]string
+}
+
+// Len gets the total number of key-value pairs. Note that this value may be
+// larger than the collected label size, since it is possible for keys to
+// be defined in multiple places.
+func (i *instanceLabels) Len() int {
+	return len(i.Static) + len(i.Imported) + len(i.CommandKeys)
+}
+
+// Iter iterates over all key-value pairs. Note that some keys may be observed multiple
+// times if they are defined in more than one of static, imported, and command. Iteration
+// occurs in inverse precedence order, so the last observed value for a given key is
+// the "correct" one.
+func (i *instanceLabels) Iter(fn func(key, val string)) {
+	for key, val := range i.Static {
+		fn(key, val)
+	}
+
+	for key, val := range i.Imported {
+		fn(key, val)
+	}
+
+	for key, id := range i.CommandKeys {
+		fn(key, i.CommandVals[id])
+	}
+}
+
+// Get gets a key. Search is performed in order of precedence.
+func (i *instanceLabels) Get(key string) (val string, ok bool) {
+
+	if id, ok := i.CommandKeys[key]; ok {
+		return i.CommandVals[id], true
+	}
+
+	if val, ok := i.Imported[key]; ok {
+		return val, true
+	}
+
+	if val, ok := i.Static[key]; ok {
+		return val, true
+	}
+
+	return "", false
+}
+
+// Collect aggregates all labels into a single mapping.
+func (i *instanceLabels) Collect() map[string]string {
+	m := make(map[string]string, i.Len())
+	i.Iter(func(key, val string) {
+		m[key] = val
+	})
+	return m
+}
+
 // InstanceStateRef is a helper used to present a copy of the public subset of instanceStateTracker. Used by
 // the VisitInstanceState helper to show callers the current state without risking concurrency issues due
 // to misuse.
@@ -357,6 +423,7 @@ type InstanceStateRef struct {
 	QualifiedPendingControlLog   []types.InstanceControlLogEntry
 	UnqualifiedPendingControlLog []types.InstanceControlLogEntry
 	LastHeartbeat                types.Instance
+	Labels                       map[string]string
 }
 
 // InstanceStateUpdate encodes additional pending control log entries that should be included in future heartbeats. Used by
@@ -385,6 +452,9 @@ func (h *upstreamHandle) VisitInstanceState(fn func(InstanceStateRef) InstanceSt
 	// copy over control log entries
 	ref.QualifiedPendingControlLog = cloneAppendLog(ref.QualifiedPendingControlLog, h.stateTracker.qualifiedPendingControlLog...)
 	ref.UnqualifiedPendingControlLog = cloneAppendLog(ref.UnqualifiedPendingControlLog, h.stateTracker.unqualifiedPendingControlLog...)
+
+	// create a unified copy of the current label state.
+	ref.Labels = h.stateTracker.labels.Collect()
 
 	// run closure
 	update := fn(ref)
@@ -417,7 +487,7 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		Hostname: hello.Hostname,
 		AuthID:   authID,
 		LastSeen: now.UTC(),
-	})
+	}, types.WithInstanceLabels(i.labels.Collect()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -476,6 +546,12 @@ func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto
 		hello:                          hello,
 		pings:                          make(map[uint64]pendingPing),
 		ticker:                         ticker,
+		stateTracker: instanceStateTracker{
+			labels: instanceLabels{
+				Static:      hello.StaticLabels,
+				CommandKeys: hello.CommandLabelKeys,
+			},
+		},
 	}
 }
 

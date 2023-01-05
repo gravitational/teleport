@@ -1914,6 +1914,18 @@ message UpstreamInventoryHello {
   // instance can claim its hostname to be). This value exists only to assist users in correlating
   // instance resources with hosts.
   string Hostname = 4;
+  // StaticLabels are the statically known subset of instance labels. Note that these labels must
+  // *actually* be static, unlike the StaticLabels field of most service heartbeats, which is dynamically
+  // updated with imported labels over the lifetime of the instance. Instance-level imported labels
+  // must be heartbeat using Heartbeat.ImportedLabels instead.
+  map<string, string> StaticLabels = 5;
+  // CommandLabelKeys maps the keys strings of the instance's command labels to ids. The provided
+  // ids are later used when heartbeating the outputs of the commands.  Knowing command label keys
+  // from the start of the stream is important since teleport label matching has an established
+  // pattern of allowing `<key>: *` to match command labels even if the associated command has yet to
+  // run (i.e. the theoretical existence of a command label is meaningful, even if the value is not
+  // known yet).
+  map<string, uint64> CommandLabelKeys = 6;
 }
 
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.
@@ -1924,13 +1936,38 @@ message DownstreamInventoryHello {
   string ServerID = 2;
 }
 
-// InventoryHeartbeat announces information about instance state.
+// InventoryHeartbeat is the top-level container for periodic heartbeats of instance state. Not all
+// individual heartbeat messages contain all fields (i.e. one heartbeat might only send the ssh server
+// resource, and another might only update command labels).
 message InventoryHeartbeat {
   // SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
   // in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
   // we should be able to cut down on network usage fairly significantly by moving static values
   // to the hello message and only heartbeating dynamic values here).
   types.ServerV2 SSHServer = 1;
+
+  // CommandLabelValues updates values for command labels. The instance may choose to send only
+  // the subset of labels that have changed since the last heartbeat. Since the set of keys is static,
+  // omitted values simply preserve the most recently known value for the lifetime of the control stream.
+  InstanceCommandLabelValues CommandLabels = 2;
+
+  // ImportedLabels heartbeats the full set of imported labels, overwriting the previous set of imported
+  // labels. Imports happen very infrequently (~once per hour), so updates should be infrequent.
+  ImportedInstanceLabels ImportedLabels = 3;
+}
+
+// InstanceCommandLabelValues updates one or more command label values for an instance.
+message InstanceCommandLabelValues {
+  // Values is a mapping of id to command output. The ids must match the ids established
+  // by the UpstreamInventoryHello.CommandLabelKeys mapping. The auth server uses these ids
+  // to unify keys and values into a label mapping.
+  map<uint64, string> Values = 1;
+}
+
+// ImportedInstanceLabels heartbeats a new imported instance label set.
+message ImportedInstanceLabels {
+  // Labels is full set of imported labels. Overwrites the previous set.
+  map<string, string> Labels = 1;
 }
 
 // InventoryStatusRequest requests inventory status info.

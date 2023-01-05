@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -82,6 +83,69 @@ func NewSSHServerHeartbeat(cfg SSHServerHeartbeatConfig) (*HeartbeatV2, error) {
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
 		onHeartbeatInner: cfg.OnHeartbeat,
+		announceInterval: cfg.AnnounceInterval,
+		pollInterval:     cfg.PollInterval,
+	}), nil
+}
+
+// InstanceLabelHeartbeatConfig configures the HeartbeatV2 for instance labels.
+type InstanceLabelHeartbeatConfig struct {
+	// InventoryHandle is used to send heartbeats.
+	InventoryHandle inventory.DownstreamHandle
+
+	// CommandLabels are the command labels associated with the instance. Either this
+	// field or the ImportedLabels field must be non-nil.
+	CommandLabels *labels.Dynamic
+
+	// CommandLabelKeys is the key -> id mapping used to update keys.
+	CommandLabelKeys map[string]uint64
+
+	// ImportedLabels are the imported labels associated with the instance. Either this
+	// field or the CommandLabels field must be non-nil.
+	ImportedLabels labels.Importer
+
+	// -- below values are all optional
+
+	// AnnounceInterval is the interval at which labels are resent.
+	AnnounceInterval time.Duration
+
+	// PollInterval is the interval at which labels are checked for changes.
+	PollInterval time.Duration
+}
+
+func (c *InstanceLabelHeartbeatConfig) Check() error {
+	if c.InventoryHandle == nil {
+		return trace.BadParameter("missing required parameter InventoryHandle for instance label heartbeat")
+	}
+
+	if c.CommandLabels == nil && c.ImportedLabels == nil {
+		return trace.BadParameter("one of CommandLabels or ImportedLabels must be supplied")
+	}
+
+	if c.CommandLabels != nil {
+		for key := range c.CommandLabels.Get() {
+			if _, ok := c.CommandLabelKeys[key]; !ok {
+				return trace.BadParameter("missing command label key ID for key %q", key)
+			}
+		}
+	}
+
+	return nil
+}
+
+// NewInstanceLabelHeartbeat creates a HeartbeatV2 for instance labels.
+func NewInstanceLabelHeartbeat(cfg InstanceLabelHeartbeatConfig) (*HeartbeatV2, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inner := &instanceLabelHeartbeatV2{
+		commandLabels:    cfg.CommandLabels,
+		commandLabelKeys: cfg.CommandLabelKeys,
+		importedLabels:   cfg.ImportedLabels,
+	}
+
+	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
 		announceInterval: cfg.AnnounceInterval,
 		pollInterval:     cfg.PollInterval,
 	}), nil
@@ -233,9 +297,9 @@ func (h *HeartbeatV2) run() {
 
 	for {
 		// outer loop performs announcement via the fallback method (used for backwards compatibility
-		// with older auth servers).
+		// with older auth servers). Not all drivers support fallback.
 
-		if h.shouldAnnounce {
+		if h.shouldAnnounce && h.inner.SupportsFallback() {
 			if time.Now().After(h.fallbackBackoffTime) {
 				if ok := h.inner.FallbackAnnounce(h.closeContext); ok {
 					h.testEvent(hbv2FallbackOk)
@@ -292,6 +356,7 @@ func (h *HeartbeatV2) run() {
 }
 
 func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
+	defer h.inner.OnStreamReset()
 	// poll immediately when sender becomes available.
 	if h.inner.Poll() {
 		h.shouldAnnounce = true
@@ -390,17 +455,46 @@ type heartbeatV2Driver interface {
 	// Poll is used to check for changes since last *successful* heartbeat (note: Poll should also
 	// return true if no heartbeat has been successfully executed yet).
 	Poll() (changed bool)
+
+	// Announce attempts to heartbeat via the inventory control stream.
+	Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool)
+
+	// --- methods below this point are optional, and can be provided by embedding the
+	// --- heartbeatV2DriverCommon helper struct if they are not required for the specific
+	// --- driver implementation.
+
+	// SupportsFallback checks if the driver supports fallback.
+	SupportsFallback() bool
+
 	// FallbackAnnounce is called if a heartbeat is needed but the inventory control stream is
 	// unavailable. In theory this is probably only relevant for cases where the auth has been
 	// downgraded to an earlier version than it should have been, but its still preferable to
 	// make an effort to heartbeat in that case, so we're including it for now.
 	FallbackAnnounce(ctx context.Context) (ok bool)
-	// Announce attempts to heartbeat via the inventory control stream.
-	Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool)
+
+	// OnStreamReset is called if the control stream is reset. Drivers that implement this
+	// typically care because control streams cache certain values during their lifetimes,
+	// (e.g. instance cmd labels) and that cache no longer exists if the stream was reset.
+	OnStreamReset()
 }
 
-// sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.
+// heartbeatV2DriverCommon can be embedded to avoid implementing some driver methods that
+// not all dirver impls care about.
+type heartbeatV2DriverCommon struct{}
+
+func (h heartbeatV2DriverCommon) SupportsFallback() bool {
+	return false
+}
+
+func (h heartbeatV2DriverCommon) FallbackAnnounce(_ context.Context) (ok bool) {
+	return false
+}
+
+func (h heartbeatV2DriverCommon) OnStreamReset() {}
+
+// sshServerHeartbeatV2 is the heartbeatV2Driver implementation for ssh servers.
 type sshServerHeartbeatV2 struct {
+	heartbeatV2DriverCommon
 	getServer func() *types.ServerV2
 	announcer auth.Announcer
 	prev      *types.ServerV2
@@ -411,6 +505,10 @@ func (h *sshServerHeartbeatV2) Poll() (changed bool) {
 		return true
 	}
 	return services.CompareServers(h.getServer(), h.prev) == services.Different
+}
+
+func (h *sshServerHeartbeatV2) SupportsFallback() bool {
+	return h.announcer != nil
 }
 
 func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
@@ -438,4 +536,111 @@ func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 	}
 	h.prev = server
 	return true
+}
+
+// instanceLabelHeartbeatV2 is the heartbeatV2Driver implementation for instance labels.
+type instanceLabelHeartbeatV2 struct {
+	heartbeatV2DriverCommon
+	commandLabels    *labels.Dynamic
+	commandLabelKeys map[string]uint64
+	importedLabels   labels.Importer
+
+	prevCommandLabelValues map[uint64]string
+	prevImportedLabels     map[string]string
+}
+
+func (h *instanceLabelHeartbeatV2) Poll() (changed bool) {
+	if _, send := h.getHeartbeat(); send {
+		return true
+	}
+	return false
+}
+
+func (h *instanceLabelHeartbeatV2) getCommandHB() (diff map[uint64]string, changed bool) {
+	if h.commandLabels == nil {
+		return nil, false
+	}
+	diff = make(map[uint64]string)
+	for key, cmd := range h.commandLabels.Get() {
+		if h.prevCommandLabelValues[h.commandLabelKeys[key]] != cmd.GetResult() {
+			diff[h.commandLabelKeys[key]] = cmd.GetResult()
+		}
+	}
+
+	return diff, len(diff) != 0
+}
+
+func (h *instanceLabelHeartbeatV2) getImportedHB() (labels map[string]string, changed bool) {
+	if h.importedLabels == nil {
+		return nil, false
+	}
+	labels = h.importedLabels.Get()
+	if len(labels) != len(h.prevImportedLabels) {
+		return labels, true
+	}
+
+	for key, val := range labels {
+		if h.prevImportedLabels[key] != val {
+			return labels, true
+		}
+	}
+
+	return nil, false
+}
+
+// getHeartbeat builds the next heartbeat value if one should be send.
+func (h *instanceLabelHeartbeatV2) getHeartbeat() (hb proto.InventoryHeartbeat, send bool) {
+	if values, changed := h.getCommandHB(); changed {
+		hb.CommandLabels = &proto.InstanceCommandLabelValues{
+			Values: values,
+		}
+	}
+
+	if labels, changed := h.getImportedHB(); changed {
+		hb.ImportedLabels = &proto.ImportedInstanceLabels{
+			Labels: labels,
+		}
+	}
+
+	return hb, hb.CommandLabels != nil || hb.ImportedLabels != nil
+}
+
+// updatePrevState updates the previous state upon successful send. broken out for easier testing.
+func (h *instanceLabelHeartbeatV2) updatePrevState(hb proto.InventoryHeartbeat) {
+	if hb.CommandLabels != nil {
+		if h.prevCommandLabelValues == nil {
+			h.prevCommandLabelValues = make(map[uint64]string)
+		}
+		for id, val := range hb.CommandLabels.Values {
+			h.prevCommandLabelValues[id] = val
+		}
+	}
+
+	if hb.ImportedLabels != nil {
+		h.prevImportedLabels = hb.ImportedLabels.Labels
+	}
+}
+
+func (h *instanceLabelHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
+	hb, send := h.getHeartbeat()
+	if !send {
+		// nothing has changed, return ok status
+		return true
+	}
+
+	if err := sender.Send(ctx, hb); err != nil {
+		log.Warnf("Failed to perform instance label heartbeat: %v", err)
+		return false
+	}
+
+	h.updatePrevState(hb)
+
+	return true
+}
+
+func (h *instanceLabelHeartbeatV2) OnStreamReset() {
+	// reset prev state so that we will announce labels when the control
+	// stream becomes healthy again.
+	h.prevCommandLabelValues = nil
+	h.prevImportedLabels = nil
 }

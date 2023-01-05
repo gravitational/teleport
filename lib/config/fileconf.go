@@ -723,6 +723,12 @@ type Global struct {
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
+
+	// Labels are instance-level static labels.
+	Labels map[string]string `yaml:"labels,omitempty"`
+
+	// Commands are instance-level command labels.
+	Commands []CommandLabel `yaml:"commands,omitempty"`
 }
 
 // CachePolicy is used to control  local cache

@@ -637,6 +637,10 @@ message InstanceControlLogEntry {
   // type of the entry. Use of labels is preferable to adding new fields in some cases in order to
   // preserve fields across auth downgrades (this is mostly relevant for the version-control system).
   map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
+
+  // Target is a cached install target, used by the version control system to preserve install
+  // paramters prior to attempting an upgrade.
+  map<string, string> Target = 6 [(gogoproto.jsontag) = "target,omitempty"];
 }
 
 // InstanceFilter matches instance resources.

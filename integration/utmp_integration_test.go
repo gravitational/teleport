@@ -284,15 +284,15 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
-		regular.SetLabels(
-			map[string]string{"foo": "bar"},
-			services.CommandLabels{
-				"baz": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"},
-				},
-			}, nil,
-		),
+		regular.SetStaticLabels(map[string]string{
+			"foo": "bar",
+		}),
+		regular.SetCommandLabels(services.CommandLabels{
+			"baz": &types.CommandLabelV2{
+				Period:  types.NewDuration(time.Millisecond),
+				Command: []string{"expr", "1", "+", "3"},
+			},
+		}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),

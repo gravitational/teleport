@@ -233,15 +233,15 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
 		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetLabels(
-			map[string]string{"foo": "bar"},
-			services.CommandLabels{
-				"baz": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"},
-				},
-			}, nil,
-		),
+		SetStaticLabels(map[string]string{
+			"foo": "bar",
+		}),
+		SetCommandLabels(services.CommandLabels{
+			"baz": &types.CommandLabelV2{
+				Period:  types.NewDuration(time.Millisecond),
+				Command: []string{"expr", "1", "+", "3"},
+			},
+		}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(clock),

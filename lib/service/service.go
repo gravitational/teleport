@@ -42,6 +42,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -317,6 +318,12 @@ type TeleportProcess struct {
 	backend backend.Backend
 	// auditLog is the initialized audit log
 	auditLog events.IAuditLog
+
+	// cmdLabels are the instance-level command labels.
+	cmdLabels *labels.Dynamic
+
+	// instanceLabelHeartbeat heartbeats instance cmd and cloud labels.
+	instanceLabelHeartbeat *srv.HeartbeatV2
 
 	// inventorySetupDelay lets us inject a one-time delay in the makeInventoryControlStream
 	// method that helps reduce log spam in the event of slow instance cert acquisition.
@@ -900,6 +907,26 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cloudLabels.Start(supervisor.ExitContext())
 	}
 
+	var cmdLabels *labels.Dynamic
+	var cmdLabelKeys map[string]uint64
+	if len(cfg.CmdLabels) != 0 {
+		cmdLabels, err = labels.NewDynamic(supervisor.ExitContext(), &labels.DynamicConfig{
+			Labels: cfg.CmdLabels,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cmdLabels.Start()
+
+		cmdLabelKeys = make(map[string]uint64)
+		var ln uint64
+		for key := range cfg.CmdLabels {
+			ln++
+			cmdLabelKeys[key] = ln
+		}
+	}
+
 	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
 		cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -915,6 +942,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
+		cmdLabels:           cmdLabels,
 		instanceRoles:       make(map[types.SystemRole]string),
 		Identities:          make(map[types.SystemRole]*auth.Identity),
 		connectors:          make(map[types.SystemRole]*Connector),
@@ -950,10 +978,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
 	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID: cfg.HostUUID,
-		Version:  teleport.Version,
-		Services: process.getInstanceRoles(),
-		Hostname: cfg.Hostname,
+		ServerID:         cfg.HostUUID,
+		Version:          teleport.Version,
+		Services:         process.getInstanceRoles(),
+		Hostname:         cfg.Hostname,
+		StaticLabels:     cfg.Labels,
+		CommandLabelKeys: cmdLabelKeys,
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
@@ -965,6 +995,21 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			process.log.Warnf("Failed to respond to inventory ping (id=%d): %v", ping.ID, err)
 		}
 	})
+
+	if process.cloudLabels != nil || process.cmdLabels != nil {
+		process.instanceLabelHeartbeat, err = srv.NewInstanceLabelHeartbeat(srv.InstanceLabelHeartbeatConfig{
+			InventoryHandle:  process.inventoryHandle,
+			CommandLabels:    cmdLabels,
+			CommandLabelKeys: cmdLabelKeys,
+			ImportedLabels:   cloudLabels,
+		})
+
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		go process.instanceLabelHeartbeat.Run()
+	}
 
 	serviceStarted := false
 
@@ -2307,6 +2352,16 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		cmdLabelOpt := regular.SetCommandLabels(cfg.SSH.CmdLabels)
+		if process.cmdLabels != nil {
+			if cmp.Equal(cfg.CmdLabels, cfg.SSH.CmdLabels) {
+				// instance-level labels are identical, and likely inherited. command labels aren't *supposed* to
+				// have side-effects, but its best to share a single labels.Dynamic instance in this case rather
+				// than doing unnecessary re-runs of the same commands.
+				cmdLabelOpt = regular.SetInstanceCommandLabels(process.cmdLabels)
+			}
+		}
+
 		s, err := regular.New(
 			process.ExitContext(),
 			cfg.SSH.Addr,
@@ -2320,7 +2375,9 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetLimiter(limiter),
 			regular.SetShell(cfg.SSH.Shell),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer}),
-			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
+			regular.SetStaticLabels(cfg.SSH.Labels),
+			cmdLabelOpt,
+			regular.SetImportedLabels(process.cloudLabels),
 			regular.SetNamespace(namespace),
 			regular.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
 			regular.SetCiphers(cfg.Ciphers),
@@ -4819,6 +4876,14 @@ func (process *TeleportProcess) Close() error {
 
 	if process.inventoryHandle != nil {
 		process.inventoryHandle.Close()
+	}
+
+	if process.cmdLabels != nil {
+		process.cmdLabels.Close()
+	}
+
+	if process.instanceLabelHeartbeat != nil {
+		process.instanceLabelHeartbeat.Close()
 	}
 
 	return trace.NewAggregate(errors...)

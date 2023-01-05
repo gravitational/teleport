@@ -96,6 +96,9 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
+	// instanceCmdLabels are the instance-level command labels.
+	instanceCmdLabels *labels.Dynamic
+
 	// cloudLabels are the labels imported from a cloud provider.
 	cloudLabels labels.Importer
 
@@ -432,16 +435,9 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 	}
 }
 
-// SetLabels sets dynamic and static labels that server will report to the
-// auth servers.
-func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels, cloudLabels labels.Importer) ServerOption {
+// SetStaticLabels sets the static labels to be reported to the auth server.
+func SetStaticLabels(staticLabels map[string]string) ServerOption {
 	return func(s *Server) error {
-		var err error
-
-		// clone and validate labels and cmdLabels.  in theory,
-		// only cmdLabels should experience concurrent writes,
-		// but this operation is only run once on startup
-		// so a little defensive cloning is harmless.
 		labelsClone := make(map[string]string, len(staticLabels))
 		for name, label := range staticLabels {
 			if !types.IsValidLabelKey(name) {
@@ -450,14 +446,37 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels,
 			labelsClone[name] = label
 		}
 		s.labels = labelsClone
+		return nil
+	}
+}
 
-		// Create dynamic labels.
+// SetCommandLabels sets command labels to be reported to the auth server.
+func SetCommandLabels(cmdLabels services.CommandLabels) ServerOption {
+	return func(s *Server) error {
+		var err error
 		s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
 			Labels: cmdLabels,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		return nil
+	}
+}
+
+// SetInstanceCommandLabels sets the command labels inherited from the outer "instance" scope. If ssh server and
+// instance-level command labels are identical/shared. Command labels aren't *supposed* to have side-effects, but
+// it is preferable to use a single labels.Dynamic instance rather than double-running the commands just in case.
+func SetInstanceCommandLabels(labels *labels.Dynamic) ServerOption {
+	return func(s *Server) error {
+		s.instanceCmdLabels = labels
+		return nil
+	}
+}
+
+// SetImportedLabels sets the cloud label importer.
+func SetImportedLabels(cloudLabels labels.Importer) ServerOption {
+	return func(s *Server) error {
 		s.cloudLabels = cloudLabels
 		return nil
 	}
@@ -939,6 +958,11 @@ func (s *Server) getStaticLabels() map[string]string {
 // defined, return an empty set.
 func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 	if s.dynamicLabels == nil {
+		if s.instanceCmdLabels != nil {
+			// if no dynamic labels were supplied, but instance cmd labels *were* supplied, then
+			// we are inheriting command labels from the outer instance scope.
+			return types.LabelsToV2(s.instanceCmdLabels.Get())
+		}
 		return make(map[string]types.CommandLabelV2)
 	}
 	return types.LabelsToV2(s.dynamicLabels.Get())

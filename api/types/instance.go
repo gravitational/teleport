@@ -103,12 +103,29 @@ type Instance interface {
 	Clone() Instance
 }
 
+type instanceOptions struct {
+	Labels map[string]string
+}
+
+type InstanceOption func(opts *instanceOptions)
+
+func WithInstanceLabels(labels map[string]string) InstanceOption {
+	return func(opts *instanceOptions) {
+		opts.Labels = labels
+	}
+}
+
 // NewInstance assembles a new instance resource.
-func NewInstance(serverID string, spec InstanceSpecV1) (Instance, error) {
+func NewInstance(serverID string, spec InstanceSpecV1, opts ...InstanceOption) (Instance, error) {
+	var options instanceOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	instance := &InstanceV1{
 		ResourceHeader: ResourceHeader{
 			Metadata: Metadata{
-				Name: serverID,
+				Name:   serverID,
+				Labels: options.Labels,
 			},
 		},
 		Spec: spec,

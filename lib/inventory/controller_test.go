@@ -505,9 +505,187 @@ func TestInstanceHeartbeat(t *testing.T) {
 	require.Greater(t, logSize, 2)
 }
 
+// TestInstanceLabelHeartbeat verifies expected behavior of instance label hbs.
+func TestInstanceLabelHeartbeat(t *testing.T) {
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+		StaticLabels: map[string]string{
+			"static-key": "static-val",
+		},
+		CommandLabelKeys: map[string]uint64{
+			"cmd-key-one": 1,
+			"cmd-key-two": 2,
+		},
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// wait for first instance heartbeat
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(handlerClose),
+	)
+
+	// set up helper for asserting current label values
+	expectLabels := func(expected map[string]string) {
+		// verify expected labels in ref
+		handle.VisitInstanceState(func(ref InstanceStateRef) (update InstanceStateUpdate) {
+			require.Equal(t, expected, ref.Labels)
+			return
+		})
+
+		// verify expected labels in resource
+		instance, _, err := auth.GetRawInstance(ctx, serverID)
+		require.NoError(t, err)
+		require.Equal(t, expected, instance.GetMetadata().Labels)
+	}
+
+	// expect static labels + empty cmd labels
+	expectLabels(map[string]string{
+		"static-key":  "static-val",
+		"cmd-key-one": "",
+		"cmd-key-two": "",
+	})
+
+	// send first label heartbeat
+	err := downstream.Send(ctx, proto.InventoryHeartbeat{
+		CommandLabels: &proto.InstanceCommandLabelValues{
+			Values: map[uint64]string{
+				1: "cmd-val-one",
+			},
+		},
+		ImportedLabels: &proto.ImportedInstanceLabels{
+			Labels: map[string]string{
+				"imp-key-one": "imp-val-one",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// wait for next instance heartbeat
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(handlerClose),
+		drain(true),
+	)
+
+	// expect that one command key and one imported key are now set
+	expectLabels(map[string]string{
+		"static-key":  "static-val",
+		"cmd-key-one": "cmd-val-one",
+		"cmd-key-two": "",
+		"imp-key-one": "imp-val-one",
+	})
+
+	// send a second label heartbeat
+	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+		CommandLabels: &proto.InstanceCommandLabelValues{
+			Values: map[uint64]string{
+				2: "cmd-val-two",
+			},
+		},
+		ImportedLabels: &proto.ImportedInstanceLabels{
+			Labels: map[string]string{
+				"imp-key-two": "imp-val-two",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// wait for next instance heartbeat
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(handlerClose),
+		drain(true),
+	)
+
+	// expect that both commad keys now have values, and that the previous
+	// imported labels were completely overwritten.
+	expectLabels(map[string]string{
+		"static-key":  "static-val",
+		"cmd-key-one": "cmd-val-one",
+		"cmd-key-two": "cmd-val-two",
+		"imp-key-two": "imp-val-two",
+	})
+
+	// send a third label heartbeat, updating a cmd label and not presenting
+	// a new imported label set
+	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+		CommandLabels: &proto.InstanceCommandLabelValues{
+			Values: map[uint64]string{
+				2: "new-cmd-val",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// wait for next instance heartbeat
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(handlerClose),
+		drain(true),
+	)
+
+	// expect that command key was updated, and that previous imported labels
+	// have been preserved.
+	expectLabels(map[string]string{
+		"static-key":  "static-val",
+		"cmd-key-one": "cmd-val-one",
+		"cmd-key-two": "new-cmd-val",
+		"imp-key-two": "imp-val-two",
+	})
+
+	// send an empty imported label set to overwrite the current imported set
+	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+		ImportedLabels: &proto.ImportedInstanceLabels{},
+	})
+	require.NoError(t, err)
+
+	// wait for next instance heartbeat
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(handlerClose),
+		drain(true),
+	)
+
+	// expect that imported labels were removed.
+	expectLabels(map[string]string{
+		"static-key":  "static-val",
+		"cmd-key-one": "cmd-val-one",
+		"cmd-key-two": "new-cmd-val",
+	})
+}
+
 type eventOpts struct {
 	expect map[testEvent]int
 	deny   map[testEvent]struct{}
+	drain  bool
 }
 
 type eventOption func(*eventOpts)
@@ -528,6 +706,12 @@ func deny(events ...testEvent) eventOption {
 	}
 }
 
+func drain(d bool) eventOption {
+	return func(opts *eventOpts) {
+		opts.drain = d
+	}
+}
+
 func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 	options := eventOpts{
 		expect: make(map[testEvent]int),
@@ -535,6 +719,22 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 	}
 	for _, opt := range opts {
 		opt(&options)
+	}
+
+	if options.drain {
+		// drain all existing events before waiting
+	Drain:
+		for {
+
+			select {
+			case event := <-ch:
+				if _, ok := options.deny[event]; ok {
+					require.Failf(t, "unexpected event during drain", "event=%v", event)
+				}
+			default:
+				break Drain
+			}
+		}
 	}
 
 	timeout := time.After(time.Second * 5)
