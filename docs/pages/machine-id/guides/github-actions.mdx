@@ -128,7 +128,7 @@ $ tctl bots add github-demo --roles=access --token=github-token --logins=usernam
 
 ## Step 3/3. Configuring GitHub Actions
 
-Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their GitHub provided identity.
+Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their GitHub-provided identity.
 
 In the GitHub workflows directory of your repo (`.github/workflows/`) create a new workflow YAML file,
 in this case `actionstest.yml`, that will reflect the action you'd like to configure. This guide will create an action that
