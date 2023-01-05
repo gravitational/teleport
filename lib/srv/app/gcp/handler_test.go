@@ -20,50 +20,83 @@ import (
 	"time"
 
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
+	"github.com/googleapis/gax-go/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestForwarder_getToken(t *testing.T) {
-	t.Parallel()
+type testIAMCredentialsClient struct {
+	generateAccessToken func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error)
+}
+
+func (i *testIAMCredentialsClient) GenerateAccessToken(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
+	return i.generateAccessToken(ctx, req, opts...)
+}
+
+var _ iamCredentialsClient = (*testIAMCredentialsClient)(nil)
+
+func makeTestCloudClient(client *testIAMCredentialsClient) cloudClientGCP {
+	return &cloudClientGCPImpl[*testIAMCredentialsClient]{getGCPIAMClient: func(ctx context.Context) (*testIAMCredentialsClient, error) {
+		return client, nil
+	}}
+}
+
+func TestHandler_getToken(t *testing.T) {
+	mkConstConfig := func(val HandlerConfig) func(any) HandlerConfig {
+		return func(_ any) HandlerConfig {
+			return val
+		}
+	}
 
 	tests := []struct {
 		name string
 
-		config HandlerConfig
+		initState func() any
 
-		serviceAccount string
+		config func(state any) HandlerConfig
 
-		wantToken *credentialspb.GenerateAccessTokenResponse
-		checkErr  require.ErrorAssertionFunc
+		wantToken  *credentialspb.GenerateAccessTokenResponse
+		checkErr   require.ErrorAssertionFunc
+		checkState func(require.TestingT, any)
 	}{
 		{
 			name: "base case",
-			config: HandlerConfig{
-				generateAccessToken: func(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error) {
-					if serviceAccount != "MY_ACCOUNT" {
-						return nil, trace.BadParameter("wrong serviceAccount, expected %q got %q", "MY_ACCOUNT", serviceAccount)
-					}
-					if !assert.ObjectsAreEqual(scopes, defaultScopeList) {
-						return nil, trace.BadParameter("wrong scopes")
-					}
-
-					return &credentialspb.GenerateAccessTokenResponse{AccessToken: "ok"}, nil
-				},
-			},
-			serviceAccount: "MY_ACCOUNT",
-			wantToken:      &credentialspb.GenerateAccessTokenResponse{AccessToken: "ok"},
-			checkErr:       require.NoError,
+			config: mkConstConfig(HandlerConfig{
+				cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
+					generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
+						if req.GetName() != "projects/-/serviceAccounts/MY_ACCOUNT" {
+							return nil, trace.BadParameter("wrong serviceAccount, expected %q got %q", "projects/-/serviceAccounts/MY_ACCOUNT", req.GetName())
+						}
+						if !assert.ObjectsAreEqual(req.GetScope(), defaultScopeList) {
+							return nil, trace.BadParameter("wrong scopes")
+						}
+						return &credentialspb.GenerateAccessTokenResponse{AccessToken: "ok"}, nil
+					},
+				}),
+			}),
+			wantToken: &credentialspb.GenerateAccessTokenResponse{AccessToken: "ok"},
+			checkErr:  require.NoError,
 		},
 		{
 			name: "timeout",
-			config: HandlerConfig{
-				generateAccessToken: func(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error) {
-					time.Sleep(getTokenTimeout * 2)
-					return nil, trace.BadParameter("some error")
-				},
+			initState: func() any {
+				return clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 12, 00, 00, 000, time.UTC))
+			},
+			config: func(state any) HandlerConfig {
+				return HandlerConfig{
+					Clock: state.(clockwork.FakeClock).(clockwork.Clock),
+					cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
+						generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
+							clock := state.(clockwork.FakeClock)
+							clock.Advance(getTokenTimeout)
+
+							clock.Sleep(getTokenTimeout * 2)
+							return nil, trace.BadParameter("bad param foo")
+						},
+					}),
+				}
 			},
 			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
@@ -72,11 +105,13 @@ func TestForwarder_getToken(t *testing.T) {
 		},
 		{
 			name: "non-timeout error",
-			config: HandlerConfig{
-				generateAccessToken: func(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error) {
-					return nil, trace.BadParameter("bad param foo")
-				},
-			},
+			config: mkConstConfig(HandlerConfig{
+				cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
+					generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
+						return nil, trace.BadParameter("bad param foo")
+					},
+				}),
+			}),
 			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad param foo")
 				require.True(t, trace.IsBadParameter(err))
@@ -86,19 +121,28 @@ func TestForwarder_getToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var state any
+			if tt.initState != nil {
+				state = tt.initState()
+			}
+
 			ctx := context.Background()
 
-			fwd, err := newGCPHandler(ctx, tt.config)
+			fwd, err := newGCPHandler(ctx, tt.config(state))
 			require.NoError(t, err)
 
-			token, err := fwd.getToken(ctx, tt.serviceAccount)
-			tt.checkErr(t, err)
+			token, err := fwd.getToken(ctx, "MY_ACCOUNT")
 			require.Equal(t, tt.wantToken, token)
+			tt.checkErr(t, err)
+
+			if tt.checkState != nil {
+				tt.checkState(t, state)
+			}
 		})
 	}
 }
 
-func TestForwarder_getToken_cache(t *testing.T) {
+func TestHandler_getToken_cache(t *testing.T) {
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClock()
@@ -106,10 +150,12 @@ func TestForwarder_getToken_cache(t *testing.T) {
 	calls := 0
 	fwd, err := newGCPHandler(ctx, HandlerConfig{
 		Clock: clock,
-		generateAccessToken: func(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error) {
-			calls++
-			return &credentialspb.GenerateAccessTokenResponse{AccessToken: "ok"}, nil
-		},
+		cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
+			generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
+				calls++
+				return &credentialspb.GenerateAccessTokenResponse{AccessToken: "ok"}, nil
+			},
+		}),
 	})
 	require.NoError(t, err)
 

@@ -21,7 +21,9 @@ import (
 	"net/http"
 	"time"
 
+	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
+	"github.com/googleapis/gax-go/v2"
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -37,6 +39,28 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
+// iamCredentialsClient is an interface that defines the methods which we use from IAM Service Account Credentials API.
+// It is implemented by *gcpcredentials.IamCredentialsClient and can be mocked in tests unlike the concrete struct.
+type iamCredentialsClient interface {
+	GenerateAccessToken(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error)
+}
+
+// cloudClientGCP is an interface that defines the GetGCPIAMClient method we use in this module.
+type cloudClientGCP interface {
+	GetGCPIAMClient(context.Context) (iamCredentialsClient, error)
+}
+
+// cloudClientGCPImpl is a wrapper around callback function implementing cloudClientGCP interface.
+type cloudClientGCPImpl[T iamCredentialsClient] struct {
+	getGCPIAMClient func(ctx context.Context) (T, error)
+}
+
+func (t *cloudClientGCPImpl[T]) GetGCPIAMClient(ctx context.Context) (iamCredentialsClient, error) {
+	return t.getGCPIAMClient(ctx)
+}
+
+var _ cloudClientGCP = (*cloudClientGCPImpl[iamCredentialsClient])(nil)
+
 // HandlerConfig is the configuration for an GCP app-access handler.
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
@@ -45,12 +69,8 @@ type HandlerConfig struct {
 	Log logrus.FieldLogger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
-
-	// CloudClients is a set of cloud clients that Teleport supports.
-	CloudClients cloud.Clients
-
-	// getAccessToken is a function for getting access token, pluggable for the sake of testing.
-	generateAccessToken generateAccessTokenFunc
+	// cloudClientGCP holds a reference to GCP IAM client. Normally set in CheckAndSetDefaults, it is overridden in tests.
+	cloudClientGCP cloudClientGCP
 }
 
 // CheckAndSetDefaults validates the HandlerConfig.
@@ -68,37 +88,11 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 	if s.Log == nil {
 		s.Log = logrus.WithField(trace.Component, "gcp:fwd")
 	}
-
-	if s.CloudClients == nil {
-		s.CloudClients = cloud.NewClients()
+	if s.cloudClientGCP == nil {
+		clients := cloud.NewClients()
+		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
-
-	if s.generateAccessToken == nil {
-		s.generateAccessToken = s.generateAccessTokenDefaultImpl
-	}
-
 	return nil
-}
-
-type generateAccessTokenFunc func(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error)
-
-func (s *HandlerConfig) generateAccessTokenDefaultImpl(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error) {
-	client, err := s.CloudClients.GetGCPIAMClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	request := &credentialspb.GenerateAccessTokenRequest{
-		// expected format: projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}
-		Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
-		Scope: scopes,
-	}
-	accessToken, err := client.GenerateAccessToken(ctx, request)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return accessToken, nil
 }
 
 // Forwarder is an GCP CLI proxy service that forwards the requests to GCP API, but updates the authorization headers
@@ -167,6 +161,8 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.Log.Debugf("Processing request, sessionId = %q, gcpServiceAccount = %q", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.GCPServiceAccount)
+
 	fwdRequest, err := s.prepareForwardRequest(req, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -227,7 +223,6 @@ func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.Session
 		return nil
 	}
 
-	s.Log.Debugf("Processing request, sessionId = %q, gcpServiceAccount = %q", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.GCPServiceAccount)
 	token, err := s.getToken(r.Context(), sessionCtx.Identity.RouteToApp.GCPServiceAccount)
 	if err != nil {
 		return trace.Wrap(err)
@@ -244,8 +239,9 @@ type cacheKey struct {
 
 const getTokenTimeout = time.Second * 5
 
-// the scope list if fixed for now, but could be either be extended or made customizable
-// if an important use case were to be presented.
+// defaultScopeList is a fixed list of scopes requested for a token.
+// If needed we can extend it or make it configurable.
+// For scope documentation see: https://developers.google.com/identity/protocols/oauth2/scopes
 var defaultScopeList = []string{
 	"https://www.googleapis.com/auth/cloud-platform",
 
@@ -259,18 +255,42 @@ var defaultScopeList = []string{
 func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credentialspb.GenerateAccessTokenResponse, error) {
 	key := cacheKey{serviceAccount}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, getTokenTimeout)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	token, err := utils.FnCacheGet(timeoutCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
-		return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
-	})
+	var tokenResult *credentialspb.GenerateAccessTokenResponse
+	var errorResult error
+
+	go func() {
+		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
+			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
+		})
+		cancel()
+	}()
+
+	select {
+	case <-s.Clock.After(getTokenTimeout):
+		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
+	case <-cancelCtx.Done():
+		return tokenResult, errorResult
+	}
+}
+
+func (s *handler) generateAccessToken(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error) {
+	client, err := s.cloudClientGCP.GetGCPIAMClient(ctx)
 	if err != nil {
-		if timeoutCtx.Err() == err {
-			return nil, trace.Wrap(err, "timeout waiting for access token for %v", getTokenTimeout)
-		}
 		return nil, trace.Wrap(err)
 	}
 
-	return token, nil
+	request := &credentialspb.GenerateAccessTokenRequest{
+		// expected format: projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}
+		Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
+		Scope: scopes,
+	}
+	accessToken, err := client.GenerateAccessToken(ctx, request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessToken, nil
 }
