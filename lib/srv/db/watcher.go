@@ -215,12 +215,13 @@ type discoveryResourceChecker interface {
 }
 
 type discoveryResourceCheckerImpl struct {
-	cloudClients clients.Clients
-	log          *logrus.Entry
-	cache        *utils.FnCache
+	cloudClients     clients.Clients
+	resourceMatchers []services.ResourceMatcher
+	log              *logrus.Entry
+	cache            *utils.FnCache
 }
 
-func newDiscoveryResourceChecker(ctx context.Context, cloudClients clients.Clients) (discoveryResourceChecker, error) {
+func newDiscoveryResourceChecker(ctx context.Context, cloudClients clients.Clients, resourceMatchers []services.ResourceMatcher) (discoveryResourceChecker, error) {
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:     10 * time.Minute,
 		Context: ctx,
@@ -230,9 +231,10 @@ func newDiscoveryResourceChecker(ctx context.Context, cloudClients clients.Clien
 	}
 
 	return &discoveryResourceCheckerImpl{
-		cloudClients: cloudClients,
-		log:          logrus.WithField(trace.Component, teleport.ComponentDatabase),
-		cache:        cache,
+		cloudClients:     cloudClients,
+		resourceMatchers: resourceMatchers,
+		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
+		cache:            cache,
 	}, nil
 }
 
@@ -307,5 +309,19 @@ func (c *discoveryResourceCheckerImpl) warn(err error, database types.Database, 
 	if err != nil {
 		log = log.WithError(err)
 	}
-	log.Warnf("%s You can update \"db_service.resources\" section of this agent's config file to filter out unwanted resources. If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.", msg)
+
+	logLevel := logrus.InfoLevel
+	if c.isWildcardMatcher() {
+		logLevel = logrus.WarnLevel
+	}
+	log.Logf(logLevel, "%s You can update \"db_service.resources\" section of this agent's config file to filter out unwanted resources. If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.", msg)
+}
+
+func (c *discoveryResourceCheckerImpl) isWildcardMatcher() bool {
+	if len(c.resourceMatchers) != 1 {
+		return false
+	}
+
+	wildcardLabels := c.resourceMatchers[0].Labels[types.Wildcard]
+	return len(wildcardLabels) == 1 && wildcardLabels[0] == types.Wildcard
 }

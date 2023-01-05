@@ -232,7 +232,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.discoveryResourceChecker == nil {
-		c.discoveryResourceChecker, err = newDiscoveryResourceChecker(ctx, c.CloudClients)
+		c.discoveryResourceChecker, err = newDiscoveryResourceChecker(ctx, c.CloudClients, c.ResourceMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
