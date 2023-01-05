@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v5
+package v6
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,7 +63,7 @@ type TeleportRoleList struct {
 func (r TeleportRole) ToTeleport() types.Role {
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V5,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        r.Name,
 			Labels:      r.Labels,

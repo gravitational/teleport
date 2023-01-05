@@ -313,7 +313,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRoleV3("populist", types.RoleSpecV5{
+	populist, err := types.NewRoleV3("populist", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -326,7 +326,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV5{})
+	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -916,14 +916,14 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
 	})
 	require.NoError(t, err)
 
-	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV5{
+	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -1286,7 +1286,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	requester, err := types.NewRole("requester", types.RoleSpecV5{
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				SearchAsRoles: []string{"node-access"},
@@ -1295,7 +1295,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV5{
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{
 				"access": {"true"},
@@ -1525,7 +1525,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	requester, err := types.NewRoleV3("requester", types.RoleSpecV5{
+	requester, err := types.NewRoleV3("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"access"},
@@ -2796,9 +2796,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role1", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2822,9 +2822,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2849,9 +2849,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2870,9 +2870,9 @@ func TestSerializeDatabases(t *testing.T) {
 			dbUsersData: `,
     "users": {}`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -3460,9 +3460,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	roleDevStage := &types.RoleV5{
+	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
@@ -3474,9 +3474,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			},
 		},
 	}
-	roleDevProd := &types.RoleV5{
+	roleDevProd := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
