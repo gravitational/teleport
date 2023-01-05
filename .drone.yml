@@ -750,7 +750,6 @@ steps:
   - Enable-Node -ToolchainDir "$Workspace/toolchains"
   - Push-Location $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - Pop-Location
   - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - yarn install --frozen-lockfile
   - yarn build-term
@@ -1028,7 +1027,6 @@ steps:
   - Enable-Node -ToolchainDir "$Workspace/toolchains"
   - Push-Location $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - Pop-Location
   - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - yarn install --frozen-lockfile
   - yarn build-term
@@ -18340,6 +18338,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 7e76ca71ec5f9fd7da4b991f60e6cc04e5afda7ce5f1eade71b24b0ec5ad96f1
+hmac: e0aa1db1645643a61ddc17b749ce2b3e4f9eceaa066857a1e8cf9bc94fc125e1
 
 ...
