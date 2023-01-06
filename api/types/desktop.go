@@ -155,7 +155,8 @@ type WindowsDesktop interface {
 	GetDomain() string
 	// GetHostID returns the ID of the Windows Desktop Service reporting the desktop.
 	GetHostID() string
-	// NonAD checks whether host is part of Active Directory
+	// NonAD checks whether this is a standalone host that
+	// is not joined to an Active Directory domain.
 	NonAD() bool
 }
 
