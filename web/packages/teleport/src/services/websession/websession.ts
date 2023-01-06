@@ -37,7 +37,7 @@ export class WebSession extends StoreWebSession {
   _isRenewing = false;
 
   logout() {
-    api.delete(cfg.api.sessionPath).finally(() => {
+    api.delete(cfg.api.webSessionPath).finally(() => {
       history.goToLogin();
     });
 

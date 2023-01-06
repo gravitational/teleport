@@ -121,9 +121,9 @@ const cfg = {
     checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
     scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
-    renewTokenPath: '/v1/webapi/sessions/renew',
+    webRenewTokenPath: '/v1/webapi/sessions/web/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
-    sessionPath: '/v1/webapi/sessions',
+    webSessionPath: '/v1/webapi/sessions/web',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
@@ -465,7 +465,7 @@ const cfg = {
   },
 
   getRenewTokenUrl() {
-    return cfg.api.renewTokenPath;
+    return cfg.api.webRenewTokenPath;
   },
 
   getGithubConnectorsUrl(name?: string) {
