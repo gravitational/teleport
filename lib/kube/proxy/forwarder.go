@@ -876,6 +876,15 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		if err := actx.Checker.CheckAccess(ks, mfaParams, roleMatchers...); err != nil {
 			return clusterNotFound
 		}
+		// If the user has active Access requests we need to validate that they allow
+		// the kubeResource.
+		// This is required because CheckAccess does not validate the subresource type.
+		if actx.kubeResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
+			kubeResources := getKubeResourcesFromAllowedRequestIds(actx.Checker.GetAllowedResourceIDs())
+			if err := matchKubernetesResource(*actx.kubeResource, kubeResources, nil /*denied branch is empty*/); err != nil {
+				return clusterNotFound
+			}
+		}
 		// store a copu of the Kubernetes Cluster.
 		actx.kubernetesCluster = ks
 		return nil
@@ -885,6 +894,27 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return nil
 	}
 	return clusterNotFound
+}
+
+func getKubeResourcesFromAllowedRequestIds(resourceIDs []types.ResourceID) []types.KubernetesResource {
+	kubeResources := make([]types.KubernetesResource, 0, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		if !slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) {
+			continue
+		}
+		split := strings.SplitN(resourceID.SubResourceName, "/", 1)
+		if len(split) != 2 {
+			continue
+		}
+		kubeResources = append(kubeResources,
+			types.KubernetesResource{
+				Kind:      resourceID.Kind,
+				Namespace: split[0],
+				Name:      split[1],
+			},
+		)
+	}
+	return kubeResources
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
