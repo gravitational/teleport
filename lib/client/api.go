@@ -3020,6 +3020,10 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	return key, nil
 }
 
+// dtAttemptLoginIgnorePing allows tests to skip the Ping check and call
+// DeviceLogin regardless.
+var dtAttemptLoginIgnorePing = false
+
 // AttemptDeviceLogin attempts device authentication for the current device.
 // It expects to receive the latest activated key, as acquired via
 // [TeleportClient.Login], and augments the certificates within the key with
@@ -3033,6 +3037,15 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 // cluster doesn't support device authn, device wasn't enrolled, etc).
 // Use [TeleportClient.DeviceLogin] if you want more control over process.
 func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) error {
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrustDisabled {
+		log.Debug("Device Trust: skipping device authentication, device trust disabled")
+		return nil
+	}
+
 	newCerts, err := tc.DeviceLogin(ctx, &devicepb.UserCertificates{
 		// Augment the SSH certificate.
 		// The TLS certificate is already part of the connection.
@@ -3067,9 +3080,6 @@ var dtAuthnRunCeremony = dtauthn.RunCeremony
 //
 // Device Trust is a Teleport Enterprise feature.
 func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-	// TODO(codingllama): Determine if Device Trust is supported/enabled.
-	//  One should only pay for the roundtrip if they actually use the feature.
-
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

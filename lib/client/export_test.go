@@ -14,5 +14,6 @@
 
 package client
 
+var DTAttemptLoginIgnorePing = &dtAttemptLoginIgnorePing
 var DTAuthnRunCeremony = &dtAuthnRunCeremony
 var HasTouchIDCredentials = &hasTouchIDCredentials
