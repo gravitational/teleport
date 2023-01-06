@@ -1,0 +1,1139 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render multi bash texts 1`] = `
+.c2 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-top: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c11 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-top: 8px;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: #2C3A73;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c9 .icon-check {
+  display: none;
+}
+
+.c9 .icon-copy {
+  display: block;
+}
+
+.c9.copied .icon-check {
+  display: block;
+}
+
+.c9.copied .icon-copy {
+  display: none;
+}
+
+.c8 {
+  height: 28px;
+  width: 28px;
+  border-radius: 20px;
+  min-height: auto;
+  padding: 0;
+  margin-top: -4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-right: 4px;
+  white-space: pre;
+  word-break: break-all;
+  font-size: 12px;
+  font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
+  line-height: 20px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  position: relative;
+}
+
+.c5 {
+  margin: 0;
+}
+
+.c6 {
+  box-sizing: border-box;
+  padding-right: 16px;
+  position: absolute;
+  right: 0px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <div
+            class="c3"
+          >
+            <div
+              class="c4"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c5"
+              >
+                sudo tctl -c cfg-all users add --roles=access,editor george_washington
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c6"
+          >
+            <button
+              class="c7 c8"
+              kind="secondary"
+            >
+              <div
+                class="c9 icon-container"
+              >
+                <span
+                  class="c10 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c10 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <div
+            class="c3"
+          >
+            <div
+              class="c4"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c5"
+              >
+                sudo DEBUG=1 teleport start -c cfg-all -d
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c6"
+          >
+            <button
+              class="c7 c8"
+              kind="secondary"
+            >
+              <div
+                class="c9 icon-container"
+              >
+                <span
+                  class="c10 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c10 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c11"
+      >
+        <div
+          class="c3"
+        >
+          <div
+            class="c3"
+          >
+            <div
+              class="c4"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c5"
+              >
+                yarn start-teleport-e --target=https://localhost:3080/web
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c6"
+          >
+            <button
+              class="c7 c8"
+              kind="secondary"
+            >
+              <div
+                class="c9 icon-container"
+              >
+                <span
+                  class="c10 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c10 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render multi bash texts with comment 1`] = `
+.c2 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-top: 8px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-top: 8px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #2C3A73;
+}
+
+.c8:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c10 .icon-check {
+  display: none;
+}
+
+.c10 .icon-copy {
+  display: block;
+}
+
+.c10.copied .icon-check {
+  display: block;
+}
+
+.c10.copied .icon-copy {
+  display: none;
+}
+
+.c3 {
+  color: rgb(117 113 94 / 80%);
+}
+
+.c9 {
+  height: 28px;
+  width: 28px;
+  border-radius: 20px;
+  min-height: auto;
+  padding: 0;
+  margin-top: -4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-right: 4px;
+  white-space: pre;
+  word-break: break-all;
+  font-size: 12px;
+  font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
+  line-height: 20px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  position: relative;
+}
+
+.c6 {
+  margin: 0;
+}
+
+.c7 {
+  box-sizing: border-box;
+  padding-right: 16px;
+  position: absolute;
+  right: 0px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          Download Teleport's PGP public key
+        </div>
+        <div
+          class="c4"
+        >
+          <div
+            class="c4"
+          >
+            <div
+              class="c5"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c6"
+              >
+                sudo curl https://apt.releases.teleport.dev/gpg \\
+-o /usr/share/keyrings/teleport-archive-keyring.asc
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c7"
+          >
+            <button
+              class="c8 c9"
+              kind="secondary"
+            >
+              <div
+                class="c10 icon-container"
+              >
+                <span
+                  class="c11 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c11 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c2"
+      >
+        <div
+          class="c4"
+        >
+          <div
+            class="c4"
+          >
+            <div
+              class="c5"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c6"
+              >
+                sudo DEBUG=1 teleport start -c cfg-all -d
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c7"
+          >
+            <button
+              class="c8 c9"
+              kind="secondary"
+            >
+              <div
+                class="c10 icon-container"
+              >
+                <span
+                  class="c11 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c11 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c12"
+      >
+        <div
+          class="c3"
+        >
+          Add the Teleport APT repository for v10. You'll need to update this
+file for each major release of Teleport.
+Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
+
+        </div>
+        <div
+          class="c4"
+        >
+          <div
+            class="c4"
+          >
+            <div
+              class="c5"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c6"
+              >
+                echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \\
+https://apt.releases.teleport.dev/stable/v10" \\
+| sudo tee /etc/apt/sources.list.d/teleport.list &gt; /dev/null
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c7"
+          >
+            <button
+              class="c8 c9"
+              kind="secondary"
+            >
+              <div
+                class="c10 icon-container"
+              >
+                <span
+                  class="c11 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c11 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render non bash single text 1`] = `
+.c2 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-top: 8px;
+}
+
+.c6 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c6:active {
+  opacity: 0.56;
+}
+
+.c6:hover,
+.c6:focus {
+  background: #2C3A73;
+}
+
+.c6:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c8 .icon-check {
+  display: none;
+}
+
+.c8 .icon-copy {
+  display: block;
+}
+
+.c8.copied .icon-check {
+  display: block;
+}
+
+.c8.copied .icon-copy {
+  display: none;
+}
+
+.c7 {
+  height: 28px;
+  width: 28px;
+  border-radius: 20px;
+  min-height: auto;
+  padding: 0;
+  margin-top: -4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-right: 4px;
+  white-space: pre;
+  word-break: break-all;
+  font-size: 12px;
+  font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
+  line-height: 20px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  position: relative;
+}
+
+.c4 {
+  margin: 0;
+}
+
+.c5 {
+  box-sizing: border-box;
+  padding-right: 16px;
+  position: absolute;
+  right: 0px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <div
+            class="c3"
+          >
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c4"
+              >
+                some -c text to be copied and it is super long to test scrolling
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c5"
+          >
+            <button
+              class="c6 c7"
+              kind="secondary"
+            >
+              <div
+                class="c8 icon-container"
+              >
+                <span
+                  class="c9 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c9 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render single bash text 1`] = `
+.c2 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-top: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: #2C3A73;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c9 .icon-check {
+  display: none;
+}
+
+.c9 .icon-copy {
+  display: block;
+}
+
+.c9.copied .icon-check {
+  display: block;
+}
+
+.c9.copied .icon-copy {
+  display: none;
+}
+
+.c8 {
+  height: 28px;
+  width: 28px;
+  border-radius: 20px;
+  min-height: auto;
+  padding: 0;
+  margin-top: -4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-right: 4px;
+  white-space: pre;
+  word-break: break-all;
+  font-size: 12px;
+  font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
+  line-height: 20px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  position: relative;
+}
+
+.c5 {
+  margin: 0;
+}
+
+.c6 {
+  box-sizing: border-box;
+  padding-right: 16px;
+  position: absolute;
+  right: 0px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <div
+            class="c3"
+          >
+            <div
+              class="c4"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c5"
+              >
+                sudo tctl -c cfg-all users add --roles=access,editor george_washington
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c6"
+          >
+            <button
+              class="c7 c8"
+              kind="secondary"
+            >
+              <div
+                class="c9 icon-container"
+              >
+                <span
+                  class="c10 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c10 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render single bash text with comment 1`] = `
+.c2 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-top: 8px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #2C3A73;
+}
+
+.c8:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c10 .icon-check {
+  display: none;
+}
+
+.c10 .icon-copy {
+  display: block;
+}
+
+.c10.copied .icon-check {
+  display: block;
+}
+
+.c10.copied .icon-copy {
+  display: none;
+}
+
+.c3 {
+  color: rgb(117 113 94 / 80%);
+}
+
+.c9 {
+  height: 28px;
+  width: 28px;
+  border-radius: 20px;
+  min-height: auto;
+  padding: 0;
+  margin-top: -4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-right: 4px;
+  white-space: pre;
+  word-break: break-all;
+  font-size: 12px;
+  font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
+  line-height: 20px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  position: relative;
+}
+
+.c6 {
+  margin: 0;
+}
+
+.c7 {
+  box-sizing: border-box;
+  padding-right: 16px;
+  position: absolute;
+  right: 0px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          Add the Teleport API repository for v10. You'll need to update this.
+        </div>
+        <div
+          class="c4"
+        >
+          <div
+            class="c4"
+          >
+            <div
+              class="c5"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c6"
+              >
+                sudo tctl -c cfg-all users add --roles=access,editor george_washington
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c7"
+          >
+            <button
+              class="c8 c9"
+              kind="secondary"
+            >
+              <div
+                class="c10 icon-container"
+              >
+                <span
+                  class="c11 icon icon-copy "
+                  color="light"
+                  data-testid="btn-copy"
+                />
+                <span
+                  class="c11 icon icon-check "
+                  color="light"
+                  data-testid="btn-check"
+                />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

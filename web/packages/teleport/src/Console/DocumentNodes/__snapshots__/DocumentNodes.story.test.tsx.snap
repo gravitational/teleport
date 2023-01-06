@@ -1,0 +1,1272 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render DocumentNodes 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-right: 20px;
+  width: 336px;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c31 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #092F52;
+  border: 1px solid #010B1C;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c31:active {
+  opacity: 0.56;
+}
+
+.c31:hover,
+.c31:focus {
+  background: #092F52;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c31:active {
+  opacity: 0.24;
+}
+
+.c31:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c25 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c32 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
+.c37 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin: -16px;
+  height: 100%;
+  width: 100%;
+  background-color: #010B1C;
+  display: flex;
+}
+
+.c1 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.c12 {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c13 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c26 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c29 {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c34 {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.c35 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c28 {
+  background: #03203C;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c28 > thead > tr > th,
+.c28 > tbody > tr > th,
+.c28 > tfoot > tr > th,
+.c28 > thead > tr > td,
+.c28 > tbody > tr > td,
+.c28 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c28 > thead > tr > th:first-child,
+.c28 > tbody > tr > th:first-child,
+.c28 > tfoot > tr > th:first-child,
+.c28 > thead > tr > td:first-child,
+.c28 > tbody > tr > td:first-child,
+.c28 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c28 > thead > tr > th:last-child,
+.c28 > tbody > tr > th:last-child,
+.c28 > tfoot > tr > th:last-child,
+.c28 > thead > tr > td:last-child,
+.c28 > tbody > tr > td:last-child,
+.c28 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c28 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c28 > thead > tr > th {
+  background: #01172C;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c28 > thead > tr > th .c24 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c28 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c28 tbody tr {
+  border-bottom: 1px solid #010B1C;
+}
+
+.c28 tbody tr:hover {
+  background-color: rgb(7,40,70);
+}
+
+.c11 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #03203C;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c33 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #03203C;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.c30 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #01172C;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+  cursor: pointer;
+}
+
+.c36 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c36 .c24 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c36:hover .c24,
+.c36:focus .c24 {
+  opacity: 1;
+}
+
+.c36:disabled {
+  cursor: default;
+}
+
+.c36:disabled .c24 {
+  opacity: 0.1;
+}
+
+.c17 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #092F52;
+  border-radius: 200px;
+}
+
+.c15 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #01172C;
+}
+
+.c16 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #01172C;
+  padding-right: 184px;
+}
+
+.c16:hover,
+.c16:focus,
+.c16:active {
+  background: #010B1C;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c16::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c19 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c19[disabled] {
+  cursor: default;
+}
+
+.c22 {
+  width: 32px;
+  height: 12px;
+  border-radius: 12px;
+  background: #03203C;
+  cursor: inherit;
+  flex-shrink: 0;
+}
+
+.c22:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translate(0,-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: #651FFF;
+}
+
+.c20 {
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.c20:checked + .c21 {
+  background: #512FC9;
+}
+
+.c20:checked + .c21:before {
+  transform: translate(16px,-50%);
+}
+
+.c20:disabled + .c21 {
+  background: #03203C;
+}
+
+.c20:disabled + .c21:before {
+  background: #455a64;
+}
+
+.c18 {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-right: 16px;
+  padding-left: 16px;
+  width: 120px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  width: 240px;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border: 1px solid;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c9 {
+  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 8px;
+  border-bottom-left-radius: 4px;
+  border-top-left-radius: 4px;
+}
+
+.c10 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  border-bottom-left-radius: unset;
+  border-top-left-radius: unset;
+  display: block;
+  outline: none;
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+  padding-left: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.87);
+  background-color: #03203C;
+}
+
+.c10::-ms-clear {
+  display: none;
+}
+
+.c10:read-only {
+  cursor: not-allowed;
+}
+
+.c10::placeholder {
+  opacity: 1;
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #092F52;
+}
+
+.c7 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c7 .react-select__control,
+.c7 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c7 .react-select__control:hover,
+.c7 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c7 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c7 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c7 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c7 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c7 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c7 .react-select__indicator-separator {
+  display: none;
+}
+
+.c7 .react-select__loading-indicator {
+  display: none;
+}
+
+.c7 .react-select--is-disabled .react-select__single-value,
+.c7 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c7 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c6 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c6 .react-select__control,
+.c6 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c6 .react-select__control:hover,
+.c6 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c6 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c6 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c6 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c6 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c6 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c6 .react-select__indicator-separator {
+  display: none;
+}
+
+.c6 .react-select__loading-indicator {
+  display: none;
+}
+
+.c6 .react-select--is-disabled .react-select__single-value,
+.c6 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c6 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c6 .react-select-container {
+  background: transparent;
+}
+
+.c6 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c6 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c6 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c6 .react-select__control:focus,
+.c6 .react-select__control:active {
+  background-color: #092F52;
+}
+
+.c6 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #092F52;
+}
+
+.c6 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c6 .react-select__control .react-select__indicator,
+.c6 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c6 .react-select__control .react-select__indicator:hover,
+.c6 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c6 .react-select__control--menu-is-open {
+  background-color: #092F52;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c6 .react-select__control--menu-is-open .react-select__indicator,
+.c6 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c6 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c6 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c6 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c6 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c6 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c6 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c6 .react-select__multi-value {
+  background-color: #01172C;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c6 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c6 .react-select--is-disabled .react-select__single-value,
+.c6 .react-select--is-disabled .react-select__placeholder,
+.c6 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c6 .react-select-container {
+  background: #03203C;
+}
+
+.c6 .react-select__single-value {
+  color: white;
+  padding: 0 4px;
+  margin: 0;
+}
+
+.c2 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 32px;
+  padding-right: 32px;
+  flex-direction: column;
+  display: flex;
+  flex: 1;
+  max-width: 1024px;
+}
+
+.c2::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div
+  class="c0"
+  height="100%"
+  style="position: absolute;"
+  width="100%"
+>
+  <div
+    class="c1"
+    style="overflow: auto; background: rgb(1, 11, 28); display: flex; position: relative;"
+  >
+    <div
+      class="c2"
+    >
+      <div
+        class="c3"
+      >
+        <div
+          class="c4"
+          width="336px"
+        >
+          <label
+            class="c5"
+            font-size="0"
+          >
+             Clusters 
+          </label>
+          <div
+            class="c6"
+          >
+            <div
+              class="c7"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      cluseter-1
+                    </div>
+                    <div
+                      class="css-b8ldur-Input"
+                    >
+                      <div
+                        class="react-select__input"
+                        style="display: inline-block;"
+                      >
+                        <input
+                          aria-autocomplete="list"
+                          autocapitalize="none"
+                          autocomplete="off"
+                          autocorrect="off"
+                          id="react-select-2-input"
+                          spellcheck="false"
+                          style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
+                          tabindex="0"
+                          type="text"
+                          value=""
+                        />
+                        <div
+                          style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,\\"Segoe UI\\",Helvetica,Arial,sans-serif,\\"Apple Color Emoji\\",\\"Segoe UI Emoji\\",\\"Segoe UI Symbol\\"; letter-spacing: normal; text-transform: none;"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c8"
+          width="240px"
+        >
+          <div
+            class="c9"
+          >
+            SSH:
+          </div>
+          <input
+            class="c10"
+            color="text.primary"
+            placeholder="login@host:port"
+          />
+        </div>
+      </div>
+      <form
+        class="c11"
+      >
+        <div
+          class="c12"
+          width="100%"
+        >
+          <div
+            class="c13"
+            style="width: 70%;"
+          >
+            <div
+              class="c14"
+              width="100%"
+            >
+              <div
+                class="c15"
+              >
+                <input
+                  class="c16"
+                  placeholder="SEARCH..."
+                  value=""
+                />
+                <div
+                  class="c17"
+                >
+                  <div
+                    class="c18"
+                  >
+                    <label
+                      class="c19"
+                    >
+                      <input
+                        class="c20"
+                        type="checkbox"
+                      />
+                      <div
+                        class="c21 c22"
+                      />
+                    </label>
+                    <div
+                      class="c23"
+                    >
+                      Advanced
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              style="line-height: 0px;"
+            >
+              <span
+                class="c24 c25 icon icon-info_outline "
+                color="light"
+                style="cursor: pointer; font-size: 20px;"
+              />
+            </div>
+          </div>
+          <div
+            class="c26"
+          >
+            <div
+              class="c27"
+              color="primary.contrastText"
+            >
+              SHOWING 
+              <strong>
+                1
+              </strong>
+               - 
+              <strong>
+                5
+              </strong>
+               of
+               
+              <strong>
+                5
+              </strong>
+            </div>
+          </div>
+        </div>
+      </form>
+      <table
+        class="c28"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Hostname
+                <span
+                  class="c24 c25 icon icon-chevron-up "
+                  color="light"
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th
+              style="cursor: default;"
+            >
+              Address
+            </th>
+            <th
+              style="cursor: default;"
+            >
+              Labels
+            </th>
+            <th
+              style="cursor: default;"
+            />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              fujedu
+            </td>
+            <td>
+              172.10.1.20:3022
+            </td>
+            <td>
+              <div
+                class="c29"
+              >
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c31"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c24 c32 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              facuzguv
+            </td>
+            <td>
+              172.10.1.42:3022
+            </td>
+            <td>
+              <div
+                class="c29"
+              >
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c31"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c24 c32 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              duzsevkig
+            </td>
+            <td>
+              <span
+                style="cursor: default;"
+                title="This node is connected to cluster through reverse tunnel"
+              >
+                ⟵ tunnel
+              </span>
+            </td>
+            <td>
+              <div
+                class="c29"
+              >
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c31"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c24 c32 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              kuhinur
+            </td>
+            <td>
+              <span
+                style="cursor: default;"
+                title="This node is connected to cluster through reverse tunnel"
+              >
+                ⟵ tunnel
+              </span>
+            </td>
+            <td>
+              <div
+                class="c29"
+              >
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c31"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c24 c32 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              zebpecda
+            </td>
+            <td>
+              172.10.1.24:3022
+            </td>
+            <td>
+              <div
+                class="c29"
+              >
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  kernel: 4.15.0-51-generic
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  lortavma: one
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  lenisret: 4.15.0-51-generic
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  lofdevod: one
+                </div>
+                <div
+                  class="c30"
+                  kind="secondary"
+                >
+                  llhurlaz: 4.15.0-51-generic
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c31"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c24 c32 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <nav
+        class="c33"
+      >
+        <div
+          class="c34"
+          width="100%"
+        >
+          <div
+            class="c35"
+          />
+          <div
+            class="c26"
+          >
+            <button
+              class="c36"
+              disabled=""
+              title="Previous page"
+            >
+              <span
+                class="c24 c37 icon icon-arrow-left-circle "
+                color="light"
+                font-size="3"
+              />
+            </button>
+            <button
+              class="c36"
+              title="Next page"
+            >
+              <span
+                class="c24 c37 icon icon-arrow-right-circle "
+                color="light"
+                font-size="3"
+              />
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </div>
+</div>
+`;

@@ -1,0 +1,221 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`callback error message 1`] = `
+.c3 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  margin-top: 8px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c3 a {
+  color: #FFFFFF;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  padding: 32px;
+  width: 540px;
+  color: #324148;
+  background-color: #FFFFFF;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c0 {
+  display: block;
+  outline: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  max-width: 200px;
+  max-height: 120px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 28px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  text-align: center;
+}
+
+.c5 {
+  color: #03a9f4;
+}
+
+<div>
+  <img
+    class="c0"
+    src="file_stub"
+  />
+  <div
+    class="c1"
+    color="text.onLight"
+    width="540px"
+  >
+    <div
+      class="c2"
+    >
+      Login Unsuccessful
+    </div>
+    <div
+      class="c3"
+      kind="danger"
+    >
+      custom message
+    </div>
+     
+    <div
+      class="c4"
+    >
+      <a
+        class="c5"
+        href="/web/login"
+      >
+        Please attempt to log in again.
+      </a>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`default error message 1`] = `
+.c3 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  margin-top: 8px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c3 a {
+  color: #FFFFFF;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  padding: 32px;
+  width: 540px;
+  color: #324148;
+  background-color: #FFFFFF;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c0 {
+  display: block;
+  outline: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  max-width: 200px;
+  max-height: 120px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 28px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  text-align: center;
+}
+
+.c5 {
+  color: #03a9f4;
+}
+
+<div>
+  <img
+    class="c0"
+    src="file_stub"
+  />
+  <div
+    class="c1"
+    color="text.onLight"
+    width="540px"
+  >
+    <div
+      class="c2"
+    >
+      Login Unsuccessful
+    </div>
+    <div
+      class="c3"
+      kind="danger"
+    >
+      unable to login, please check Teleport's log for details
+    </div>
+     
+    <div
+      class="c4"
+    >
+      <a
+        class="c5"
+        href="/web/login"
+      >
+        Please attempt to log in again.
+      </a>
+    </div>
+  </div>
+</div>
+`;
