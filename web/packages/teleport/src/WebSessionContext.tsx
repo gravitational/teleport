@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export const KeysEnum = {
-  DISCOVER: 'grv_teleport_discover',
+import React from 'react';
+
+import { WebSession } from './services/websession';
+
+export const SessionContext = React.createContext<WebSession>(null);
+
+export const SessionContextProvider: React.FC<
+  React.PropsWithChildren<Props>
+> = props => {
+  return (
+    <SessionContext.Provider value={props.session} children={props.children} />
+  );
+};
+
+type Props = {
+  session: WebSession;
 };

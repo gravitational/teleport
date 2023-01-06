@@ -14,7 +14,5 @@
  * limitations under the License.
  */
 
-import websession from './websession';
-
 export * from './types';
-export default websession;
+export { WebSession } from './websession';

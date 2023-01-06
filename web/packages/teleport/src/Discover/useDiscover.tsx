@@ -18,7 +18,6 @@ import { useMemo, useState } from 'react';
 
 import { useLocation } from 'react-router';
 
-import session from 'teleport/services/websession';
 import useMain, { UseMainConfig } from 'teleport/Main/useMain';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
@@ -86,10 +85,6 @@ export function useDiscover(config: UseMainConfig) {
     setAgentMeta(meta);
   }
 
-  function logout() {
-    session.logout();
-  }
-
   return {
     agentMeta,
     alerts: initState.alerts,
@@ -97,7 +92,6 @@ export function useDiscover(config: UseMainConfig) {
     customBanners: initState.customBanners,
     dismissAlert: initState.dismissAlert,
     initAttempt: { status: initState.status, statusText: initState.statusText },
-    logout,
     nextStep,
     prevStep,
     onSelectResource,

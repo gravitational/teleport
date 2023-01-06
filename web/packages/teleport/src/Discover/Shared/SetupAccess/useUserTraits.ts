@@ -19,6 +19,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { arrayStrDiff } from 'teleport/lib/util';
 import useTeleport from 'teleport/useTeleport';
+import useWebSession from 'teleport/useWebSession';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 
 import { ResourceKind } from '../ResourceKind';
@@ -35,6 +36,7 @@ import type { AgentStepProps } from '../../types';
 //  - provides utility function that makes data objects (type Option) for react-select component
 export function useUserTraits(props: AgentStepProps) {
   const ctx = useTeleport();
+  const webSession = useWebSession();
 
   const [user, setUser] = useState<User>();
   const { attempt, run, setAttempt, handleError } = useAttempt('processing');
@@ -240,7 +242,7 @@ export function useUserTraits(props: AgentStepProps) {
         },
       });
 
-      await ctx.userService.applyUserTraits();
+      await ctx.userService.applyUserTraits(webSession);
       props.nextStep();
     } catch (err) {
       handleError(err);

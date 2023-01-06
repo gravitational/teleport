@@ -27,3 +27,26 @@ export type BearerToken = {
   sessionExpires: Date;
   sessionInactiveTimeout: number;
 };
+
+export enum KeysEnum {
+  TOKEN = 'grv_teleport_token',
+  TOKEN_RENEW = 'grv_teleport_token_renew',
+  LAST_ACTIVE = 'grv_teleport_last_active',
+}
+
+export enum EventKeys {
+  CLEAR = 'bc_clear_session',
+  GET_TOKEN = 'bc_get_session_token',
+  UPSERT_TOKEN = 'bc_upsert_session_token',
+  GET_TOKEN_IS_RENEWING = 'bc_get_token_is_renewing',
+  UPSERT_TOKEN_IS_RENEWING = 'bc_upsert_token_is_renewing',
+  GET_LAST_ACTIVE = 'bc_get_last_active',
+  UPSERT_LAST_ACTIVE = 'bc_upsert_last_active',
+}
+
+export type BroadcastChannelMessage = {
+  key: EventKeys;
+  token?: BearerToken;
+  isTokenRenewing?: boolean;
+  lastActive?: number;
+};
