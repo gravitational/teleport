@@ -89,7 +89,7 @@ const auth = {
       second_factor_token: otpCode,
     };
 
-    return api.post(cfg.api.sessionPath, data);
+    return api.post(cfg.api.webSessionPath, data);
   },
 
   loginWithWebauthn(creds?: UserCredentials) {
