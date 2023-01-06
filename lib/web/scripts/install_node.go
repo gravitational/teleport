@@ -87,17 +87,22 @@ func MarshalLabelsYAML(resourceMatcherLabels types.Labels, extraListIndent int) 
 
 		labelStr := strings.TrimSpace(string(bs))
 		if len(labelValues) > 1 && extraListIndent > 0 {
-			words := strings.Split(labelStr, "\n")
-			// Skip the first word, since that is the label key.
-			// Add extra spaces defined by `yamlListIndent` arg.
-			for i := 1; i < len(words); i++ {
-				words[i] = fmt.Sprintf("%s%s", strings.Repeat(" ", extraListIndent), words[i])
-			}
-			labelStr = strings.Join(words, "\n")
+			labelStr = addExtraListIndentToYAMLLabelStr(labelStr, extraListIndent)
 		}
 
 		ret = append(ret, labelStr)
 	}
 
 	return ret, nil
+}
+
+func addExtraListIndentToYAMLLabelStr(labelStr string, indent int) string {
+	words := strings.Split(labelStr, "\n")
+	// Skip the first word, since that is the label key.
+	// Add extra spaces defined by `yamlListIndent` arg.
+	for i := 1; i < len(words); i++ {
+		words[i] = fmt.Sprintf("%s%s", strings.Repeat(" ", indent), words[i])
+	}
+
+	return strings.Join(words, "\n")
 }
