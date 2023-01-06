@@ -1371,6 +1371,11 @@ func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Con
 				Limit:        apidefaults.DefaultChunkSize,
 				StartKey:     nextKey,
 			})
+			// When Auth Service is running on a previous minor/patch version than 11.2.2, it doesn't know about DatabaseServices
+			// In this case there's nothing to do.
+			if trace.IsAccessDenied(err) {
+				return nil
+			}
 			if err != nil {
 				return trace.Wrap(err)
 			}

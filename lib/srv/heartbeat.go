@@ -571,6 +571,11 @@ func (h *Heartbeat) announce() error {
 			}
 			keepAlive, err := h.Announcer.UpsertDatabaseService(h.cancelCtx, dbService)
 			if err != nil {
+				// When Auth Service is running on a previous minor/patch version than 11.2.2, it doesn't know about DatabaseServices
+				// In this case there's not heartbeat.
+				if trace.IsNotImplemented(err) {
+					return nil
+				}
 				return trace.Wrap(err)
 			}
 			h.notifySend()
