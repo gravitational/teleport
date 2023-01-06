@@ -151,7 +151,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 func tagPipelines() []pipeline {
 	var ps []pipeline
 	// regular tarball builds
-	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
+	for _, arch := range []string{"amd64", "386", "arm"} {
 		for _, fips := range []bool{false, true} {
 			if arch != "amd64" && fips {
 				// FIPS mode only supported on linux/amd64
@@ -169,6 +169,14 @@ func tagPipelines() []pipeline {
 			}
 		}
 	}
+
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:       buildType{os: "linux", arch: "arm64", fips: false},
+		trigger:         triggerTag,
+		uploadArtifacts: true,
+		srcRefVar:       "DRONE_TAG",
+		workflowRefVar:  "DRONE_TAG",
+	}))
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))

@@ -24,6 +24,19 @@ windows_desktop_service:
     # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
     # use the format: "EXAMPLE\svc-teleport".
     username: '$LDAP_USERNAME'
+    # The security identifier of the service account specified by the username
+    # field above. This looks like a string starting with "S-".
+    #
+    # An administrator with access to the domain controller can obtain this value
+    # by opening a PowerShell and running
+    # ```
+    # Get-AdUser -Identity $LDAP_USERNAME | Select SID
+    # ```
+    #
+    # The value can be obtained over LDAP by constructing a query with the
+    # filter = (&(objectCategory=person)(objectClass=user)(name=$LDAP_USERNAME))
+    # and requesting the attribute = objectSid
+    sid: '$LDAP_USER_SID'
     # You can skip LDAPS certificate verification by setting
     # this to true. It is recommended that this be set to false
     # and the certificate added your system's trusted repository,
