@@ -1341,6 +1341,14 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+func (c *Client) GetLicense(ctx context.Context) (string, error) {
+	return c.APIClient.GetLicense(ctx)
+}
+
+func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
+	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -1677,4 +1685,10 @@ type ClientI interface {
 
 	// SubmitUsageEvent submits an external usage event.
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+
+	// GetLicense returns the license used to start Teleport Enterprise
+	GetLicense(ctx context.Context) (string, error)
+
+	// ListReleases returns a list of Teleport Enterprise releases
+	ListReleases(ctx context.Context) ([]*types.Release, error)
 }

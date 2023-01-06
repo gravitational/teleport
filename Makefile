@@ -227,6 +227,11 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
+# Is this build targeting the same OS & architecture it is being compiled on, or
+# will it require cross-compilation? We need to know this (especially for ARM) so we 
+# can set the cross-compiler path (and possibly feature flags) correctly. 
+IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
@@ -239,8 +244,15 @@ CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 else ifeq ("$(ARCH)","arm64")
-# ARM64 builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
+CGOFLAG = CGO_ENABLED=1
+
+# If we 're not guaranteed to be building natively on an arm64 system, then we'll
+# need to configure the cross compiler.
+ifeq ($(IS_NATIVE_BUILD),"no")
+CGOFLAG += CC=aarch64-linux-gnu-gcc
+endif
+
 endif
 endif
 
@@ -441,11 +453,19 @@ build-archive:
 	@echo "---> Created $(RELEASE).tar.gz."
 	
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-unix - Produces binary release tarballs for both OSS and 
+# Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+#
+# make release-unix-only - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
@@ -889,6 +909,7 @@ update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
+	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
 .PHONY: test-package
@@ -1160,10 +1181,10 @@ update-webassets:
 # dronegen generates .drone.yml config
 #
 #    Usage:
-#    - install github.com/gravitational/tdr
-#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
 #    - tsh login --proxy=platform.teleport.sh
 #    - tsh app login drone
+#    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
+#    - tsh proxy app --port=8080 drone
 #    - make dronegen
 .PHONY: dronegen
 dronegen:

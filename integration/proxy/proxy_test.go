@@ -305,7 +305,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := helpers.MustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV5{
+	kubeRoleSpec := types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: []string{kube.TestImpersonationGroup},
@@ -357,7 +357,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := helpers.MustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV5{
+	kubeRoleSpec := types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: []string{kube.TestImpersonationGroup},
@@ -492,7 +492,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
-
 		})
 	})
 
@@ -833,13 +832,13 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		},
 	})
 
-	sess := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
-	status, _, err := pack.MakeRequest(sess, http.MethodGet, "/")
+	cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+	status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
-	sess = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
-	status, _, err = pack.MakeRequest(sess, http.MethodGet, "/")
+	cookies = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+	status, _, err = pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 }

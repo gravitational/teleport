@@ -40,7 +40,7 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		Protocol: "postgres",
 		URI:      "instance.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5438",
 		AWS: types.AWS{
-			AccountID: "12345",
+			AccountID: "123456789012",
 			RDS: types.RDS{
 				ResourceID: "abcdef",
 			},
@@ -54,7 +54,7 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		Protocol: "postgres",
 		URI:      "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 		AWS: types.AWS{
-			AccountID: "12345",
+			AccountID: "123456789012",
 			RDSProxy: types.RDSProxy{
 				ResourceID: "qwerty",
 			},
@@ -102,7 +102,7 @@ func TestGetAWSPolicyDocument(t *testing.T) {
         {
             "Effect": "Allow",
             "Action": "rds-db:connect",
-            "Resource": "arn:aws:rds-db:us-east-1:12345:dbuser:abcdef/*"
+            "Resource": "arn:aws:rds-db:us-east-1:123456789012:dbuser:abcdef/*"
         }
     ]
 }`,
@@ -115,7 +115,7 @@ func TestGetAWSPolicyDocument(t *testing.T) {
         {
             "Effect": "Allow",
             "Action": "rds-db:connect",
-            "Resource": "arn:aws:rds-db:us-west-1:12345:dbuser:qwerty/*"
+            "Resource": "arn:aws:rds-db:us-west-1:123456789012:dbuser:qwerty/*"
         }
     ]
 }`,

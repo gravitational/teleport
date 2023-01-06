@@ -102,11 +102,12 @@ func (p *websocketClientStreams) Close() error {
 
 type kubeProxyClientStreams struct {
 	proxy     *remoteCommandProxy
-	sizeQueue remotecommand.TerminalSizeQueue
+	sizeQueue *termQueue
 	stdin     io.Reader
 	stdout    io.Writer
 	stderr    io.Writer
 	close     chan struct{}
+	wg        sync.WaitGroup
 }
 
 func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStreams {
@@ -136,14 +137,20 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 
 func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
 	ch := make(chan *remotecommand.TerminalSize)
+	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
 		for {
 			size := p.sizeQueue.Next()
 			if size == nil {
-				break
+				return
 			}
-
-			ch <- size
+			select {
+			case ch <- size:
+				// Check if the sizeQueue was already terminated.
+			case <-p.sizeQueue.done.Done():
+				return
+			}
 		}
 	}()
 
@@ -165,32 +172,56 @@ func (p *kubeProxyClientStreams) sendStatus(err error) error {
 }
 
 func (p *kubeProxyClientStreams) Close() error {
-	close(p.close)
+	if p.sizeQueue != nil {
+		p.sizeQueue.Close()
+	}
+	p.wg.Wait()
 	return trace.Wrap(p.proxy.Close())
 }
 
 // multiResizeQueue is a merged queue of multiple terminal size queues.
 type multiResizeQueue struct {
-	queues   map[string]<-chan *remotecommand.TerminalSize
-	cases    []reflect.SelectCase
-	callback func(*remotecommand.TerminalSize)
-	mutex    sync.Mutex
+	queues       map[string]<-chan *remotecommand.TerminalSize
+	cases        []reflect.SelectCase
+	callback     func(*remotecommand.TerminalSize)
+	mutex        sync.Mutex
+	parentCtx    context.Context
+	reloadCtx    context.Context
+	reloadCancel context.CancelFunc
 }
 
-func newMultiResizeQueue() *multiResizeQueue {
+func newMultiResizeQueue(parentCtx context.Context) *multiResizeQueue {
+	ctx, cancel := context.WithCancel(parentCtx)
 	return &multiResizeQueue{
-		queues: make(map[string]<-chan *remotecommand.TerminalSize),
+		queues:       make(map[string]<-chan *remotecommand.TerminalSize),
+		parentCtx:    parentCtx,
+		reloadCtx:    ctx,
+		reloadCancel: cancel,
 	}
 }
 
 func (r *multiResizeQueue) rebuild() {
-	r.cases = nil
-	for _, queue := range r.queues {
-		r.cases = append(r.cases, reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(queue),
-		})
+	oldCancel := r.reloadCancel
+	defer oldCancel()
+
+	r.reloadCtx, r.reloadCancel = context.WithCancel(r.parentCtx)
+	r.cases = make([]reflect.SelectCase, 1, len(r.queues)+1)
+	r.cases[0] = reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(r.reloadCtx.Done()),
 	}
+	for _, queue := range r.queues {
+		r.cases = append(r.cases,
+			reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(queue),
+			},
+		)
+	}
+}
+
+func (r *multiResizeQueue) close() {
+	r.reloadCancel()
 }
 
 func (r *multiResizeQueue) add(id string, queue <-chan *remotecommand.TerminalSize) {
@@ -208,17 +239,27 @@ func (r *multiResizeQueue) remove(id string) {
 }
 
 func (r *multiResizeQueue) Next() *remotecommand.TerminalSize {
-	r.mutex.Lock()
-	cases := r.cases
-	r.mutex.Unlock()
-	_, value, ok := reflect.Select(cases)
-	if !ok {
-		return nil
-	}
+loop:
+	for {
+		r.mutex.Lock()
+		cases := r.cases
+		r.mutex.Unlock()
+		idx, value, ok := reflect.Select(cases)
+		if !ok || idx == 0 {
+			select {
+			// if parent context is canceled, the session has ended and we should
+			// return early. Otherwise, it means that we rebuilt and in that case we should continue.
+			case <-r.parentCtx.Done():
+				return nil
+			default:
+				continue loop
+			}
+		}
 
-	size := value.Interface().(*remotecommand.TerminalSize)
-	r.callback(size)
-	return size
+		size := value.Interface().(*remotecommand.TerminalSize)
+		r.callback(size)
+		return size
+	}
 }
 
 // party represents one participant of the session and their associated state.
@@ -242,16 +283,16 @@ func newParty(ctx authContext, mode types.SessionParticipantMode, client remoteC
 	}
 }
 
-// Close closes the party and disconnects the remote end.
-func (p *party) Close() error {
-	var err error
-
+// InformClose informs the party that he must leave the session.
+func (p *party) InformClose() {
 	p.closeOnce.Do(func() {
 		close(p.closeC)
-		err = p.Client.Close()
 	})
+}
 
-	return trace.Wrap(err)
+// CloseConnection closes the party underlying connection.
+func (p *party) CloseConnection() error {
+	return trace.Wrap(p.Client.Close())
 }
 
 // session represents an ongoing k8s session.
@@ -311,8 +352,17 @@ type session struct {
 	// Set if we should broadcast information about participant requirements to the session.
 	displayParticipantRequirements bool
 
-	// eventsWaiter is used to wait for events to be emitted when a session is closed.
+	// eventsWaiter is used to wait for events to be emitted and goroutines closed
+	// when a session is closed.
 	eventsWaiter sync.WaitGroup
+
+	streamContext       context.Context
+	streamContextCancel context.CancelFunc
+	// partiesWg is a sync.WaitGroup that tracks the number of active parties
+	// in this session. It's incremented when a party joins a session and
+	// decremented when he leaves - it waits until the session leave events
+	// are emitted for every party before returning.
+	partiesWg sync.WaitGroup
 }
 
 // newSession creates a new session in pending mode.
@@ -335,7 +385,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
-
+	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
 	s := &session{
 		ctx:                            ctx,
 		forwarder:                      forwarder,
@@ -348,7 +398,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		io:                             io,
 		accessEvaluator:                accessEvaluator,
 		emitter:                        events.NewDiscardEmitter(),
-		terminalSizeQueue:              newMultiResizeQueue(),
+		terminalSizeQueue:              newMultiResizeQueue(streamContext),
 		started:                        false,
 		sess:                           sess,
 		closeC:                         make(chan struct{}),
@@ -356,6 +406,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
+		streamContext:                  streamContext,
+		streamContextCancel:            streamContextCancel,
+		partiesWg:                      sync.WaitGroup{},
 	}
 
 	s.io.OnWriteError = s.disconnectPartyOnErr
@@ -389,16 +442,19 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 		return
 	}
 
-	s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
-
-	id, err := uuid.Parse(idString)
-	if err != nil {
-		s.log.WithError(err).Errorf("Unable to decode %q into a UUID.", idString)
+	id, uuidParseErr := uuid.Parse(idString)
+	if uuidParseErr != nil {
+		s.log.WithError(uuidParseErr).Errorf("Unable to decode %q into a UUID.", idString)
 		return
 	}
 
-	if err = s.leave(id); err != nil {
-		s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
+	wasActive, leaveErr := s.leave(id)
+	if leaveErr != nil {
+		s.log.WithError(leaveErr).Errorf("Failed to disconnect party %v from the session.", idString)
+	}
+	if wasActive {
+		// log the error only if it was the reason for the user disconnection.
+		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
 	}
 }
 
@@ -416,7 +472,7 @@ func (s *session) checkPresence() error {
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Debugf("Participant %v is not active, kicking.", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
-			err := s.unlockedLeave(id)
+			_, err := s.unlockedLeave(id)
 			if err != nil {
 				s.log.WithError(err).Warnf("Failed to kick participant %v for inactivity.", participant.ID)
 			}
@@ -510,13 +566,15 @@ func (s *session) launch() error {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
+	s.eventsWaiter.Add(1)
 	go func() {
-		select {
-		case <-time.After(time.Until(s.expires)):
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			s.BroadcastMessage("Session expired, closing...")
+		defer s.eventsWaiter.Done()
+		t := time.NewTimer(time.Until(s.expires))
+		defer t.Stop()
 
+		select {
+		case <-t.C:
+			s.BroadcastMessage("Session expired, closing...")
 			err := s.Close()
 			if err != nil {
 				s.log.WithError(err).Error("Failed to close session")
@@ -546,7 +604,7 @@ func (s *session) launch() error {
 	}
 
 	s.io.On()
-	if err = executor.Stream(options); err != nil {
+	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
 	}
@@ -644,7 +702,9 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.PresenceEnabled {
+		s.eventsWaiter.Add(1)
 		go func() {
+			defer s.eventsWaiter.Done()
 			ticker := time.NewTicker(PresenceVerifyInterval)
 			defer ticker.Stop()
 
@@ -842,6 +902,9 @@ func (s *session) join(p *party) error {
 		s.log.Warnf("Failed to write history to client: %v.", err)
 	}
 
+	// increment the party track waitgroup.
+	// It is decremented when session.leave() finishes its execution.
+	s.partiesWg.Add(1)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	stringID := p.ID.String()
@@ -857,7 +920,9 @@ func (s *session) join(p *party) error {
 	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
 
 	if p.Mode == types.SessionModeratorMode {
+		s.eventsWaiter.Add(1)
 		go func() {
+			defer s.eventsWaiter.Done()
 			c := p.Client.forceTerminate()
 			select {
 			case <-c:
@@ -906,28 +971,30 @@ func (s *session) BroadcastMessage(format string, args ...interface{}) {
 	}
 }
 
-// leave removes a party from the session.
-func (s *session) leave(id uuid.UUID) error {
+// leave removes a party from the session and returns if the party was still active
+// in the session. If the party wasn't found, it returns false, nil.
+func (s *session) leave(id uuid.UUID) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.unlockedLeave(id)
 }
 
 // unlockedLeave removes a party from the session without locking the mutex.
+// The boolean returned identifies if the party was still active in the session.
+// If the party wasn't found, it returns false, nil.
 // In order to call this function, lock the mutex before.
-func (s *session) unlockedLeave(id uuid.UUID) error {
+func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 	var errs []error
-	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
-		return nil
-	}
-
 	stringID := id.String()
 	party := s.parties[id]
 
 	if party == nil {
-		return nil
+		return false, nil
 	}
-
+	// Waits until the function execution ends to release the parties waitgroup.
+	// It's used to prevent the session to terminate the events emitter before
+	// the session leave event is emitted.
+	defer s.partiesWg.Done()
 	delete(s.parties, id)
 	s.terminalSizeQueue.remove(stringID)
 	s.io.DeleteReader(stringID)
@@ -964,11 +1031,13 @@ func (s *session) unlockedLeave(id uuid.UUID) error {
 		errs = append(errs, trace.Wrap(err))
 	}
 
-	err = party.Close()
-	if err != nil {
-		s.log.WithError(err).Error("Error closing party")
-		errs = append(errs, trace.Wrap(err))
-	}
+	party.InformClose()
+	defer func() {
+		if err := party.Client.Close(); err != nil {
+			s.log.WithError(err).Error("Error closing party")
+			errs = append(errs, trace.Wrap(err))
+		}
+	}()
 
 	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
@@ -981,18 +1050,18 @@ func (s *session) unlockedLeave(id uuid.UUID) error {
 				s.log.WithError(err).Errorf("Failed to close session")
 			}
 		}()
-		return trace.NewAggregate(errs...)
+		return true, trace.NewAggregate(errs...)
 	}
 
 	// We wait until here to return to check if we should terminate the
 	// session.
 	if len(errs) > 0 {
-		return trace.NewAggregate(errs...)
+		return true, trace.NewAggregate(errs...)
 	}
 
 	canStart, options, err := s.canStart()
 	if err != nil {
-		return trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
 
 	if !canStart {
@@ -1002,7 +1071,7 @@ func (s *session) unlockedLeave(id uuid.UUID) error {
 					s.log.WithError(err).Errorf("Failed to close session")
 				}
 			}()
-			return nil
+			return true, nil
 		}
 
 		// pause session and wait for another party to resume
@@ -1020,7 +1089,7 @@ func (s *session) unlockedLeave(id uuid.UUID) error {
 		}()
 	}
 
-	return nil
+	return true, nil
 }
 
 // allParticipants returns a list of all historical participants of the session.
@@ -1061,26 +1130,29 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 // Close terminates a session and disconnects all participants.
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
-		s.mu.Lock()
-
 		s.BroadcastMessage("Closing session...")
 
 		s.io.Close()
-
+		// Once tracker is closed parties cannot join the session.
+		// check session.join for logic.
 		if err := s.tracker.Close(s.forwarder.ctx); err != nil {
 			s.log.WithError(err).Debug("Failed to close session tracker")
 		}
-
-		s.log.Debugf("Closing session %v.", s.id.String())
-		close(s.closeC)
-		for id, party := range s.parties {
-			if err := party.Close(); err != nil {
-				s.log.WithError(err).Errorf("Failed to disconnect party %v", id.String())
-			}
+		s.mu.Lock()
+		// terminate all active parties in the session.
+		for _, party := range s.parties {
+			party.InformClose()
 		}
 		recorder := s.recorder
 		s.mu.Unlock()
+		s.log.Debugf("Closing session %v.", s.id.String())
+		close(s.closeC)
+		// Wait until every party leaves the session and emits the session leave
+		// event before closing the recorder - if available.
+		s.partiesWg.Wait()
 
+		s.streamContextCancel()
+		s.terminalSizeQueue.close()
 		if recorder != nil {
 			// wait for events to be emitted before closing the recorder/emitter.
 			// If we close it immediately we will lose session.end events.
