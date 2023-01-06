@@ -26,9 +26,10 @@ import (
 
 func TestMarshalLabelsYAML(t *testing.T) {
 	for _, tt := range []struct {
-		name     string
-		labels   types.Labels
-		expected []string
+		name           string
+		labels         types.Labels
+		numExtraIndent int
+		expected       []string
 	}{
 		{
 			name:     "empty",
@@ -50,8 +51,18 @@ func TestMarshalLabelsYAML(t *testing.T) {
 			},
 			expected: []string{`dev: '*'`, `product: scripts`},
 		},
+		{
+			name: "multiple label values",
+			labels: types.Labels{
+				"dev":     utils.Strings{types.Wildcard},
+				"env":     utils.Strings{"dev1", "dev2"},
+				"product": utils.Strings{"scripts"},
+			},
+			expected:       []string{"dev: '*'", "env:\n      - dev1\n      - dev2", "product: scripts"},
+			numExtraIndent: 2,
+		},
 	} {
-		got, err := MarshalLabelsYAML(tt.labels)
+		got, err := MarshalLabelsYAML(tt.labels, tt.numExtraIndent)
 		require.NoError(t, err)
 
 		require.Equal(t, tt.expected, got)
