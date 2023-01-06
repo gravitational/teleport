@@ -1521,7 +1521,7 @@ func TestTerminal(t *testing.T) {
 			name: "node recording mode",
 			recordingConfig: types.SessionRecordingConfigV2{
 				Spec: types.SessionRecordingConfigSpecV2{
-					Mode: types.RecordAtNode,
+					Mode: types.RecordAtNodeSync,
 				},
 			},
 		},
@@ -3164,6 +3164,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
+
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	query := url.Values{"sort": []string{"name"}}
@@ -3222,6 +3223,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
+	// Test without defined database names or users in role.
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
@@ -3243,6 +3245,49 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Protocol: "test-protocol",
 		Hostname: "test-uri",
 	}})
+
+	// Test with a role that defines database names and users.
+	extraRole := &types.RoleV5{
+		Metadata: types.Metadata{Name: "extra-role"},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				DatabaseNames: []string{"name1"},
+				DatabaseUsers: []string{"user1"},
+				DatabaseLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+	}
+
+	pack = proxy.authPack(t, "test-user2@example.com", services.NewRoleSet(extraRole))
+	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Name:          "db1",
+		Desc:          "test-description",
+		Protocol:      "test-protocol",
+		Type:          types.DatabaseTypeSelfHosted,
+		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Hostname:      "test-uri",
+		DatabaseUsers: []string{"user1"},
+		DatabaseNames: []string{"name1"},
+	}, {
+		Name:          "db2",
+		Type:          types.DatabaseTypeSelfHosted,
+		Labels:        []ui.Label{},
+		Protocol:      "test-protocol",
+		Hostname:      "test-uri",
+		DatabaseUsers: []string{"user1"},
+		DatabaseNames: []string{"name1"},
+	}})
+
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
