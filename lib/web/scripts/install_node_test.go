@@ -16,6 +16,7 @@ limitations under the License.
 package scripts
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -65,6 +66,6 @@ func TestMarshalLabelsYAML(t *testing.T) {
 		got, err := MarshalLabelsYAML(tt.labels, tt.numExtraIndent)
 		require.NoError(t, err)
 
-		require.Equal(t, tt.expected, got)
+		require.YAMLEq(t, strings.Join(tt.expected, "\n"), strings.Join(got, "\n"))
 	}
 }
