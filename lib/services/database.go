@@ -1333,7 +1333,7 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 // functions (e.g. IsRDSClusterAvailable) can be implemented.
 func IsAWSResourceAvailable(r interface{}, status *string) bool {
 	switch strings.ToLower(aws.StringValue(status)) {
-	case "available", "modifying", "snapshotting":
+	case "available", "modifying", "snapshotting", "active":
 		return true
 
 	case "creating", "deleting", "create-failed":

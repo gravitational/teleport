@@ -107,7 +107,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 
 	roleName := validRandomResourceName("role-")
 	unrestricted := []string{"list", "create", "read", "update", "delete"}
-	role, err := types.NewRole(roleName, types.RoleSpecV5{
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule("role", unrestricted),
@@ -284,7 +284,7 @@ func setupTestEnv(t *testing.T) *testSetup {
 
 func teleportCreateDummyRole(ctx context.Context, roleName string, tClient auth.ClientI) error {
 	// The role is created in Teleport
-	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
+	tRole, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"a", "b"},
 		},

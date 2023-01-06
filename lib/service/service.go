@@ -3790,8 +3790,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
-			// TODO(codingllama): Enable after testing.
-			DisableDeviceAuthorization: true,
 		})
 		if err != nil {
 			return trace.Wrap(err)

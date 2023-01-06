@@ -88,7 +88,7 @@ Before you get started you’ll need:
   type="warning"
   title="Important"
 >
-  This is an important document.  Treat the Federation Metadata XML file as you would a password.
+  This is an important document.  The Federation Metadata XML file sets the SSO location and other important values. Transmit the Federation Metadata XML file securely so it is not malformed.  Using the `entity_descriptor_url` setting allows for loading from the source.
 </Admonition>
 
 ## Create a SAML Connector
@@ -114,6 +114,7 @@ spec:
   attributes_to_roles:
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["editor"]}
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}
+  # Populate entity_descriptor with the federator data xml or set entity_descriptor_url to automatically load from the SSO
   entity_descriptor: |
     <federationmedata.xml contents>
 ```

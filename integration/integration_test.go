@@ -986,7 +986,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 		t.Run(name, func(t *testing.T) {
 			// Setup user and session recording mode.
 			username := suite.Me.Username
-			role, err := types.NewRoleV3("devs", types.RoleSpecV5{
+			role, err := types.NewRoleV3("devs", types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins: []string{username},
 				},
@@ -1547,7 +1547,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	teleport := suite.NewTeleportInstance(t)
 
 	username := suite.Me.Username
-	role, err := types.NewRoleV3("devs", types.RoleSpecV5{
+	role, err := types.NewRoleV3("devs", types.RoleSpecV6{
 		Options: tc.options,
 		Allow: types.RoleConditions{
 			Logins: []string{username},
@@ -2154,7 +2154,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2182,7 +2182,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2435,7 +2435,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	devsRole, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2450,7 +2450,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRoleV3(mainAdmins, types.RoleSpecV5{
+	adminsRole, err := types.NewRoleV3(mainAdmins, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"superuser"},
 		},
@@ -2461,7 +2461,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := types.NewRoleV3(mainOps, types.RoleSpecV5{
+	mainOpsRole, err := types.NewRoleV3(mainOps, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -2490,7 +2490,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	auxRole, err := types.NewRoleV3(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2656,7 +2656,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2684,7 +2684,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -4272,7 +4272,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{suite.Me.Username},
 		},
@@ -4290,7 +4290,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{suite.Me.Username},
 		},
@@ -4771,7 +4771,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
-			role, err := types.NewRoleV3(tt.inRoleName, types.RoleSpecV5{
+			role, err := types.NewRoleV3(tt.inRoleName, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:     []string{tt.inLogin},
 					NodeLabels: tt.inLabels,
@@ -5575,7 +5575,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	authServer := main.Process.GetAuthServer()
 
 	// Create new request role
-	requestedRole, err := types.NewRoleV3(requestedRoleName, types.RoleSpecV5{
+	requestedRole, err := types.NewRoleV3(requestedRoleName, types.RoleSpecV6{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})
@@ -5585,7 +5585,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
-	userRole, err := types.NewRoleV3(userRoleName, types.RoleSpecV5{
+	userRole, err := types.NewRoleV3(userRoleName, types.RoleSpecV6{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
 			Logins: []string{
@@ -6193,10 +6193,10 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	plainRole, err := types.NewRole("plain", types.RoleSpecV5{})
+	plainRole, err := types.NewRole("plain", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	moderatedRole, err := types.NewRole("moderated", types.RoleSpecV5{
+	moderatedRole, err := types.NewRole("moderated", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			RequireSessionJoin: []*types.SessionRequirePolicy{
 				{
@@ -6311,7 +6311,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	leafCfg.Listeners = standardPortsOrMuxSetup(t, false, &leafCfg.Fds)
 	leaf := helpers.NewInstance(t, leafCfg)
 
-	role, err := types.NewRoleV3("dev", types.RoleSpecV5{
+	role, err := types.NewRoleV3("dev", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
