@@ -2951,16 +2951,22 @@ func (process *TeleportProcess) initProxy() error {
 }
 
 type proxyListeners struct {
-	mux              *multiplexer.Mux
-	tls              *multiplexer.WebListener
-	ssh              net.Listener
-	sshGrpc          net.Listener
-	web              net.Listener
-	reverseTunnel    net.Listener
-	kube             net.Listener
-	db               dbListeners
-	alpn             net.Listener
-	proxy            net.Listener
+	mux *multiplexer.Mux
+	tls *multiplexer.WebListener
+	// ssh receives SSH traffic that is multiplexed on the Proxy SSH Port. When TLS routing
+	// is enabled only traffic with the TLS ALPN protocol common.ProtocolProxySSH is received.
+	ssh net.Listener
+	// sshGRPC receives gRPC traffic that is multiplexed on the Proxy SSH Port. When TLS routing
+	// is enabled only traffic with the TLS ALPN protocol common.ProtocolProxySSHGRPC is received.
+	sshGRPC       net.Listener
+	web           net.Listener
+	reverseTunnel net.Listener
+	kube          net.Listener
+	db            dbListeners
+	alpn          net.Listener
+	proxy         net.Listener
+	// gprc receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPC. This
+	// listener is only enabled when TLS routing is enabled.
 	grpc             net.Listener
 	reverseTunnelMux *multiplexer.Mux
 	minimalTLS       *multiplexer.WebListener
@@ -3056,7 +3062,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 
 		listeners.ssh = mux.SSH()
-		listeners.sshGrpc = mux.TLS()
+		listeners.sshGRPC = mux.TLS()
 		go func() {
 			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
 				mux.Entry.WithError(err).Error("Mux encountered err serving")
@@ -3735,8 +3741,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start grpc server
 		go func() {
-			if err := grpcServer.Serve(listeners.sshGrpc); !errors.Is(err, grpc.ErrServerStopped) {
-				log.WithError(err).Warn("SSH gRPC server terminated unexpectedly")
+			if err := grpcServer.Serve(listeners.sshGRPC); !errors.Is(err, grpc.ErrServerStopped) {
+				log.WithError(err).Error("SSH gRPC server terminated unexpectedly")
 			}
 		}()
 
@@ -4349,7 +4355,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	})
 	listeners.ssh = sshProxyListener
 
-	sshGrpcListener := alpnproxy.NewMuxListenerWrapper(listeners.sshGrpc, listeners.web)
+	sshGRPCListener := alpnproxy.NewMuxListenerWrapper(listeners.sshGRPC, listeners.web)
 	// TLS forwarding is used instead of providing the TLSConfig so that the
 	// authentication information makes it into the gRPC credentials.
 	router.Add(alpnproxy.HandlerDecs{
@@ -4357,7 +4363,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 		Handler:    sshProxyListener.HandleConnection,
 		ForwardTLS: true,
 	})
-	listeners.sshGrpc = sshGrpcListener
+	listeners.sshGRPC = sshGRPCListener
 
 	webTLSDB := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 	router.AddDBTLSHandler(webTLSDB.HandleConnection)
