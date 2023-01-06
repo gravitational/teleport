@@ -566,7 +566,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))         // get recorded session's timing information (from events)
-	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.WithClusterAuth(h.siteSessionStreamGet))         // get recorded session's bytes (from events)
 
 	// scp file transfer
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
@@ -2598,7 +2598,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
-			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
+			sessions = append(sessions, trackerToLegacySession(tracker, site.GetName()))
 		}
 	}
 
@@ -2822,56 +2822,24 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 // It returns the binary stream unencoded, directly in the respose body,
 // with Content-Type of application/octet-stream, gzipped with up to 95%
 // compression ratio.
-func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	httplib.SetNoCacheHeaders(w.Header())
 
-	var site reversetunnel.RemoteSite
 	onError := func(err error) {
 		h.log.WithError(err).Debug("Unable to retrieve session chunk.")
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
-	}
-
-	// authenticate first:
-	ctx, err := h.AuthenticateRequest(w, r, true)
-	if err != nil {
-		h.log.WithError(err).Warn("Failed to authenticate.")
-		// clear session just in case if the authentication request is not valid
-		ClearSession(w)
-		onError(trace.Wrap(err))
-		return
-	}
-
-	// get the site interface:
-	siteName := p.ByName("site")
-	if siteName == currentSiteShortcut {
-		res, err := h.cfg.ProxyClient.GetClusterName()
-		if err != nil {
-			onError(trace.Wrap(err))
-			return
-		}
-		siteName = res.GetClusterName()
-	}
-	proxy, err := h.ProxyWithRoles(ctx)
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
-	site, err = proxy.GetSite(siteName)
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
 	}
 
 	// get the session:
 	sid, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		onError(trace.Wrap(err))
-		return
+		return nil, trace.Wrap(err)
 	}
-	clt, err := ctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		onError(trace.Wrap(err))
-		return
+		return nil, trace.Wrap(err)
 	}
 
 	// look at 'offset' parameter
@@ -2879,7 +2847,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	offset, _ := strconv.Atoi(query.Get("offset"))
 	if err != nil {
 		onError(trace.Wrap(err))
-		return
+		return nil, trace.Wrap(err)
 	}
 	max, err := strconv.Atoi(query.Get("bytes"))
 	if err != nil || max <= 0 {
@@ -2893,7 +2861,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	bytes, err := clt.GetSessionChunk(apidefaults.Namespace, *sid, offset, max)
 	if err != nil {
 		onError(trace.Wrap(err))
-		return
+		return nil, trace.Wrap(err)
 	}
 	// see if we can gzip it:
 	var writer io.Writer = w
@@ -2909,8 +2877,10 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	_, err = writer.Write(bytes)
 	if err != nil {
 		onError(trace.Wrap(err))
-		return
+		return nil, trace.Wrap(err)
 	}
+
+	return nil, nil
 }
 
 type eventsListGetResponse struct {
@@ -3081,7 +3051,7 @@ type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // or a remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.AuthenticateRequest(w, r, true)
+		sctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.Wrap(err)
@@ -3097,12 +3067,12 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			clusterName = res.GetClusterName()
 		}
 
-		site, err := h.getSite(ctx, clusterName)
+		site, err := h.getSite(sctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, ctx, site)
+		return fn(w, r, p, sctx, site)
 	})
 }
 

@@ -41,8 +41,6 @@ import (
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
 func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	appClusterName := p.ByName("site")
-
 	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,7 +68,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		Items: ui.MakeApps(ui.MakeAppsConfig{
 			LocalClusterName:  h.auth.clusterName,
 			LocalProxyDNSName: h.proxyDNSName(),
-			AppClusterName:    appClusterName,
+			AppClusterName:    site.GetName(),
 			Identity:          identity,
 			Apps:              apps,
 		}),
