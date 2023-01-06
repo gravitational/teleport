@@ -21,12 +21,7 @@ GitHub Actions with Teleport can be applied as both a viable and secure solution
 CI/CD platform is needed.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
-actions runners.
-
-<Admonition type="note">
-Currently GitHub Actions with Machine ID is unsupported on GitHub Enterprise
-Server.
-</Admonition>
+Actions runners as well as GitHub Enterprise Server.
 
 ## Prerequisites
 
@@ -43,12 +38,15 @@ GitHub Actions will need its own join token in order to join the cluster.
 Using a text editor of your choice, create the configuration YAML file `tokenconfig.yaml` for the
 join token that resembles the following:
 
+<Tabs>
+<TabItem label="GitHub">
+
 ```yaml
 kind: token
 version: v2
 metadata:
   name: github-token
-  expires: "3000-01-01T00:00:00Z"
+  expires: "2100-01-01T00:00:00Z"
 spec:
   roles: [Bot]
   join_method: github
@@ -58,11 +56,39 @@ spec:
       - repository: gravitational/example
 ```
 
+</TabItem>
+<TabItem label="GitHub Enterprise Server">
+From Teleport 11.1.4, users with Teleport Enterprise are able to permit CI/CD
+runs within GitHub Enterprise Server instances to authenticate using the
+GitHub join method.
+
+This is configured by an additional `enterprise_server_host` field in the Token
+resource. This should be set to the host of your GHES instance.
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: github-token
+  expires: "2100-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: github-demo
+  github:
+    enterprise_server_host: your.ghes.instance.example.com
+    allow:
+      - repository: gravitational/example
+```
+
+</TabItem>
+</Tabs>
+
 Let's go over the token configuration YAML in more detail:
 
 - `metadata.name` defines the name of the token. Note that this value will need to be used in other parts of the configuration later.
 - `metadata.expires` defines the date that the join token will expire. This example is set
-to the year `3000`, however care should be taken in production in order to Ensure
+to the year `2100`, however care should be taken in production in order to ensure
 that the expiration date will not be given a value that is greater than what is needed.
 - `spec.bot_name` is the name of the Machine ID bot that this token will grant access to.
 Note that this value will need to be used in other parts of the configuration later.
@@ -95,8 +121,8 @@ Once the configuration YAML file has been created, apply it to your cluster usin
 $ tctl create -f tokenconfig.yaml
 ```
 
-The token `github-token` can now be observed with the following command, ensuring that the configuring is ready to be used by
-GitHub:
+The token `github-token` can now be observed with the following command, ensuring
+that the configuration is ready to be used by GitHub:
 
 ```code
 $ tctl tokens ls
@@ -124,70 +150,66 @@ a role according to the principle of least privilege in production environments.
 should have explicit access to the cluster using a username created specifically for the bot user alone.
 
 Enter the following command from your workstation with `tsh` access, replacing the `username` value with
-the username affiliated with a node the bot will be required to access over a `tsh ssh` session:
+a Linux user on the host that you want your GitHub Actions flow to be able to connect to:
 
 ```
-$ tctl bots add github-demo --roles=access --token=github-token –logins=username
+$ tctl bots add github-demo --roles=access --token=github-token --logins=username
 ```
 
 ## Step 3/3. Configuring GitHub Actions
 
-Now that the bot has been successfully created, GitHub Actions can function as part of the Teleport cluster.
+Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their GitHub-provided identity.
 
 In the GitHub workflows directory of your repo (`.github/workflows/`) create a new workflow YAML file,
 in this case `actionstest.yml`, that will reflect the action you'd like to configure. This guide will create an action that
 will both list nodes within the cluster using `tsh ls`, as well as write the commit SHA that triggered the workflow to
-a file within the bot node. To create this configuration, use the following YAML file:
+a file on a node. To create this configuration, use the following YAML file:
 
 ```YAML
 # This is a basic workflow to help you get started.
 # It will take the following action whenever a push is made to the "main" branch.
 on:
- push:
-   branches:
-     - main
+  push:
+    branches:
+      - main
 jobs:
- demo:
-   permissions:
-# The "id-token: write" permission is required or tbot will not be able to authenticate.
-     id-token: write
-     contents: read
-# The name of the workflow, and the Linux distro to be used to perform the required steps.
-   name: guide-demo
-   runs-on: ubuntu-latest
-   steps:
-     - name: Checkout repository
-       uses: actions/checkout@v3
-     - name: Fetch Teleport binaries
-       uses: teleport-actions/setup@v1
-       with:
-         version: (=teleport.major_version=)
-     - name: Fetch credentials
-       run: >
-         tbot start
-         --join-method=github
-         --token=github-token
-# Use the address of the auth/proxy server for your own cluster.
-         --auth-server=example.domain:443
-         --oneshot
-         --destination-dir=/opt/machine-id
-         --data-dir=/opt/machine-id-data
-     - name: List nodes
-# Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
-# Ensure that the domain "authserver.domain" matches the auth/proxy server of your own cluster.
-       run: >
-         tsh -i ./opt/machine-id/identity
-         --proxy=example.domain:443
-         ls
-     - name: Write file to remote
-# Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
-# Ensure that the domain matches the auth/proxy server, that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
-       run: >
-         tsh -i /opt/machine-id/identity
-         --proxy example.domain:443
-         ssh username@hostname
-         "echo $GITHUB_SHA >> ~/github_run_log"
+  demo:
+    permissions:
+      # The "id-token: write" permission is required or Machine ID will not be able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    # The name of the workflow, and the Linux distro to be used to perform the required steps.
+    name: guide-demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Fetch Teleport binaries
+        uses: teleport-actions/setup@v1
+        with:
+          version: (=teleport.version=)
+      - name: Fetch credentials using Machine ID
+        id: auth
+        uses: teleport-actions/auth@v1
+        with:
+          # Use the address of the auth/proxy server for your own cluster.
+          proxy: example.domain:443
+          token: github-token
+          # Specify the length of time that the generated credentials should be
+          # valid for. This is optional and defaults to "1h"
+          certificate-ttl: 1h
+      - name: List nodes
+        # Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
+        run: tsh -i ${{ steps.auth.outputs.identity-file }} ls
+      - name: Write file to remote
+        # Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
+        # Ensure that that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
+        run: tsh -i ${{ steps.auth.outputs.identity-file }} ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
 ```
+
+From Teleport 11.1.0, the `-i` parameter for configuring the identity file of
+`tsh` is not necessary and `-i ${{ steps.auth.outputs.identity-file }}` can be
+omitted.
 
 Add, commit, and push your changes to the `main` branch of the repository.
 
@@ -195,22 +217,29 @@ Navigate to the **Actions** tab of your GitHub repository in your web browser. S
 the **Workflow** that has now been created and triggered by the change, and select the `guide-demo` job.
 The GitHub action may take some time to complete, and will resemble the following once successful.
 
-
 ![GitHub Actions](../../../img/machine-id/github-actions.png)
 
 Expand the `List nodes` step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
-TSH user configured for Machine ID using the command `tsh ls`.
+Machine ID bot using the command `tsh ls`.
 
 ## A note on security implications and risk
 
-When working with GitHub Actions and `tbot` it is important to ensure that
-the principal of least privilege is always applied and that security implications
-are well understood and respected.
+Once `teleport-actions/auth` has been used in a workflow job, all successive
+steps in that job will have access to the credentials which grant access to your
+Teleport cluster as the bot. Where possible, run as few steps as necessary after
+this action has been used. It may be a good idea to break your workflow up into
+multiple jobs in order to segregate these credentials from other code running in
+your CI/CD pipeline.
 
-Using `tbot` commands with GitHub Actions means that GitHub Actions will
-have access to certificates contained within your Teleport cluster, and therefore
-a level of permitted access to your Teleport cluster. In order to reduce risk,
-extra care should be taken when user implemented code, code that is not
-otherwise well understood, or code that is otherwise untested is applied as part
-of the same job.
+Most importantly, ensure that the role you assign to your GitHub Actions bot has
+access to only the resources in your Teleport cluster that your CI/CD needs to
+interact with.
+
+## Next steps
+
+You can find out more about the `teleport-action/setup` and
+`teleport-actions/auth` actions on their GitHub repositories:
+
+- [https://github.com/teleport-actions/setup](https://github.com/teleport-actions/setup)
+- [https://github.com/teleport-actions/auth](https://github.com/teleport-actions/auth)
