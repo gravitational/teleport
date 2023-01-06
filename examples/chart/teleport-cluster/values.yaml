@@ -89,6 +89,10 @@ authentication:
 
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
+# 
+# WARNING: setting this value to 'multiplex' requires Teleport to terminate TLS itself.
+# TLS multiplexing is not supported when using ACM+NLB for TLS termination.
+#
 # Possible values are 'separate' and 'multiplex'
 proxyListenerMode: "separate"
 
