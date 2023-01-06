@@ -67,7 +67,12 @@ func onAWS(cf *CLIConf) error {
 		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
 	}
 
-	cmd := exec.Command(awsCLIBinaryName, args...)
+	commandToRun := awsCLIBinaryName
+	if cf.AWSCommand != "" {
+		commandToRun = cf.AWSCommand
+	}
+
+	cmd := exec.Command(commandToRun, args...)
 	return awsApp.RunCommand(cmd)
 }
 
