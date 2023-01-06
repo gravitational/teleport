@@ -2807,7 +2807,7 @@ func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig
 }
 
 func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
-	tlsConfig, err := tc.loadTLSConfig()
+	tlsConfig, err := tc.LoadTLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3884,9 +3884,9 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 		ctx, tc.Stderr, prompt.Stdin(), fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
-// loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
+// LoadTLSConfig returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
 // or teleport core TLS certificate for the local agent.
-func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
+func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 	// if SkipLocalAuth flag is set use an external identity file instead of loading cert from the local agent.
 	if tc.SkipLocalAuth {
 		return tc.TLS.Clone(), nil
