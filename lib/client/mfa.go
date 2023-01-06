@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -113,6 +114,13 @@ func (tc *TeleportClient) PromptMFAChallenge(ctx context.Context, proxyAddr stri
 		applyOpts(opts)
 	}
 
+	// Default to local mfa challenge.
+	return promptMFAStandalone(ctx, c, addr, opts)
+}
+
+// PromptMFAChallenge prompts the user to complete MFA authentication
+// challenges.
+func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// First, check for a forwarded ssh agent that supports remote mfa challenges.
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
@@ -128,13 +136,6 @@ func (tc *TeleportClient) PromptMFAChallenge(ctx context.Context, proxyAddr stri
 		}
 	}
 
-	// Default to local mfa challenge.
-	return promptMFAStandalone(ctx, c, addr, opts)
-}
-
-// PromptMFAChallenge prompts the user to complete MFA authentication
-// challenges.
-func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
@@ -142,6 +143,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	if opts == nil {
 		opts = &PromptMFAChallengeOpts{}
 	}
+
 	writer := os.Stderr
 	if opts.HintBeforePrompt != "" {
 		fmt.Fprintln(writer, opts.HintBeforePrompt)
