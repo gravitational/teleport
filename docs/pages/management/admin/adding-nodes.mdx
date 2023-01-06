@@ -64,8 +64,15 @@ Once a Node joins, it receives a host certificate signed by the cluster's
 Auth Service. To receive a host certificate upon joining a cluster, a new
 Teleport host must present an **invite token**.
 
-An invite token also defines which role a new host can assume within a cluster
-(`proxy`, `node`, `auth`, `app`, `db`, `kube`, or `windowsdesktop`).
+An invite token also defines which role a new host can assume within a cluster:
+
+- `proxy`
+- `node`
+- `auth`
+- `app`
+- `db`
+- `kube`
+- `windowsdesktop`
 
 Administrators can generate tokens as they are needed. A token can be used
 multiple times until its time to live (TTL) expires.
