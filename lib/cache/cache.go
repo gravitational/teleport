@@ -156,14 +156,15 @@ func ForProxy(cfg Config) Config {
 // ForRemoteProxy sets up watch configuration for remote proxies.
 //
 // **WARNING**: In order to add a new types.WatchKind below there
-// are a few things that must be down to ensure that backward
+// are a few things that must be done to ensure that backward
 // incompatible changes don't render a remote cluster permanently unhealthy.
-// First, the `cfg.Watches` of `ForOldRemoteProxy` must be replaced
-// with the current `cfg.Watches` of `ForRemoteProxy`. Next, the
+// First, the cfg.Watches of ForOldRemoteProxy must be replaced
+// with the current cfg.Watches of ForRemoteProxy. Next, the
 // version used by `lib/reversetunnel/srv/go` to determine whether
-// to use `ForRemoteProxy` or `ForOldRemoteProxy` must be updated
+// to use ForRemoteProxy or ForOldRemoteProxy must be updated
 // to be the release in which the new resource(s) will exist in. Finally,
-// add the new types.WatchKind below.
+// add the new types.WatchKind below. Also note that this only
+// designed to occur once per major version.
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
 	cfg.Watches = []types.WatchKind{
