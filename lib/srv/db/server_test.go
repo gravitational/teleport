@@ -203,8 +203,13 @@ func TestHeartbeatEvents(t *testing.T) {
 	// The expected heartbeat count is equal to the sum of:
 	// - the number of static Databases
 	// - plus 1 because the DatabaseService heartbeats itself to the cluster
+	// - plus 1 when there's no Databases
 	expectedHeartbeatCount := func(dbs types.Databases) int64 {
-		return int64(dbs.Len() + 1)
+		nrEmptyHeartbeats := 0
+		if dbs.Len() == 0 {
+			nrEmptyHeartbeats = 1
+		}
+		return int64(dbs.Len() + 1 + nrEmptyHeartbeats)
 	}
 
 	tests := map[string]struct {
