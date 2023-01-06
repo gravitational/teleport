@@ -563,6 +563,9 @@ $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 .PHONY: tooling
 tooling: $(RENDER_TESTS) $(DIFF_TEST)
 
+# Flags for render-tests prometheus reporting. Won't try to report anything if PROMETHEUS_URL is empty.
+RENDER_TESTS_FLAGS ?= --prmt-url=$(PROMETHTEUS_URL) --prmt-user=$(PROMETHEUS_USER) --prmt-password=$(PROMETHEUS_PASSWORD) --prmt-branch=$(if $(GITHUB_HEAD_REF),$(GITHUB_HEAD_REF),$(GITHUB_REF_NAME)) --prmt-report-individual-failures=true
+
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -611,7 +614,7 @@ test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| ${RENDER_TESTS} --prmt-type unit $(RENDER_TESTS_FLAGS)
 
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
 # separately.
@@ -624,7 +627,7 @@ test-go-libfido2:
 ifneq ("$(LIBFIDO2_TEST_TAG)", "")
 	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| ${RENDER_TESTS} --prmt-type unit-libfido2 $(RENDER_TESTS_FLAGS)
 endif
 
 # Make sure untagged touchid code build/tests.
@@ -635,7 +638,7 @@ test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
 	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| ${RENDER_TESTS} --prmt-type unit-touchid $(RENDER_TESTS_FLAGS)
 endif
 
 # Runs ci tsh tests
@@ -645,7 +648,7 @@ test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh
 test-go-tsh:
 	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| ${RENDER_TESTS} --prmt-type unit-tsh $(RENDER_TESTS_FLAGS)
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 .PHONY: test-go-chaos
@@ -653,7 +656,7 @@ test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs
 test-go-chaos:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
-		| ${RENDER_TESTS}
+		| ${RENDER_TESTS} --prmt-type unit-chaos $(RENDER_TESTS_FLAGS)
 
 # Runs ci scripts tests
 .PHONY: test-ci
@@ -661,7 +664,7 @@ test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	(cd .cloudbuild/scripts && \
 		go test -cover -json ./... \
 		| tee $(TEST_LOG_DIR)/ci.json \
-		| ${RENDER_TESTS})
+		| ${RENDER_TESTS}) --prmt-type ci $(RENDER_TESTS_FLAGS)
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -674,7 +677,7 @@ test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integrat
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit-root.json \
-		| ${RENDER_TESTS}
+		| ${RENDER_TESTS} --prmt-type unit-root $(RENDER_TESTS_FLAGS)
 
 #
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
@@ -686,7 +689,7 @@ test-api: SUBJECT ?= $(shell cd api && go list ./...)
 test-api: 
 	cd api && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
-		| ${RENDER_TESTS}
+		| ${RENDER_TESTS} --prmt-type api $(RENDER_TESTS_FLAGS)
 
 #
 # Runs Teleport Operator tests.
@@ -736,7 +739,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
-		| $(RENDER_TESTS) -report-by test
+		| $(RENDER_TESTS) -report-by test --prmt-type integration $(RENDER_TESTS_FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -749,7 +752,7 @@ integration-root: PACKAGES = $(shell go list ./... | grep integration)
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
-		| $(RENDER_TESTS) -report-by test
+		| $(RENDER_TESTS) -report-by test --prmt-type integration-root $(RENDER_TESTS_FLAGS)
 
 #
 # Lint the source code.

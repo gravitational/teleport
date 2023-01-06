@@ -32,14 +32,16 @@ func (pkg *packageOutput) FailedTests() []string {
 }
 
 type outputMap struct {
-	packages     map[string]*packageOutput
-	actionCounts map[string]int
+	packages          map[string]*packageOutput
+	actionCounts      map[string]int
+	failedActionNames []string
 }
 
 func newOutputMap() *outputMap {
 	return &outputMap{
-		packages:     make(map[string]*packageOutput),
-		actionCounts: make(map[string]int),
+		packages:          make(map[string]*packageOutput),
+		actionCounts:      make(map[string]int),
+		failedActionNames: make([]string, 0),
 	}
 }
 

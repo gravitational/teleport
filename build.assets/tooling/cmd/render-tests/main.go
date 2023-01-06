@@ -98,7 +98,11 @@ func readInput(input io.Reader, ch chan<- TestEvent, errCh chan<- error) {
 }
 
 func main() {
-	args := parseCommandLine()
+	args, err := parseCommandLine()
+	if err != nil {
+		fmt.Printf("Error parsing command-line arguments : %v\n", err)
+		os.Exit(-1)
+	}
 
 	testOutput := newOutputMap()
 	failedPackages := make(map[string]*packageOutput)
@@ -110,6 +114,8 @@ func main() {
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
+
+	startTime := time.Now()
 
 readloop:
 	for {
@@ -134,6 +140,10 @@ readloop:
 				case actionPass, actionFail, actionSkip:
 					fmt.Printf("%s (in %6.2fs): %s\n", event.Action, event.ElapsedSeconds, event.FullName())
 				}
+			}
+
+			if event.Action == actionFail {
+				testOutput.failedActionNames = append(testOutput.failedActionNames, event.FullName())
 			}
 
 			// if this is whole-package summary result
@@ -172,12 +182,20 @@ readloop:
 		}
 	}
 
+	testDuration := time.Since(startTime)
+
 	fmt.Println(separator)
 
 	fmt.Printf("%d tests passed. %d failed, %d skipped\n",
 		testOutput.actionCounts[actionPass], testOutput.actionCounts[actionFail], testOutput.actionCounts[actionSkip])
 
 	fmt.Println(separator)
+
+	err = reportPrometheus(args, testOutput, testDuration)
+	if err != nil {
+		// We do not want to fail tests if prometheus reporting has failed.
+		fmt.Printf("Failed to report to Prometheus: %v\n", err)
+	}
 
 	if len(failedPackages) == 0 {
 		fmt.Println("All tests pass. Yay!")

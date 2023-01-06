@@ -65,14 +65,40 @@ func (m *reportMode) Set(text string) error {
 }
 
 type args struct {
-	report reportMode
+	report                      reportMode
+	prometheusURL               string
+	prometheusTypeLabelValue    string
+	prometheusBranchLabelValue  string
+	prometheusJobName           string
+	prometheusUser              string
+	prometheusPassword          string
+	prometheusReportIndFailures bool
 }
 
-func parseCommandLine() args {
-	reportMode := byPackage
-	flag.Var(&reportMode, "report-by",
+func parseCommandLine() (args, error) {
+	a := args{report: byPackage}
+	flag.Var(&a.report, "report-by",
 		fmt.Sprintf("test reporting mode [%s, %s]", byPackageName, byTestName))
+
+	flag.StringVar(&a.prometheusURL, "prmt-url", "", "Prometheus Push Gateway URL")
+	flag.StringVar(&a.prometheusJobName, "prmt-job-name", "test", "Prometheus job name")
+	flag.StringVar(&a.prometheusTypeLabelValue, "prmt-type", "", "Prometheus type label value (unit, integration, etc)")
+	flag.StringVar(&a.prometheusBranchLabelValue, "prmt-branch", "", "Prometheus branch label value (master, etc)")
+	flag.StringVar(&a.prometheusUser, "prmt-user", "", "Prometheus Basic Auth user")
+	flag.StringVar(&a.prometheusPassword, "prmt-password", "", "Prometheus Basic Auth password")
+	flag.BoolVar(&a.prometheusReportIndFailures, "prmt-report-individual-failures", false, "Report individually failed tests to Prometheus")
+
 	flag.Parse()
 
-	return args{report: reportMode}
+	if a.prometheusURL != "" {
+		if a.prometheusTypeLabelValue == "" {
+			return a, trace.Errorf("--prmt-type is required when --prmt-url is set")
+		}
+
+		if a.prometheusBranchLabelValue == "" {
+			return a, trace.Errorf("--prmt-branch is required when --prmt-url is set")
+		}
+	}
+
+	return a, nil
 }
