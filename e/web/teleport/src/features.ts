@@ -39,9 +39,8 @@ class FeatureReviewAccessRequests extends Feature {
     component: ReviewRequests,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isAvailable(ctx: Ctx): boolean {
-    return true; // TODO(isaiah)
+    return ctx.getFeatureFlags().accessRequests;
   }
 
   register(ctx: Ctx) {
@@ -67,9 +66,8 @@ class FeatureNewAccessRequest extends Feature {
     component: NewRequest,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isAvailable(ctx: Ctx): boolean {
-    return true; // TODO(isaiah)
+    return ctx.getFeatureFlags().newAccessRequest;
   }
 
   register(ctx: Ctx) {
