@@ -298,8 +298,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err, "fetching cluster name")
 	}
 
-	dialer := &net.Dialer{Timeout: dnsDialTimeout}
-	dnsDial := dialer.DialContext
+	var resolver *net.Resolver
 	if cfg.LDAPConfig.Addr != "" {
 		// Here we assume the LDAP server is an Active Directory Domain Controller,
 		// which means it should also be a DNS server that can resolve Windows hosts.
@@ -309,10 +308,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		}
 		dnsAddr := net.JoinHostPort(dnsServer, "53")
 		cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
-		dnsDial = func(ctx context.Context, network, address string) (net.Conn, error) {
-			// Ignore the address provided, and always explicitly dial
-			// the domain controller.
-			return dialer.DialContext(ctx, network, dnsAddr)
+		resolver = &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				// Ignore the address provided, and always explicitly dial
+				// the domain controller.
+				d := net.Dialer{Timeout: dnsDialTimeout}
+				return d.DialContext(ctx, network, dnsAddr)
+			},
 		}
 	}
 
@@ -323,10 +326,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			AccessPoint:   cfg.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
-		dnsResolver: &net.Resolver{
-			PreferGo: true,
-			Dial:     dnsDial,
-		},
+		dnsResolver: resolver,
 		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
