@@ -592,22 +592,19 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 
-	// DatabaseService handlers
-	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
-
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
 	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
-	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
+	h.POST("/webapi/oidc/login/console", h.WithLimiter(h.oidcLoginConsole))
 
 	// SAML 2.0 handlers
 	h.POST("/webapi/saml/acs", h.WithMetaRedirect(h.samlACS))
 	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(h.samlACS))
 	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
-	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
+	h.POST("/webapi/saml/login/console", h.WithLimiter(h.samlSSOConsole))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))

@@ -122,9 +122,6 @@ const (
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
-	// KindDatabaseService is a database service resource.
-	KindDatabaseService = "db_service"
-
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
