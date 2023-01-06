@@ -28,7 +28,7 @@ func init() {
 }
 
 // TeleportRoleSpec defines the desired state of TeleportRole
-type TeleportRoleSpec types.RoleSpecV5
+type TeleportRoleSpec types.RoleSpecV6
 
 // TeleportRoleStatus defines the observed state of TeleportRole
 type TeleportRoleStatus struct {
@@ -61,7 +61,7 @@ type TeleportRoleList struct {
 }
 
 func (r TeleportRole) ToTeleport() types.Role {
-	return &types.RoleV5{
+	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V5,
 		Metadata: types.Metadata{
@@ -69,7 +69,7 @@ func (r TeleportRole) ToTeleport() types.Role {
 			Labels:      r.Labels,
 			Description: r.Annotations[resources.DescriptionKey],
 		},
-		Spec: types.RoleSpecV5(r.Spec),
+		Spec: types.RoleSpecV6(r.Spec),
 	}
 }
 
@@ -79,12 +79,12 @@ func init() {
 
 // Marshal serializes a spec into binary data.
 func (spec *TeleportRoleSpec) Marshal() ([]byte, error) {
-	return (*types.RoleSpecV5)(spec).Marshal()
+	return (*types.RoleSpecV6)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
 func (spec *TeleportRoleSpec) Unmarshal(data []byte) error {
-	return (*types.RoleSpecV5)(spec).Unmarshal(data)
+	return (*types.RoleSpecV6)(spec).Unmarshal(data)
 }
 
 // DeepCopyInto deep-copies one role spec into another.
@@ -98,4 +98,9 @@ func (spec *TeleportRoleSpec) DeepCopyInto(out *TeleportRoleSpec) {
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
+}
+
+// StatusConditions returns a pointer to Status.Conditions slice.
+func (r *TeleportRole) StatusConditions() *[]metav1.Condition {
+	return &r.Status.Conditions
 }

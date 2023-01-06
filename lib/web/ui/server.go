@@ -221,10 +221,10 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []types.Database) []Database {
+func MakeDatabases(databases []types.Database, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
+		db := MakeDatabase(database, dbUsers, dbNames)
 		uiServers = append(uiServers, db)
 	}
 

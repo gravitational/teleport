@@ -176,36 +176,25 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn connect_rdp(
-    go_ref: usize,
-    go_addr: *const c_char,
-    go_username: *const c_char,
-    cert_der_len: u32,
-    cert_der: *mut u8,
-    key_der_len: u32,
-    key_der: *mut u8,
-    screen_width: u16,
-    screen_height: u16,
-    allow_clipboard: bool,
-    allow_directory_sharing: bool,
-) -> ClientOrError {
+pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) -> ClientOrError {
     // Convert from C to Rust types.
-    let addr = from_c_string(go_addr);
-    let username = from_c_string(go_username);
-    let cert_der = from_go_array(cert_der, cert_der_len);
-    let key_der = from_go_array(key_der, key_der_len);
+    let addr = from_c_string(params.go_addr);
+    let username = from_c_string(params.go_username);
+    let cert_der = from_go_array(params.cert_der, params.cert_der_len);
+    let key_der = from_go_array(params.key_der, params.key_der_len);
 
     connect_rdp_inner(
         go_ref,
-        &addr,
         ConnectParams {
+            addr,
             username,
             cert_der,
             key_der,
-            screen_width,
-            screen_height,
-            allow_clipboard,
-            allow_directory_sharing,
+            screen_width: params.screen_width,
+            screen_height: params.screen_height,
+            allow_clipboard: params.allow_clipboard,
+            allow_directory_sharing: params.allow_directory_sharing,
+            show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     )
     .into()
@@ -234,7 +223,23 @@ const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
 const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
+#[repr(C)]
+pub struct CGOConnectParams {
+    go_addr: *const c_char,
+    go_username: *const c_char,
+    cert_der_len: u32,
+    cert_der: *mut u8,
+    key_der_len: u32,
+    key_der: *mut u8,
+    screen_width: u16,
+    screen_height: u16,
+    allow_clipboard: bool,
+    allow_directory_sharing: bool,
+    show_desktop_wallpaper: bool,
+}
+
 struct ConnectParams {
+    addr: String,
     username: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
@@ -242,15 +247,13 @@ struct ConnectParams {
     screen_height: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
+    show_desktop_wallpaper: bool,
 }
 
-fn connect_rdp_inner(
-    go_ref: usize,
-    addr: &str,
-    params: ConnectParams,
-) -> Result<Client, ConnectError> {
+fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
     // Connect and authenticate.
-    let addr = addr
+    let addr = params
+        .addr
         .to_socket_addrs()?
         .next()
         .ok_or(ConnectError::InvalidAddr())?;
@@ -291,6 +294,11 @@ fn connect_rdp_inner(
     // Generate a random 8-digit PIN for our smartcard.
     let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
     let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
+    let mut performance_flags = sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
+        | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32;
+    if !params.show_desktop_wallpaper {
+        performance_flags |= sec::ExtendedInfoFlag::PerfDisableWallpaper as u32;
+    }
     sec::connect(
         &mut mcs,
         &domain.to_string(),
@@ -300,11 +308,7 @@ fn connect_rdp_inner(
         // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
         // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
-        Some(
-            sec::ExtendedInfoFlag::PerfDisableCursorBlink as u32
-                | sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
-                | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32,
-        ),
+        Some(performance_flags),
     )?;
     // Client for the "global" channel - video output and user input.
     let global = global::Client::new(
