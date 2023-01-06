@@ -439,11 +439,11 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
-.PHONY:
+.PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
 
-.PHONY:
+.PHONY: release-darwin
 release-darwin: release-darwin-unsigned
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-common.sh ./build.assets/notarize-binaries.sh $(BUILDDIR)/
