@@ -998,7 +998,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 		labels := getHostLabels(addr)
 		labels[types.OriginLabel] = types.OriginConfigFile
 		if nonAD {
-			labels[types.TeleportNamespace+"/non-ad"] = "true"
+			labels[types.ADLabel] = "false"
 		}
 		desktop, err := types.NewWindowsDesktopV3(
 			name,

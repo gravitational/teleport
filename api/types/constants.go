@@ -361,6 +361,9 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
+	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
+	ADLabel = TeleportNamespace + "/ad"
+
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = "defaults"
