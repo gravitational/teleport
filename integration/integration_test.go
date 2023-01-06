@@ -48,6 +48,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -76,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -6699,4 +6703,101 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
 	require.NoError(t, err)
 	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+}
+
+// TestProxySSHPortMultiplexing ensures that the Proxy SSH port
+// is serving both SSH and gRPC regardless of TLS Routing mode.
+func TestProxySSHPortMultiplexing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		disableTLSRouting bool
+	}{
+		{
+			name: "TLS routing enabled",
+		},
+		{
+			name:              "TLS routing disabled",
+			disableTLSRouting: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			rc := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: "example.com",
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Priv:        privateKey,
+				Pub:         publicKey,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			rcConf := service.MakeDefaultConfig()
+			rcConf.DataDir = t.TempDir()
+			rcConf.Auth.Preference.SetSecondFactor("off")
+			rcConf.SSH.Enabled = false
+			rcConf.Proxy.DisableWebInterface = true
+			rcConf.Proxy.DisableTLS = false
+			rcConf.Proxy.DisableALPNSNIListener = test.disableTLSRouting
+			rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+			// Create identical user/role in both clusters.
+			me, err := user.Current()
+			require.NoError(t, err)
+
+			role := services.NewImplicitRole()
+			role.SetName("test")
+			role.SetLogins(types.Allow, []string{me.Username})
+			role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}})
+			rc.AddUserWithRole(me.Username, role)
+
+			err = rc.CreateEx(t, nil, rcConf)
+			require.NoError(t, err)
+
+			require.NoError(t, rc.Start())
+			t.Cleanup(func() {
+				require.NoError(t, rc.StopAll())
+			})
+
+			// create an authenticated client for the user
+			tc, err := rc.NewClient(helpers.ClientConfig{
+				Login:   me.Username,
+				Cluster: helpers.Site,
+				Host:    Host,
+			})
+			require.NoError(t, err)
+
+			// connect via SSH
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			pc, err := tc.ConnectToProxy(ctx)
+			require.NoError(t, err)
+			require.NoError(t, pc.Close())
+
+			// connect via gRPC
+			tlsConfig, err := tc.LoadTLSConfig()
+			require.NoError(t, err)
+			tlsConfig.NextProtos = []string{string(common.ProtocolProxySSHGRPC)}
+
+			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			conn, err := grpc.DialContext(
+				ctx,
+				tc.SSHProxyAddr,
+				grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+				grpc.WithBlock(),
+			)
+			require.NoError(t, err)
+			require.Equal(t, connectivity.Ready, conn.GetState())
+			require.NoError(t, conn.Close())
+		})
+	}
 }
