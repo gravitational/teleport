@@ -50,7 +50,7 @@ spec:
           name: "license"
           readOnly: true
 {{- end }}
-  {{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
+{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
         - mountPath: /etc/teleport-secrets
           name: "gcp-credentials"
           readOnly: true
@@ -74,10 +74,10 @@ spec:
         secret:
           secretName: "license"
 {{- end }}
-{{- if (eq .Values.chartMode "gcp") }}
+{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
       - name: gcp-credentials
         secret:
-          secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}
+          secretName: {{ .Values.gcp.credentialSecretName | quote }}
 {{- end }}
 {{- if .Values.tls.existingCASecretName }}
       - name: teleport-tls-ca
