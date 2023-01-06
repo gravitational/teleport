@@ -83,7 +83,8 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 		ctx := context.Background()
 		_, err = client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), tc.insecure, types.RegisterUsingTokenRequest{})
 
-		// If it should fallback, then no error should occur.
+		// If it should fallback, then no error should occur
+		// as the request will hit the running http server.
 		if tc.fallback {
 			require.NoError(t, err)
 		} else {
@@ -162,7 +163,7 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 			if tc.shouldHitProxy {
 				// If should hit the proxy, set the address to a fake one that won't resolve.
 				// This ensures that the request below fails if it doesn't hit the proxy.
-				addr = "unused.proxy.com:3000"
+				addr = "fake.proxy.com:3000"
 			} else {
 				// If shouldn't hit the proxy, set the address to the https server.
 				addr = httpsSrv.Listener.Addr().String()

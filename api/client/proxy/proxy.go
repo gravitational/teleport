@@ -76,10 +76,10 @@ func parse(addr string) (*url.URL, error) {
 // - downgrades requests to plain HTTP when proxy is at localhost and the wrapped http.Transport has TLSClientConfig.InsecureSkipVerify set to true.
 type HTTPRoundTripper struct {
 	*http.Transport
-	// downgrade indicates that requests to plain HTTP should be downgraded.
-	downgrade bool
 	// extraHeaders is a map of extra HTTP headers to be included in requests.
 	extraHeaders map[string]string
+	// downgrade indicates that requests to plain HTTP should be downgraded.
+	downgrade bool
 }
 
 // NewHTTPRoundTripper creates a new initialized HTTP roundtripper.
@@ -91,8 +91,8 @@ func NewHTTPRoundTripper(transport *http.Transport, extraHeaders map[string]stri
 
 	return &HTTPRoundTripper{
 		Transport:    transport,
-		downgrade:    downgrade,
 		extraHeaders: extraHeaders,
+		downgrade:    downgrade,
 	}
 }
 
