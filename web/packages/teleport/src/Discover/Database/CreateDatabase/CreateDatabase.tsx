@@ -19,18 +19,21 @@ import {
   Text,
   Box,
   Flex,
-  AnimatedProgressBar,
-  ButtonPrimary,
-  ButtonSecondary,
+
+  // AnimatedProgressBar,
+  // ButtonPrimary,
+  // ButtonSecondary,
 } from 'design';
-import Dialog, { DialogContent } from 'design/DialogConfirmation';
-import * as Icons from 'design/Icon';
+import { Danger } from 'design/Alert';
+
+// import Dialog, { DialogContent } from 'design/DialogConfirmation';
+// import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
-import { Timeout } from 'teleport/Discover/Shared/Timeout';
+// import { Timeout } from 'teleport/Discover/Shared/Timeout';
 
 import {
   ActionButtons,
@@ -38,7 +41,7 @@ import {
   Header,
   LabelsCreater,
   Mark,
-  TextIcon,
+  // TextIcon,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
 import { DatabaseLocation, getDatabaseProtocol } from '../resources';
@@ -47,7 +50,7 @@ import { useCreateDatabase, State } from './useCreateDatabase';
 
 import type { AgentStepProps } from '../../types';
 import type { AgentLabel } from 'teleport/services/agents';
-import type { Attempt } from 'shared/hooks/useAttemptNext';
+// import type { Attempt } from 'shared/hooks/useAttemptNext';
 import type { AwsRds } from 'teleport/services/databases';
 
 export function CreateDatabase(props: AgentStepProps) {
@@ -57,10 +60,10 @@ export function CreateDatabase(props: AgentStepProps) {
 
 export function CreateDatabaseView({
   attempt,
-  clearAttempt,
+  // clearAttempt,
   registerDatabase,
   canCreateDatabase,
-  pollTimeout,
+  // pollTimeout,
   dbEngine,
   dbLocation,
 }: State) {
@@ -105,6 +108,9 @@ export function CreateDatabaseView({
           <HeaderSubtitle>
             Create a new database resource for the database server.
           </HeaderSubtitle>
+          {attempt.status === 'failed' && (
+            <Danger children={attempt.statusText} />
+          )}
           {!canCreateDatabase && (
             <Box>
               <Text>
@@ -129,7 +135,7 @@ export function CreateDatabaseView({
                   // We need this name to comply with AWS policy name
                   // since it will be used as part of the policy name
                   // for the AWS flow.
-                  rule={conformNameWithAWSPolicyNameReq}
+                  rule={requiredField('database name is required')}
                   autoFocus
                   value={dbName}
                   placeholder="Enter database name"
@@ -211,82 +217,82 @@ export function CreateDatabaseView({
               attempt.status === 'processing' || !canCreateDatabase
             }
           />
-          {(attempt.status === 'processing' || attempt.status === 'failed') && (
+          {/* {(attempt.status === 'processing' || attempt.status === 'failed') && (
             <CreateDatabaseDialog
               pollTimeout={pollTimeout}
               attempt={attempt}
               retry={() => handleOnProceed(validator)}
               close={clearAttempt}
             />
-          )}
+          )} */}
         </Box>
       )}
     </Validation>
   );
 }
 
-const CreateDatabaseDialog = ({
-  pollTimeout,
-  attempt,
-  retry,
-  close,
-}: {
-  pollTimeout: number;
-  attempt: Attempt;
-  retry(): void;
-  close(): void;
-}) => {
-  return (
-    <Dialog disableEscapeKeyDown={false} open={true}>
-      <DialogContent
-        width="400px"
-        alignItems="center"
-        mb={0}
-        textAlign="center"
-      >
-        {attempt.status !== 'failed' ? (
-          <>
-            {' '}
-            <Text bold caps mb={4}>
-              Registering Database
-            </Text>
-            <AnimatedProgressBar />
-            <TextIcon
-              css={`
-                white-space: pre;
-              `}
-            >
-              <Icons.Restore fontSize={4} />
-              <Timeout
-                timeout={pollTimeout}
-                message=""
-                tailMessage={' seconds left'}
-              />
-            </TextIcon>
-          </>
-        ) : (
-          <Box width="100%">
-            <Text bold caps mb={3}>
-              Database Register Failed
-            </Text>
-            <Text mb={5}>
-              <Icons.Warning ml={1} mr={2} color="danger" />
-              Error: {attempt.statusText}
-            </Text>
-            <Flex>
-              <ButtonPrimary mr={2} width="50%" onClick={retry}>
-                Retry
-              </ButtonPrimary>
-              <ButtonSecondary width="50%" onClick={close}>
-                Close
-              </ButtonSecondary>
-            </Flex>
-          </Box>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-};
+// const CreateDatabaseDialog = ({
+//   pollTimeout,
+//   attempt,
+//   retry,
+//   close,
+// }: {
+//   pollTimeout: number;
+//   attempt: Attempt;
+//   retry(): void;
+//   close(): void;
+// }) => {
+//   return (
+//     <Dialog disableEscapeKeyDown={false} open={true}>
+//       <DialogContent
+//         width="400px"
+//         alignItems="center"
+//         mb={0}
+//         textAlign="center"
+//       >
+//         {attempt.status !== 'failed' ? (
+//           <>
+//             {' '}
+//             <Text bold caps mb={4}>
+//               Registering Database
+//             </Text>
+//             <AnimatedProgressBar />
+//             <TextIcon
+//               css={`
+//                 white-space: pre;
+//               `}
+//             >
+//               <Icons.Restore fontSize={4} />
+//               <Timeout
+//                 timeout={pollTimeout}
+//                 message=""
+//                 tailMessage={' seconds left'}
+//               />
+//             </TextIcon>
+//           </>
+//         ) : (
+//           <Box width="100%">
+//             <Text bold caps mb={3}>
+//               Database Register Failed
+//             </Text>
+//             <Text mb={5}>
+//               <Icons.Warning ml={1} mr={2} color="danger" />
+//               Error: {attempt.statusText}
+//             </Text>
+//             <Flex>
+//               <ButtonPrimary mr={2} width="50%" onClick={retry}>
+//                 Retry
+//               </ButtonPrimary>
+//               <ButtonSecondary width="50%" onClick={close}>
+//                 Close
+//               </ButtonSecondary>
+//             </Flex>
+//           </Box>
+//         )}
+//       </DialogContent>
+//     </Dialog>
+//   );
+// };
 
 // PORT_REGEXP only allows digits with length 4.
 export const PORT_REGEX = /^\d{4}$/;
@@ -318,21 +324,24 @@ const requiredAwsAccountId = value => () => {
   };
 };
 
-// AWS_POLICY_NAME_REGEX only allows alphanumeric including the
-// following common characters: plus (+), equal (=), comma (,),
-// period (.), at (@), underscore (_), and hyphen (-).
-// As defined in: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
-export const AWS_POLICY_NAME_REGEX = /^[\w@+=,.:/-]+$/;
-const conformNameWithAWSPolicyNameReq = value => () => {
-  const isValid = value.match(AWS_POLICY_NAME_REGEX);
-  if (!isValid) {
-    return {
-      valid: false,
-      message:
-        'name must be alphanumerics, including characters such as _ @ = , . + -',
-    };
-  }
-  return {
-    valid: true,
-  };
-};
+// TODO(lisa): this check and the backend check does not match
+// re-visit and let backend do the checking for now.
+//
+// // AWS_POLICY_NAME_REGEX only allows alphanumeric including the
+// // following common characters: plus (+), equal (=), comma (,),
+// // period (.), at (@), underscore (_), and hyphen (-).
+// // As defined in: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+// export const AWS_POLICY_NAME_REGEX = /^[\w@+=,.:/-]+$/;
+// const conformNameWithAWSPolicyNameReq = value => () => {
+//   const isValid = value.match(AWS_POLICY_NAME_REGEX);
+//   if (!isValid) {
+//     return {
+//       valid: false,
+//       message:
+//         'name must be alphanumerics, including characters such as _ @ = , . + -',
+//     };
+//   }
+//   return {
+//     valid: true,
+//   };
+// };

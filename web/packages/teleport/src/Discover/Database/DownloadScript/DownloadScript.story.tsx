@@ -55,6 +55,7 @@ export const InitWithLabels = () => {
   return (
     <Provider>
       <DownloadScript
+        {...props}
         agentMeta={{
           ...props.agentMeta,
           agentMatcherLabels: [{ name: 'env', value: 'prod' }],
@@ -116,7 +117,7 @@ export const Processing = () => {
   );
   return (
     <Provider interval={5}>
-      <DownloadScript runJoinTokenPromise={true} />
+      <DownloadScript runJoinTokenPromise={true} {...props} />
     </Provider>
   );
 };
@@ -129,7 +130,7 @@ export const Failed = () => {
   );
   return (
     <Provider>
-      <DownloadScript runJoinTokenPromise={true} />
+      <DownloadScript runJoinTokenPromise={true} {...props} />
     </Provider>
   );
 };
@@ -169,4 +170,5 @@ const props = {
     agentMatcherLabels: [],
     db: {} as any,
   },
+  nextStep: () => null,
 };

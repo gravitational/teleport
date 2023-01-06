@@ -54,7 +54,16 @@ function combineResourceMatcherLabels(
       if (!labelMap[key]) {
         labelMap[key] = [];
       }
-      labelMap[key] = [...labelMap[key], ...rm.labels[key]];
+
+      // The type return can be a list of strings, or
+      // just a string. We convert it to an array
+      // to keep it consistent.
+      let vals = rm.labels[key];
+      if (!Array.isArray(vals)) {
+        vals = [vals];
+      }
+
+      labelMap[key] = [...labelMap[key], ...vals];
     });
   });
 

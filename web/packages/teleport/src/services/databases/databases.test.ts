@@ -113,6 +113,7 @@ test('database services fetch response', async () => {
         env: ['prod', 'env'],
         os: ['mac', 'ios', 'linux', 'windows'],
         tag: ['tag'],
+        fruit: ['apple'],
       },
     },
     {
@@ -157,7 +158,9 @@ const mockServiceResponse = {
     {
       name: 'db-service-1',
       resource_matchers: [
-        { labels: { env: ['prod', 'env'], os: ['mac', 'ios'] } },
+        {
+          labels: { env: ['prod', 'env'], os: ['mac', 'ios'], fruit: 'apple' },
+        },
         { labels: { os: ['linux', 'windows'], tag: ['tag'] } },
       ],
     },

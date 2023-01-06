@@ -74,7 +74,7 @@ export default function Container(
       {({ validator }) => (
         <CatchError
           onRetry={clearCachedJoinTokenResult}
-          fallbackFn={props => (
+          fallbackFn={fbProps => (
             <Box>
               <Heading />
               <Labels
@@ -85,7 +85,7 @@ export default function Container(
                       if (!validator.validate()) {
                         return;
                       }
-                      props.retry();
+                      fbProps.retry();
                     }}
                   />
                 }
@@ -93,10 +93,14 @@ export default function Container(
               <Box>
                 <TextIcon mt={3}>
                   <Icons.Warning ml={1} color="danger" />
-                  Encountered Error: {props.error.message}
+                  Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>
-              <ActionButtons onProceed={() => null} disableProceed={true} />
+              <ActionButtons
+                onProceed={() => null}
+                disableProceed={true}
+                onSkip={props.nextStep}
+              />
             </Box>
           )}
         >
@@ -109,7 +113,11 @@ export default function Container(
                   disableBtns={true}
                   generateBtn={<ButtonGenerateCmd disabled={true} />}
                 />
-                <ActionButtons onProceed={() => null} disableProceed={true} />
+                <ActionButtons
+                  onProceed={() => null}
+                  disableProceed={true}
+                  onSkip={props.nextStep}
+                />
               </Box>
             }
           >
@@ -124,7 +132,11 @@ export default function Container(
                     />
                   }
                 />
-                <ActionButtons onProceed={() => null} disableProceed={true} />
+                <ActionButtons
+                  onProceed={() => null}
+                  disableProceed={true}
+                  onSkip={props.nextStep}
+                />
               </Box>
             )}
             {showScript && (
@@ -228,6 +240,7 @@ export function DownloadScript(
       <ActionButtons
         onProceed={handleNextStep}
         disableProceed={poll.state !== 'success' || props.labels.length === 0}
+        onSkip={props.nextStep}
       />
     </Box>
   );
@@ -236,8 +249,11 @@ export function DownloadScript(
 const Heading = () => {
   return (
     <>
-      <Header>Deploy a Database Service</Header>
+      <Header>Optionally Deploy a Database Service</Header>
       <HeaderSubtitle>
+        This step is optional if you already have a Teleport Database Service
+        running.
+        <br />
         On the host where you will run the Teleport Database Service, execute
         the generated command that will install and start Teleport with the
         appropriate configuration.

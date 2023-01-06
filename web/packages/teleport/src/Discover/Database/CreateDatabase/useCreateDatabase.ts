@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-import { useState, useEffect } from 'react';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
-import { usePoll } from 'teleport/Discover/Shared/usePoll';
+// import { usePoll } from 'teleport/Discover/Shared/usePoll';
 
 import { Database } from '../resources';
 
 import type { AgentStepProps } from '../../types';
 import type {
   CreateDatabaseRequest,
-  Database as DatabaseResource,
+  // Database as DatabaseResource,
   DatabaseService,
 } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
@@ -39,8 +37,8 @@ export function useCreateDatabase(props: AgentStepProps) {
   const clusterId = ctx.storeUser.getClusterId();
   const { attempt, setAttempt } = useAttempt('');
 
-  const [pollTimeout, setPollTimeout] = useState(0);
-  const [pollActive, setPollActive] = useState(false);
+  // const [pollTimeout, setPollTimeout] = useState(0);
+  // const [pollActive, setPollActive] = useState(false);
 
   // Required persisted states to determine if we can skip a request
   // because there can be multiple failed points:
@@ -50,107 +48,135 @@ export function useCreateDatabase(props: AgentStepProps) {
   //    - timed out due to combined previous requests taking longer than WAITING_TIMEOUT
   //    - timed out due to failure to query (this would most likely be some kind of
   //      backend error or network failure)
-  const [newDb, setNewDb] = useState<CreateDatabaseRequest>();
+  // const [newDb, setNewDb] = useState<CreateDatabaseRequest>();
 
-  const { timedOut, result } = usePoll<DatabaseResource>(
-    signal => fetchDatabaseServer(signal),
-    pollTimeout,
-    pollActive,
-    3000 // interval: poll every 3 seconds
-  );
+  // const { timedOut, result } = usePoll<DatabaseResource>(
+  //   signal => fetchDatabaseServer(signal),
+  //   pollTimeout,
+  //   pollActive,
+  //   3000 // interval: poll every 3 seconds
+  // );
 
-  // Handles polling timeout.
-  useEffect(() => {
-    if (pollActive && Date.now() > pollTimeout) {
-      setPollActive(false);
-      setAttempt({
-        status: 'failed',
-        statusText:
-          'Teleport could not detect your new database in time. Please try again.',
-      });
-    }
-  }, [pollActive, pollTimeout, timedOut]);
+  // // Handles polling timeout.
+  // useEffect(() => {
+  //   if (pollActive && Date.now() > pollTimeout) {
+  //     setPollActive(false);
+  //     setAttempt({
+  //       status: 'failed',
+  //       statusText:
+  //         'Teleport could not detect your new database in time. Please try again.',
+  //     });
+  //   }
+  // }, [pollActive, pollTimeout, timedOut]);
 
-  // Handles when polling successfully gets
-  // a response.
-  useEffect(() => {
-    if (!result) return;
+  // // Handles when polling successfully gets
+  // // a response.
+  // useEffect(() => {
+  //   if (!result) return;
 
-    setPollTimeout(null);
-    setPollActive(false);
+  //   setPollTimeout(null);
+  //   setPollActive(false);
 
-    const numStepsToSkip = 2;
-    props.updateAgentMeta({
-      ...(props.agentMeta as DbMeta),
-      resourceName: newDb.name,
-      agentMatcherLabels: newDb.labels,
-      db: result,
-    });
+  //   const numStepsToSkip = 2;
+  //   props.updateAgentMeta({
+  //     ...(props.agentMeta as DbMeta),
+  //     resourceName: newDb.name,
+  //     agentMatcherLabels: newDb.labels,
+  //     db: result,
+  //   });
 
-    props.nextStep(numStepsToSkip);
-  }, [result]);
+  //   props.nextStep(numStepsToSkip);
+  // }, [result]);
 
-  function fetchDatabaseServer(signal: AbortSignal) {
-    const request = {
-      search: newDb.name,
-      limit: 1,
-    };
-    return ctx.databaseService
-      .fetchDatabases(clusterId, request, signal)
-      .then(res => {
-        if (res.agents.length) {
-          return res.agents[0];
-        }
-        return null;
-      });
-  }
+  // function fetchDatabaseServer(signal: AbortSignal) {
+  //   const request = {
+  //     search: newDb.name,
+  //     limit: 1,
+  //   };
+  //   return ctx.databaseService
+  //     .fetchDatabases(clusterId, request, signal)
+  //     .then(res => {
+  //       if (res.agents.length) {
+  //         return res.agents[0];
+  //       }
+  //       return null;
+  //     });
+  // }
 
   async function registerDatabase(db: CreateDatabaseRequest) {
-    // Set the timeout now, because this entire registering process
-    // should take less than WAITING_TIMEOUT.
-    setPollTimeout(Date.now() + WAITING_TIMEOUT);
-    setAttempt({ status: 'processing' });
+    // // Set the timeout now, because this entire registering process
+    // // should take less than WAITING_TIMEOUT.
+    // setPollTimeout(Date.now() + WAITING_TIMEOUT);
+    // setAttempt({ status: 'processing' });
 
     // Attempt creating a new Database resource.
     // Handles a case where if there was a later failure point
     // and user decides to change the database fields, a new database
     // is created (ONLY if the database name has changed since this
     // request operation is only a CREATE operation).
-    if (!newDb || db.name != newDb.name) {
-      try {
-        await ctx.databaseService.createDatabase(clusterId, db);
-        setNewDb(db);
-      } catch (err) {
-        handleRequestError(err);
-        return;
-      }
-    }
-
-    // See if this new database can be picked up by an existing
-    // database service. If there is no active database service,
-    // user is led to the next step.
+    // if (!newDb || db.name != newDb.name) {
     try {
-      const { services } = await ctx.databaseService.fetchDatabaseServices(
-        clusterId
-      );
-
-      if (!findActiveDatabaseSvc(db.labels, services)) {
-        props.updateAgentMeta({
-          ...(props.agentMeta as DbMeta),
-          resourceName: db.name,
-          agentMatcherLabels: db.labels,
-        });
-        props.nextStep();
-        return;
-      }
+      const createdDb = await ctx.databaseService.createDatabase(clusterId, db);
+      // setNewDb(db);
+      props.updateAgentMeta({
+        ...(props.agentMeta as DbMeta),
+        resourceName: db.name,
+        agentMatcherLabels: db.labels,
+        db: createdDb,
+      });
+      props.nextStep();
+      return;
     } catch (err) {
       handleRequestError(err);
       return;
     }
+    // }
 
-    // Start polling until new database is picked up by an
-    // existing database service.
-    setPollActive(true);
+    // TODO(lisa): temporary see if we can query this database.
+    // try {
+    //   const { services } = await ctx.databaseService.fetchDatabaseServices(
+    //     clusterId
+    //   );
+
+    //   if (!findActiveDatabaseSvc(db.labels, services)) {
+    //     props.updateAgentMeta({
+    //       ...(props.agentMeta as DbMeta),
+    //       resourceName: db.name,
+    //       agentMatcherLabels: db.labels,
+    //     });
+    //     props.nextStep();
+    //     return;
+    //   }
+    // } catch (err) {
+    //   handleRequestError(err);
+    //   return;
+    // }
+
+    // // See if this new database can be picked up by an existing
+    // // database service. If there is no active database service,
+    // // user is led to the next step.
+    // try {
+    //   const { services } = await ctx.databaseService.fetchDatabaseServices(
+    //     clusterId
+    //   );
+
+    //   if (!findActiveDatabaseSvc(db.labels, services)) {
+    //     props.updateAgentMeta({
+    //       ...(props.agentMeta as DbMeta),
+    //       resourceName: db.name,
+    //       agentMatcherLabels: db.labels,
+    //     });
+    //     props.nextStep();
+    //     return;
+    //   }
+    // } catch (err) {
+    //   handleRequestError(err);
+    //   return;
+    // }
+
+    // // Start polling until new database is picked up by an
+    // // existing database service.
+    // setPollActive(true);
   }
 
   function clearAttempt() {
@@ -171,7 +197,7 @@ export function useCreateDatabase(props: AgentStepProps) {
     clearAttempt,
     registerDatabase,
     canCreateDatabase: access.create,
-    pollTimeout,
+    // pollTimeout,
     dbEngine: dbState.engine,
     dbLocation: dbState.location,
   };
