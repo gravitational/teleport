@@ -6777,10 +6777,10 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 
 			// connect via SSH
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
 			pc, err := tc.ConnectToProxy(ctx)
 			require.NoError(t, err)
 			require.NoError(t, pc.Close())
-			cancel()
 
 			// connect via gRPC
 			tlsConfig, err := tc.LoadTLSConfig()
