@@ -1,6 +1,7 @@
 {{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: {{ .Release.Name }}-auth
   namespace: {{ .Release.Namespace }}
@@ -12,7 +13,20 @@ metadata:
 {{- end }}
 spec:
   replicas: {{ $auth.highAvailability.replicaCount }}
-  serviceName: {{ .Release.Name }}-auth
+{{- if and $replicated $auth.highAvailability.minReadySeconds }}
+  minReadySeconds: {{ $auth.highAvailability.minReadySeconds }}
+{{- end }}
+  strategy:
+{{- if $replicated }}
+    # some backends support a maximum amount of auth pods (e.g. DynamoDB),
+    # we don't want to exceed this during a rollout.
+    maxSurge: 0
+    maxUnavailable: 1
+{{- else }}
+    # using a single replica can be because of a non-replicable storage or when applying upgrade migrations.
+    # In those cases, we don't want a rolling update.
+    type: Recreate
+{{- end }}
   selector:
     matchLabels: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 6 }}
   template:
@@ -48,7 +62,7 @@ spec:
                     values:
                       - proxy
               topologyKey: "kubernetes.io/hostname"
-  {{- else if gt (int $auth.highAvailability.replicaCount) 1 }}
+  {{- else if $replicated }}
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 50
               podAffinityTerm:

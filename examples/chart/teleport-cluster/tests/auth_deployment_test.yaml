@@ -1,10 +1,10 @@
 suite: Auth StatefulSet
 templates:
-  - auth/statefulset.yaml
+  - auth/deployment.yaml
   - auth/config.yaml
 tests:
   - it: sets Statefulset annotations when specified
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/annotations.yaml
     asserts:
@@ -16,7 +16,7 @@ tests:
           value: 3
 
   - it: sets Pod annotations when specified
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/annotations.yaml
     asserts:
@@ -28,7 +28,7 @@ tests:
           value: 4
 
   - it: should not have more than one replica in standalone mode
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -38,7 +38,7 @@ tests:
           value: 1
 
   - it: should have multiple replicas when replicaCount is set
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       chartMode: scratch
       clusterName: helm-lint.example.com
@@ -50,7 +50,7 @@ tests:
           value: 3
 
   - it: should set affinity when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       affinity:
@@ -69,7 +69,7 @@ tests:
           path: spec.template.spec.affinity
 
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/aws-ha-antiaffinity.yaml
     asserts:
@@ -83,7 +83,7 @@ tests:
           path: spec.template.spec.affinity
 
   - it: should set tolerations when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/tolerations.yaml
     asserts:
@@ -93,7 +93,7 @@ tests:
           path: spec.template.spec.tolerations
 
   - it: should set resources when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/resources.yaml
     asserts:
@@ -113,7 +113,7 @@ tests:
           path: spec.template.spec
 
   - it: should set securityContext when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/security-context.yaml
     asserts:
@@ -139,7 +139,7 @@ tests:
           path: spec.template.spec
 
   - it: should not set securityContext when is empty object (default value)
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/security-context-empty.yaml
     asserts:
@@ -150,7 +150,7 @@ tests:
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
   - it: should use enterprise image and mount license when enterprise is set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       enterprise: true
@@ -173,7 +173,7 @@ tests:
               secretName: license
 
   - it: should use OSS image and not mount license when enterprise is not set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint
       teleportVersionOverride: 8.3.4
@@ -197,7 +197,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount GCP credentials in GCP mode
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
     asserts:
@@ -215,7 +215,7 @@ tests:
               secretName: teleport-gcp-credentials
 
   - it: should not mount secret when credentialSecretName is blank in values
-    template: deployment.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/gcp-ha-workload.yaml
     asserts:
@@ -233,7 +233,7 @@ tests:
               secretName: teleport-gcp-credentials
 
   - it: should mount GCP credentials for initContainer in GCP mode
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
       - ../.lint/initcontainers.yaml
@@ -246,7 +246,7 @@ tests:
             readOnly: true
 
   - it: should mount ConfigMap containing Teleport config
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint.example.com
     asserts:
@@ -264,7 +264,7 @@ tests:
               name: RELEASE-NAME-auth
 
   - it: should mount extraVolumes and extraVolumeMounts on container and initContainers
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/volumes.yaml
       - ../.lint/initcontainers.yaml
@@ -291,7 +291,7 @@ tests:
             secret:
               secretName: mySecret
   - it: should set imagePullPolicy when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       imagePullPolicy: Always
@@ -301,7 +301,7 @@ tests:
           value: Always
 
   - it: should set environment when extraEnv set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/extra-env.yaml
     asserts:
@@ -312,7 +312,7 @@ tests:
             value: "some-value"
 
   - it: should provision initContainer correctly when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/initcontainers.yaml
       - ../.lint/resources.yaml
@@ -364,7 +364,7 @@ tests:
           path: spec.template.spec.initContainers
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       insecureSkipProxyTLSVerify: true
@@ -374,7 +374,7 @@ tests:
           content: "--insecure"
 
   - it: should expose diag port
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint.example.com
     asserts:
@@ -386,7 +386,7 @@ tests:
             protocol: TCP
 
   - it: should set postStart command if set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       clusterName: helm-lint.example.com
       postStart:
@@ -397,7 +397,7 @@ tests:
           value: ["/bin/echo", "test"]
 
   - it: should add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is true
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -412,7 +412,7 @@ tests:
               claimName: RELEASE-NAME
 
   - it: should not add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is false
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
@@ -427,7 +427,7 @@ tests:
               claimName: RELEASE-NAME
 
   - it: should add PersistentVolumeClaim as volume when in scratch mode and persistence.enabled is true
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       chartMode: scratch
       clusterName: helm-lint.example.com
@@ -442,7 +442,7 @@ tests:
               claimName: RELEASE-NAME
 
   - it: should not add PersistentVolumeClaim as volume when in scratch mode and persistence.enabled is false
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       chartMode: scratch
       clusterName: helm-lint.example.com
@@ -457,7 +457,7 @@ tests:
               claimName: RELEASE-NAME
 
   - it: should add an operator side-car when operator is enabled
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/operator.yaml
     asserts:
@@ -468,7 +468,7 @@ tests:
           path: spec.template.spec.containers[1]
 
   - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     asserts:
@@ -480,7 +480,7 @@ tests:
               claimName: teleport-storage
 
   - it: should not add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set but persistence.enabled is false
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     set:
@@ -495,7 +495,7 @@ tests:
               claimName: teleport-storage
 
   - it: should add named PersistentVolumeClaim as volume when in scratch mode and persistence.existingClaimName is set
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     asserts:
@@ -507,7 +507,7 @@ tests:
               claimName: teleport-storage
 
   - it: should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName is set and persistence.enabled is false
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
     set:
@@ -524,7 +524,7 @@ tests:
           path: spec.template.spec
 
   - it: should add emptyDir for data in AWS mode
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/aws-ha.yaml
     asserts:
@@ -535,7 +535,7 @@ tests:
             emptyDir: {}
 
   - it: should add emptyDir for data in GCP mode
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/gcp-ha.yaml
     asserts:
@@ -546,7 +546,7 @@ tests:
             emptyDir: {}
 
   - it: should set priorityClassName when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/priority-class-name.yaml
     asserts:
@@ -555,7 +555,7 @@ tests:
           value: system-cluster-critical
 
   - it: should set probeTimeoutSeconds when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/probe-timeout-seconds.yaml
     asserts:
@@ -567,7 +567,7 @@ tests:
           value: 5
 
   - it: should mount tls.existingCASecretName and set environment when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
     asserts:
@@ -590,7 +590,7 @@ tests:
             value: /etc/teleport-tls-ca/ca.pem
 
   - it: should mount tls.existingCASecretName and set extra environment when set in values
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/extra-env.yaml
@@ -619,7 +619,7 @@ tests:
             value: some-value
 
   - it: should set minReadySeconds when replicaCount > 1
-    template: auth/statefulset.yaml
+    template: auth/deployment.yaml
     set:
       chartMode: scratch
       highAvailability:
@@ -629,3 +629,51 @@ tests:
       - equal:
           path: spec.minReadySeconds
           value: 60
+
+  - it: should not set minReadySeconds when replicaCount = 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        minReadySeconds: 60
+        replicaCount: 1
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: null
+
+  - it: should use Recreate strategy when replicaCount = 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        replicaCount: 1
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should not set strategy when replicaCount > 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: null
+
+  - it: should not perform surge rolling updates when replicaCount > 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.strategy.maxSurge
+          value: 0
+      - equal:
+          path: spec.strategy.maxUnavailable
+          value: 1

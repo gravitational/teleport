@@ -549,3 +549,15 @@ tests:
       - equal:
           path: spec.minReadySeconds
           value: 60
+
+  - it: should not set minReadySeconds when replicaCount = 1
+    template: proxy/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        minReadySeconds: 60
+        replicaCount: 1
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: null

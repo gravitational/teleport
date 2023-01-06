@@ -32,7 +32,9 @@ spec:
   {{- else }}
   replicas: {{ max .Values.highAvailability.replicaCount 2 }}
   {{- end }}
+  {{- if $proxy.highAvailability.minReadySeconds }}
   minReadySeconds: {{ $proxy.highAvailability.minReadySeconds }}
+  {{- end }}
 {{- else }}
   replicas: 1
 {{- end }}

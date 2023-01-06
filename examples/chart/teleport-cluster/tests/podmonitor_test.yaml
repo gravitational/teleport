@@ -24,7 +24,7 @@ tests:
         interval: 2m
     asserts:
       - equal:
-          path: spec.endpoints[0].interval
+          path: spec.podMetricsEndpoints[0].interval
           value: 2m
 
   - it: wears additional labels if provided
