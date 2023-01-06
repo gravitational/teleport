@@ -19,9 +19,11 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -31,54 +33,256 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 )
 
-func TestPlainHttpFallback(t *testing.T) {
-	ctx := context.Background()
-	var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-		if r.RequestURI != "/v1/webapi/host/credentials" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(proto.Certs{})
+// TestHostCredentialsHttpFallback tests that HostCredentials requests (/v1/webapi/host/credentials/)
+// fall back to HTTP only if the address is a loopback and the insecure mode was set.
+func TestHostCredentialsHttpFallback(t *testing.T) {
+	testCases := []struct {
+		desc     string
+		loopback bool
+		insecure bool
+		fallback bool
+	}{
+		{
+			desc:     "falls back to http if loopback and insecure",
+			loopback: true,
+			insecure: true,
+			fallback: true,
+		},
+		{
+			desc:     "does not fall back to http if loopback and secure",
+			loopback: true,
+			insecure: false,
+			fallback: false,
+		},
+		{
+			desc:     "does not fall back to http if non-loopback and insecure",
+			loopback: false,
+			insecure: true,
+			fallback: false,
+		},
 	}
 
-	t.Run("Allowed on insecure & loopback", func(t *testing.T) {
-		httpSvr := httptest.NewServer(handler)
-		defer httpSvr.Close()
-
-		_, err := client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), true /* insecure */, types.RegisterUsingTokenRequest{})
+	for _, tc := range testCases {
+		// Start an http server (not https) so that the request only succeeds
+		// if the fallback occurs.
+		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+			handleRequest(w, r, "/v1/webapi/host/credentials", proto.Certs{})
+		}
+		https := false
+		httpSvr, err := newServer(handler, tc.loopback, https)
 		require.NoError(t, err)
-	})
-
-	t.Run("Denied on secure", func(t *testing.T) {
-		httpSvr := httptest.NewServer(handler)
 		defer httpSvr.Close()
 
-		_, err := client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), false /* secure */, types.RegisterUsingTokenRequest{})
-		require.Error(t, err)
-	})
+		// Send the HostCredentials request.
+		ctx := context.Background()
+		_, err = client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), tc.insecure, types.RegisterUsingTokenRequest{})
 
-	t.Run("Denied on non-loopback", func(t *testing.T) {
-		nonLoopbackSvr := httptest.NewUnstartedServer(handler)
+		// If it should fallback, then no error should occur.
+		if tc.fallback {
+			require.NoError(t, err)
+		} else {
+			require.Error(t, err)
+		}
+	}
+}
 
+// TestHttpRoundTripperDowngrade tests that the round tripper downgrades https requests to http
+// when HTTP_PROXY is set to "http://localhost:*" (i.e. there's an http proxy running on localhost).
+func TestHttpRoundTripperDowngrade(t *testing.T) {
+	testCases := []struct {
+		desc           string
+		insecure       bool
+		setHttpProxy   bool
+		shouldHitProxy bool
+	}{
+		{
+			desc:           "hits http proxy if insecure and localhost http proxy is set",
+			insecure:       true,
+			setHttpProxy:   true,
+			shouldHitProxy: true,
+		},
+		{
+			desc:           "does not hit http proxy if insecure and localhost http proxy is not set",
+			insecure:       true,
+			setHttpProxy:   false,
+			shouldHitProxy: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			newHandler := func(runningAtProxy bool) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if tc.shouldHitProxy {
+						// If the request should hit the proxy, then:
+						// - this handler is running at the proxy, and
+						// - the scheme should be http.
+						require.True(t, runningAtProxy)
+						require.Equal(t, "http", r.URL.Scheme)
+					}
+
+					handleRequest(w, r, "/v1/webapi/ssh/certs", auth.SSHLoginResponse{})
+				}
+			}
+
+			// Start localhost http proxy.
+			runningAtProxy := true
+			loopback := true
+			tls := false
+			httpProxySrv, err := newServer(newHandler(runningAtProxy), loopback, tls)
+			require.NoError(t, err)
+			defer httpProxySrv.Close()
+
+			// Start non-localhost https server.
+			runningAtProxy = false
+			loopback = false
+			tls = true
+			httpsSrv, err := newServer(newHandler(runningAtProxy), loopback, tls)
+			require.NoError(t, err)
+			defer httpsSrv.Close()
+
+			if tc.setHttpProxy {
+				// url.Parse won't correctly parse an absolute URL without a scheme.
+				u, err := url.Parse("http://" + httpProxySrv.Listener.Addr().String())
+				require.NoError(t, err)
+				_, port, err := net.SplitHostPort(u.Host)
+				require.NoError(t, err)
+
+				// Set HTTP_PROXY to "http://localhost:*".
+				t.Setenv("HTTP_PROXY", fmt.Sprintf("http://localhost:%s", port))
+			}
+
+			var addr string
+			if tc.shouldHitProxy {
+				// If should hit the proxy, set the address to a fake one that won't resolve.
+				// This ensures that the request below fails if it doesn't hit the proxy.
+				addr = "unused.proxy.com:3000"
+			} else {
+				// If shouldn't hit the proxy, set the address to the https server.
+				addr = httpsSrv.Listener.Addr().String()
+			}
+
+			// Send an SSHLoginDirect request.
+			ctx := context.Background()
+			login := client.SSHLoginDirect{
+				SSHLogin: client.SSHLogin{
+					ProxyAddr: addr,
+					Insecure:  tc.insecure,
+				},
+			}
+			_, err = client.SSHAgentLogin(ctx, login)
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestHttpRoundTripperExtraHeaders tests that the round tripper adds the extra headers set.
+func TestHttpRoundTripperExtraHeaders(t *testing.T) {
+	testCases := []struct {
+		desc          string
+		extraHeaders  map[string]string
+		expectHeaders func(*testing.T, http.Header)
+	}{
+		{
+			desc: "extra headers are added",
+			extraHeaders: map[string]string{
+				"h1": "v1",
+				"h2": "v2",
+			},
+			expectHeaders: func(t *testing.T, headers http.Header) {
+				require.Equal(t, []string{"v1"}, headers.Values("h1"))
+				require.Equal(t, []string{"v2"}, headers.Values("h2"))
+			},
+		},
+		{
+			desc: "extra headers do not overwrite existing headers",
+			extraHeaders: map[string]string{
+				"h1":           "v1",
+				"Content-Type": "v2",
+			},
+			expectHeaders: func(t *testing.T, headers http.Header) {
+				require.Equal(t, []string{"v1"}, headers.Values("h1"))
+				require.Equal(t, []string{"application/json", "v2"}, headers.Values("Content-Type"))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+				tc.expectHeaders(t, r.Header)
+				handleRequest(w, r, "/v1/webapi/ssh/certs", auth.SSHLoginResponse{})
+			}
+
+			// Start localhost https server.
+			// This requires insecure to be set so that the request succeeds.
+			loopback := true
+			tls := true
+			insecure := true
+			httpsSrv, err := newServer(handler, loopback, tls)
+			require.NoError(t, err)
+			defer httpsSrv.Close()
+
+			// Set the address to the localhost https server.
+			addr := httpsSrv.Listener.Addr().String()
+
+			// Send an SSHLoginDirect request.
+			ctx := context.Background()
+			login := client.SSHLoginDirect{
+				SSHLogin: client.SSHLogin{
+					ProxyAddr:    addr,
+					Insecure:     insecure,
+					ExtraHeaders: tc.extraHeaders,
+				},
+			}
+			_, err = client.SSHAgentLogin(ctx, login)
+			require.NoError(t, err)
+		})
+	}
+}
+
+// newServer starts a new server that:
+// - runs TLS if `https`
+// - uses a loopback listener if `loopback`
+func newServer(handler http.HandlerFunc, loopback bool, https bool) (*httptest.Server, error) {
+	srv := httptest.NewUnstartedServer(handler)
+
+	if !loopback {
 		// replace the test-supplied loopback listener with the first available
 		// non-loopback address
-		nonLoopbackSvr.Listener.Close()
+		srv.Listener.Close()
 		l, err := net.Listen("tcp", "0.0.0.0:0")
-		require.NoError(t, err)
-		nonLoopbackSvr.Listener = l
-		nonLoopbackSvr.Start()
-		defer nonLoopbackSvr.Close()
+		if err != nil {
+			return nil, err
+		}
+		srv.Listener = l
+	}
 
-		_, err = client.HostCredentials(ctx, nonLoopbackSvr.Listener.Addr().String(), true /* insecure */, types.RegisterUsingTokenRequest{})
-		require.Error(t, err)
-	})
+	if https {
+		srv.StartTLS()
+	} else {
+		srv.Start()
+	}
+	return srv, nil
+}
+
+// handleRequest handles an http request so that it:
+// - expects a certain `uriSuffix`, and
+// - always returns the same `result`.
+func handleRequest(w http.ResponseWriter, r *http.Request, uriSuffix string, result any) {
+	if !strings.HasSuffix(r.RequestURI, uriSuffix) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(result)
 }
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {

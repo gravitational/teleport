@@ -76,20 +76,24 @@ func parse(addr string) (*url.URL, error) {
 // - downgrades requests to plain HTTP when proxy is at localhost and the wrapped http.Transport has TLSClientConfig.InsecureSkipVerify set to true.
 type HTTPRoundTripper struct {
 	*http.Transport
+	// downgrade indicates that requests to plain HTTP should be downgraded.
+	downgrade bool
 	// extraHeaders is a map of extra HTTP headers to be included in requests.
-	extraHeaders         map[string]string
-	isProxyHTTPLocalhost bool
+	extraHeaders map[string]string
 }
 
 // NewHTTPRoundTripper creates a new initialized HTTP roundtripper.
 func NewHTTPRoundTripper(transport *http.Transport, extraHeaders map[string]string) *HTTPRoundTripper {
-	proxyConfig := httpproxy.FromEnvironment()
-	rt := &HTTPRoundTripper{
-		Transport:            transport,
-		extraHeaders:         extraHeaders,
-		isProxyHTTPLocalhost: strings.HasPrefix(proxyConfig.HTTPProxy, "http://localhost"),
+	// Should downgrade to plain HTTP if proxying via http://localhost in insecure mode.
+	isProxyHTTPLocalhost := strings.HasPrefix(httpproxy.FromEnvironment().HTTPProxy, "http://localhost")
+	insecure := transport.TLSClientConfig != nil && transport.TLSClientConfig.InsecureSkipVerify
+	downgrade := isProxyHTTPLocalhost && insecure
+
+	return &HTTPRoundTripper{
+		Transport:    transport,
+		downgrade:    downgrade,
+		extraHeaders: extraHeaders,
 	}
-	return rt
 }
 
 // RoundTrip executes a single HTTP transaction. Part of the RoundTripper interface.
@@ -99,9 +103,8 @@ func (rt *HTTPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 		req.Header.Add(header, v)
 	}
 
-	// Use plain HTTP if proxying via http://localhost in insecure mode.
-	tlsConfig := rt.Transport.TLSClientConfig
-	if rt.isProxyHTTPLocalhost && tlsConfig != nil && tlsConfig.InsecureSkipVerify {
+	// Use plain HTTP if should downgrade.
+	if rt.downgrade {
 		req.URL.Scheme = "http"
 	}
 
