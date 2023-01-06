@@ -20,13 +20,18 @@ import { Server } from 'design/Icon';
 
 import { Resource } from 'teleport/Discover/flow';
 import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
-import { LoginTrait } from 'teleport/Discover/Server/SetupAccess';
+import { SetupAccess } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
 import { ResourceKind, Finished } from 'teleport/Discover/Shared';
+
+import { ServerWrapper } from './ServerWrapper';
 
 export const ServerResource: Resource = {
   kind: ResourceKind.Server,
   icon: <Server />,
+  wrapper: (component: React.ReactNode) => (
+    <ServerWrapper>{component}</ServerWrapper>
+  ),
   shouldPrompt(currentStep) {
     // do not prompt on exit if they're selecting a resource
     return currentStep !== 0;
@@ -41,7 +46,7 @@ export const ServerResource: Resource = {
     },
     {
       title: 'Set Up Access',
-      component: LoginTrait,
+      component: SetupAccess,
     },
     {
       title: 'Test Connection',

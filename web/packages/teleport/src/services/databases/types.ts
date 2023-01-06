@@ -26,10 +26,53 @@ export interface Database {
   labels: AgentLabel[];
   names?: string[];
   users?: string[];
+  hostname: string;
 }
 
 export type DatabasesResponse = {
   databases: Database[];
+  startKey?: string;
+  totalCount?: number;
+};
+
+export type UpdateDatabaseRequest = {
+  name: string;
+  caCert: string;
+};
+
+export type CreateDatabaseRequest = {
+  name: string;
+  protocol: DbProtocol;
+  uri: string;
+  labels?: AgentLabel[];
+  awsRds?: AwsRds;
+};
+
+export type AwsRds = {
+  accountId: string;
+  resourceId: string;
+};
+
+export type DatabaseIamPolicyResponse = {
+  type: string;
+  aws: DatabaseIamPolicyAws;
+};
+
+export type DatabaseIamPolicyAws = {
+  policy_document: string;
+  placeholders: string;
+};
+
+export type DatabaseService = {
+  // name is the name of the database service.
+  name: string;
+  // matcherLabels is a map of label keys with list of label values
+  // that this service can discover databases with matching labels.
+  matcherLabels: Record<string, string[]>;
+};
+
+export type DatabaseServicesResponse = {
+  services: DatabaseService[];
   startKey?: string;
   totalCount?: number;
 };

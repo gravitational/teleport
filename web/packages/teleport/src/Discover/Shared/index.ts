@@ -19,7 +19,15 @@ export { ButtonBlueText } from './ButtonBlueText';
 export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
 export { Finished } from './Finished';
 export { Mark } from './Mark';
+export { PermissionsErrorMessage } from './PermissionsErrorMessage';
 export { ReadOnlyYamlEditor } from './YAML';
 export { ResourceKind } from './ResourceKind';
 export { Step, StepContainer } from './Step';
 export { TextBox, TextIcon } from './Text';
+export { LabelsCreater } from './LabelsCreater';
+export {
+  ConnectionDiagnosticResult,
+  useConnectionDiagnostic,
+} from './ConnectionDiagnostic';
+
+export type { DiscoverLabel } from './LabelsCreater';

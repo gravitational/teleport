@@ -14,29 +14,22 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-
 import cfg from 'teleport/config';
 import { openNewTab } from 'teleport/lib/util';
-import TeleportContext from 'teleport/teleportContext';
+import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 
 import { NodeMeta } from '../../useDiscover';
 
-import type { ConnectionDiagnostic } from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
 
-export function useTestConnection({ ctx, props }: Props) {
-  const { attempt, run } = useAttempt('');
-  const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
-
-  const access = ctx.storeUser.getConnectionDiagnosticAccess();
-  const canTestConnection = access.create && access.edit && access.read;
+export function useTestConnection(props: AgentStepProps) {
+  const { runConnectionDiagnostic, ...connectionDiagnostic } =
+    useConnectionDiagnostic(props);
 
   function startSshSession(login: string) {
     const meta = props.agentMeta as NodeMeta;
     const url = cfg.getSshConnectRoute({
-      clusterId: ctx.storeUser.getClusterId(),
+      clusterId: connectionDiagnostic.clusterId,
       serverId: meta.node.id,
       login,
     });
@@ -44,29 +37,19 @@ export function useTestConnection({ ctx, props }: Props) {
     openNewTab(url);
   }
 
-  function runConnectionDiagnostic(login: string) {
-    const meta = props.agentMeta as NodeMeta;
-    setDiagnosis(null);
-    run(() =>
-      ctx.agentService
-        .createConnectionDiagnostic({
-          resourceKind: 'node',
-          resourceName: meta.node.hostname,
-          sshPrincipal: login,
-        })
-        .then(setDiagnosis)
-    );
+  function testConnection(login: string) {
+    runConnectionDiagnostic({
+      resourceKind: 'node',
+      resourceName: props.agentMeta.resourceName,
+      sshPrincipal: login,
+    });
   }
 
   return {
-    attempt,
-    startSshSession,
+    ...connectionDiagnostic,
+    testConnection,
     logins: sortLogins((props.agentMeta as NodeMeta).node.sshLogins),
-    runConnectionDiagnostic,
-    diagnosis,
-    nextStep: props.nextStep,
-    prevStep: props.prevStep,
-    canTestConnection,
+    startSshSession,
   };
 }
 
@@ -77,11 +60,6 @@ const sortLogins = (logins: string[]) => {
     return logins;
   }
   return ['root', ...noRoot];
-};
-
-type Props = {
-  ctx: TeleportContext;
-  props: AgentStepProps;
 };
 
 export type State = ReturnType<typeof useTestConnection>;

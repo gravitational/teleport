@@ -19,9 +19,11 @@ import React from 'react';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { AgentStepComponent } from 'teleport/Discover/types';
 
-export interface Resource {
+type ViewFunction<T> = (t: T) => View[];
+
+export interface Resource<T = any> {
   kind: ResourceKind;
-  views: View[];
+  views: View[] | ViewFunction<T>;
   icon: React.ReactElement;
   wrapper?: (component: React.ReactNode) => React.ReactNode;
   shouldPrompt: (currentStep: number) => boolean;

@@ -6,6 +6,13 @@ exports[`snapshot tests 1`] = `
   margin-bottom: 40px;
 }
 
+.c6 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 18px;
+}
+
 .c3 {
   appearance: none;
   border: none;
@@ -53,6 +60,21 @@ exports[`snapshot tests 1`] = `
   margin: 0px;
 }
 
+.c5 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c5:hover {
+  cursor: pointer;
+}
+
+.c4 {
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 <div>
   <div
     class="c0"
@@ -88,6 +110,78 @@ exports[`snapshot tests 1`] = `
       font-size="0"
     >
       errorMsg
+      <input
+        autocomplete="off"
+        class="c3"
+        color="text.onLight"
+        inputmode="text"
+        placeholder="placeholder"
+        type="text"
+        value=""
+      />
+    </label>
+  </div>
+  <div
+    class="c0"
+    name="optional name"
+  >
+    <label
+      class="c1"
+      font-size="0"
+    >
+      <span
+        class="c4"
+      >
+        errorMsg
+      </span>
+      <span
+        class="c5"
+      >
+        <span
+          class="c6 icon icon-info_outline "
+          color="light"
+          font-size="4"
+        />
+      </span>
+      <input
+        autocomplete="off"
+        class="c3"
+        color="text.onLight"
+        inputmode="text"
+        placeholder="placeholder"
+        type="text"
+        value=""
+      />
+    </label>
+  </div>
+  <div
+    class="c0"
+    name="optional name"
+  >
+    <label
+      class="c1"
+      font-size="0"
+    >
+      <span
+        class="c4"
+      >
+        errorMsg
+        <span
+          class="c2"
+          style="font-weight: normal;"
+        >
+           - the label tip
+        </span>
+      </span>
+      <span
+        class="c5"
+      >
+        <span
+          class="c6 icon icon-info_outline "
+          color="light"
+          font-size="4"
+        />
+      </span>
       <input
         autocomplete="off"
         class="c3"

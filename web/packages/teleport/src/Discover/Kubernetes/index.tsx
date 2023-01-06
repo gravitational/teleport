@@ -22,8 +22,8 @@ import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { Resource } from 'teleport/Discover/flow';
 
 import { KubeWrapper } from './KubeWrapper';
-import { DownloadScript } from './DownloadScript';
 import { SetupAccess } from './SetupAccess';
+import { HelmChart } from './HelmChart';
 import { TestConnection } from './TestConnection';
 
 export const KubernetesResource: Resource = {
@@ -42,7 +42,7 @@ export const KubernetesResource: Resource = {
     },
     {
       title: 'Configure Resource',
-      component: DownloadScript,
+      component: HelmChart,
     },
     {
       title: 'Set Up Access',

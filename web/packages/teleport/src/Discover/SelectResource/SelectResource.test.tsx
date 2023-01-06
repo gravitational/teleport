@@ -25,6 +25,8 @@ import { Access, Acl, makeUserContext } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { ResourceKind } from 'teleport/Discover/Shared';
+import { DiscoverProvider } from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 const fullAccess: Access = {
   list: true,
@@ -49,6 +51,7 @@ const fullAcl: Acl = {
   accessRequests: fullAccess,
   billing: fullAccess,
   dbServers: fullAccess,
+  db: fullAccess,
   desktops: fullAccess,
   nodes: fullAccess,
   clipboardSharingEnabled: true,
@@ -87,11 +90,16 @@ describe('select resource', () => {
     return render(
       <MemoryRouter>
         <TeleportContextProvider ctx={ctx}>
-          <SelectResource
-            selectedResourceKind={kind}
-            onSelect={() => null}
-            onNext={() => null}
-          />
+          <FeaturesContextProvider>
+            <DiscoverProvider>
+              <SelectResource
+                selectedResourceKind={kind}
+                onSelect={() => null}
+                onNext={() => null}
+                resourceState={null}
+              />
+            </DiscoverProvider>
+          </FeaturesContextProvider>
         </TeleportContextProvider>
       </MemoryRouter>
     );
@@ -191,10 +199,10 @@ describe('select resource', () => {
       expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     });
 
-    test('has the proceed button enabled when having correct permissions', () => {
+    test('has the proceed button disabled without a selection', () => {
       create(ResourceKind.Database, fullAcl);
 
-      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     });
   });
 

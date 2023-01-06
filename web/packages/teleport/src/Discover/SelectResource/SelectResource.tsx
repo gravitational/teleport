@@ -19,25 +19,27 @@ import SlideTabs from 'design/SlideTabs';
 import { Box, Flex, Image, Text } from 'design';
 
 import AddApp from 'teleport/Apps/AddApp';
-import AddDatabase from 'teleport/Databases/AddDatabase';
+import AddDatabase from 'teleport/Discover/Database/AddDatabaseModal';
 import useTeleport from 'teleport/useTeleport';
 
 import { Acl } from 'teleport/services/user';
 
 import { ResourceKind, Header, HeaderSubtitle } from 'teleport/Discover/Shared';
 
-import applicationIcon from './assets/application.png';
-import databaseIcon from './assets/database.png';
-import serverIcon from './assets/server.png';
-import k8sIcon from './assets/kubernetes.png';
+import { ApplicationResource } from '../Application/ApplicationResource';
+import { DatabaseResource } from '../Database/DatabaseResource';
+import { DesktopResource } from '../Desktop/DesktopResource';
+import { KubernetesResource } from '../Kubernetes/KubernetesResource';
+import { ServerResource } from '../Server/ServerResource';
+import { DatabaseEngine, DatabaseLocation } from '../Database/resources';
 
-import { ApplicationResource } from './ApplicationResource';
-import { DatabaseResource } from './DatabaseResource';
-import { DesktopResource } from './DesktopResource';
-import { KubernetesResource } from './KubernetesResource';
-import { ServerResource } from './ServerResource';
+import k8sIcon from './assets/kubernetes.png';
+import serverIcon from './assets/server.png';
+import databaseIcon from './assets/database.png';
+import applicationIcon from './assets/application.png';
 
 import type { TabComponent } from 'design/SlideTabs/SlideTabs';
+import type { Database } from '../Database/resources';
 
 function checkPermissions(acl: Acl, tab: Tab) {
   const basePermissionsNeeded = [acl.tokens.create];
@@ -56,10 +58,11 @@ interface Tab extends TabComponent {
   kind: ResourceKind;
 }
 
-interface SelectResourceProps {
+interface SelectResourceProps<T = any> {
   onSelect: (kind: ResourceKind) => void;
   onNext: () => void;
   selectedResourceKind: ResourceKind;
+  resourceState: T;
 }
 
 export function SelectResource(props: SelectResourceProps) {
@@ -130,7 +133,23 @@ export function SelectResource(props: SelectResourceProps) {
       {props.selectedResourceKind === ResourceKind.Database && (
         <DatabaseResource
           disabled={disabled}
-          onProceed={() => setShowAddDB(true)}
+          onProceed={() => {
+            const state = props.resourceState as Database;
+            if (state.location === DatabaseLocation.SelfHosted) {
+              if (state.engine === DatabaseEngine.PostgreSQL) {
+                props.onNext();
+              }
+            }
+
+            if (state.location === DatabaseLocation.AWS) {
+              if (state.engine === DatabaseEngine.PostgreSQL) {
+                props.onNext();
+              }
+            }
+
+            // Unsupported databases will default to the modal popup.
+            return setShowAddDB(true);
+          }}
         />
       )}
       {props.selectedResourceKind === ResourceKind.Application && (
@@ -159,6 +178,7 @@ export function SelectResource(props: SelectResourceProps) {
           version={userContext.cluster.authVersion}
           authType={userContext.authType}
           onClose={() => setShowAddDB(false)}
+          selectedDb={props.resourceState}
         />
       )}
     </Box>

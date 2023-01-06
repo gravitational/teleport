@@ -19,13 +19,13 @@ import React, { useState } from 'react';
 import { SelectCreatable as Component, Option } from './SelectCreatable';
 
 export default {
-  title: 'Teleport/Discover/SelectCreatable',
+  title: 'Teleport/Discover/Shared/SelectCreatable',
 };
 
 const data = ['apple', 'banana', 'carrot'];
 const fixedData = ['pumpkin', 'watermelon'];
 
-export const SelectCreatable = () => {
+export const SelectCreatableWithoutFixed = () => {
   const [fruitInputValue, setFruitInputValue] = useState('');
   const [fruits, setFruits] = useState<Option[]>(() => {
     return data.map(l => ({

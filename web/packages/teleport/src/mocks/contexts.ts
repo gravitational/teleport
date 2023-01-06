@@ -15,6 +15,7 @@
  */
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
+import { Context as TeleportContext } from 'teleport';
 
 import type { Access, Acl } from 'teleport/services/user/types';
 
@@ -41,6 +42,7 @@ export const fullAcl: Acl = {
   accessRequests: fullAccess,
   billing: fullAccess,
   dbServers: fullAccess,
+  db: fullAccess,
   desktops: fullAccess,
   nodes: fullAccess,
   connectionDiagnostic: fullAccess,
@@ -86,3 +88,12 @@ export const baseContext = {
     proxyVersion: '4.4.0-dev',
   },
 };
+
+export function createTeleportContext() {
+  const ctx = new TeleportContext();
+  const userCtx = makeUserContext(baseContext);
+
+  ctx.storeUser.setState(userCtx);
+
+  return ctx;
+}

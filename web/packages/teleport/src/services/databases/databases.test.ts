@@ -101,6 +101,40 @@ test('null labels field in database fetch response', async () => {
   expect(response.agents[0].labels).toEqual([]);
 });
 
+test('database services fetch response', async () => {
+  const database = new DatabaseService();
+
+  jest.spyOn(api, 'get').mockResolvedValue(mockServiceResponse);
+  const response = await database.fetchDatabaseServices('im-a-cluster');
+  expect(response.services).toEqual([
+    {
+      name: 'db-service-1',
+      matcherLabels: {
+        env: ['prod', 'env'],
+        os: ['mac', 'ios', 'linux', 'windows'],
+        tag: ['tag'],
+        fruit: ['apple'],
+      },
+    },
+    {
+      name: 'db-service-2',
+      matcherLabels: {},
+    },
+  ]);
+});
+
+test('null array fields in database services fetch response', async () => {
+  const database = new DatabaseService();
+
+  jest.spyOn(api, 'get').mockResolvedValue({});
+  let response = await database.fetchDatabaseServices('im-a-cluster');
+  expect(response.services).toEqual([]);
+
+  jest.spyOn(api, 'get').mockResolvedValue({ items: [{ name: '' }] });
+  response = await database.fetchDatabaseServices('im-a-cluster');
+  expect(response.services).toEqual([{ name: '', matcherLabels: {} }]);
+});
+
 const mockResponse = {
   items: [
     {
@@ -113,6 +147,26 @@ const mockResponse = {
         { name: 'cluster', value: 'root' },
         { name: 'env', value: 'aws' },
       ],
+    },
+  ],
+  startKey: 'mockKey',
+  totalCount: 100,
+};
+
+const mockServiceResponse = {
+  items: [
+    {
+      name: 'db-service-1',
+      resource_matchers: [
+        {
+          labels: { env: ['prod', 'env'], os: ['mac', 'ios'], fruit: 'apple' },
+        },
+        { labels: { os: ['linux', 'windows'], tag: ['tag'] } },
+      ],
+    },
+    {
+      name: 'db-service-2',
+      resource_matchers: [],
     },
   ],
   startKey: 'mockKey',

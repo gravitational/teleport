@@ -18,15 +18,15 @@ import React from 'react';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 
-import { Finished } from './Finished';
+import { Finished as Component } from './Finished';
 
 import type { AgentStepProps } from '../../types';
 
 export default {
-  title: 'Teleport/Discover/Finished',
+  title: 'Teleport/Discover/Shared',
 };
 
-export const Loaded = () => <Finished {...props} />;
+export const Finished = () => <Component {...props} />;
 
 const props: AgentStepProps = {
   agentMeta: { resourceName: 'some-resource-name' } as any,

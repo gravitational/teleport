@@ -130,7 +130,12 @@ const cfg = {
     changeUserPasswordPath: '/v1/webapi/users/password',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+
+    databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
+    databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
+    databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -155,6 +160,7 @@ const cfg = {
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
 
     joinTokenPath: '/v1/webapi/token',
+    dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
@@ -173,6 +179,8 @@ const cfg = {
     mfaDevicesWithTokenPath: '/v1/webapi/mfa/token/:tokenId/devices',
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
+
+    dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
     installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
     installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
@@ -274,6 +282,10 @@ const cfg = {
 
   getNodeScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.nodeScriptPath, { token });
+  },
+
+  getDbScriptUrl(token: string) {
+    return cfg.baseUrl + generatePath(cfg.api.dbScriptPath, { token });
   },
 
   getConfigureADUrl(token: string) {
@@ -422,11 +434,35 @@ const cfg = {
     });
   },
 
-  getDatabasesUrl(clusterId: string, params: UrlResourcesParams) {
+  getDatabaseServicesUrl(clusterId: string) {
+    return generatePath(cfg.api.databaseServicesPath, {
+      clusterId,
+    });
+  },
+
+  getDatabaseIamPolicyUrl(clusterId: string, dbName: string) {
+    return generatePath(cfg.api.databaseIamPolicyPath, {
+      clusterId,
+      database: dbName,
+    });
+  },
+
+  getDatabaseUrl(clusterId: string, dbName: string) {
+    return generatePath(cfg.api.databasePath, {
+      clusterId,
+      database: dbName,
+    });
+  },
+
+  getDatabasesUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databasesPath, {
       clusterId,
       ...params,
     });
+  },
+
+  getDatabaseSignUrl(clusterId: string) {
+    return generatePath(cfg.api.dbSign, { clusterId });
   },
 
   getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {

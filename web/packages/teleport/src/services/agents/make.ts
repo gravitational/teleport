@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import type { ConnectionDiagnostic, ConnectionDiagnosticTrace } from './types';
+import type {
+  ConnectionDiagnostic,
+  ConnectionDiagnosticTrace,
+  AgentLabel,
+} from './types';
 
 export function makeConnectionDiagnostic(json: any): ConnectionDiagnostic {
   json = json || {};
@@ -39,4 +43,20 @@ function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
     details: t.details,
     error: t.error,
   }));
+}
+
+// makeLabelMapOfStrArrs converts an array of type AgentLabel into
+// a map of string arrays eg: {"os": ["mac", "linux"]} which is the
+// data model expected in the backend for labels.
+export function makeLabelMapOfStrArrs(labels: AgentLabel[] = []) {
+  const m: Record<string, string[]> = {};
+
+  labels.forEach(label => {
+    if (!m[label.name]) {
+      m[label.name] = [];
+    }
+    m[label.name].push(label.value);
+  });
+
+  return m;
 }

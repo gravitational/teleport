@@ -15,61 +15,130 @@
  */
 
 import React from 'react';
-
 import { MemoryRouter } from 'react-router';
 
-import { DownloadScript } from './DownloadScript';
-import { State } from './useDownloadScript';
+import { ContextProvider, Context as TeleportContext } from 'teleport';
+import cfg from 'teleport/config';
+import {
+  clearCachedJoinTokenResult,
+  JoinTokenProvider,
+} from 'teleport/Discover/Shared/JoinTokenContext';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { userContext } from 'teleport/Main/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
+
+import DownloadScript from './DownloadScript';
+
+const { worker, rest } = window.msw;
 
 export default {
-  title: 'Teleport/Discover/Server/DownloadScript',
+  title: 'Teleport/Discover/Server/DownloadScripts',
+  decorators: [
+    Story => {
+      // Reset request handlers added in individual stories.
+      worker.resetHandlers();
+      clearCachedJoinTokenResult();
+      return <Story />;
+    },
+  ],
 };
 
-export const Polling = () => (
-  <MemoryRouter>
-    <DownloadScript {...props} />
-  </MemoryRouter>
-);
+export const Polling = () => {
+  // Use default fetch token handler defined in mocks/handlers
 
-export const PollingSuccess = () => (
-  <MemoryRouter>
-    <DownloadScript {...props} pollState="success" />
-  </MemoryRouter>
-);
-
-export const PollingError = () => (
-  <MemoryRouter>
-    <DownloadScript {...props} pollState="error" />
-  </MemoryRouter>
-);
-
-export const Processing = () => (
-  <MemoryRouter>
-    <DownloadScript {...props} attempt={{ status: 'processing' }} />
-  </MemoryRouter>
-);
-
-export const Failed = () => (
-  <MemoryRouter>
-    <DownloadScript
-      {...props}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
-    />
-  </MemoryRouter>
-);
-
-const props: State = {
-  attempt: {
-    status: 'success',
-    statusText: '',
-  },
-  pollState: 'polling',
-  nextStep: () => null,
-  joinToken: {
-    id: 'some-join-token-hash',
-    expiryText: '4 hours',
-    expiry: new Date(),
-  },
-  regenerateScriptAndRepoll: () => null,
-  countdownTime: { minutes: 5, seconds: 0 },
+  worker.use(
+    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+      return res(ctx.delay('infinite'));
+    })
+  );
+  return (
+    <Provider>
+      <DownloadScript />
+    </Provider>
+  );
 };
+
+export const PollingSuccess = () => {
+  // Use default fetch token handler defined in mocks/handlers
+
+  worker.use(
+    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+      return res(ctx.json({ items: [{}] }));
+    })
+  );
+  return (
+    <Provider interval={5}>
+      <DownloadScript />
+    </Provider>
+  );
+};
+
+export const PollingError = () => {
+  // Use default fetch token handler defined in mocks/handlers
+
+  worker.use(
+    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+      return res(ctx.delay('infinite'));
+    })
+  );
+  return (
+    <Provider timeout={50}>
+      <DownloadScript />
+    </Provider>
+  );
+};
+
+export const Processing = () => {
+  worker.use(
+    rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
+      return res(ctx.delay('infinite'));
+    })
+  );
+  return (
+    <Provider interval={5}>
+      <DownloadScript />
+    </Provider>
+  );
+};
+
+export const Failed = () => {
+  worker.use(
+    rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
+      return res.once(ctx.status(500));
+    })
+  );
+  return (
+    <Provider>
+      <DownloadScript />
+    </Provider>
+  );
+};
+
+const Provider = props => {
+  const ctx = createTeleportContext();
+
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <JoinTokenProvider timeout={props.timeout || 100000}>
+          <PingTeleportProvider
+            timeout={props.timeout || 100000}
+            interval={props.interval || 100000}
+            resourceKind={ResourceKind.Server}
+          >
+            {props.children}
+          </PingTeleportProvider>
+        </JoinTokenProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+function createTeleportContext() {
+  const ctx = new TeleportContext();
+
+  ctx.isEnterprise = false;
+  ctx.storeUser.setState(userContext);
+
+  return ctx;
+}

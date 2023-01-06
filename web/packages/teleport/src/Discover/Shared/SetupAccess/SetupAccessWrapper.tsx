@@ -130,8 +130,8 @@ export function SetupAccessWrapper({
     <Box maxWidth="700px">
       <Header>Set Up Access</Header>
       <HeaderSubtitle>{headerSubtitle}</HeaderSubtitle>
-      {infoContent}
       <Box mb={3}>{$content}</Box>
+      {infoContent}
       <ActionButtons
         onProceed={onProceed}
         disableProceed={

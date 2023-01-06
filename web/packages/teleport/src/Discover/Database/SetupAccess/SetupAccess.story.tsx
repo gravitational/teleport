@@ -19,6 +19,8 @@ import { MemoryRouter } from 'react-router';
 
 import { initSelectedOptionsHelper } from 'teleport/Discover/Shared/SetupAccess';
 
+import { DatabaseEngine, DatabaseLocation } from '../resources';
+
 import { SetupAccess } from './SetupAccess';
 
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
@@ -33,9 +35,33 @@ export const NoTraits = () => (
   </MemoryRouter>
 );
 
-export const WithTraits = () => (
+export const WithTraitsAwsPostgres = () => (
+  <MemoryRouter>
+    <SetupAccess
+      {...props}
+      resourceState={{
+        engine: DatabaseEngine.PostgreSQL,
+        location: DatabaseLocation.AWS,
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const WithTraitsPostgres = () => (
   <MemoryRouter>
     <SetupAccess {...props} />
+  </MemoryRouter>
+);
+
+export const WithTraitsMongo = () => (
+  <MemoryRouter>
+    <SetupAccess {...props} resourceState={{ engine: DatabaseEngine.Mongo }} />
+  </MemoryRouter>
+);
+
+export const WithTraitsMySql = () => (
+  <MemoryRouter>
+    <SetupAccess {...props} resourceState={{ engine: DatabaseEngine.MySQL }} />
   </MemoryRouter>
 );
 
@@ -66,6 +92,10 @@ const props: State = {
     initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits }),
   dynamicTraits: {} as any,
   staticTraits: {} as any,
+  resourceState: {
+    engine: DatabaseEngine.PostgreSQL,
+    location: DatabaseLocation.SelfHosted,
+  },
 };
 
 const staticTraits = {

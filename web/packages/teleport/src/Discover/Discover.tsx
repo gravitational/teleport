@@ -36,7 +36,7 @@ import { DiscoverUserMenuNav } from 'teleport/Discover/DiscoverUserMenuNav';
 
 import { findViewAtIndex } from './flow';
 
-import { useDiscover } from './useDiscover';
+import { DiscoverProvider, useDiscover } from './useDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
 
@@ -45,7 +45,7 @@ interface DiscoverProps {
   customBanners?: React.ReactNode[];
 }
 
-export function Discover(props: DiscoverProps) {
+function DiscoverContent() {
   const {
     alerts,
     initAttempt,
@@ -56,10 +56,7 @@ export function Discover(props: DiscoverProps) {
     onSelectResource,
     views,
     ...agentProps
-  } = useDiscover({
-    initialAlerts: props.initialAlerts,
-    customBanners: props.customBanners,
-  });
+  } = useDiscover();
 
   const webSession = useWebSession();
 
@@ -81,6 +78,7 @@ export function Discover(props: DiscoverProps) {
         selectedResourceKind={selectedResource.kind}
         onSelect={kind => onSelectResource(kind)}
         onNext={() => agentProps.nextStep()}
+        resourceState={agentProps.resourceState}
       />
     );
   }
@@ -150,6 +148,17 @@ export function Discover(props: DiscoverProps) {
         )}
       </MainContainer>
     </BannerList>
+  );
+}
+
+export function Discover(props: DiscoverProps) {
+  return (
+    <DiscoverProvider
+      customBanners={props.customBanners}
+      initialAlerts={props.initialAlerts}
+    >
+      <DiscoverContent />
+    </DiscoverProvider>
   );
 }
 

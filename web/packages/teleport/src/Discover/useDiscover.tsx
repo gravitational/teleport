@@ -14,21 +14,23 @@
  * limitations under the License.
  */
 
-import { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 
 import { useLocation } from 'react-router';
 
-import useMain, { UseMainConfig } from 'teleport/Main/useMain';
+import useMain from 'teleport/Main/useMain';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 
-import { addIndexToViews, findViewAtIndex, View } from './flow';
+import { addIndexToViews, findViewAtIndex, Resource, View } from './flow';
 
 import { resources } from './resources';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
+import type { AgentLabel } from 'teleport/services/agents';
+import type { ClusterAlert } from 'teleport/services/alerts';
 
 export function getKindFromString(value: string) {
   switch (value) {
@@ -46,30 +48,77 @@ export function getKindFromString(value: string) {
   }
 }
 
-export function useDiscover(config: UseMainConfig) {
-  const initState = useMain(config);
+interface DiscoverContextState<T = any> {
+  agentMeta: AgentMeta;
+  alerts: ClusterAlert[];
+  currentStep: number;
+  customBanners: React.ReactNode[];
+  dismissAlert: (name: string) => void;
+  initAttempt: any;
+  nextStep: (count?: number) => void;
+  prevStep: () => void;
+  onSelectResource: (kind: ResourceKind) => void;
+  resourceState: T;
+  selectedResource: Resource<T>;
+  selectedResourceKind: ResourceKind;
+  setResourceState: (value: T) => void;
+  updateAgentMeta: (meta: AgentMeta) => void;
+  views: View[];
+}
+
+interface DiscoverProviderProps {
+  customBanners?: React.ReactNode[];
+  initialAlerts?: ClusterAlert[];
+}
+
+const discoverContext = React.createContext<DiscoverContextState>(null);
+
+export function DiscoverProvider<T = any>(
+  props: React.PropsWithChildren<DiscoverProviderProps>
+) {
+  const initState = useMain({
+    customBanners: props.customBanners,
+    initialAlerts: props.initialAlerts,
+  });
   const location = useLocation<{ entity: string }>();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedResourceKind, setSelectedResourceKind] =
     useState<ResourceKind>(getKindFromString(location?.state?.entity));
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
+  const [resourceState, setResourceState] = useState<T>();
 
   const selectedResource = resources.find(r => r.kind === selectedResourceKind);
-  const views = useMemo<View[]>(
-    () => addIndexToViews(selectedResource.views),
-    [selectedResource.views]
-  );
+
+  const views = useMemo<View[]>(() => {
+    if (typeof selectedResource.views === 'function') {
+      return addIndexToViews(selectedResource.views(resourceState));
+    }
+
+    return addIndexToViews(selectedResource.views);
+  }, [selectedResource.views, resourceState]);
 
   function onSelectResource(kind: ResourceKind) {
     setSelectedResourceKind(kind);
   }
 
-  function nextStep() {
-    const nextView = findViewAtIndex(views, currentStep + 1);
+  // nextStep takes the user to the next screen.
+  // The prop `numToIncrement` is used (>1) when we want to
+  // skip some number of steps.
+  // eg: particularly for Database flow, if there exists a
+  // database service, then we don't want to show the user
+  // the screen that lets them add a database server.
+  function nextStep(numToIncrement = 1) {
+    // This function can be used in a way that HTML event
+    // get passed in which isn't a valid number.
+    if (!Number.isInteger(numToIncrement)) {
+      numToIncrement = 1;
+    }
+
+    const nextView = findViewAtIndex(views, currentStep + numToIncrement);
 
     if (nextView) {
-      setCurrentStep(currentStep + 1);
+      setCurrentStep(currentStep + numToIncrement);
     }
   }
 
@@ -85,7 +134,7 @@ export function useDiscover(config: UseMainConfig) {
     setAgentMeta(meta);
   }
 
-  return {
+  const value: DiscoverContextState<T> = {
     agentMeta,
     alerts: initState.alerts,
     currentStep,
@@ -95,18 +144,35 @@ export function useDiscover(config: UseMainConfig) {
     nextStep,
     prevStep,
     onSelectResource,
+    resourceState,
     selectedResource,
     selectedResourceKind,
+    setResourceState,
     updateAgentMeta,
     views,
   };
+
+  return (
+    <discoverContext.Provider value={value}>
+      {props.children}
+    </discoverContext.Provider>
+  );
+}
+
+export function useDiscover<T = any>(): DiscoverContextState<T> {
+  return useContext(discoverContext);
 }
 
 type BaseMeta = {
-  // resourceName is the resource name which for each resource
-  // can be determined from a different field. Atm only resource
-  // `node` is the only outlier.
+  // resourceName provides a consistent field to refer to for
+  // the resource name since resources can refer to its name
+  // by different field names.
+  // Eg. used in Finish (last step) component.
   resourceName: string;
+  // agentMatcherLabels are labels that will be used by the agent
+  // to pick up the newly created database (looks for matching labels).
+  // At least one must match.
+  agentMatcherLabels: AgentLabel[];
 };
 
 // NodeMeta describes the fields for node resource

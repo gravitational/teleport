@@ -144,7 +144,7 @@
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 
-import { computeViewChildrenSize, Resource } from './flow';
+import { computeViewChildrenSize, Resource, View } from './flow';
 
 describe('discover flow', () => {
   describe('computeViewChildrenSize', () => {
@@ -178,7 +178,7 @@ describe('discover flow', () => {
         ],
       };
 
-      expect(computeViewChildrenSize(resource.views)).toBe(2);
+      expect(computeViewChildrenSize(resource.views as View[])).toBe(2);
     });
   });
 });

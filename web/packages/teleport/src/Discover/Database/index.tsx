@@ -16,48 +16,96 @@
 
 import React from 'react';
 
-import { Database } from 'design/Icon';
+import { Database as DatabaseIcon } from 'design/Icon';
 
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { ResourceKind, Finished } from 'teleport/Discover/Shared';
 import { Resource } from 'teleport/Discover/flow';
-import { InstallActiveDirectory } from 'teleport/Discover/Desktop/InstallActiveDirectory';
+import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
+import {
+  Database,
+  DatabaseLocation,
+} from 'teleport/Discover/Database/resources';
 
-export const DatabaseResource: Resource = {
+import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
+import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
+import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
+import { MutualTls } from 'teleport/Discover/Database/MutualTls';
+import { TestConnection } from 'teleport/Discover/Database/TestConnection';
+import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
+
+export const DatabaseResource: Resource<Database> = {
   kind: ResourceKind.Database,
-  icon: <Database />,
+  icon: <DatabaseIcon />,
+  wrapper(component: React.ReactNode) {
+    return <DatabaseWrapper>{component}</DatabaseWrapper>;
+  },
   shouldPrompt(currentStep) {
     // do not prompt on exit if they're selecting a resource
     return currentStep !== 0;
   },
-  views: [
-    {
-      title: 'Select Resource',
-    },
-    {
-      title: 'Configure Resource',
-      component: InstallActiveDirectory,
-      views: [
-        {
-          title: 'Deploy Database Agent',
-          component: InstallActiveDirectory,
-        },
-        {
-          title: 'Register a Database',
-          component: InstallActiveDirectory,
-        },
-        {
-          title: 'Configure mTLS',
-          component: InstallActiveDirectory,
-        },
-      ],
-    },
-    {
-      title: 'Setup Access',
-      component: InstallActiveDirectory,
-    },
-    {
-      title: 'Test Connection',
-      component: InstallActiveDirectory,
-    },
-  ],
+  views(database) {
+    let configureResourceViews;
+    if (database) {
+      switch (database.location) {
+        case DatabaseLocation.AWS:
+          configureResourceViews = [
+            {
+              title: 'Register a Database',
+              component: CreateDatabase,
+            },
+            {
+              title: 'Deploy Database Service',
+              component: DownloadScript,
+            },
+            {
+              title: 'Configure IAM Policy',
+              component: IamPolicy,
+            },
+          ];
+
+          break;
+
+        case DatabaseLocation.SelfHosted:
+          configureResourceViews = [
+            {
+              title: 'Register a Database',
+              component: CreateDatabase,
+            },
+            {
+              title: 'Deploy Database Service',
+              component: DownloadScript,
+            },
+            {
+              title: 'Configure mTLS',
+              component: MutualTls,
+            },
+          ];
+
+          break;
+      }
+    }
+
+    return [
+      {
+        title: 'Select Resource',
+      },
+      {
+        title: 'Configure Resource',
+        views: configureResourceViews,
+      },
+      {
+        title: 'Setup Access',
+        component: SetupAccess,
+      },
+      {
+        title: 'Test Connection',
+        component: TestConnection,
+      },
+      {
+        title: 'Finished',
+        component: Finished,
+        hide: true,
+      },
+    ];
+  },
 };

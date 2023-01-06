@@ -32,6 +32,7 @@ export default function makeAcl(json): Acl {
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
   const dbServers = json.dbServers || defaultAccess;
+  const db = json.db || defaultAccess;
   const desktops = json.desktops || defaultAccess;
   const connectionDiagnostic = json.connectionDiagnostic || defaultAccess;
   // Defaults to true, see RFD 0049
@@ -66,6 +67,7 @@ export default function makeAcl(json): Acl {
     accessRequests,
     billing,
     dbServers,
+    db,
     desktops,
     clipboardSharingEnabled,
     desktopSessionRecordingEnabled,

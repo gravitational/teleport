@@ -46,6 +46,7 @@ import { Pill } from './Pill';
 import Popover from './Popover';
 import { TextArea, type TextAreaProps } from './TextArea';
 
+export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
   Box,

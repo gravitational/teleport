@@ -96,7 +96,7 @@ class TeleportContext implements types.Context {
       applications: userContext.getAppServerAccess().list,
       kubernetes: userContext.getKubeServerAccess().list,
       billing: userContext.getBillingAccess().list,
-      databases: userContext.getDatabaseAccess().list,
+      databases: userContext.getDatabaseServerAccess().list,
       desktops: userContext.getDesktopAccess().list,
       nodes: userContext.getNodeAccess().list,
       activeSessions: userContext.getActiveSessionsAccess().list,

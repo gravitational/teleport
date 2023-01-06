@@ -51,6 +51,7 @@ const fullAcl: Acl = {
   accessRequests: fullAccess,
   billing: fullAccess,
   dbServers: fullAccess,
+  db: fullAccess,
   desktops: fullAccess,
   nodes: fullAccess,
   clipboardSharingEnabled: true,
