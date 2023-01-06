@@ -223,6 +223,8 @@ func (o *OktaApplicationV1) String() string {
 type OktaGroup interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
+	// GetID returns the ID of the group.
+	GetID() string
 	// GetApplications returns the Okta applications in the group.
 	GetApplications() []string
 	// GetUsers returns the Okta users in the group.
@@ -252,6 +254,9 @@ func (o *OktaGroupV1) CheckAndSetDefaults() error {
 	}
 	if o.Version == "" {
 		o.Version = "v1"
+	}
+	if o.Spec.Id == "" {
+		return trace.BadParameter("id is empty")
 	}
 	if o.Spec.Applications == nil {
 		o.Spec.Applications = make([]string, 0)
@@ -346,6 +351,10 @@ func (o *OktaGroupV1) SetStaticLabels(sl map[string]string) {
 	o.Metadata.Labels = sl
 }
 
+func (o *OktaGroupV1) GetID() string {
+	return o.Spec.Id
+}
+
 func (o *OktaGroupV1) GetApplications() []string {
 	applications := make([]string, len(o.Spec.Applications))
 	copy(applications, o.Spec.Applications)
@@ -361,7 +370,7 @@ func (o *OktaGroupV1) GetUsers() []string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (o *OktaGroupV1) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(o.GetAllLabels()), o.GetName())
+	fieldVals := append(utils.MapToStrings(o.GetAllLabels()), o.GetName(), o.GetID())
 	return MatchSearch(fieldVals, values, nil)
 }
 

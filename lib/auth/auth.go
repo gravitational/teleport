@@ -2617,10 +2617,11 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 
 	req := reqs[0]
 
-	if !req.GetState().IsApproved() {
-		if req.GetState().IsDenied() {
-			return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
-		}
+	if req.GetState().IsDenied() {
+		return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
+	}
+
+	if !req.GetState().IsResolved() {
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
