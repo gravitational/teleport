@@ -3404,9 +3404,7 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 
 	pr, err := tc.Ping(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Teleport proxy not available at proxy address %s. Confirm address and connectivity.", tc.WebProxyAddr)
-		fmt.Fprintln(os.Stderr)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Teleport proxy not available at proxy address %s. Confirm address and connectivity.", tc.WebProxyAddr)
 	}
 
 	if pr.Auth.HasMessageOfTheDay {
