@@ -152,9 +152,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
-	if cfg.DatabaseServices == nil {
-		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
-	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
 	}
@@ -237,7 +234,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Apps:                  cfg.Apps,
 		Kubernetes:            cfg.Kubernetes,
 		Databases:             cfg.Databases,
-		DatabaseServices:      cfg.DatabaseServices,
 		IAuditLog:             cfg.AuditLog,
 		Events:                cfg.Events,
 		WindowsDesktops:       cfg.WindowsDesktops,
@@ -318,7 +314,6 @@ type Services struct {
 	services.Apps
 	services.Kubernetes
 	services.Databases
-	services.DatabaseServices
 	services.WindowsDesktops
 	services.SessionTrackerService
 	services.Enforcer
