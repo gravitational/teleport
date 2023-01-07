@@ -49,6 +49,7 @@ sign_and_notarize_binaries() {
   #   do it.
   # For details, see
   # https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
+  #shellcheck disable=SC2068
   cat >"$goncfg" <<EOF
 {
   "source": $(shell_array_to_json_array ${targets[@]}),
@@ -134,5 +135,6 @@ for BINARY in "$@"; do
 done
 
 BUNDLE_ID="com.gravitational.teleport"
-echo "Notarizing '$@' with bundle ID $BUNDLE_ID..."
+echo "Notarizing '$*' with bundle ID $BUNDLE_ID..."
+#shellcheck disable=SC2068
 sign_and_notarize_binaries "$BUNDLE_ID" $@
