@@ -98,19 +98,16 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 func TestHttpRoundTripperDowngrade(t *testing.T) {
 	testCases := []struct {
 		desc           string
-		insecure       bool
 		setHttpProxy   bool
 		shouldHitProxy bool
 	}{
 		{
 			desc:           "hits http proxy if insecure and localhost http proxy is set",
-			insecure:       true,
 			setHttpProxy:   true,
 			shouldHitProxy: true,
 		},
 		{
 			desc:           "does not hit http proxy if insecure and localhost http proxy is not set",
-			insecure:       true,
 			setHttpProxy:   false,
 			shouldHitProxy: false,
 		},
@@ -118,8 +115,9 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			newHandler := func(runningAtProxy bool) http.HandlerFunc {
+			newHandler := func(runningAtProxy bool, wasHit *bool) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
+					*wasHit = true
 					if tc.shouldHitProxy {
 						// If the request should hit the proxy, then:
 						// - this handler is running at the proxy, and
@@ -136,21 +134,23 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 			runningAtProxy := true
 			loopback := true
 			tls := false
-			httpProxySrv, err := newServer(newHandler(runningAtProxy), loopback, tls)
+			httpProxyWasHit := false
+			httpProxy, err := newServer(newHandler(runningAtProxy, &httpProxyWasHit), loopback, tls)
 			require.NoError(t, err)
-			defer httpProxySrv.Close()
+			defer httpProxy.Close()
 
 			// Start non-localhost https server.
 			runningAtProxy = false
 			loopback = false
 			tls = true
-			httpsSrv, err := newServer(newHandler(runningAtProxy), loopback, tls)
+			httpsSrvWasHit := false
+			httpsSrv, err := newServer(newHandler(runningAtProxy, &httpsSrvWasHit), loopback, tls)
 			require.NoError(t, err)
 			defer httpsSrv.Close()
 
 			if tc.setHttpProxy {
 				// url.Parse won't correctly parse an absolute URL without a scheme.
-				u, err := url.Parse("http://" + httpProxySrv.Listener.Addr().String())
+				u, err := url.Parse("http://" + httpProxy.Listener.Addr().String())
 				require.NoError(t, err)
 				_, port, err := net.SplitHostPort(u.Host)
 				require.NoError(t, err)
@@ -159,26 +159,22 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 				t.Setenv("HTTP_PROXY", fmt.Sprintf("http://localhost:%s", port))
 			}
 
-			var addr string
-			if tc.shouldHitProxy {
-				// If should hit the proxy, set the address to a fake one that won't resolve.
-				// This ensures that the request below fails if it doesn't hit the proxy.
-				addr = "fake.proxy.com:3000"
-			} else {
-				// If shouldn't hit the proxy, set the address to the https server.
-				addr = httpsSrv.Listener.Addr().String()
-			}
-
 			// Send an SSHLoginDirect request.
 			ctx := context.Background()
 			login := client.SSHLoginDirect{
 				SSHLogin: client.SSHLogin{
-					ProxyAddr: addr,
-					Insecure:  tc.insecure,
+					// Always set ProxyAddr to the https server.
+					// If HTTP_PROXY was set above, the http proxy
+					// should be hit regardless.
+					ProxyAddr: httpsSrv.Listener.Addr().String(),
+					Insecure:  true,
 				},
 			}
 			_, err = client.SSHAgentLogin(ctx, login)
 			require.NoError(t, err)
+
+			require.Equal(t, tc.shouldHitProxy, httpProxyWasHit)
+			require.Equal(t, !tc.shouldHitProxy, httpsSrvWasHit)
 		})
 	}
 }
