@@ -93,7 +93,7 @@ EOF
 
   # Stapling is the process of adding the notarization ticket that Apple issued
   # to the package distributed to end users.
-  # The stapler tool does not currently support stapling, or mach-o binaries.
+  # The stapler tool does not currently support stapling mach-o binaries.
   # As a result the "Gatekeeper" service will contact Apple to verify that the
   # binaries are signed the first time they are ran. If the user is offline when
   # the binaries are first ran, then the notarization verification will fail and
