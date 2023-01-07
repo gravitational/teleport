@@ -25,22 +25,21 @@ import (
 )
 
 func SetRedirectPageHeaders(h http.Header, nonce string) {
-	httplib.SetIndexHTMLHeaders(h)
-	// Set content policy flags
+	httplib.SetNoCacheHeaders(h)
+	httplib.SetDefaultSecurityHeaders(h)
+
+	// Set content security policy flags
 	scriptSrc := "none"
 	if nonce != "" {
 		// Should match the <script> tab nonce (random value).
 		scriptSrc = fmt.Sprintf("nonce-%v", nonce)
 	}
 	var csp = strings.Join([]string{
+		httplib.GetDefaultContentSecurityPolicy(),
 		fmt.Sprintf("script-src '%v'", scriptSrc),
 		"style-src 'self'",
-		"object-src 'none'",
 		"img-src 'self'",
-		"base-uri 'self'",
 	}, ";")
-
-	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("Content-Security-Policy", csp)
 }
 
@@ -56,6 +55,7 @@ const js = `
         var params = new URLSearchParams(url.search);
         var searchParts = window.location.search.split('=');
         var stateValue = params.get("state");
+        var subjectValue = params.get("subject");
         var path = params.get("path");
 
         // this utility is used to check if a passed in path param is a full URL (which we dont want)
@@ -78,6 +78,7 @@ const js = `
         const data = {
           state_value: stateValue,
           cookie_value: hashParts[1],
+          subject_cookie_value: subjectValue,
         };
 
         fetch('/x-teleport-auth', {

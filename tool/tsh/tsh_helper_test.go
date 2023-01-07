@@ -24,11 +24,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 )
@@ -93,7 +95,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	s.connector = mockConnector(t)
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -102,7 +104,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		},
 	})
 	require.NoError(t, err)
-	kubeLoginRole, err := types.NewRoleV3("kube-login", types.RoleSpecV5{
+	kubeLoginRole, err := types.NewRoleV3("kube-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			KubeGroups: []string{user.Username},
 			KubernetesLabels: types.Labels{
@@ -115,13 +117,13 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	s.user, err = types.NewUser("alice")
 	require.NoError(t, err)
 	s.user.SetRoles([]string{"access", "ssh-login", "kube-login"})
-	cfg.Auth.Resources = []types.Resource{s.connector, s.user, sshLoginRole, kubeLoginRole}
+	cfg.Auth.BootstrapResources = []types.Resource{s.connector, s.user, sshLoginRole, kubeLoginRole}
 
 	if options.rootConfigFunc != nil {
 		options.rootConfigFunc(cfg)
 	}
 
-	s.root = runTeleport(t, cfg, options.newTeleportOptions...)
+	s.root = runTeleport(t, cfg)
 	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
@@ -169,7 +171,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -189,22 +191,21 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		},
 	})
 	require.NoError(t, err)
-	cfg.Auth.Resources = []types.Resource{sshLoginRole}
+	cfg.Auth.BootstrapResources = []types.Resource{sshLoginRole}
 	if options.leafConfigFunc != nil {
 		options.leafConfigFunc(cfg)
 	}
-	s.leaf = runTeleport(t, cfg, options.newTeleportOptions...)
+	s.leaf = runTeleport(t, cfg)
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc     func(cfg *service.Config)
-	leafConfigFunc     func(cfg *service.Config)
-	leafCluster        bool
-	validationFunc     func(*suite) bool
-	newTeleportOptions []service.NewTeleportOption
+	rootConfigFunc func(cfg *service.Config)
+	leafConfigFunc func(cfg *service.Config)
+	leafCluster    bool
+	validationFunc func(*suite) bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -230,12 +231,6 @@ func withLeafCluster() testSuiteOptionFunc {
 func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.validationFunc = f
-	}
-}
-
-func withNewTeleportOption(opt service.NewTeleportOption) testSuiteOptionFunc {
-	return func(o *testSuiteOptions) {
-		o.newTeleportOptions = append(o.newTeleportOptions, opt)
 	}
 }
 
@@ -274,9 +269,22 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportOption) *service.TeleportProcess {
-	process, err := service.NewTeleport(cfg, opts...)
-	require.NoError(t, err)
+func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
+	if cfg.InstanceMetadataClient == nil {
+		// Disables cloud auto-imported labels when running tests in cloud envs
+		// such as Github Actions.
+		//
+		// This is required otherwise Teleport will import cloud instance
+		// labels, and use them for example as labels in Kubernetes Service and
+		// cause some tests to fail because the output includes unexpected
+		// labels.
+		//
+		// It is also found that Azure metadata client can throw "Too many
+		// requests" during CI which fails services.NewTeleport.
+		cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	}
+	process, err := service.NewTeleport(cfg)
+	require.NoError(t, err, trace.DebugReport(err))
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -293,9 +301,15 @@ func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportO
 	if cfg.Databases.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
 	}
+	if cfg.Apps.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.AppsReady)
+	}
+	if cfg.Auth.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.AuthTLSReady)
+	}
 	waitForEvents(t, process, serviceReadyEvents...)
 
-	if cfg.Databases.Enabled {
+	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, process, cfg.Databases.Databases)
 	}
 	return process
@@ -308,7 +322,7 @@ func localListenerAddr() string {
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
 		_, err := svc.WaitForEventTimeout(30*time.Second, event)
-		require.NoError(t, err, "service server didn't receved %v event after 30s", event)
+		require.NoError(t, err, "service server didn't receive %v event after 30s", event)
 	}
 }
 

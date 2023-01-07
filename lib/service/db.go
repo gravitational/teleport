@@ -40,7 +40,7 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 }
 
 func (process *TeleportProcess) initDatabases() {
-	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -48,7 +48,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	conn, err := process.waitForConnector(DatabasesIdentityEvent, log)
+	conn, err := process.WaitForConnector(DatabasesIdentityEvent, log)
 	if conn == nil {
 		return trace.Wrap(err)
 	}
@@ -76,60 +76,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	// Create database resources from databases defined in the static configuration.
 	var databases types.Databases
 	for _, db := range process.Config.Databases.Databases {
-		db, err := types.NewDatabaseV3(
-			types.Metadata{
-				Name:        db.Name,
-				Description: db.Description,
-				Labels:      db.StaticLabels,
-			},
-			types.DatabaseSpecV3{
-				Protocol: db.Protocol,
-				URI:      db.URI,
-				CACert:   string(db.TLS.CACert),
-				TLS: types.DatabaseTLS{
-					CACert:     string(db.TLS.CACert),
-					ServerName: db.TLS.ServerName,
-					Mode:       db.TLS.Mode.ToProto(),
-				},
-				MySQL: types.MySQLOptions{
-					ServerVersion: db.MySQL.ServerVersion,
-				},
-				AWS: types.AWS{
-					AccountID: db.AWS.AccountID,
-					Region:    db.AWS.Region,
-					Redshift: types.Redshift{
-						ClusterID: db.AWS.Redshift.ClusterID,
-					},
-					RDS: types.RDS{
-						InstanceID: db.AWS.RDS.InstanceID,
-						ClusterID:  db.AWS.RDS.ClusterID,
-					},
-					ElastiCache: types.ElastiCache{
-						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
-					},
-					MemoryDB: types.MemoryDB{
-						ClusterName: db.AWS.MemoryDB.ClusterName,
-					},
-					SecretStore: types.SecretStore{
-						KeyPrefix: db.AWS.SecretStore.KeyPrefix,
-						KMSKeyID:  db.AWS.SecretStore.KMSKeyID,
-					},
-				},
-				GCP: types.GCPCloudSQL{
-					ProjectID:  db.GCP.ProjectID,
-					InstanceID: db.GCP.InstanceID,
-				},
-				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
-				AD: types.AD{
-					KeytabFile: db.AD.KeytabFile,
-					Krb5File:   db.AD.Krb5File,
-					Domain:     db.AD.Domain,
-					SPN:        db.AD.SPN,
-				},
-				Azure: types.Azure{
-					ResourceID: db.Azure.ResourceID,
-				},
-			})
+		db, err := db.ToDatabase()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -148,7 +95,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 
 	clusterName := conn.ServerIdentity.ClusterName
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

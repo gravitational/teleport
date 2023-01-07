@@ -1,0 +1,35 @@
+name: Unit Tests (Helm)
+run-name: Unit Tests (Helm) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - 'examples/chart/**'
+  merge_group:
+    paths:
+      - 'examples/chart/**'
+
+jobs:
+  test:
+    name: Unit Tests (Helm)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      env:
+        # TODO(hugoShaka) remove the '-new' prefix when updating to teleport13 buildbox
+        HELM_PLUGINS: /home/ci/.local/share/helm/plugins-new
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: make test-helm

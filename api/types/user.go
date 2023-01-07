@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// User represents teleport embedded user or external user
+// User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
@@ -58,6 +58,8 @@ type User interface {
 	GetWindowsLogins() []string
 	// GetAWSRoleARNs gets the list of AWS role ARNs for the user
 	GetAWSRoleARNs() []string
+	// GetAzureIdentities gets a list of Azure identities for the user
+	GetAzureIdentities() []string
 	// String returns user
 	String() string
 	// GetStatus return user login status
@@ -86,6 +88,8 @@ type User interface {
 	SetWindowsLogins(logins []string)
 	// SetAWSRoleARNs sets a list of AWS role ARNs for user
 	SetAWSRoleARNs(awsRoleARNs []string)
+	// SetAzureIdentities sets a list of Azure identities for the user
+	SetAzureIdentities(AzureIdentities []string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -278,6 +282,11 @@ func (u *UserV2) SetAWSRoleARNs(awsRoleARNs []string) {
 	u.setTrait(constants.TraitAWSRoleARNs, awsRoleARNs)
 }
 
+// SetAzureIdentities sets a list of Azure identities for the user
+func (u *UserV2) SetAzureIdentities(AzureIdentities []string) {
+	u.setTrait(constants.TraitAzureIdentities, AzureIdentities)
+}
+
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -363,6 +372,11 @@ func (u UserV2) GetWindowsLogins() []string {
 // GetAWSRoleARNs gets the list of AWS role ARNs for the user
 func (u UserV2) GetAWSRoleARNs() []string {
 	return u.getTrait(constants.TraitAWSRoleARNs)
+}
+
+// GetAzureIdentities gets a list of Azure identities for the user
+func (u UserV2) GetAzureIdentities() []string {
+	return u.getTrait(constants.TraitAzureIdentities)
 }
 
 func (u *UserV2) String() string {

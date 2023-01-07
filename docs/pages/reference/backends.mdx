@@ -111,8 +111,10 @@ and user records will be stored.
 To configure Teleport for using etcd as a storage backend:
 
 - Make sure you are using **etcd versions 3.3** or newer.
+- Follow [etcd's cluster hardware recommendations](https://etcd.io/docs/v3.5/op-guide/hardware/). In particular, leverage 
+  SSD or high-performance virtualized block device storage for best performance.
 - Install etcd and configure peer and client TLS authentication using the [etcd
-  security guide](https://etcd.io/docs/v3.4.0/op-guide/security/).
+  security guide](https://etcd.io/docs/v3.5/op-guide/security/).
   - You can use [this script provided by
     etcd](https://github.com/etcd-io/etcd/tree/master/hack/tls-setup) if you
     don't already have a TLS setup.
@@ -669,19 +671,20 @@ teleport:
     audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
-    audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
+    audit_sessions_uri: gs://Example_TELEPORT_GCS_BUCKET/records
 ```
 
 - Replace `Example_GCP_Project_Name` and `Example_TELEPORT_FIRESTORE_TABLE_NAME`
   with your own settings. Teleport will create the table automatically.
 - `Example_TELEPORT_FIRESTORE_TABLE_NAME` and `Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME`
-  **must** be different Firestore tables. The schema is different for each. Using the same table name for both will result in errors.
+  **must** be different Firestore tables. The schema is different for each.
+  Using the same table name for both will result in errors.
 - The GCP authentication setting above can be omitted if the machine itself is
   running on a GCE instance with a Service Account that has access to the
   Firestore table.
-- Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore and the session recordings **must** be stored in a GCP
-  bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
-  Teleport will default to a local file  system for the audit log, i.e.
+- Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore 
+  and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must 
+  be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
 
 ## SQLite

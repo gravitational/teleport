@@ -99,6 +99,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindLock},
@@ -140,6 +141,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
@@ -152,6 +154,17 @@ func ForProxy(cfg Config) Config {
 }
 
 // ForRemoteProxy sets up watch configuration for remote proxies.
+//
+// **WARNING**: In order to add a new types.WatchKind below there
+// are a few things that must be done to ensure that backward
+// incompatible changes don't render a remote cluster permanently unhealthy.
+// First, the cfg.Watches of ForOldRemoteProxy must be replaced
+// with the current cfg.Watches of ForRemoteProxy. Next, the
+// version used by `lib/reversetunnel/srv/go` to determine whether
+// to use ForRemoteProxy or ForOldRemoteProxy must be updated
+// to be the release in which the new resource(s) will exist in. Finally,
+// add the new types.WatchKind below. Also note that this only
+// designed to occur once per major version.
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
 	cfg.Watches = []types.WatchKind{
@@ -174,6 +187,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
@@ -181,7 +195,10 @@ func ForRemoteProxy(cfg Config) Config {
 }
 
 // ForOldRemoteProxy sets up watch configuration for older remote proxies.
-// The Watches defined here are a copy of those defined in ForRemoteProxy in the v10 branch.
+// The types.WatchKind defined here allow for backwards incompatible changes and
+// should only be updated to match the previous values of ForRemoteProxy **prior**
+// to the breaking change. See the comment of ForRemoteProxy for instructions
+// on how to update without bricking remote proxy caches.
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
@@ -352,7 +369,7 @@ type Cache struct {
 	Config
 
 	// Entry is a logging entry
-	*log.Entry
+	Logger *log.Entry
 
 	// rw is used to prevent reads of invalid cache states.  From a
 	// memory-safety perspective, this RWMutex is just used to protect
@@ -405,6 +422,7 @@ type Cache struct {
 	restrictionsCache     services.Restrictions
 	appsCache             services.Apps
 	kubernetesCache       services.Kubernetes
+	databaseServicesCache services.DatabaseServices
 	databasesCache        services.Databases
 	appSessionCache       services.AppSession
 	snowflakeSessionCache services.SnowflakeSession
@@ -466,6 +484,7 @@ func (c *Cache) read() (readGuard, error) {
 			restrictions:     c.restrictionsCache,
 			apps:             c.appsCache,
 			kubernetes:       c.kubernetesCache,
+			databaseServices: c.databaseServicesCache,
 			databases:        c.databasesCache,
 			appSession:       c.appSessionCache,
 			snowflakeSession: c.snowflakeSessionCache,
@@ -487,6 +506,7 @@ func (c *Cache) read() (readGuard, error) {
 		restrictions:     c.Config.Restrictions,
 		apps:             c.Config.Apps,
 		kubernetes:       c.Config.Kubernetes,
+		databaseServices: c.Config.DatabaseServices,
 		databases:        c.Config.Databases,
 		appSession:       c.Config.AppSession,
 		snowflakeSession: c.Config.SnowflakeSession,
@@ -514,6 +534,7 @@ type readGuard struct {
 	restrictions     services.Restrictions
 	apps             services.Apps
 	kubernetes       services.Kubernetes
+	databaseServices services.DatabaseServices
 	databases        services.Databases
 	webSession       types.WebSessionInterface
 	webToken         types.WebTokenInterface
@@ -569,6 +590,8 @@ type Config struct {
 	Apps services.Apps
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
+	// DatabaseServices is a DatabaseService service.
+	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
 	// SnowflakeSession holds Snowflake sessions.
@@ -724,6 +747,7 @@ func New(config Config) (*Cache, error) {
 		restrictionsCache:     local.NewRestrictionsService(config.Backend),
 		appsCache:             local.NewAppService(config.Backend),
 		kubernetesCache:       local.NewKubernetesService(config.Backend),
+		databaseServicesCache: local.NewDatabaseServicesService(config.Backend),
 		databasesCache:        local.NewDatabasesService(config.Backend),
 		appSessionCache:       local.NewIdentityService(config.Backend),
 		snowflakeSessionCache: local.NewIdentityService(config.Backend),
@@ -731,7 +755,7 @@ func New(config Config) (*Cache, error) {
 		webTokenCache:         local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:  local.NewWindowsDesktopService(config.Backend),
 		eventsFanout:          services.NewFanoutSet(),
-		Entry: log.WithFields(log.Fields{
+		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
 	}
@@ -754,7 +778,7 @@ func New(config Config) (*Cache, error) {
 	return cs, nil
 }
 
-// Starts the cache. Should only be called once.
+// Start the cache. Should only be called once.
 func (c *Cache) Start() error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
@@ -773,15 +797,15 @@ func (c *Cache) Start() error {
 	select {
 	case <-c.initC:
 		if c.initErr == nil {
-			c.Infof("Cache %q first init succeeded.", c.Config.target)
+			c.Logger.Infof("Cache %q first init succeeded.", c.Config.target)
 		} else {
-			c.WithError(c.initErr).Warnf("Cache %q first init failed, continuing re-init attempts in background.", c.Config.target)
+			c.Logger.WithError(c.initErr).Warnf("Cache %q first init failed, continuing re-init attempts in background.", c.Config.target)
 		}
 	case <-c.ctx.Done():
 		c.Close()
 		return trace.Wrap(c.ctx.Err(), "context closed during cache init")
 	case <-time.After(c.Config.CacheInitTimeout):
-		c.Warningf("Cache init is taking too long, will continue in background.")
+		c.Logger.Warn("Cache init is taking too long, will continue in background.")
 	}
 	return nil
 }
@@ -808,7 +832,7 @@ Outer:
 
 func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 	defer func() {
-		c.Debugf("Cache is closing, returning from update loop.")
+		c.Logger.Debug("Cache is closing, returning from update loop.")
 		// ensure that close operations have been run
 		c.Close()
 	}()
@@ -820,11 +844,11 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 			return
 		}
 		if err != nil {
-			c.Warningf("Re-init the cache on error: %v.", err)
+			c.Logger.WithError(err).Warn("Re-init the cache on error")
 		}
 
 		// events cache should be closed as well
-		c.Debugf("Reloading cache.")
+		c.Logger.Debug("Reloading cache.")
 
 		c.notify(ctx, Event{Type: Reloading, Event: types.Event{
 			Resource: &types.ResourceHeader{
@@ -835,7 +859,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 		startedWaiting := c.Clock.Now()
 		select {
 		case t := <-retry.After():
-			c.Debugf("Initiating new watch after waiting %v.", t.Sub(startedWaiting))
+			c.Logger.Debugf("Initiating new watch after waiting %v.", t.Sub(startedWaiting))
 			retry.Inc()
 		case <-c.ctx.Done():
 			return
@@ -1024,7 +1048,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 						if sk := event.Resource.GetSubKind(); sk != "" {
 							kind = fmt.Sprintf("%s/%s", kind, sk)
 						}
-						c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
+						c.Logger.WithField("last_kind", kind).Warnf("Encountered %d stale event(s), may indicate degraded backend or event system performance.", staleEventCount)
 						lastStalenessWarning = now
 						staleEventCount = 0
 					}
@@ -1138,7 +1162,7 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	}
 
 	if removed > 0 {
-		c.Debugf("Removed %d nodes via relative expiry (retentionThreshold=%s).", removed, retentionThreshold)
+		c.Logger.Debugf("Removed %d nodes via relative expiry (retentionThreshold=%s).", removed, retentionThreshold)
 	}
 
 	return nil
@@ -1259,7 +1283,7 @@ func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
 
 			applyfn, err := collection.fetch(ctx)
 			if err != nil {
-				return trace.Wrap(err)
+				return trace.Wrap(err, "failed to fetch resource: %q", kind)
 			}
 
 			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
@@ -1288,8 +1312,7 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) 
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
-		c.Warningf("Skipping unsupported event %v/%v",
-			event.Resource.GetKind(), event.Resource.GetSubKind())
+		c.Logger.Warnf("Skipping unsupported event %v/%v", event.Resource.GetKind(), event.Resource.GetSubKind())
 		return nil
 	}
 	if err := collection.processEvent(ctx, event); err != nil {
@@ -1828,7 +1851,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 
 // GetKubeServices is a part of auth.Cache implementation
 //
-// DELETE IN 12.0.0 Deprecated, use GetKubernetesServers.
+// DELETE IN 13.0.0 Deprecated, use GetKubernetesServers.
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
 	defer span.End()

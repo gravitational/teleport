@@ -21,8 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -102,16 +99,6 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CreateUploaderDir creates directory for file uploader service
-func CreateUploaderDir(dir string) error {
-	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	return nil
-}
-
 // TestServer defines the set of server components for a test
 type TestServer struct {
 	TLS        *TestTLSServer
@@ -133,17 +120,35 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tlsServer *TestTLSServer
-	if cfg.TLS != nil {
-		tlsServer, err = NewTestTLSServer(*cfg.TLS)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		tlsServer, err = authServer.NewTestTLSServer()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Set the (test) auth server in cfg.TLS and set any defaults that
+	// are not set.
+	tlsCfg := cfg.TLS
+	if tlsCfg == nil {
+		tlsCfg = &TestTLSServerConfig{}
+	}
+	if tlsCfg.APIConfig == nil {
+		tlsCfg.APIConfig = &APIConfig{}
+	}
+
+	tlsCfg.AuthServer = authServer
+	tlsCfg.APIConfig.AuthServer = authServer.AuthServer
+
+	if tlsCfg.APIConfig.Authorizer == nil {
+		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
+	}
+	if tlsCfg.APIConfig.AuditLog == nil {
+		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
+	}
+	if tlsCfg.APIConfig.Emitter == nil {
+		tlsCfg.APIConfig.Emitter = authServer.AuthServer.emitter
+	}
+	if tlsCfg.AcceptedUsage == nil {
+		tlsCfg.AcceptedUsage = authServer.AcceptedUsage
+	}
+
+	tlsServer, err := NewTestTLSServer(*tlsCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &TestServer{
 		AuthServer: authServer,
@@ -348,7 +353,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	srv.Authorizer, err = NewAuthorizer(AuthorizerOpts{
+		ClusterName: srv.ClusterName,
+		AccessPoint: srv.AuthServer,
+		LockWatcher: srv.LockWatcher,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -438,16 +447,18 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
+
 		certs, err := authServer.generateUserCert(certRequest{
-			publicKey:      pub,
-			user:           user,
-			ttl:            identity.TTL,
-			usage:          identity.AcceptedUsage,
-			routeToCluster: identity.RouteToCluster,
-			checker:        checker,
-			traits:         user.GetTraits(),
-			renewable:      identity.Renewable,
-			generation:     identity.Generation,
+			publicKey:        pub,
+			user:             user,
+			ttl:              identity.TTL,
+			usage:            identity.AcceptedUsage,
+			routeToCluster:   identity.RouteToCluster,
+			checker:          checker,
+			traits:           user.GetTraits(),
+			renewable:        identity.Renewable,
+			generation:       identity.Generation,
+			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -954,7 +965,7 @@ type clt interface {
 }
 
 // CreateRole creates a role without assigning any users. Used in tests.
-func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
+func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -3,7 +3,7 @@
 #  all    : builds all binaries in development mode, without web assets (default)
 #  full   : builds all binaries for PRODUCTION use
 #  release: prepares a release tarball
-#  clean  : removes all buld artifacts
+#  clean  : removes all build artifacts
 #  test   : runs tests
 
 # To update the Teleport version, update VERSION variable:
@@ -227,6 +227,11 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
+# Is this build targeting the same OS & architecture it is being compiled on, or
+# will it require cross-compilation? We need to know this (especially for ARM) so we 
+# can set the cross-compiler path (and possibly feature flags) correctly. 
+IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
@@ -239,8 +244,15 @@ CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 else ifeq ("$(ARCH)","arm64")
-# ARM64 builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
+CGOFLAG = CGO_ENABLED=1
+
+# If we 're not guaranteed to be building natively on an arm64 system, then we'll
+# need to configure the cross compiler.
+ifeq ($(IS_NATIVE_BUILD),"no")
+CGOFLAG += CC=aarch64-linux-gnu-gcc
+endif
+
 endif
 endif
 
@@ -266,6 +278,13 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
+	$(MAKE) $(BINARIES)
+
+#
+# make binaries builds all binaries defined in the BINARIES environment variable
+#
+.PHONY: binaries
+binaries:
 	$(MAKE) $(BINARIES)
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -334,7 +353,11 @@ endif
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
+ifneq ("$(FIPS)","")
+	cargo build -p rdp-client --features=fips --release $(CARGO_TARGET)
+else
 	cargo build -p rdp-client --release $(CARGO_TARGET)
+endif
 else
 .PHONY: rdpclient
 rdpclient:
@@ -432,8 +455,8 @@ build-archive:
 	@echo "---> Created $(RELEASE).tar.gz."
 	
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-unix - Produces binary release tarballs for both OSS and 
+# Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
 release-unix: clean full build-archive
@@ -451,6 +474,14 @@ release-darwin: release-darwin-unsigned
 	./$(BUILDDIR)/notarize-binaries.sh $(BINARIES)
 	rm $(BUILDDIR)/build-common.sh $(BUILDDIR)/notarize-binaries.sh
 	$(MAKE) build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+#
+# make release-unix-only - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
@@ -549,22 +580,27 @@ test: test-helm test-sh test-ci test-api test-go test-rust test-operator
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
 
-# Google Cloud Build uses a weird homedir and Helm can't pick up plugins by default there,
-# so override the plugin location via environment variable when running in CI.
+.PHONY: helmunit/installed
+helmunit/installed:
+	@if ! helm unittest -h >/dev/null; then \
+		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest` to install it'; \
+		exit 1; \
+	fi
+
+# The CI environment is responsible for setting HELM_PLUGINS to a directory where
+# quintish/helm-unittest is installed.
 #
-# Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
-# so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true 
-# environment variable.
+# The unittest plugin changed in teleport12, if the tests are failing, please ensure
+# you are using  https://github.com/quintush/helm-unittest and not the vbehar fork.
 .PHONY: test-helm
-test-helm:
-	@if [ -d /builder/home ] || [ ! -z "${CI}" ]; then export HELM_PLUGINS=/root/.local/share/helm/plugins; fi; \
-		helm unittest examples/chart/teleport-cluster && \
-		helm unittest examples/chart/teleport-kube-agent
+test-helm: helmunit/installed
+	helm unittest -3 examples/chart/teleport-cluster
+	helm unittest -3 examples/chart/teleport-kube-agent
 
 .PHONY: test-helm-update-snapshots
-test-helm-update-snapshots:
-	helm unittest -u examples/chart/teleport-cluster
-	helm unittest -u examples/chart/teleport-kube-agent
+test-helm-update-snapshots: helmunit/installed
+	helm unittest -3 -u examples/chart/teleport-cluster
+	helm unittest -3 -u examples/chart/teleport-kube-agent
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -827,6 +863,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/teleterm/api/protogen/**' \
+		-ignore 'lib/prehog/gen/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
@@ -888,6 +925,7 @@ update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
+	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
 .PHONY: test-package
@@ -915,6 +953,13 @@ sloccount:
 remove-temp-files:
 	find . -name flymake_* -delete
 
+#
+# print-go-version outputs Go version as a semver without "go" prefix
+#
+.PHONY: print-go-version
+print-go-version:
+	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
+
 # Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker
 docker:
@@ -923,7 +968,7 @@ docker:
 # Dockerized build: useful for making Linux binaries on macOS
 .PHONY:docker-binaries
 docker-binaries: clean
-	make -C build.assets build-binaries
+	make -C build.assets build-binaries PIV=$(PIV)
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
 .PHONY:enter
@@ -959,17 +1004,20 @@ protos/all: protos/build protos/lint protos/format
 protos/build: buf/installed
 	$(BUF) build
 	cd lib/teleterm && $(BUF) build
+	cd lib/prehog && $(BUF) build
 
 .PHONY: protos/format
 protos/format: buf/installed
 	$(BUF) format -w
 	cd lib/teleterm && $(BUF) format -w
+	cd lib/prehog && $(BUF) format -w
 
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
 	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
 	cd lib/teleterm && $(BUF) lint
+	cd lib/prehog && $(BUF) lint
 
 .PHONY: lint-protos
 lint-protos: protos/lint
@@ -1040,7 +1088,7 @@ image: clean docker-binaries build-archive oss-deb
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)-$(ARCH) --target teleport \
 		--build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
-	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
+	if [ -f e/Makefile ]; then $(MAKE) -C e image PIV=$(PIV); fi
 
 .PHONY: print-version
 print-version:
@@ -1149,10 +1197,10 @@ update-webassets:
 # dronegen generates .drone.yml config
 #
 #    Usage:
-#    - install github.com/gravitational/tdr
-#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
 #    - tsh login --proxy=platform.teleport.sh
 #    - tsh app login drone
+#    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
+#    - tsh proxy app --port=8080 drone
 #    - make dronegen
 .PHONY: dronegen
 dronegen:

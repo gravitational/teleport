@@ -1,5 +1,5 @@
 ---
-title: Getting Started
+title: Getting Started with Desktop Access
 description: Automatically add Teleport Desktop Access to your infrastructure
 ---
 
@@ -17,6 +17,17 @@ The features documented on this page are available in Teleport `10.2.6` and high
 
 This guide will help you configure Teleport and Active Directory in order to
 provide secure, passwordless access to Windows desktops.
+
+<Details title="Compare Desktop Access to other RDP clients">
+
+Teleport Desktop Access is designed to be a secure access solution for Windows
+environments. Teleport implements a minimal feature set of the RDP protocol with
+security as a priority, and may not be as performant as standard RDP clients.
+Consider Desktop Access to manage access to your most sensitive Windows
+environments, not as a drop-in replacement for other tools to provide general
+access to Windows desktops.
+
+</Details>
 
 ## Prerequisites
 

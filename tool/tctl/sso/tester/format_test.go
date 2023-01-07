@@ -70,7 +70,7 @@ func Test_formatYAML(t *testing.T) {
 		{
 			name:        "simple object",
 			description: "my field",
-			object: types.RoleSpecV5{
+			object: types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:        []string{"username"},
 					ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -121,7 +121,7 @@ func Test_formatJSON(t *testing.T) {
 		{
 			name:        "simple object",
 			description: "my field",
-			object: types.RoleSpecV5{
+			object: types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:        []string{"username"},
 					ClusterLabels: types.Labels{"access": []string{"ops"}},

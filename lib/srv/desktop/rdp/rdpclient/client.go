@@ -63,11 +63,11 @@ package rdpclient
 #include <librdprs.h>
 */
 import "C"
+
 import (
 	"context"
-	"errors"
+	"fmt"
 	"image"
-	"io"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -79,6 +79,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func init() {
@@ -240,19 +241,21 @@ func (c *Client) connect(ctx context.Context) error {
 
 	res := C.connect_rdp(
 		C.uintptr_t(c.handle),
-		addr,
-		username,
-		// cert length and bytes.
-		C.uint32_t(len(userCertDER)),
-		(*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
-		// key length and bytes.
-		C.uint32_t(len(userKeyDER)),
-		(*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
-		// screen size.
-		C.uint16_t(c.clientWidth),
-		C.uint16_t(c.clientHeight),
-		C.bool(c.cfg.AllowClipboard),
-		C.bool(c.cfg.AllowDirectorySharing),
+		C.CGOConnectParams{
+			go_addr:     addr,
+			go_username: username,
+			// cert length and bytes.
+			cert_der_len: C.uint32_t(len(userCertDER)),
+			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+			// key length and bytes.
+			key_der_len:             C.uint32_t(len(userKeyDER)),
+			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+			screen_width:            C.uint16_t(c.clientWidth),
+			screen_height:           C.uint16_t(c.clientHeight),
+			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
+			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
+			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+		},
 	)
 	if res.err != C.ErrCodeSuccess {
 		return trace.ConnectionProblem(nil, "RDP connection failed")
@@ -276,10 +279,39 @@ func (c *Client) start() {
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if errCode := C.read_rdp_output(c.rustClient); errCode != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", errCode)
-			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
+		res := C.read_rdp_output(c.rustClient)
+
+		// Copy the returned message and free the C memory.
+		userMessage := C.GoString(res.user_message)
+		C.free_c_string(res.user_message)
+
+		// If the disconnect was initiated by the server or for
+		// an unknown reason, try to alert the user as to why via
+		// a TDP error message.
+		if res.disconnect_code != C.DisconnectCodeClient {
+			if err := c.cfg.Conn.WriteMessage(tdp.Error{
+				Message: fmt.Sprintf("The Windows Desktop disconnected: %v", userMessage),
+			}); err != nil {
+				c.cfg.Log.WithError(err).Error("error sending server disconnect reason over TDP")
+			}
 		}
+
+		// Select the logger to use based on the error code.
+		logf := c.cfg.Log.Infof
+		if res.err_code == C.ErrCodeFailure {
+			logf = c.cfg.Log.Errorf
+		}
+
+		// Log a message to the user.
+		var logPrefix string
+		if res.disconnect_code == C.DisconnectCodeClient {
+			logPrefix = "the RDP client ended the session with message: %v"
+		} else if res.disconnect_code == C.DisconnectCodeServer {
+			logPrefix = "the RDP server ended the session with message: %v"
+		} else {
+			logPrefix = "the RDP session ended unexpectedly with message: %v"
+		}
+		logf(logPrefix, userMessage)
 	}()
 
 	// User input streaming worker goroutine.
@@ -295,8 +327,11 @@ func (c *Client) start() {
 		var mouseX, mouseY uint32
 		for {
 			msg, err := c.cfg.Conn.ReadMessage()
-			if errors.Is(err, io.EOF) {
+			if utils.IsOKNetworkError(err) {
 				return
+			} else if tdp.IsNonFatalErr(err) {
+				c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
+				continue
 			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
@@ -404,7 +439,7 @@ func (c *Client) start() {
 						return
 					}
 				} else {
-					c.cfg.Log.Warning("Recieved an empty clipboard message")
+					c.cfg.Log.Warning("Received an empty clipboard message")
 				}
 			case tdp.SharedDirectoryAnnounce:
 				if c.cfg.AllowDirectorySharing {
@@ -565,7 +600,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// copy. This way we only need one copy into img.Pix below.
 	ptr := unsafe.Pointer(cb.data_ptr)
 	uptr := (*uint8)(ptr)
-	data := unsafe.Slice(uptr, C.int(cb.data_len))
+	data := unsafe.Slice(uptr, int(cb.data_len))
 
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
@@ -573,8 +608,10 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	//
 	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
 	//
+	// Also, always force Alpha value to 100% (opaque). On some Windows
+	// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
 	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2] = data[i+2], data[i]
+		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
 	}
 
 	rect := image.Rectangle{

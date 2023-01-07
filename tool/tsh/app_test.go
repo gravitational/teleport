@@ -25,6 +25,8 @@ import (
 )
 
 func TestFormatAppConfig(t *testing.T) {
+	t.Parallel()
+
 	defaultTc := &client.TeleportClient{
 		Config: client.Config{
 			WebProxyAddr: "test-tp.teleport:8443",
@@ -41,11 +43,14 @@ func TestFormatAppConfig(t *testing.T) {
 	// func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName,
 	// appPublicAddr, format, cluster string) (string, error) {
 	tests := []struct {
-		name     string
-		tc       *client.TeleportClient
-		format   string
-		insecure bool
-		expected string
+		name          string
+		tc            *client.TeleportClient
+		format        string
+		awsArn        string
+		azureIdentity string
+		insecure      bool
+		expected      string
+		wantErr       bool
 	}{
 		{
 			name: "format URI standard HTTPS port",
@@ -133,7 +138,7 @@ uri: https://test-tp.teleport:8443
 		{
 			name:   "format default",
 			tc:     defaultTc,
-			format: "detaul",
+			format: "default",
 			expected: `Name:      test-tp
 URI:       https://test-tp.teleport:8443
 CA:        /test/dir/keys/cas/test-tp.pem
@@ -141,14 +146,35 @@ Cert:      /test/dir/keys/test-user-app/test-tp-x509.pem
 Key:       /test/dir/keys/test-user
 `,
 		},
+		{
+			name:   "empty format means default",
+			tc:     defaultTc,
+			format: "",
+			expected: `Name:      test-tp
+URI:       https://test-tp.teleport:8443
+CA:        /test/dir/keys/cas/test-tp.pem
+Cert:      /test/dir/keys/test-user-app/test-tp-x509.pem
+Key:       /test/dir/keys/test-user
+`,
+		},
+		{
+			name:    "reject invalid format",
+			tc:      defaultTc,
+			format:  "invalid",
+			wantErr: true,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.tc.InsecureSkipVerify = test.insecure
-			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, testCluster)
-			assert.NoError(t, err)
-			assert.Equal(t, test.expected, result)
+			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, testCluster, test.awsArn, test.azureIdentity)
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, result)
+			}
 		})
 	}
 }

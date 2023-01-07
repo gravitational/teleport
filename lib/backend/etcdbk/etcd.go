@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"os"
 	"sort"
 	"strings"
@@ -55,7 +56,7 @@ var (
 	writeRequests = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "etcd_backend_write_requests",
-			Help: "Number of wrtie requests to the database",
+			Help: "Number of write requests to the database",
 		},
 	)
 	readRequests = prometheus.NewCounter(
@@ -407,6 +408,9 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
+		}
 		return trace.Wrap(err)
 	}
 	b.client = clt

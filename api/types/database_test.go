@@ -19,25 +19,85 @@ package types
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
 // TestDatabaseRDSEndpoint verifies AWS info is correctly populated
 // based on the RDS endpoint.
 func TestDatabaseRDSEndpoint(t *testing.T) {
-	database, err := NewDatabaseV3(Metadata{
-		Name: "rds",
-	}, DatabaseSpecV3{
-		Protocol: "postgres",
-		URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-	})
-	require.NoError(t, err)
-	require.Equal(t, AWS{
-		Region: "us-west-1",
-		RDS: RDS{
-			InstanceID: "aurora-instance-1",
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	for _, tt := range []struct {
+		name        string
+		spec        DatabaseSpecV3
+		errorCheck  require.ErrorAssertionFunc
+		expectedAWS AWS
+	}{
+		{
+			name: "aurora instance",
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			},
+			errorCheck: require.NoError,
+			expectedAWS: AWS{
+				Region: "us-west-1",
+				RDS: RDS{
+					InstanceID: "aurora-instance-1",
+				},
+			},
 		},
-	}, database.GetAWS())
+		{
+			name: "invalid account id",
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "marcotest-db001.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+				AWS: AWS{
+					AccountID: "invalid",
+				},
+			},
+			errorCheck: isBadParamErrFn,
+		},
+		{
+			name: "valid account id",
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "marcotest-db001.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+				AWS: AWS{
+					AccountID: "123456789012",
+				},
+			},
+			errorCheck: require.NoError,
+			expectedAWS: AWS{
+				Region: "us-east-1",
+				RDS: RDS{
+					InstanceID: "marcotest-db001",
+				},
+				AccountID: "123456789012",
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			database, err := NewDatabaseV3(
+				Metadata{
+					Name: "rds",
+				},
+				tt.spec,
+			)
+			tt.errorCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Equal(t, tt.expectedAWS, database.GetAWS())
+		})
+	}
 }
 
 // TestDatabaseRDSProxyEndpoint verifies AWS info is correctly populated based
@@ -354,7 +414,7 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			AWS: AWS{
 				Region:    "us-west-1",
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
@@ -368,12 +428,27 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 			Protocol: "cassandra",
 			URI:      "cassandra.us-west-1.amazonaws.com:9142",
 			AWS: AWS{
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 		})
 		require.NoError(t, err)
 		require.Equal(t, "cassandra.us-west-1.amazonaws.com:9142", database.GetURI())
 		require.Equal(t, "us-west-1", database.GetAWS().Region)
+	})
+
+	t.Run("aws cassandra custom fips uri", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "cassandra",
+			URI:      "cassandra-fips.us-west-2.amazonaws.com:9142",
+			AWS: AWS{
+				AccountID: "123456789012",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "cassandra-fips.us-west-2.amazonaws.com:9142", database.GetURI())
+		require.Equal(t, "us-west-2", database.GetAWS().Region)
 	})
 
 	t.Run("aws cassandra missing AccountID", func(t *testing.T) {
@@ -388,4 +463,267 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+}
+
+func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("workgroup", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "my-workgroup.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
+		})
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+			RedshiftServerless: RedshiftServerless{
+				WorkgroupName: "my-workgroup",
+			},
+		}, database.GetAWS())
+	})
+
+	t.Run("vpc endpoint", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "my-vpc-endpoint-xxxyyyzzz.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
+			AWS: AWS{
+				RedshiftServerless: RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+			RedshiftServerless: RedshiftServerless{
+				WorkgroupName: "my-workgroup",
+				EndpointName:  "my-vpc",
+			},
+		}, database.GetAWS())
+	})
+}
+
+func TestDatabaseSelfHosted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		inputURI string
+	}{
+		{
+			name:     "localhost",
+			inputURI: "localhost:5432",
+		},
+		{
+			name:     "ec2 hostname",
+			inputURI: "ec2-11-22-33-44.us-east-2.compute.amazonaws.com:5432",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := NewDatabaseV3(Metadata{
+				Name: "self-hosted-localhost",
+			}, DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      test.inputURI,
+			})
+			require.NoError(t, err)
+			require.Equal(t, DatabaseTypeSelfHosted, database.GetType())
+			require.False(t, database.IsCloudHosted())
+		})
+	}
+}
+
+func TestDynamoDBConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc       string
+		uri        string
+		region     string
+		account    string
+		wantSpec   DatabaseSpecV3
+		wantErrMsg string
+	}{
+		{
+			desc:    "account and region and empty URI is correct",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "aws://dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS URI and empty region is correct",
+			uri:     "dynamodb.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS streams dynamodb URI and empty region is correct",
+			uri:     "streams.dynamodb.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "streams.dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS dax URI and empty region is correct",
+			uri:     "dax.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "dax.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and region and matching AWS URI region is correct",
+			uri:     "dynamodb.us-west-1.amazonaws.com",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and region and custom URI is correct",
+			uri:     "localhost:8080",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "localhost:8080",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:       "region and different AWS URI region is an error",
+			uri:        "dynamodb.us-west-2.amazonaws.com",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "does not match the configured URI",
+		},
+		{
+			desc:       "invalid AWS URI is an error",
+			uri:        "a.streams.dynamodb.us-west-1.amazonaws.com",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "invalid DynamoDB endpoint",
+		},
+		{
+			desc:       "custom URI and empty region is an error",
+			uri:        "localhost:8080",
+			account:    "12345",
+			wantErrMsg: "region is empty",
+		},
+		{
+			desc:       "empty URI and empty region is an error",
+			account:    "12345",
+			wantErrMsg: "region is empty",
+		},
+		{
+			desc:       "missing account id",
+			wantErrMsg: "account ID is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			database, err := NewDatabaseV3(Metadata{
+				Name: "test",
+			}, DatabaseSpecV3{
+				Protocol: "dynamodb",
+				URI:      tt.uri,
+				AWS: AWS{
+					Region:    tt.region,
+					AccountID: tt.account,
+				},
+			})
+			if tt.wantErrMsg != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			diff := cmp.Diff(tt.wantSpec, database.Spec, cmpopts.IgnoreFields(DatabaseSpecV3{}, "Protocol"))
+			require.Empty(t, diff)
+		})
+	}
+}
+
+func TestAWSIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  AWS
+		assert require.BoolAssertionFunc
+	}{
+		{
+			name:   "true",
+			input:  AWS{},
+			assert: require.True,
+		},
+		{
+			name: "true with unrecognized bytes",
+			input: AWS{
+				XXX_unrecognized: []byte{66, 0},
+			},
+			assert: require.True,
+		},
+		{
+			name: "true with nested unrecognized bytes",
+			input: AWS{
+				MemoryDB: MemoryDB{
+					XXX_unrecognized: []byte{99, 0},
+				},
+			},
+			assert: require.True,
+		},
+		{
+			name: "false",
+			input: AWS{
+				Region: "us-west-1",
+			},
+			assert: require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assert(t, test.input.IsEmpty())
+		})
+	}
 }

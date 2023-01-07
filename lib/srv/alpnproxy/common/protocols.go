@@ -53,8 +53,15 @@ const (
 	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
 	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
 
+	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
+	ProtocolDynamoDB Protocol = "teleport-dynamodb"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
+
+	// ProtocolProxySSHGRPC is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport Proxy on the SSH port.
+	ProtocolProxySSHGRPC Protocol = "teleport-proxy-ssh-grpc"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
@@ -109,6 +116,8 @@ var SupportedProtocols = append(
 		ProtocolReverseTunnel,
 		ProtocolAuth,
 		ProtocolTCP,
+		ProtocolProxySSHGRPC,
+		ProtocolProxyGRPC,
 	}, DatabaseProtocols...)...,
 )
 
@@ -140,6 +149,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolCassandra, nil
 	case defaults.ProtocolElasticsearch:
 		return ProtocolElasticsearch, nil
+	case defaults.ProtocolDynamoDB:
+		return ProtocolDynamoDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -158,6 +169,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolSnowflake,
 		ProtocolCassandra,
 		ProtocolElasticsearch,
+		ProtocolDynamoDB,
 	}
 
 	return slices.Contains(
@@ -176,6 +188,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolSnowflake,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolDynamoDB,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

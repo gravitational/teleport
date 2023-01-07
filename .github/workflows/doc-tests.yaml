@@ -1,0 +1,29 @@
+name: Lint (Docs)
+run-name: Lint (Docs)
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+
+jobs:
+  doc-tests:
+    name: Lint (Docs)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: public.ecr.aws/gravitational/docs:latest
+      volumes:
+        - ${{ github.workspace }}:/src/content
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Run tests
+        run: cd /src/content && yarn markdown-lint
