@@ -2053,8 +2053,9 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 				Protocol: defaults.ProtocolMySQL,
 				URI:      tt.serverName + ".mysql.database.azure.com:3306",
 				Azure: types.Azure{
-					Name:       tt.serverName,
-					ResourceID: rid,
+					Name:          tt.serverName,
+					ResourceID:    rid,
+					IsFlexiServer: true,
 				},
 			})
 			require.NoError(t, err)
@@ -2122,8 +2123,9 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 				Protocol: defaults.ProtocolPostgres,
 				URI:      tt.serverName + ".postgres.database.azure.com:5432",
 				Azure: types.Azure{
-					Name:       tt.serverName,
-					ResourceID: rid,
+					Name:          tt.serverName,
+					ResourceID:    rid,
+					IsFlexiServer: true,
 				},
 			})
 			require.NoError(t, err)
@@ -2141,10 +2143,11 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 	group := "group"
 	serverName := "test-server"
 	tests := []struct {
-		desc       string
-		protocol   string
-		engine     string
-		wantIsFlex bool
+		desc         string
+		protocol     string
+		engine       string
+		staticIsFlex bool
+		wantIsFlex   bool
 	}{
 		{
 			desc:       "mysql flex",
@@ -2157,6 +2160,18 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 			protocol:   defaults.ProtocolPostgres,
 			engine:     AzureEnginePostgresFlex,
 			wantIsFlex: true,
+		},
+		{
+			desc:         "static config mysql flex",
+			protocol:     defaults.ProtocolMySQL,
+			staticIsFlex: true,
+			wantIsFlex:   true,
+		},
+		{
+			desc:         "static config postgres flex",
+			protocol:     defaults.ProtocolPostgres,
+			staticIsFlex: true,
+			wantIsFlex:   true,
 		},
 		{
 			desc:       "mysql single server",
@@ -2201,8 +2216,9 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 				Protocol: tt.protocol,
 				URI:      "example.com:1234",
 				Azure: types.Azure{
-					Name:       serverName,
-					ResourceID: makeAzureResourceID(subID, group, tt.engine, serverName),
+					Name:          serverName,
+					ResourceID:    makeAzureResourceID(subID, group, tt.engine, serverName),
+					IsFlexiServer: tt.staticIsFlex,
 				},
 			})
 			require.NoError(t, err)

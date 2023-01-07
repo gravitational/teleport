@@ -461,8 +461,9 @@ func NewDatabaseFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server)
 			Protocol: defaults.ProtocolMySQL,
 			URI:      fmt.Sprintf("%v:%v", azure.StringVal(server.Properties.FullyQualifiedDomainName), azure.MySQLPort),
 			Azure: types.Azure{
-				Name:       azure.StringVal(server.Name),
-				ResourceID: azure.StringVal(server.ID),
+				Name:          azure.StringVal(server.Name),
+				ResourceID:    azure.StringVal(server.ID),
+				IsFlexiServer: true,
 			},
 		})
 }
@@ -491,8 +492,9 @@ func NewDatabaseFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers
 			Protocol: defaults.ProtocolPostgres,
 			URI:      fmt.Sprintf("%v:%v", azure.StringVal(server.Properties.FullyQualifiedDomainName), azure.PostgresPort),
 			Azure: types.Azure{
-				Name:       azure.StringVal(server.Name),
-				ResourceID: azure.StringVal(server.ID),
+				Name:          azure.StringVal(server.Name),
+				ResourceID:    azure.StringVal(server.ID),
+				IsFlexiServer: true,
 			},
 		})
 }
@@ -1516,6 +1518,9 @@ func GetMySQLEngineVersion(labels map[string]string) string {
 // IsAzureFlexServer returns true if the database engine label matches the Azure PostgreSQL or MySQL Flex server engine name.
 // Matching engines are "Microsoft.DBforMySQL/flexibleServers" or "Microsoft.DBforPostgreSQL/flexibleServers".
 func IsAzureFlexServer(db types.Database) bool {
+	if db.GetAzure().IsFlexiServer {
+		return true
+	}
 	engine, ok := db.GetMetadata().Labels[labelEngine]
 	return ok && (engine == AzureEngineMySQLFlex || engine == AzureEnginePostgresFlex)
 }
