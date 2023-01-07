@@ -88,19 +88,3 @@ func makeAzureMySQLFlexServer(t *testing.T, name, subscription, group, region st
 	require.NoError(t, err)
 	return server, database
 }
-
-// withAzureMySQLFlexVersion returns an option function to makeAzureMySQLFlexServer to overwrite version.
-func withAzureMySQLFlexVersion(version string) func(*armmysqlflexibleservers.Server) {
-	return func(server *armmysqlflexibleservers.Server) {
-		version := armmysqlflexibleservers.ServerVersion(version) // ServerVersion is a type alias for string
-		server.Properties.Version = &version
-	}
-}
-
-// withAzureMySQLFlexState returns an option function to makeAzureMySQLFlexServer to overwrite state.
-func withAzureMySQLFlexState(state string) func(*armmysqlflexibleservers.Server) {
-	return func(server *armmysqlflexibleservers.Server) {
-		state := armmysqlflexibleservers.ServerState(state) // ServerState is a type alias for string
-		server.Properties.State = &state
-	}
-}
