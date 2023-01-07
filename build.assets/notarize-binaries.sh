@@ -33,10 +33,20 @@ sign_and_notarize_binaries() {
 
   # Gon configuration file needs a proper extension.
   local goncfg="$gondir/gon.json"
-  # Note that xcrun stapler does not support stapling zip files.
-  # Instead, Apple wants you to staple notarization tickets to binaries then
-  # rebuild the zip file. That being said, Apple also does not support
-  # binaries directly. Rather, they must be archived and then notarized.
+  # A few notes on the Apple signing and notarization process:
+  # * `gon` will talk with Apple to sign the binaries, then zip them, then
+  #   it will send the zip file to Apple. Apple will then issue notarization
+  #   tickets for the binaries inside the zip file.
+  # * Apple requires binaries to be archived in some form (zip, pkg, dmg)
+  #   for notarization specifically.
+  # * Apple's `xcrun staples` does not support stapling zip files, tar.gz
+  #   files, or binaries directly.
+  # * This configuration does _not_ actually staple notarization tickets
+  #   to the binaries. Instead, end user's Apple products will contact
+  #   Apple's servers to check to see if a notarization ticket has been
+  #   issued for the binary. This only happens the first time the device
+  #   runs the binary. This is how other popular products (Hashicorp, Docker)
+  #   do it.
   # For details, see
   # https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
   cat >"$goncfg" <<EOF
