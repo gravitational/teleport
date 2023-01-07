@@ -1,0 +1,21 @@
+Starting the local database proxy with the `--tunnel` flag will create an
+authenticated tunnel that you can use to connect to your database instances.
+You won't need to configure any credentials when connecting to this tunnel.
+
+Here is an example on how to start the proxy:
+
+```bash
+# Start the local proxy.
+$ tsh proxy db --tunnel <database-name>
+Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
+```
+
+You can optionally specify the database name and the user to use by default
+when connecting to the database:
+
+```code
+$ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database-name>
+```
+
+Now, you can connect to the address the proxy command returns. In our example it
+is `127.0.0.1:62652`.

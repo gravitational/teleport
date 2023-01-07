@@ -72,30 +72,14 @@ Ensure that your environment includes the following:
 
 <Tabs>
 <TabItem label="Authenticated Proxy">
-Starting the local database proxy with the `--tunnel` flag will create an
-authenticated tunnel that you can use to connect to your database instances.
-You won't need to configure any credentials when connecting to this tunnel.
 
-Here is an example on how to start the proxy:
-
-```bash
-# Start the local proxy.
-$ tsh proxy db --tunnel <database-name>
-Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database:
-
-```code
-$ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database-name>
-```
-
-Now, you can connect to the address the proxy command returns. In our example it
-is `127.0.0.1:62652`.
+(!docs/pages/includes/database-access/tsh-db-tunnel.mdx!)
 
 </TabItem>
 <TabItem label="TLS routing">
+
+(!docs/pages/includes/determinetls.mdx!)
+
 If you're using Teleport in [TLS routing](../management/operations/tls-routing.mdx)
 mode where each database protocol is multiplexed on the same web proxy port, use
 the following command to start a local TLS proxy your GUI database client will
@@ -116,7 +100,10 @@ your GUI client below. When entering the hostname, use `localhost` rather than
 `127.0.0.1`.
 </TabItem>
 <TabItem label="Separate ports">
-If you're not using TLS routing, run the following command to see the database
+
+(!docs/pages/includes/determinetls.mdx!)
+
+If you're not using [TLS routing](../management/operations/tls-routing.mdx), run the following command to see the database
 connection information:
 
 ```code
@@ -148,22 +135,7 @@ TLS authentication.
 </ScopedBlock>
 <ScopedBlock scope="cloud">
 
-Use the following command to start a local TLS proxy your GUI database client
-will be connecting to:
-
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
+(!docs/pages/includes/database-access/tsh-db-tunnel.mdx!)
 
 </ScopedBlock>
 
