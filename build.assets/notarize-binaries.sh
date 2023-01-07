@@ -22,7 +22,7 @@ shell_array_to_json_array() {
 # This is largely pulled from `build-common.sh` but modified for this use case
 sign_and_notarize_binaries() {
   local bundle_id="$1"
-  local targets=(${@:2})
+  local targets=("${@:2}")
 
   local notarization_zip="teleport.zip"
 
