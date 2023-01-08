@@ -24,11 +24,11 @@ require (
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.173
 	github.com/aws/aws-sdk-go-v2 v1.17.3
-	github.com/aws/aws-sdk-go-v2/config v1.18.7
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.7
+	github.com/aws/aws-sdk-go-v2/config v1.18.8
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.8
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.21
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.77.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.17.7
+	github.com/aws/aws-sdk-go-v2/service/sts v1.18.0
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.1.0
 	github.com/bufbuild/connect-go v1.4.1
@@ -170,9 +170,6 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
-// Do not remove. It breaks github.com/gravitational/go-oidc.
-require github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-
 require (
 	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.13.0 // indirect
@@ -204,8 +201,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.13.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.29.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.11.28 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.13.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.12.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.0 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
