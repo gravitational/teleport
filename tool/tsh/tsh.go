@@ -3471,7 +3471,7 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 			if err != nil {
-				return trace.Wrap(err)
+				return trace.Wrap(err, "Teleport proxy not available at proxy address %s on default ports. Confirm address and connectivity.", parsedAddrs.Host)
 			}
 		}
 
