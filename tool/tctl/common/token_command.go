@@ -223,8 +223,8 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 	case roles.Include(types.RoleWindowsDesktop):
 		return desktopMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
-				"token":           token,
-				"minutes":         c.ttl.Minutes(),
+				"token":   token,
+				"minutes": c.ttl.Minutes(),
 			})
 	case roles.Include(types.RoleKube):
 		proxies, err := client.GetProxies()
@@ -236,9 +236,9 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		}
 		return kubeMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
-				"auth_server":     proxies[0].GetPublicAddr(),
-				"token":           token,
-				"minutes":         c.ttl.Minutes(),
+				"auth_server": proxies[0].GetPublicAddr(),
+				"token":       token,
+				"minutes":     c.ttl.Minutes(),
 			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
