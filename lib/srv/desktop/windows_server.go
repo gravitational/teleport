@@ -161,6 +161,9 @@ type WindowsServiceConfig struct {
 	Heartbeat HeartbeatConfig
 	// HostLabelsFn gets labels that should be applied to a Windows host.
 	HostLabelsFn func(host string) map[string]string
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	windows.LDAPConfig
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
@@ -420,8 +423,12 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	if i := strings.LastIndex(s.cfg.Username, `\`); i != -1 {
 		user = user[i+1:]
 	}
-
-	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL)
+	if s.cfg.SID == "" {
+		s.cfg.Log.Warnf(`Your LDAP config is missing the SID of the user you're
+		using to sign in. This is set to become a strict requirement by May 2023,
+		please update your configuration file before then.`)
+	}
+	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL, s.cfg.SID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -645,7 +652,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendError(message); err != nil {
+		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
 			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
@@ -797,7 +804,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
+			return s.generateUserCert(ctx, username, ttl, desktop)
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),
@@ -805,6 +812,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
+		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 	})
 	if err != nil {
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
@@ -812,26 +820,23 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	monitorCfg := srv.MonitorConfig{
-		Context:           ctx,
-		Conn:              tdpConn,
-		Clock:             s.cfg.Clock,
-		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		Entry:             log,
-		Emitter:           s.cfg.Emitter,
-		LockWatcher:       s.cfg.LockWatcher,
-		LockingMode:       authCtx.Checker.LockingMode(authPref.GetLockingMode()),
-		LockTargets:       append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
-		Tracker:           rdpc,
-		TeleportUser:      identity.Username,
-		ServerID:          s.cfg.Heartbeat.HostUUID,
+		Context:               ctx,
+		Conn:                  tdpConn,
+		Clock:                 s.cfg.Clock,
+		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(authCtx.Checker, authPref, &identity),
+		Entry:                 log,
+		Emitter:               s.cfg.Emitter,
+		LockWatcher:           s.cfg.LockWatcher,
+		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
+		Tracker:               rdpc,
+		TeleportUser:          identity.Username,
+		ServerID:              s.cfg.Heartbeat.HostUUID,
 		MessageWriter: &monitorErrorSender{
 			log:     log,
 			tdpConn: tdpConn,
 		},
-	}
-	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
-		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
 	// UpdateClientActivity before starting monitor to
@@ -858,7 +863,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError):
+		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -1031,16 +1036,32 @@ func timer() func() int64 {
 	}
 }
 
-// crlDN generates the LDAP distinguished name (DN) where this Windows Service
-// will publish its certificate revocation list
-func (s *WindowsService) crlDN() string {
-	return "CN=" + s.clusterName + "," + s.crlContainerDN()
-}
-
-// crlContainerDN generates the LDAP distinguished name (DN) of the container
-// where the certificate revocation list is published
-func (s *WindowsService) crlContainerDN() string {
-	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
+// generateUserCert queries LDAP for the passed username's SID and generates
+// a private key / public certificate pair for the given Windows username.
+func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop) (certDER, keyDER []byte, err error) {
+	// Find the user's SID
+	s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
+	filters := []string{
+		fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
+		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
+		fmt.Sprintf("(%s=%s)", windows.AttrName, username),
+	}
+	entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if len(entries) == 0 {
+		return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
+	} else if len(entries) > 1 {
+		s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
+	}
+	activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entries[0])
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
+	// Generate credentials with the user's SID
+	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -1048,8 +1069,16 @@ func (s *WindowsService) crlContainerDN() string {
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-	return windows.GenerateCredentials(ctx, username, domain, ttl, s.clusterName, s.cfg.LDAPConfig, s.cfg.AuthClient)
+func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID string) (certDER, keyDER []byte, err error) {
+	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+		Username:           username,
+		Domain:             domain,
+		TTL:                ttl,
+		ClusterName:        s.clusterName,
+		ActiveDirectorySID: activeDirectorySID,
+		LDAPConfig:         s.cfg.LDAPConfig,
+		AuthClient:         s.cfg.AuthClient,
+	})
 }
 
 // trackSession creates a session tracker for the given sessionID and
@@ -1105,7 +1134,7 @@ type monitorErrorSender struct {
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.SendError(s); err != nil {
+	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
 		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
 		m.log.Error(errMsg)
 		return 0, trace.Errorf(errMsg)

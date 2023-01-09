@@ -171,7 +171,11 @@ func (s *SessionStream) readTask() {
 		}
 
 		if ty == websocket.BinaryMessage {
-			s.in <- data
+			select {
+			case s.in <- data:
+			case <-s.done:
+				return
+			}
 		}
 
 		if ty == websocket.TextMessage {
@@ -181,7 +185,11 @@ func (s *SessionStream) readTask() {
 			}
 
 			if msg.Resize != nil {
-				s.resizeQueue <- msg.Resize
+				select {
+				case s.resizeQueue <- msg.Resize:
+				case <-s.done:
+					return
+				}
 			}
 
 			if msg.ForceTerminate {
@@ -266,19 +274,19 @@ func (s *SessionStream) Done() <-chan struct{} {
 
 // Close closes the stream.
 func (s *SessionStream) Close() error {
-	if atomic.LoadInt32(&s.closed) == 0 {
-		atomic.StoreInt32(&s.closed, 1)
-
+	if atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
 		err := s.conn.WriteMessage(websocket.CloseMessage, []byte{})
 		if err != nil {
 			log.Warnf("Failed to gracefully close websocket connection: %v", err)
 		}
-
+		t := time.NewTimer(time.Second * 5)
+		defer t.Stop()
 		select {
 		case <-s.done:
-		case <-time.After(time.Second * 5):
+		case <-t.C:
 			s.conn.Close()
 		}
+		s.closeOnce.Do(func() { close(s.done) })
 	}
 
 	return nil

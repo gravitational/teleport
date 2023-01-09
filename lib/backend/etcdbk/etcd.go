@@ -56,7 +56,7 @@ var (
 	writeRequests = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "etcd_backend_write_requests",
-			Help: "Number of wrtie requests to the database",
+			Help: "Number of write requests to the database",
 		},
 	)
 	readRequests = prometheus.NewCounter(

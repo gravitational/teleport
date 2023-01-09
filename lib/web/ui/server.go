@@ -221,14 +221,41 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []types.Database) []Database {
+func MakeDatabases(databases []types.Database, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
+		db := MakeDatabase(database, dbUsers, dbNames)
 		uiServers = append(uiServers, db)
 	}
 
 	return uiServers
+}
+
+// DatabaseService describes a DatabaseService resource.
+type DatabaseService struct {
+	// Name is the name of the database.
+	Name string `json:"name"`
+	// ResourceMatchers is a list of resource matchers of the DatabaseService.
+	ResourceMatchers []*types.DatabaseResourceMatcher `json:"resource_matchers"`
+}
+
+// MakeDatabaseService creates DatabaseService resource.
+func MakeDatabaseService(databaseService types.DatabaseService) DatabaseService {
+	return DatabaseService{
+		Name:             databaseService.GetName(),
+		ResourceMatchers: databaseService.GetResourceMatchers(),
+	}
+}
+
+// MakeDatabaseServices creates database service objects.
+func MakeDatabaseServices(databaseServices []types.DatabaseService) []DatabaseService {
+	dbServices := make([]DatabaseService, len(databaseServices))
+	for i, database := range databaseServices {
+		db := MakeDatabaseService(database)
+		dbServices[i] = db
+	}
+
+	return dbServices
 }
 
 // Desktop describes a desktop to pass to the ui.
@@ -312,9 +339,9 @@ func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) [
 	return desktopServices
 }
 
-// stripProtocolAndPort returns only the hostname of the uri.
-// Handles uri's with no protocol eg: for some database connection
-// endpoint the uri can be in the format "hostname:port".
+// stripProtocolAndPort returns only the hostname of the URI.
+// Handles URIs with no protocol eg: for some database connection
+// endpoint the URI can be in the format "hostname:port".
 func stripProtocolAndPort(uri string) string {
 	stripPort := func(uri string) string {
 		splitURI := strings.Split(uri, ":")

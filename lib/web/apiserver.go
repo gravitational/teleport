@@ -52,6 +52,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -111,6 +112,7 @@ type Handler struct {
 	auth                    *sessionCache
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
+	limiter                 *limiter.RateLimiter
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -242,8 +244,8 @@ type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the request is either to the fragment authentication endpoint or if the
-	// request is already authenticated (has a session cookie), forward to
-	// application handlers. If the request is unauthenticated and requesting a
+	// request has a session cookie or a client cert, forward to
+	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
 	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
@@ -291,7 +293,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		sessionLingeringThreshold = *cfg.CachedSessionLingeringThreshold
 	}
 
-	auth, err := newSessionCache(sessionCacheOptions{
+	sessionCache, err := newSessionCache(h.cfg.Context, sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
 		servers:                   []utils.NetAddr{cfg.AuthServers},
@@ -302,7 +304,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.auth = auth
+	h.auth = sessionCache
 
 	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 	if err != nil {
@@ -314,7 +316,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// rateLimiter is used to limit unauthenticated challenge generation for
 	// passwordless and for unauthenticated metrics.
-	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+	h.limiter, err = limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{
 			{
 				Period:  defaults.LimiterPasswordlessPeriod,
@@ -332,7 +334,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if cfg.MinimalReverseTunnelRoutesOnly {
 		h.bindMinimalEndpoints()
 	} else {
-		h.bindDefaultEndpoints(rateLimiter)
+		h.bindDefaultEndpoints()
 	}
 
 	// if Web UI is enabled, check the assets dir:
@@ -475,7 +477,7 @@ func (h *Handler) bindMinimalEndpoints() {
 }
 
 // bindDefaultEndpoints binds the default endpoints for the web API.
-func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
+func (h *Handler) bindDefaultEndpoints() {
 	h.bindMinimalEndpoints()
 
 	// ping endpoint is used to check if the server is up. the /webapi/ping
@@ -500,20 +502,22 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", httplib.MakeHandler(h.desktopAccessScriptInstallADCSHandle))
 	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", httplib.MakeHandler(h.desktopAccessScriptConfigureHandle))
 
-	// DELETE IN: 5.1.0
-	//
-	// Migrated this endpoint to /webapi/sessions/web below.
-	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
-
 	// Forwards traces to the configured upstream collector
 	h.POST("/webapi/traces", h.WithAuth(h.traces))
 
-	// Web sessions
-	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	// App sessions
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
-	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
-	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
+	// DELETE IN 13, deprecated/unused web sessions routes (avatus)
+	// https://github.com/gravitational/teleport/pull/19892
+	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
+	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteWebSession))
+	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewWebSession))
+
+	// Web sessions
+	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
+	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteWebSession))
+	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
@@ -595,16 +599,19 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 
+	// DatabaseService handlers
+	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
+
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
-	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
+	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
 
 	// MFA public endpoints.
-	h.POST("/webapi/mfa/login/begin", h.withLimiter(challengeLimiter, h.mfaLoginBegin))
+	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
@@ -661,7 +668,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 
 	// create user events.
-	h.POST("/webapi/precapture", h.withLimiter(challengeLimiter, h.createPreUserEventHandle))
+	h.POST("/webapi/precapture", h.WithLimiter(h.createPreUserEventHandle))
 	// create authenticated user events.
 	h.POST("/webapi/capture", h.WithAuth(h.createUserEventHandle))
 }
@@ -1720,14 +1727,14 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 	}
 }
 
-// deleteSession is called to sign out user
+// deleteWebSession is called to sign out user
 //
 // DELETE /v1/webapi/sessions/:sid
 //
 // Response:
 //
 // {"message": "ok"}
-func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	err := h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1755,14 +1762,14 @@ type renewSessionRequest struct {
 	ReloadUser bool `json:"reloadUser"`
 }
 
-// renewSession updates this existing session with a new session.
+// renewWebSession updates this existing session with a new session.
 //
 // Depending on request fields sent in for extension, the new session creation can vary depending on:
 //   - AccessRequestID (opt): appends roles approved from access request to currently assigned roles or,
 //   - Switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
-func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2353,42 +2360,95 @@ func (h *Handler) siteNodeConnect(
 
 func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string) (session.Session, error) {
 	var (
+		id   string
 		host string
 		port int
 	)
 	h.log.Infof("Generating new session for %s\n", clusterName)
-	// req.Server will be either an IP, hostname, or server UUID.
-	_, err := uuid.Parse(req.Server)
-	if err != nil {
-		// TODO(hatched) Investigate using ListResources instead of GetNodes as we can
-		// provide more filters that may reduce the work to do on the client side.
-		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
+
+	if _, err := uuid.Parse(req.Server); err != nil {
+		// The requested server is either a hostname or an address. Get all
+		// servers that may fuzzily match by populating SearchKeywords
+		resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      apidefaults.Namespace,
+			SearchKeywords: []string{req.Server},
+		})
 		if err != nil {
 			return session.Session{}, trace.Wrap(err)
 		}
-		host, port, err = resolveServerHostPort(req.Server, servers)
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
+
+		if len(resources) == 0 {
+			return session.Session{}, trace.NotFound("no matching servers")
+		}
+
+		matches := 0
+		for _, resource := range resources {
+			server, ok := resource.(types.Server)
+			if !ok {
+				return session.Session{}, trace.BadParameter("expected types.Server, got: %T", resource)
+			}
+
+			// match by hostname
+			if server.GetHostname() == req.Server {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host = server.GetHostname()
+				id = server.GetName()
+				port = 0
+
+				matches++
+				continue
+			}
+
+			// exact match by address
+			if server.GetAddr() == req.Server {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host = req.Server
+				id = server.GetName()
+				port = 0
+
+				matches++
+				continue
+			}
+		}
+
+		// there was either at least one partial match or multiple
+		// exact matches on the server. connect with the resolved
+		// host and port of the requested server.
+		if matches > 1 || host == "" && id == "" {
+			host, port, err = serverHostPort(req.Server)
+			if err != nil {
+				return session.Session{}, trace.Wrap(err)
+			}
+			id = req.Server
 		}
 	} else {
-		// If the user has passed in a UUID then query for that node directly. We
-		// can connect to `uuid:0` directly. with `host = req.Server` however we will
-		// not have the proper hostname and the UI will display the UUID instead.
-		// This is why we have to query for the node. In a future update we can query
-		// for a uuid:hostname to dramatically improve performance in large environments.
+		// Even though the UUID was provided and can be dialed directly, the UI
+		// requires the hostname to populate the title of the session window.
+		// Looking the node up directly by UUID is the most efficient we can be until
+		// the UI is modified to remember the hostname when the connect button is
+		// used to establish a session.
 		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
 		if err != nil {
 			return session.Session{}, trace.Wrap(err)
 		}
-		host, port, err = resolveServerHostPort(req.Server, []types.Server{server})
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
-		}
+
+		host = server.GetHostname()
+		port = 0
+		id = req.Server
 	}
 
 	return session.Session{
 		Login:          req.Login,
-		ServerID:       req.Server,
+		ServerID:       id,
 		ClusterName:    clusterName,
 		ServerHostname: host,
 		ServerHostPort: port,
@@ -3213,10 +3273,22 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	})
 }
 
-// withLimiter adds IP-based rate limiting to fn.
-func (h *Handler) withLimiter(l *limiter.RateLimiter, fn httplib.HandlerFunc) httprouter.Handle {
+// WithLimiter adds IP-based rate limiting to fn.
+func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		err := l.RegisterRequest(r.RemoteAddr, nil /* customRate */)
+		return h.WithLimiterHandlerFunc(fn)(w, r, p)
+	})
+}
+
+// WithLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This
+// should be used when you need to nest this inside another HandlerFunc.
+func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		remote, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = h.limiter.RegisterRequest(remote, nil /* customRate */)
 		// MaxRateError doesn't play well with errors.Is, hence the cast.
 		if _, ok := err.(*ratelimit.MaxRateError); ok {
 			return nil, trace.LimitExceeded(err.Error())
@@ -3225,7 +3297,7 @@ func (h *Handler) withLimiter(l *limiter.RateLimiter, fn httplib.HandlerFunc) ht
 			return nil, trace.Wrap(err)
 		}
 		return fn(w, r, p)
-	})
+	}
 }
 
 // AuthenticateRequest authenticates request using combination of a session cookie

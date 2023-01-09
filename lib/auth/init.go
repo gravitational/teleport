@@ -106,7 +106,7 @@ type InitConfig struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and heartbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
@@ -134,6 +134,9 @@ type InitConfig struct {
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
+
+	// DatabaseServices is a service that manages DatabaseService resources.
+	DatabaseServices services.DatabaseServices
 
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
@@ -549,6 +552,20 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 	// more authoritative file configuration to replace it.  Keep the stored
 	// dynamic resource.
 	return false, nil
+}
+
+// migrationStart marks the migration as active.
+// It should be called when a migration starts.
+func migrationStart(ctx context.Context, migrationName string) {
+	log.Debugf("Migrations: %q migration started.", migrationName)
+	migrations.WithLabelValues(migrationName).Set(1)
+}
+
+// migrationEnd marks the migration as inactive.
+// It should be called when a migration ends.
+func migrationEnd(ctx context.Context, migrationName string) {
+	log.Debugf("Migrations: %q migration ended.", migrationName)
+	migrations.WithLabelValues(migrationName).Set(0)
 }
 
 func migrateLegacyResources(ctx context.Context, asrv *Server) error {
@@ -1024,6 +1041,9 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
+	migrationStart(ctx, "remote_clusters")
+	defer migrationEnd(ctx, "remote_clusters")
+
 	clusterName, err := asrv.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1081,6 +1101,9 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 //
 // DELETE IN 11.0
 func migrateDBAuthority(ctx context.Context, asrv *Server) error {
+	migrationStart(ctx, "db_authority")
+	defer migrationEnd(ctx, "db_authority")
+
 	localClusterName, err := asrv.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)

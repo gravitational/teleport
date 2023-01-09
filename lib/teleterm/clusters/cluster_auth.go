@@ -42,7 +42,7 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.clusterClient.SaveProfile(c.dir, false); err != nil {
+	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -186,11 +186,16 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 		return trace.Wrap(err)
 	}
 
-	if err := c.clusterClient.SaveProfile(c.dir, true); err != nil {
+	// Attempt device login. This activates a fresh key if successful.
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
 
-	status, err := client.ReadProfileStatus(c.dir, key.ProxyHost)
+	if err := c.clusterClient.SaveProfile(true); err != nil {
+		return trace.Wrap(err)
+	}
+
+	status, err := c.clusterClient.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}

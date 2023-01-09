@@ -1,5 +1,4 @@
-// TODO(codingllama): Tweak build tag above once we have the darwin impl.
-//go:build darwin || !darwin
+//go:build !darwin
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -36,5 +35,9 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
+	return nil, errPlatformNotSupported
+}
+
+func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	return nil, errPlatformNotSupported
 }

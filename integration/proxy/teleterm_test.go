@@ -77,7 +77,7 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 	require.NoError(t, err)
 	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
 	tc.WebProxyAddr = pack.Root.Cluster.Web
-	tc.SaveProfile(tc.KeysDir, false /* makeCurrent */)
+	tc.SaveProfile(false /* makeCurrent */)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 
@@ -91,7 +91,6 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 	require.NoError(t, err)
 
 	tshdEventsClient := &mockTSHDEventsClient{
-		t:          t,
 		tc:         tc,
 		pack:       pack,
 		callCounts: make(map[string]int),
@@ -145,7 +144,8 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 		TTL:      -time.Hour,
 	})
 	require.NoError(t, err)
-	helpers.SetupUserCreds(tc, pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *expiredCreds)
+	err = helpers.SetupUserCreds(tc, pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *expiredCreds)
+	require.NoError(t, err)
 
 	// Open a new connection.
 	// This should trigger the relogin flow. The middleware will notice that the db cert has expired
@@ -172,7 +172,6 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 }
 
 type mockTSHDEventsClient struct {
-	t          *testing.T
 	tc         *libclient.TeleportClient
 	pack       *dbhelpers.DatabasePack
 	callCounts map[string]int
@@ -186,8 +185,13 @@ func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...
 		Process:  c.pack.Root.Cluster.Process,
 		Username: c.pack.Root.User.GetName(),
 	})
-	require.NoError(c.t, err)
-	helpers.SetupUserCreds(c.tc, c.pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *creds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = helpers.SetupUserCreds(c.tc, c.pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *creds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &api.ReloginResponse{}, nil
 }

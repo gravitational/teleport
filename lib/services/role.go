@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -96,14 +97,14 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return &types.RoleV5{
+	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
 				// Explicitly disable options that default to true, otherwise the option
@@ -125,7 +126,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
+	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -171,7 +172,7 @@ func RoleForUser(u types.User) types.Role {
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
+	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
@@ -291,6 +292,25 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 	return output
 }
 
+func warnInvalidAzureIdentities(candidates []string) {
+	for _, candidate := range candidates {
+		if !MatchValidAzureIdentity(candidate) {
+			log.Warningf("Invalid format of Azure identity %q", candidate)
+		}
+	}
+}
+
+// ParseResourceID from Azure SDK is too lenient; we use a strict regexp instead.
+var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-]+)$`)
+
+func MatchValidAzureIdentity(identity string) bool {
+	if identity == types.Wildcard {
+		return true
+	}
+
+	return azureIdentityPattern.MatchString(identity)
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
@@ -308,6 +328,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		inRoleARNs := r.GetAWSRoleARNs(condition)
 		outRoleARNs := applyValueTraitsSlice(inRoleARNs, traits, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
+
+		inAzureIdentities := r.GetAzureIdentities(condition)
+		outAzureIdentities := applyValueTraitsSlice(inAzureIdentities, traits, "Azure identity")
+		warnInvalidAzureIdentities(outAzureIdentities)
+		r.SetAzureIdentities(condition, apiutils.Deduplicate(outAzureIdentities))
 
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
@@ -472,7 +497,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		case constants.TraitLogins, constants.TraitWindowsLogins,
 			constants.TraitKubeGroups, constants.TraitKubeUsers,
 			constants.TraitDBNames, constants.TraitDBUsers,
-			constants.TraitAWSRoleARNs, teleport.TraitJWT:
+			constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
+			teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -654,13 +680,13 @@ type HostUsersInfo struct {
 }
 
 // RoleFromSpec returns new Role created from spec
-func RoleFromSpec(name string, spec types.RoleSpecV5) (types.Role, error) {
+func RoleFromSpec(name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
 	return role, trace.Wrap(err)
 }
 
 // RoleSetFromSpec returns a new RoleSet from spec
-func RoleSetFromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
+func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 	role, err := RoleFromSpec(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -992,6 +1018,20 @@ func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
 		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
+}
+
+// MatchAzureIdentity returns true if provided Azure identity matches selectors.
+func MatchAzureIdentity(selectors []string, identity string, matchWildcard bool) (bool, string) {
+	identity = strings.ToLower(identity)
+	for _, l := range selectors {
+		if strings.ToLower(l) == identity {
+			return true, "element matched"
+		}
+		if matchWildcard && l == types.Wildcard {
+			return true, "wildcard matched"
+		}
+	}
+	return false, fmt.Sprintf("no match, role selectors %v, identity: %v", selectors, identity)
 }
 
 // MatchDatabaseName returns true if provided database name matches selectors.
@@ -1369,6 +1409,44 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 	return utils.StringsSliceFromSet(arns), nil
 }
 
+// CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
+func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error) {
+	identities := make(map[string]string)
+	var matchedTTL bool
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
+			matchedTTL = true
+			for _, identity := range role.GetAzureIdentities(types.Allow) {
+				identities[strings.ToLower(identity)] = identity
+			}
+		}
+	}
+	for _, role := range set {
+		for _, identity := range role.GetAzureIdentities(types.Deny) {
+			// deny * cleans options
+			if identity == types.Wildcard {
+				identities = make(map[string]string)
+			}
+			// remove particular identity
+			delete(identities, strings.ToLower(identity))
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user cannot access Azure API for %v", ttl)
+	}
+	if len(identities) == 0 {
+		return nil, trace.NotFound("this user cannot access Azure API, has no assigned identities")
+	}
+
+	out := make([]string, 0, len(identities))
+	for _, identity := range identities {
+		out = append(out, identity)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
 // CheckLoginDuration checks if role set can login up to given duration and
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
@@ -1499,7 +1577,7 @@ type AWSRoleARNMatcher struct {
 	RoleARN string
 }
 
-// Match matches database account name against provided role and condition.
+// Match matches AWS role ARN against provided role and condition.
 func (m *AWSRoleARNMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	match, _ := MatchAWSRoleARN(role.GetAWSRoleARNs(condition), m.RoleARN)
 	return match, nil
@@ -1508,6 +1586,22 @@ func (m *AWSRoleARNMatcher) Match(role types.Role, condition types.RoleCondition
 // String returns the matcher's string representation.
 func (m *AWSRoleARNMatcher) String() string {
 	return fmt.Sprintf("AWSRoleARNMatcher(RoleARN=%v)", m.RoleARN)
+}
+
+// AzureIdentityMatcher matches a role against Azure identity.
+type AzureIdentityMatcher struct {
+	Identity string
+}
+
+// Match matches Azure identity against provided role and condition.
+func (m *AzureIdentityMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	match, _ := MatchAzureIdentity(role.GetAzureIdentities(condition), m.Identity, condition == types.Deny)
+	return match, nil
+}
+
+// String returns the matcher's string representation.
+func (m *AzureIdentityMatcher) String() string {
+	return fmt.Sprintf("AzureIdentityMatcher(Identity=%v)", m.Identity)
 }
 
 // CanImpersonateSomeone returns true if this checker has any impersonation rules
@@ -2007,10 +2101,16 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	additionalDeniedMessage := ""
 
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
+	resourceHasLabels := true
+	getEmptyLabels := func(r types.Role, rct types.RoleConditionType) types.Labels { return types.Labels{} }
+
 	switch r.GetKind() {
 	case types.KindDatabase:
 		getRoleLabels = types.Role.GetDatabaseLabels
 		additionalDeniedMessage = "Confirm database user and name."
+	case types.KindDatabaseService:
+		resourceHasLabels = false
+		getRoleLabels = getEmptyLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
@@ -2077,7 +2177,9 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !matchLabels {
+
+		// Deny only if the resourceHasLabels but there was no match.
+		if resourceHasLabels && !matchLabels {
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
 					role.GetName(), labelsMessage))
@@ -2661,13 +2763,15 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
+	case types.V6:
+		fallthrough
 	case types.V5:
 		fallthrough
 	case types.V4:
 		// V4 roles are identical to V3 except for their defaults
 		fallthrough
 	case types.V3:
-		var role types.RoleV5
+		var role types.RoleV6
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -2700,7 +2804,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch role := role.(type) {
-	case *types.RoleV5:
+	case *types.RoleV6:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -2711,5 +2815,23 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
+	}
+}
+
+// DowngradeToV5 converts a V6 role to V5 so that it will be compatible with
+// older instances. Makes a shallow copy if the conversion is necessary. The
+// passed in role will not be mutated.
+// DELETE IN 13.0.0
+func DowngradeRoleToV5(r *types.RoleV6) (*types.RoleV6, error) {
+	switch r.Version {
+	case types.V3, types.V4, types.V5:
+		return r, nil
+	case types.V6:
+		var downgraded types.RoleV6
+		downgraded = *r
+		downgraded.Version = types.V5
+		return &downgraded, nil
+	default:
+		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }
