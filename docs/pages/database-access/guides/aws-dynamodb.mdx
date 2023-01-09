@@ -22,6 +22,9 @@ This guide will help you to:
 
 ## Prerequisites
 
+- A running Teleport plane. If you don't already have Teleport running, see
+  [How to Choose a Teleport Edition](../../choose-an-edition/introduction.mdx)
+  to learn more about your options, and how to set up Teleport.
 - AWS account with DynamoDB databases.
 - IAM permissions to create IAM roles.
 - `aws` Command Line Interface (CLI) tool installed in PATH.
@@ -126,17 +129,11 @@ metadata:
   name: aws-dynamodb-access
 spec:
   allow:
-    app_labels:
+    db_labels:
       '*': '*'
-    aws_role_arns:
-    - arn:aws:iam::(=aws.aws_access_key=):role/ExampleTeleportDynamoDBRole
+    db_users:
+    - '*'
 ```
-
-<Details title="Templating aws_role_arns" opened={false}>
-The `aws_role_arns` field supports template variables so they can be populated
-dynamically based on your users' identity provider attributes. See [Role
-Templates](../../access-controls/guides/role-templates.mdx) for details.
-</Details>
 
 Create the new role:
 
@@ -149,8 +146,10 @@ $ tctl create -f aws-dynamodb-access.yaml
 ## Step 3/4. Install the Teleport Database Service
 
 Create an EC2 instance to host the Teleport Database Service, and attach the
-`TeleportDatabaseService` AWS IAM role to it. If you're hosting the service another way, you
-must provide AWS credentials to the service - see [AWS credentials configuration](https://docs.aws.amazon.com/sdkref/latest/guide/creds-config-files.html) for more details.
+`TeleportDatabaseService` AWS IAM role to it. If you're hosting the service another
+way, you must provide AWS credentials to the service - see [AWS credentials
+configuration](https://docs.aws.amazon.com/sdkref/latest/guide/creds-config-files.html)
+for more details.
 
 <Admonition type="warning" title="non-standard AWS regions">
 For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
@@ -257,4 +256,20 @@ $ aws dynamodb list-tables --endpoint-url=http://localhost:8000
         "table3"
     ]
 }
+```
+
+You can also connect to this database from the AWS NoSQL Workbench, as documented in our [Database Access GUI Clients](../../connect-your-client/gui-clients.mdx#nosql-workbench) guide.
+
+You can also use this tunnel for programmatic access. The example below uses the `boto3` SDK from AWS:
+
+```python
+$ python3
+Python 3.10.4 (main, Mar 31 2022, 03:37:37) [Clang 12.0.0 ] on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import boto3
+>>> clt = boto3.client('dynamodb', endpoint_url='http://localhost:8000')
+>>> res = clt.list_tables()
+>>> print(res)
+{'TableNames': *snip output*}
+>>> 
 ```
