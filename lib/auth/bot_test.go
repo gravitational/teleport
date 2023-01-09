@@ -45,7 +45,7 @@ func TestServerCreateBot(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	testRole := "test-role"
-	_, err := CreateRole(ctx, srv.Auth(), testRole, types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), testRole, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -196,7 +196,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a new bot.
@@ -253,7 +253,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a new bot.

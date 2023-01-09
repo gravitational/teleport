@@ -22,6 +22,7 @@ main() {
   buf generate --template=buf-go.gen.yaml \
     --path=api/proto/teleport/devicetrust/ \
     --path=api/proto/teleport/loginrule/ \
+    --path=api/proto/teleport/proxy/ \
     --path=proto/teleport/lib/multiplexer/
   buf generate --template=lib/prehog/buf.gen.yaml lib/prehog/proto
 

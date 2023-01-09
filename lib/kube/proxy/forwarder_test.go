@@ -35,6 +35,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -159,7 +160,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	const remoteAddr = "user.example.com"
-
+	activeAccessRequests := []string{uuid.NewString(), uuid.NewString()}
 	tests := []struct {
 		desc              string
 		user              auth.IdentityGetter
@@ -171,11 +172,50 @@ func TestAuthenticate(t *testing.T) {
 		haveKubeCreds     bool
 		tunnel            reversetunnel.Server
 		kubeServers       []types.KubeServer
+		activeRequests    []string
 
 		wantCtx     *authContext
 		wantErr     bool
 		wantAuthErr bool
 	}{
+		{
+			desc:           "local user and cluster with active access request",
+			user:           auth.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			haveKubeCreds:  true,
+			tunnel:         tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "local",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+			),
+			activeRequests: activeAccessRequests,
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
+				certExpires: certExpiration,
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
+		},
 		{
 			desc:           "local user and cluster",
 			user:           auth.LocalUser{},
@@ -252,6 +292,38 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+			),
+			wantCtx: &authContext{
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				certExpires:       certExpiration,
+				kubeClusterLabels: make(map[string]string),
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
+		},
+		{
+			desc:           "remote user and local cluster with active request id",
+			user:           auth.RemoteUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			haveKubeCreds:  true,
+			tunnel:         tun,
+			activeRequests: activeAccessRequests,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -509,7 +581,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServers = tt.kubeServers
-			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV5{
+			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					KubeUsers:        tt.roleKubeUsers,
@@ -525,6 +597,7 @@ func TestAuthenticate(t *testing.T) {
 				Identity: auth.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
+					ActiveRequests:    tt.activeRequests,
 				}),
 			}
 			authz := mockAuthorizer{ctx: &authCtx}
@@ -543,7 +616,8 @@ func TestAuthenticate(t *testing.T) {
 								CommonName:   username,
 								Organization: []string{"example"},
 							},
-							NotAfter: certExpiration},
+							NotAfter: certExpiration,
+						},
 					},
 				},
 			}
@@ -573,13 +647,14 @@ func TestAuthenticate(t *testing.T) {
 			// validate authCtx.key() to make sure it includes certExpires timestamp.
 			// this is important to make sure user's credentials are correctly cached
 			// and once user's re-login, Teleport won't reuse their previous cache entry.
-			ctxKey := fmt.Sprintf("%v:%v:%v:%v:%v:%v",
+			ctxKey := fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v",
 				tt.wantCtx.teleportCluster.name,
 				username,
 				tt.wantCtx.kubeUsers,
 				tt.wantCtx.kubeGroups,
 				tt.wantCtx.kubeCluster,
 				certExpiration.Unix(),
+				tt.activeRequests,
 			)
 			require.Equal(t, ctxKey, gotCtx.key())
 		})
@@ -1219,10 +1294,10 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 		assert      require.ErrorAssertionFunc
 	}
 
-	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{})
+	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{
+	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxKubernetesConnections: 5,
 		},

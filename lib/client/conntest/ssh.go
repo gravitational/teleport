@@ -135,7 +135,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(certAuths)
+	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(certAuths)
 
 	keyAuthMethod, err := key.AsAuthMethod()
 	if err != nil {
