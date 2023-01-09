@@ -3205,12 +3205,12 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	return pc, nil
 }
 
-// Message for error in connecting to ssh proxy address
-func confirmSSHConnectivityErrorMsg(proxyAddress string) (errorMessage string) {
-	msg := fmt.Sprintf("Unable to successfully connect and authenticate to ssh proxy address=%v. "+
+// confirmSSHConnectivityErrorMsg returns the error message for Proxy SSH
+// connectivity errors.
+func confirmSSHConnectivityErrorMsg(proxyAddress string) string {
+	return fmt.Sprintf("Unable to successfully connect and authenticate to ssh proxy address=%v. "+
 		"Required for Teleport client. "+
 		"Confirm connectivity and availability.", proxyAddress)
-	return msg
 }
 
 // makeProxySSHClient creates an SSH client by following steps:
