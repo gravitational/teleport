@@ -1638,6 +1638,8 @@ type DatabaseGCP struct {
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
 	ResourceID string `yaml:"resource_id,omitempty"`
+	// IsFlexiServer is true if the database is an Azure Flexible server.
+	IsFlexiServer bool `yaml:"is_flexi_server,omitempty"`
 }
 
 // Apps represents the configuration for the collection of applications this
