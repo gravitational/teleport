@@ -20,7 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -191,12 +191,12 @@ func newCerts(t *testing.T) []KeyPairPath {
 	dir := t.TempDir()
 	certs := []KeyPairPath{
 		{
-			PrivateKey:  path.Join(dir, "c0.key"),
-			Certificate: path.Join(dir, "c0.crt"),
+			PrivateKey:  filepath.Join(dir, "c0.key"),
+			Certificate: filepath.Join(dir, "c0.crt"),
 		},
 		{
-			PrivateKey:  path.Join(dir, "c1.key"),
-			Certificate: path.Join(dir, "c1.crt"),
+			PrivateKey:  filepath.Join(dir, "c1.key"),
+			Certificate: filepath.Join(dir, "c1.crt"),
 		},
 	}
 
