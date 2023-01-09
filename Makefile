@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.1.4
+VERSION=11.2.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -969,21 +969,15 @@ protos/all: protos/build protos/lint protos/format
 .PHONY: protos/build
 protos/build: buf/installed
 	$(BUF) build
-	cd lib/teleterm && $(BUF) build
-	cd lib/prehog && $(BUF) build
 
 .PHONY: protos/format
 protos/format: buf/installed
 	$(BUF) format -w
-	cd lib/teleterm && $(BUF) format -w
-	cd lib/prehog && $(BUF) format -w
 
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
-	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
-	cd lib/teleterm && $(BUF) lint
-	cd lib/prehog && $(BUF) lint
+	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
 
 .PHONY: lint-protos
 lint-protos: protos/lint
@@ -1027,7 +1021,7 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host: protos/all
-	cd lib/teleterm && $(BUF) generate
+	$(BUF) generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
 
 .PHONY: goinstall
 goinstall:
