@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -453,9 +454,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Azure requires database login to be <user>@<server-name> e.g.
-		// alice@postgres-server-name.
-		config.User = fmt.Sprintf("%v@%v", config.User, sessionCtx.Database.GetAzure().Name)
+		config.User = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, config.User)
 	}
 	return config, nil
 }
