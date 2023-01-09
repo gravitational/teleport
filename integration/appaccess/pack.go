@@ -286,17 +286,6 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 	err = json.Unmarshal(body, &casResp)
 	require.NoError(t, err)
 
-	// Drop the session on cleanup. This helps maintaining the number of app
-	// sessions low. Having a large number of sessions might impact time
-	// sensitive tests.
-	t.Cleanup(func() {
-		// Do not assert the error because some tests might directly delete the
-		// session causing it to return a session not found error.
-		_ = p.rootCluster.Process.GetAuthServer().DeleteAppSession(context.Background(), types.DeleteAppSessionRequest{
-			SessionID: casResp.CookieValue,
-		})
-	})
-
 	return []*http.Cookie{
 		{
 			Name:  app.CookieName,
@@ -307,6 +296,26 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 			Value: casResp.SubjectCookieValue,
 		},
 	}
+}
+
+// DeleteAppSessionFromCookies deletes an application session from HTTP cookies
+// on root cluster.
+func (p *Pack) DeleteAppSessionFromCookies(t *testing.T, cookies []*http.Cookie) {
+	t.Helper()
+
+	p.DeleteAppSession(t, helpers.ParseCookies(t, cookies).SessionCookie.Value)
+}
+
+// DeleteAppSession deletes an application session on root cluster.
+func (p *Pack) DeleteAppSession(t *testing.T, sessionID string) {
+	t.Helper()
+
+	require.NoError(
+		t,
+		p.rootCluster.Process.GetAuthServer().DeleteAppSession(context.Background(), types.DeleteAppSessionRequest{
+			SessionID: sessionID,
+		}),
+	)
 }
 
 // LockUser will lock the configured user for this pack.
