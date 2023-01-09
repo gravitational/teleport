@@ -6204,7 +6204,7 @@ type UserSpecV2 struct {
 	GithubIdentities []ExternalIdentity `protobuf:"bytes,3,rep,name=GithubIdentities,proto3" json:"github_identities,omitempty"`
 	// Roles is a list of roles assigned to user
 	Roles []string `protobuf:"bytes,4,rep,name=Roles,proto3" json:"roles,omitempty"`
-	// Roles is a list of access policies assigned to user
+	// AccessPolicies is a list of access policies assigned to user
 	AccessPolicies []string `protobuf:"bytes,10,rep,name=AccessPolicies,proto3" json:"access_policies,omitempty"`
 	// Traits are key/value pairs received from an identity provider (through
 	// OIDC claims or SAML assertions) or from a system administrator for local
