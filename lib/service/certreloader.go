@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"sync"
+	"crypto/x509"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -108,6 +109,17 @@ func (c *CertReloader) loadCertificates() error {
 			// If one certificate fails to load, then no certificate is updated.
 			return trace.Wrap(err)
 		}
+
+		// Parse the end entity cert and add it to certificate.Leaf.
+		// With this, the SupportsCertificate call doesn't have to
+		// parse it on every GetCertificate call.
+		leaf, err := x509.ParseCertificate(certificate.Certificate[0])
+		if err != nil {
+			// If one certificate fails to load, then no certificate is updated.
+			return trace.Wrap(err)
+		}
+		certificate.Leaf = leaf
+
 		certs = append(certs, certificate)
 	}
 
