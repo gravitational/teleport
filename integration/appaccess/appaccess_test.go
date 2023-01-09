@@ -119,9 +119,11 @@ func testForward(p *Pack, t *testing.T) {
 		},
 		{
 			desc: "invalid application session cookie, redirect to login",
-			inCookies: []*http.Cookie{{
-				Name:  app.CookieName,
-				Value: "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C"},
+			inCookies: []*http.Cookie{
+				{
+					Name:  app.CookieName,
+					Value: "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C",
+				},
 			},
 			outStatusCode: http.StatusFound,
 		},
@@ -576,7 +578,7 @@ func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 
 	// Logout from Teleport.
-	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
+	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions/web", []byte{})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 

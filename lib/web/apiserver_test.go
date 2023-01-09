@@ -578,7 +578,7 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 }
 
 func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Response {
-	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "web", "renew"), nil)
 	require.NoError(t, err)
 	return resp
 }
@@ -775,7 +775,7 @@ func TestWebSessionsCRUD(t *testing.T) {
 	// now delete session
 	_, err = pack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests trying to use this session will fail
@@ -1129,7 +1129,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					ID: session.ID("not a uuid"),
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "login: missing login",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1137,7 +1138,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					Login: "",
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "server: missing server",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1921,7 +1923,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	_, err = stream.Read(out)
 	require.NoError(t, err)
 
-	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// wait until we timeout or detect that connection has been closed
@@ -3182,6 +3184,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
+
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	query := url.Values{"sort": []string{"name"}}
@@ -3240,6 +3243,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
+	// Test without defined database names or users in role.
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
@@ -3261,6 +3265,49 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Protocol: "test-protocol",
 		Hostname: "test-uri",
 	}})
+
+	// Test with a role that defines database names and users.
+	extraRole := &types.RoleV6{
+		Metadata: types.Metadata{Name: "extra-role"},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				DatabaseNames: []string{"name1"},
+				DatabaseUsers: []string{"user1"},
+				DatabaseLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+	}
+
+	pack = proxy.authPack(t, "test-user2@example.com", services.NewRoleSet(extraRole))
+	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Name:          "db1",
+		Desc:          "test-description",
+		Protocol:      "test-protocol",
+		Type:          types.DatabaseTypeSelfHosted,
+		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Hostname:      "test-uri",
+		DatabaseUsers: []string{"user1"},
+		DatabaseNames: []string{"name1"},
+	}, {
+		Name:          "db2",
+		Type:          types.DatabaseTypeSelfHosted,
+		Labels:        []ui.Label{},
+		Protocol:      "test-protocol",
+		Hostname:      "test-uri",
+		DatabaseUsers: []string{"user1"},
+		DatabaseNames: []string{"name1"},
+	}})
+
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3735,7 +3782,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Len(t, sessions, len(applications))
 
 	// Logout from Telport.
-	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
@@ -4481,7 +4528,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// now delete session
 	_, err = newPack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests to use this session will fail
@@ -5777,6 +5824,8 @@ func TestCreateDatabase(t *testing.T) {
 	username := "someuser"
 	roleCreateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			DatabaseNames: []string{"name1"},
+			DatabaseUsers: []string{"user1"},
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabase,
 					[]string{types.VerbCreate}),
@@ -5806,6 +5855,7 @@ func TestCreateDatabase(t *testing.T) {
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
+				Labels:   []ui.Label{},
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -5898,6 +5948,21 @@ func TestCreateDatabase(t *testing.T) {
 		for _, label := range tt.req.Labels {
 			require.Contains(t, databaseLabels, label.Name, "label not found")
 			require.Equal(t, label.Value, databaseLabels[label.Name], "label exists but has unexpected value")
+		}
+
+		// Check response value:
+		if tt.expectedStatus == http.StatusOK {
+			result := ui.Database{}
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
+			require.Equal(t, result, ui.Database{
+				Name:          tt.req.Name,
+				Protocol:      tt.req.Protocol,
+				Type:          types.DatabaseTypeSelfHosted,
+				Labels:        tt.req.Labels,
+				Hostname:      "someuri",
+				DatabaseUsers: []string{"user1"},
+				DatabaseNames: []string{"name1"},
+			})
 		}
 	}
 }
@@ -6859,7 +6924,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessRequestID := accessReq.GetMetadata().Name
 
 	// Make a request to renew the session with the ID of the access request.
-	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "renew"), renewSessionRequest{
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "web", "renew"), renewSessionRequest{
 		AccessRequestID: accessRequestID,
 	})
 	require.NoError(t, err)
@@ -7387,7 +7452,7 @@ func TestLogout(t *testing.T) {
 	require.Len(t, clusters, 1)
 
 	// logout from proxy 1
-	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// ensure proxy 1 invalidated the session
