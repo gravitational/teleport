@@ -13,6 +13,19 @@ description: A tutorial for using Machine ID with CircleCI
   Machine ID for CircleCI is available starting from Teleport `v11.1`.
 </Details>
 
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A node that is a part of the Teleport cluster with
+[Server Access](https://goteleport.com/docs/server-access/introduction/).
+- A local workstation with `tsh` access to the cluster.
+- A CircleCI project connected to a Git repository you can push to.
+
+## Step 1/4. Determine CircleCI IDs
+
+## Step 2/4. Create the join token for CircleCI
+
 ```yaml
 kind: token
 version: v2
@@ -27,8 +40,11 @@ spec:
     organization_id: 00f45056-5918-4171-9222-b538c76ed3f8
     allow:
       - project_id: dabad1c2-62eb-48a6-87ab-fc6ae6589281
-        context_id: 05ad3418-d221-484f-99fb-46dc6b0f569b
 ```
+
+## Step 3/4. Create a Machine ID bot
+
+## Step 4/4. Configure CircleCI workflow
 
 ```yaml
 # See: https://circleci.com/docs/2.0/configuration-reference
@@ -51,3 +67,7 @@ workflows:
           context:
             - test-context
 ```
+
+## Further steps
+
+### Using CircleCI contexts
