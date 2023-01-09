@@ -81,11 +81,11 @@ func newParser(env map[string]any) (predicate.Parser, error) {
 
 // PredicateAccessChecker checks access/permissions to access certain resources by evaluating AccessPolicy resources.
 type PredicateAccessChecker struct {
-	policies []types.Policy
+	policies []types.AccessPolicy
 }
 
 // NewPredicateAccessChecker creates a new PredicateAccessChecker with a set of policies describing the permissions.
-func NewPredicateAccessChecker(policies []types.Policy) *PredicateAccessChecker {
+func NewPredicateAccessChecker(policies []types.AccessPolicy) *PredicateAccessChecker {
 	return &PredicateAccessChecker{policies}
 }
 

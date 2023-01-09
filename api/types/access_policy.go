@@ -24,17 +24,19 @@ import (
 )
 
 // AccessPolicyV1 is a predicate policy used for RBAC, similar to rule but uses predicate language.
-type Policy interface {
+type AccessPolicy interface {
 	// Resource provides common resource properties
 	Resource
 	// GetAllow returns a list of allow expressions grouped by scope.
 	GetAllow() map[string]string
 	// GetDeny returns a list of deny expressions grouped by scope.
 	GetDeny() map[string]string
+	// GetOptions returns a list of stringified scalar value policy options.
+	GetOptions() map[string]string
 }
 
-// NewPolicy creates a new policy from a specification.
-func NewPolicy(name string, spec AccessPolicySpecV1) *AccessPolicyV1 {
+// NewAccessPolicy creates a new access policy from a specification.
+func NewAccessPolicy(name string, spec AccessPolicySpecV1) *AccessPolicyV1 {
 	return &AccessPolicyV1{
 		Kind:    KindAccessPolicy,
 		Version: V1,
@@ -129,4 +131,9 @@ func (c *AccessPolicyV1) GetAllow() map[string]string {
 // GetDeny returns a list of deny expressions grouped by scope.
 func (c *AccessPolicyV1) GetDeny() map[string]string {
 	return c.Spec.Deny
+}
+
+// GetOptions returns a list of stringified scalar value policy options.
+func (c *AccessPolicyV1) GetOptions() map[string]string {
+	return c.Spec.Options
 }

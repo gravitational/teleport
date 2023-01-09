@@ -2011,12 +2011,12 @@ service AuthService {
   // GetBotUsers gets all users with bot labels.
   rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
 
-  // CreatePolicy creates a new policy resource.
-  rpc CreatePolicy(types.AccessPolicyV1) returns (google.protobuf.Empty);
-  // GetPolicy fetches a policy resource by name.
-  rpc GetPolicy(GetPolicyRequest) returns (types.AccessPolicyV1);
-  // GetPolicies lists policies in the cluster.
-  rpc GetPolicies(google.protobuf.Empty) returns (GetPoliciesResponse);
+  // CreateAccessPolicy creates a new access policy resource.
+  rpc CreateAccessPolicy(types.AccessPolicyV1) returns (google.protobuf.Empty);
+  // GetAccessPolicy fetches a access policy resource by name.
+  rpc GetAccessPolicy(GetPolicyRequest) returns (types.AccessPolicyV1);
+  // GetAccessPolicies lists access policies in the cluster.
+  rpc GetAccessPolicies(google.protobuf.Empty) returns (GetPoliciesResponse);
 
   // GetUser gets a user resource by name.
   rpc GetUser(GetUserRequest) returns (types.UserV2);

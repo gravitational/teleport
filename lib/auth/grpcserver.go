@@ -4303,28 +4303,28 @@ func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb
 	return &emptypb.Empty{}, nil
 }
 
-// CreatePolicy creates a new policy resource.
-func (g *GRPCServer) CreatePolicy(ctx context.Context, req *types.AccessPolicyV1) (*emptypb.Empty, error) {
+// CreateAccessPolicy creates a new access policy resource.
+func (g *GRPCServer) CreateAccessPolicy(ctx context.Context, req *types.AccessPolicyV1) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.CreatePolicy(ctx, req); err != nil {
+	if err := auth.CreateAccessPolicy(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &emptypb.Empty{}, nil
 }
 
-// GetPolicy fetches a policy resource by name.
-func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.GetPolicyRequest) (*types.AccessPolicyV1, error) {
+// GetAccessPolicy fetches a access policy resource by name.
+func (g *GRPCServer) GetAccessPolicy(ctx context.Context, req *proto.GetPolicyRequest) (*types.AccessPolicyV1, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	policy, err := auth.GetPolicy(ctx, req.Name)
+	policy, err := auth.GetAccessPolicy(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4332,14 +4332,14 @@ func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.GetPolicyRequest)
 	return policy.(*types.AccessPolicyV1), nil
 }
 
-// GetPolicies lists policies in the cluster.
-func (g *GRPCServer) GetPolicies(ctx context.Context, req *emptypb.Empty) (*proto.GetPoliciesResponse, error) {
+// GetAccessPolicies lists access policies in the cluster.
+func (g *GRPCServer) GetAccessPolicies(ctx context.Context, req *emptypb.Empty) (*proto.GetPoliciesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	policies, err := auth.GetPolicies(ctx)
+	policies, err := auth.GetAccessPolicies(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
