@@ -49,7 +49,7 @@ func onConfig(cf *CLIConf) error {
 
 	// Note: TeleportClient.connectToProxy() overrides the proxy address when
 	// JumpHosts are in use, which this does not currently implement.
-	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
+	proxyHost, _, err := net.SplitHostPort(tc.Config.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
