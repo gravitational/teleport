@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"errors"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -3452,8 +3453,6 @@ var defaultWebProxyPorts = []int{
 func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
 	buf := &bytes.Buffer{}
 	buf.WriteString("Teleport proxy not available at proxy address ")
-	buf.WriteString(proxyAddress)
-	buf.WriteString(". Confirm address and connectivity. ")
 
 	for i, port := range ports {
 		if i > 0 {
@@ -3463,6 +3462,7 @@ func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
 		buf.WriteString(":")
 		buf.WriteString(strconv.Itoa(port))
 	}
+	buf.WriteString(". Confirm address and connectivity. ")
 
 	return buf.String()
 }
