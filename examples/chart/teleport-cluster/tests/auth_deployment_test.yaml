@@ -672,8 +672,8 @@ tests:
         replicaCount: 2
     asserts:
       - equal:
-          path: spec.strategy.maxSurge
+          path: spec.strategy.rollingUpdate.maxSurge
           value: 0
       - equal:
-          path: spec.strategy.maxUnavailable
+          path: spec.strategy.rollingUpdate.maxUnavailable
           value: 1
