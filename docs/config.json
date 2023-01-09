@@ -2191,6 +2191,11 @@
       "source": "/application-access/guides/azure/",
       "destination": "/application-access/cloud-apis/azure/",
       "permanent": true
+    },
+    {
+      "source": "/database-access/guides/dynamodb/",
+      "destination": "/application-access/guides/dynamodb/",
+      "permanent": true
     }
   ]
 }
