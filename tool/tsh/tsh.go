@@ -17,9 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"bytes"
 	"fmt"
 	"io"
 	"net"
