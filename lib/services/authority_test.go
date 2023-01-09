@@ -17,6 +17,7 @@ limitations under the License.
 package services_test
 
 import (
+	"bytes"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -185,4 +186,46 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	require.NotPanics(t, func() { caUTC.Clone() })
 
 	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
+}
+
+func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
+	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster1",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: bytes.Repeat([]byte{49}, 1600),
+				Key:  bytes.Repeat([]byte{49}, 1200),
+			}},
+		},
+	})
+	require.NoError(b, err)
+
+	// ca2 is a clone of ca1.
+	ca2 := ca1.Clone()
+
+	// ca3 has different cert bytes from ca1.
+	ca3, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster1",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: bytes.Repeat([]byte{49}, 1666),
+				Key:  bytes.Repeat([]byte{49}, 1222),
+			}},
+		},
+	})
+	require.NoError(b, err)
+
+	b.Run("true", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			require.True(b, CertAuthoritiesEquivalent(ca1, ca2))
+		}
+	})
+
+	b.Run("false", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			require.False(b, CertAuthoritiesEquivalent(ca1, ca3))
+		}
+	})
 }
