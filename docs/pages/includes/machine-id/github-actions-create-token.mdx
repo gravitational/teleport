@@ -1,6 +1,7 @@
-In order to allow your GitHub Actions workflow to authenticate with your Teleport cluster,
-you'll first need to create a join token. These tokens set out criteria by which
-the Auth Server decides whether or not to allow a bot or node to join.
+In order to allow your GitHub Actions workflow to authenticate with your
+Teleport cluster, you'll first need to create a join token. These tokens set out
+criteria by which the Auth Server decides whether or not to allow a bot or node
+to join.
 
 To create a token, we can write the resource's YAML to a file on disk, and then
 use `tctl` to apply it.
