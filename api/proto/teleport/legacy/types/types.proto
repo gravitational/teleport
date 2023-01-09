@@ -2468,6 +2468,7 @@ message UserSpecV2 {
   // Roles is a list of roles assigned to user
   repeated string Roles = 4 [(gogoproto.jsontag) = "roles,omitempty"];
 
+  // Roles is a list of access policies assigned to user
   repeated string AccessPolicies = 10 [(gogoproto.jsontag) = "access_policies,omitempty"];
 
   // Traits are key/value pairs received from an identity provider (through
