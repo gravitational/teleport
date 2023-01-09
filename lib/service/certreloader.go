@@ -99,7 +99,7 @@ func (c *CertReloader) Run(ctx context.Context) error {
 // It returns an error if any of the certificate key pairs fails to load.
 // If any of the key pairs fails to load, none of the certificates are updated.
 func (c *CertReloader) loadCertificates() error {
-	certs := []tls.Certificate{}
+	certs := make([]tls.Certificate, 0, len(c.cfg.KeyPairs))
 	for _, pair := range c.cfg.KeyPairs {
 		c.Debugf("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
 
