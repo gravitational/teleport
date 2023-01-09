@@ -111,8 +111,10 @@ and user records will be stored.
 To configure Teleport for using etcd as a storage backend:
 
 - Make sure you are using **etcd versions 3.3** or newer.
+- Follow [etcd's cluster hardware recommendations](https://etcd.io/docs/v3.5/op-guide/hardware/). In particular, leverage 
+  SSD or high-performance virtualized block device storage for best performance.
 - Install etcd and configure peer and client TLS authentication using the [etcd
-  security guide](https://etcd.io/docs/v3.4.0/op-guide/security/).
+  security guide](https://etcd.io/docs/v3.5/op-guide/security/).
   - You can use [this script provided by
     etcd](https://github.com/etcd-io/etcd/tree/master/hack/tls-setup) if you
     don't already have a TLS setup.

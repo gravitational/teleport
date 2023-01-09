@@ -608,6 +608,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 					SuggestedAgentMatcherLabels: types.Labels{
 						"env":     utils.Strings{"prod"},
 						"product": utils.Strings{"*"},
+						"os":      utils.Strings{"mac", "linux"},
 					},
 				},
 			}
@@ -656,6 +657,9 @@ db_service:
   resources:
     - labels:
         env: prod
+        os:
+          - mac
+          - linux
         product: '*'
 `)
 			},
