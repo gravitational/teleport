@@ -30,6 +30,7 @@ import (
 )
 
 func TestCertReloader(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		desc                   string
 		certsUpdate            func(t *testing.T, certs []KeyPairPath)
