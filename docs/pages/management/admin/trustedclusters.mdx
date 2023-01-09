@@ -349,7 +349,7 @@ On your local machine, create a file called `trusted_cluster.yaml` with the
 following content:
 
 ```yaml
-# cluster.yaml
+# trusted_cluster.yaml
 kind: trusted_cluster
 version: v2
 metadata:
@@ -806,7 +806,7 @@ these pieces of data from it. It then performs the following actions:
 
 ## Step 5/6. Updating role mappings
 
-You can update the role mappings by modifying the cluster.yaml file we created
+You can update the role mappings by modifying the trusted_cluster.yaml file we created
 earlier to contain the new role mapping.
 
 After logging into the leaf cluster:
@@ -853,7 +853,7 @@ Make the following change to the resource:
 Update the Trusted Cluster:
 
 ```code
-$ tctl create --force cluster.yaml
+$ tctl create --force trusted_cluster.yaml
 ```
 
 This closes the reverse tunnel between your leaf cluster and your root cluster.
