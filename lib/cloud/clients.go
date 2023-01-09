@@ -69,21 +69,27 @@ import (
 
 // Clients provides interface for obtaining cloud provider clients.
 type Clients interface {
-	// GetGCPIAMClient returns GCP IAM client.
-	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetInstanceMetadataClient returns instance metadata client based on which
 	// cloud provider Teleport is running on, if any.
 	GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error)
-	// GetGCPGKEClient returns GKE client.
-	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// GCPClients is an interface for providing GCP API clients.
+	GCPClients
 	// AWSClients is an interface for providing AWS API clients.
 	AWSClients
 	// AzureClients is an interface for Azure-specific API clients
 	AzureClients
 	// Closer closes all initialized clients.
 	io.Closer
+}
+
+// GCPClients is an interface for providing GCP API clients.
+type GCPClients interface {
+	// GetGCPIAMClient returns GCP IAM client.
+	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
+	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetGCPGKEClient returns GKE client.
+	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
 }
 
 // AWSClients is an interface for providing AWS API clients.
@@ -142,6 +148,12 @@ type AzureClients interface {
 	// GetAzureManagedSQLServerClient returns an Azure ManagedSQL Server client
 	// for the specified subscription.
 	GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error)
+	// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible Server client for the
+	// specified subscription.
+	GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error)
+	// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible Server client for the
+	// specified subscription.
+	GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -149,14 +161,16 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:            make(map[string]azure.DBServersClient),
-			azurePostgresClients:         make(map[string]azure.DBServersClient),
-			azureRedisClients:            azure.NewClientMap(azure.NewRedisClient),
-			azureRedisEnterpriseClients:  azure.NewClientMap(azure.NewRedisEnterpriseClient),
-			azureKubernetesClient:        make(map[string]azure.AKSClient),
-			azureVirtualMachinesClients:  azure.NewClientMap(azure.NewVirtualMachinesClient),
-			azureSQLServerClients:        azure.NewClientMap(azure.NewSQLClient),
-			azureManagedSQLServerClients: azure.NewClientMap(azure.NewManagedSQLClient),
+			azureMySQLClients:               make(map[string]azure.DBServersClient),
+			azurePostgresClients:            make(map[string]azure.DBServersClient),
+			azureRedisClients:               azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients:     azure.NewClientMap(azure.NewRedisEnterpriseClient),
+			azureKubernetesClient:           make(map[string]azure.AKSClient),
+			azureVirtualMachinesClients:     azure.NewClientMap(azure.NewVirtualMachinesClient),
+			azureSQLServerClients:           azure.NewClientMap(azure.NewSQLClient),
+			azureManagedSQLServerClients:    azure.NewClientMap(azure.NewManagedSQLClient),
+			azureMySQLFlexServersClients:    azure.NewClientMap(azure.NewMySQLFlexServersClient),
+			azurePostgresFlexServersClients: azure.NewClientMap(azure.NewPostgresFlexServersClient),
 		},
 	}
 }
@@ -204,6 +218,12 @@ type azureClients struct {
 	// azureManagedSQLServerClient is the cached Azure Managed SQL Server
 	// client.
 	azureManagedSQLServerClients azure.ClientMap[azure.ManagedSQLServerClient]
+	// azureMySQLFlexServersClients is the cached Azure MySQL Flexible Server
+	// client.
+	azureMySQLFlexServersClients azure.ClientMap[azure.MySQLFlexServersClient]
+	// azurePostgresFlexServersClients is the cached Azure PostgreSQL Flexible Server
+	// client.
+	azurePostgresFlexServersClients azure.ClientMap[azure.PostgresFlexServersClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -475,6 +495,16 @@ func (c *cloudClients) GetAzureManagedSQLServerClient(subscription string) (azur
 	return c.azureManagedSQLServerClients.Get(subscription, c.GetAzureCredential)
 }
 
+// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
+func (c *cloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
+	return c.azureMySQLFlexServersClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
+func (c *cloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
+	return c.azurePostgresFlexServersClients.Get(subscription, c.GetAzureCredential)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -715,6 +745,8 @@ type TestCloudClients struct {
 	AzureVirtualMachines    azure.VirtualMachinesClient
 	AzureSQLServer          azure.SQLServerClient
 	AzureManagedSQLServer   azure.ManagedSQLServerClient
+	AzureMySQLFlex          azure.MySQLFlexServersClient
+	AzurePostgresFlex       azure.PostgresFlexServersClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -877,6 +909,16 @@ func (c *TestCloudClients) GetAzureSQLServerClient(subscription string) (azure.S
 // SQL servers.
 func (c *TestCloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
 	return c.AzureManagedSQLServer, nil
+}
+
+// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
+func (c *TestCloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
+	return c.AzureMySQLFlex, nil
+}
+
+// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
+func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
+	return c.AzurePostgresFlex, nil
 }
 
 // Close closes all initialized clients.
