@@ -10,7 +10,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws"
-	"github.com/gravitational/teleport/e/tool/modules"
+	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -22,16 +22,40 @@ type LicenseFile struct {
 	License types.License
 }
 
+// IsExpired returns true if the license expiry time is in the past, and false
+// if it is not.
 func (l *LicenseFile) IsExpired() bool {
 	return time.Now().After(l.KeyPair.Cert.NotAfter)
 }
 
+// ExpiresIn returns how long until the license expires. The result will be
+// negative if the license has expired.
 func (l *LicenseFile) ExpiresIn() time.Duration {
 	return time.Until(l.KeyPair.Cert.NotAfter)
 }
 
-// ReadAndActivate reads and activates a license from the file
-func ReadAndActivate(filePath string) (*LicenseFile, error) {
+// IsDisabled returns true if the license has expired by more than the grace
+// interval, and false if it has not.
+func (l *LicenseFile) IsDisabled() bool {
+	disabledAt := l.KeyPair.Cert.NotAfter.Add(constants.LicenseGraceInterval)
+	return time.Now().After(disabledAt)
+}
+
+// DisabledIn returns how long until features should be disabled due to license
+// expiry. The result will be negative if that time has already passed.
+func (l *LicenseFile) DisabledIn() time.Duration {
+	disabledAt := l.KeyPair.Cert.NotAfter.Add(constants.LicenseGraceInterval)
+	return time.Until(disabledAt)
+}
+
+// GetKeyPair returns the license KeyPair as the github.com/graviational/license
+// value.
+func (l *LicenseFile) GetKeyPair() *liblicense.License {
+	return l.KeyPair
+}
+
+// NewLicenseFile reads a license from filePath.
+func NewLicenseFile(filePath string) (*LicenseFile, error) {
 	if filePath == "" {
 		return nil, trace.BadParameter("missing license file path")
 	}
@@ -51,8 +75,6 @@ func ReadAndActivate(filePath string) (*LicenseFile, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	modules.SetModules(licenseFile.License)
 
 	return licenseFile, nil
 }
@@ -77,6 +99,7 @@ func FromPEM(pem []byte) (*LicenseFile, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		license.SetExpiry(licenseKeyPair.Cert.NotAfter)
 	}
 
 	return &LicenseFile{licenseKeyPair, license}, nil

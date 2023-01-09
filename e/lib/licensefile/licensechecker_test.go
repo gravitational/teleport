@@ -17,6 +17,7 @@ package licensefile
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"testing"
 	"time"
 
@@ -48,16 +49,32 @@ func TestCheckLicense(t *testing.T) {
 	tests := map[string]struct {
 		license      *LicenseFile
 		wantSeverity types.AlertSeverity
+		wantMessage  string
 	}{
-		"Expired": {
+		"Disabled": {
 			license: &LicenseFile{
 				KeyPair: &liblicense.License{
 					Cert: &x509.Certificate{
-						NotAfter: time.Now().Add(time.Hour * -1),
+						NotAfter: time.Now().Add(-constants.LicenseGraceInterval),
 					},
 				},
 			},
 			wantSeverity: types.AlertSeverity_HIGH,
+			wantMessage:  constants.LicenseDisabledMessageFormat,
+		},
+		"Expired": {
+			license: &LicenseFile{
+				KeyPair: &liblicense.License{
+					Cert: &x509.Certificate{
+						NotAfter: time.Now().Add(-time.Hour),
+					},
+				},
+			},
+			wantSeverity: types.AlertSeverity_HIGH,
+			wantMessage: fmt.Sprintf(
+				constants.LicenseExpiredMessageFormat,
+				durationMessage(constants.LicenseGraceInterval-1),
+			),
 		},
 		"Almost expired": {
 			license: &LicenseFile{
@@ -68,6 +85,10 @@ func TestCheckLicense(t *testing.T) {
 				},
 			},
 			wantSeverity: types.AlertSeverity_MEDIUM,
+			wantMessage: fmt.Sprintf(
+				constants.LicenseWarningMessageFormat,
+				durationMessage(constants.LicenseWarningInterval/2-1),
+			),
 		},
 	}
 
@@ -85,9 +106,8 @@ func TestCheckLicense(t *testing.T) {
 			alerts, err := msi.GetClusterAlerts(context.Background(), query)
 			require.NoError(t, err)
 			require.Equal(t, 1, len(alerts))
-			if len(alerts) == 1 {
-				require.Equal(t, test.wantSeverity, alerts[0].Spec.Severity)
-			}
+			require.Equal(t, test.wantSeverity, alerts[0].Spec.Severity)
+			require.Equal(t, test.wantMessage, alerts[0].Spec.Message)
 		})
 	}
 }

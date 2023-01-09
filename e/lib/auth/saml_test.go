@@ -63,7 +63,7 @@ func TestCreateSAMLUser(t *testing.T) {
 
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a})
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
 	// Dry-run creation of SAML user.
 	user, err := sas.createSAMLUser(&auth.CreateUserParams{
@@ -196,7 +196,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
-	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a})
+	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
 	// Create a new SAML connector for Ping.
 	const entityDescriptor = `<md:EntityDescriptor entityID="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78" ID="DUp57Bcq-y4RtkrRLyYj2fYxtqR" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
@@ -301,7 +301,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a})
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
 	_, err = auth.CreateRole(ctx, a, "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -428,7 +428,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 
 	a, err := auth.NewServer(authConfig, auth.WithClock(clock))
 	require.NoError(t, err)
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a})
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
 	// empty response gives error.
 	response, err := a.ValidateSAMLResponse(context.Background(), "", "")
@@ -677,7 +677,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, ValidLicense{})
 
 	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -846,6 +846,59 @@ func TestSAMLAuthRequest(t *testing.T) {
 			requestCopy, err := clientReader.GetSAMLAuthRequest(ctx, request.ID)
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+func TestSAMLLicense(t *testing.T) {
+	ctx := context.Background()
+
+	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
+		Issuer:                   "test",
+		SSO:                      "test",
+		Cert:                     fixtures.TLSCACertPEM,
+		AssertionConsumerService: "test",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "foo",
+			Value: "bar",
+			Roles: []string{"baz"},
+		}},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		license     License
+		expectError bool
+	}{
+		{
+			name:    "valid license",
+			license: ValidLicense{},
+		},
+		{
+			name:        "disabled license",
+			license:     DisabledLicense{},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newTestTLSServer(t, tt.license)
+			roleName := conn.GetAttributesToRoles()[0].Roles[0]
+			_, err := auth.CreateRole(ctx, srv.Auth(), roleName, types.RoleSpecV6{})
+			require.NoError(t, err)
+			err = srv.Auth().UpsertSAMLConnector(ctx, conn)
+			require.NoError(t, err)
+
+			req := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
+			_, err = srv.Auth().CreateSAMLAuthRequest(ctx, req)
+			if tt.expectError {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

@@ -27,12 +27,24 @@ const (
 
 var log = logrus.WithField(trace.Component, pluginName)
 
+// License is an interface for checking if a license is disabled.
+type License interface {
+	GetKeyPair() *liblicense.License
+	IsDisabled() bool
+}
+
+// ErrLicenseExpired is the error returned when a feature is disabled due to license expiry.
+var ErrLicenseExpired = trace.AccessDenied("Teleport Enterprise license expired")
+
 // Config is a configuration of the web plugin
 type Config struct {
 	// GetBackend fetches the backend for the running Teleport process.
 	// A func is used, instead of a plain field, so the Plugin may be created
 	// before the actual Teleport process.
 	GetBackend func() backend.Backend
+
+	// License holds the license under which the Teleport instance is running.
+	License License
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -63,8 +75,6 @@ type Plugin struct {
 	authorizer auth.Authorizer
 	// emitter is events emitter, used to submit discrete events.
 	emitter apievents.Emitter
-	// license is the license file used to start the auth server
-	license *liblicense.License
 }
 
 // GetName returns plugin name
@@ -87,11 +97,6 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	return nil
 }
 
-// SetLicense sets the license
-func (p *Plugin) SetLicense(licenseFile *liblicense.License) {
-	p.license = licenseFile
-}
-
 // RegisterAuthServices registers Auth Services (GRPC)
 func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	authServer, ok := server.(*auth.GRPCServer)
@@ -106,8 +111,9 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		return trace.BadParameter("missing proto server")
 	}
 
-	if p.license != nil {
-		authServer.AuthServer.SetLicense(p.license)
+	keypair := p.Config.License.GetKeyPair()
+	if keypair != nil {
+		authServer.AuthServer.SetLicense(keypair)
 	}
 
 	// Register Cloud APIs.
@@ -135,6 +141,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	sas, err := NewSAMLAuthService(&SAMLAuthServiceConfig{
 		Auth:    authServer.AuthServer,
 		Emitter: authServer.Emitter,
+		License: p.Config.License,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -145,6 +152,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	oas, err := NewOIDCAuthService(&OIDCAuthServiceConfig{
 		Auth:    authServer.AuthServer,
 		Emitter: authServer.Emitter,
+		License: p.Config.License,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -152,8 +160,8 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	authServer.AuthServer.SetOIDCService(oas)
 
 	// Create the ReleaseClient
-	if p.license != nil {
-		releaseTLSConfig, err := liblicense.MakeTLSConfig(*p.license)
+	if keypair != nil {
+		releaseTLSConfig, err := liblicense.MakeTLSConfig(*keypair)
 		if err != nil {
 			return trace.Wrap(err)
 		}

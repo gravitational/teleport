@@ -90,7 +90,7 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
 
-	s.oas, err = NewOIDCAuthService(&OIDCAuthServiceConfig{Auth: s.a})
+	s.oas, err = NewOIDCAuthService(&OIDCAuthServiceConfig{Auth: s.a, License: ValidLicense{}})
 	require.NoError(t, err)
 	s.a.SetOIDCService(s.oas)
 
@@ -1003,7 +1003,7 @@ func TestValidateACRValues(t *testing.T) {
 
 func TestOIDCAuthRequest(t *testing.T) {
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, ValidLicense{})
 
 	idp := newFakeIDP(t, false /* tls */)
 
@@ -1182,6 +1182,61 @@ func TestOIDCAuthRequest(t *testing.T) {
 			requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+func TestOIDCLicense(t *testing.T) {
+	idp := newFakeIDP(t, false /* tls */)
+
+	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
+		IssuerURL:    idp.s.URL,
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "idp-admin",
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		license     License
+		expectError bool
+	}{
+		{
+			name:    "valid license",
+			license: ValidLicense{},
+		},
+		{
+			name:        "disabled license",
+			license:     DisabledLicense{},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t, tt.license)
+			err := srv.Auth().UpsertOIDCConnector(ctx, conn)
+			require.NoError(t, err)
+
+			req := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
+			_, err = srv.Auth().CreateOIDCAuthRequest(ctx, req)
+			if tt.expectError {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

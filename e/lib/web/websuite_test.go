@@ -72,6 +72,7 @@ func newWebSuite(t *testing.T) *webSuite {
 	err = pluginRegistry.Add(webPlugin)
 	require.NoError(t, err)
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
+		License: eauth.ValidLicense{},
 		GetBackend: func() backend.Backend {
 			return s.testAuthServer.AuthServer.Backend
 		},

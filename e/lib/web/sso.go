@@ -36,6 +36,8 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
+		// TODO(camh): Consider redirecting to license expired URL for license expiry
+		// errors so we can present a nicer error to the user.
 		return client.LoginFailedRedirectURL
 	}
 
@@ -72,6 +74,11 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
+		// Keep a license expired error as is rather than returning a generic error message.
+		// There is nothing sensitive in the license expired error.
+		if errors.Is(err, eauth.ErrLicenseExpired) {
+			return nil, trace.Wrap(err)
+		}
 		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
 	}
 
@@ -169,6 +176,8 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
+		// TODO(camh): Consider redirecting to license expired URL for license expiry
+		// errors so we can present a nicer error to the user.
 		return client.LoginFailedRedirectURL
 	}
 
@@ -203,6 +212,11 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
+		// Keep a license expired error as is rather than returning a generic error message.
+		// There is nothing sensitive in the license expired error.
+		if errors.Is(err, eauth.ErrLicenseExpired) {
+			return nil, trace.Wrap(err)
+		}
 		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
 	}
 

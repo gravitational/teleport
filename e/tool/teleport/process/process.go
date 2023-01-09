@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/e/lib/web"
+	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -19,6 +20,24 @@ import (
 
 // NewTeleport initializes a new Teleport Enterprise process
 func NewTeleport(cfg *service.Config) (service.Process, error) {
+	// Only the auth service requires a license. Load it first so it can
+	// be used by auth plugins.
+	var licenseFile *licensefile.LicenseFile
+	if cfg.Auth.Enabled {
+		var err error
+		licenseFile, err = licensefile.NewLicenseFile(cfg.Auth.LicenseFile)
+		if err != nil {
+			cfg.Log.Debug(trace.DebugReport(err))
+			return nil, trace.AccessDenied("auth server requires a valid license file to start, "+
+				"please set the correct license_file path under auth_service section "+
+				"in your teleport config or put the license into the default search "+
+				"location at %v", filepath.Join(cfg.DataDir, defaults.LicenseFile))
+		}
+
+		emodules.SetModules(licenseFile.License)
+		cfg.Log.Infof("Using license from %v %v.", cfg.Auth.LicenseFile, licenseFile.License)
+	}
+
 	pluginRegistry := plugin.NewRegistry()
 
 	// Init plugins
@@ -32,6 +51,7 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 	var proProcess *pro.Process
 
 	authPlugin, err := auth.NewPlugin(auth.Config{
+		License: licenseFile,
 		GetBackend: func() backend.Backend {
 			if proProcess == nil {
 				panic("Failed to acquire backend, Teleport process is nil")
@@ -53,31 +73,14 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 
 	cfg.PluginRegistry = pluginRegistry
 
-	// Only auth service requires a license and has extensions
-	if !cfg.Auth.Enabled {
-		ossProcess, err := service.NewTeleport(cfg)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return ossProcess, nil
-	}
-
-	logger := cfg.Log
-	licenseFile, err := licensefile.ReadAndActivate(cfg.Auth.LicenseFile)
-	if err != nil {
-		logger.Debug(trace.DebugReport(err))
-		return nil, trace.AccessDenied("auth server requires a valid license file to start, "+
-			"please set the correct license_file path under auth_service section "+
-			"in your teleport config or put the license into the default search "+
-			"location at %v", filepath.Join(cfg.DataDir, defaults.LicenseFile))
-	}
-	authPlugin.SetLicense(licenseFile.KeyPair)
-
-	// Now when license is activated, initialize the OSS process
 	ossProcess, err := service.NewTeleport(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Only the auth service has extensions, so we're done now if not running an auth server
+	if !cfg.Auth.Enabled {
+		return ossProcess, nil
 	}
 
 	// Initialize teleport cloud

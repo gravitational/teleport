@@ -40,6 +40,7 @@ type SAMLAuthService struct {
 	auth                   *auth.Server
 	emitter                apievents.Emitter
 	assertionReplayService *local.AssertionReplayService
+	license                License
 	samlProviders          map[string]*samlProvider
 	lock                   sync.Mutex
 }
@@ -48,11 +49,15 @@ type SAMLAuthServiceConfig struct {
 	Auth                   *auth.Server
 	Emitter                apievents.Emitter
 	AssertionReplayService *local.AssertionReplayService
+	License                License
 }
 
 func (cfg *SAMLAuthServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Auth == nil {
 		return trace.BadParameter("auth.Server not provided")
+	}
+	if cfg.License == nil {
+		return trace.BadParameter("License not provided")
 	}
 	if cfg.AssertionReplayService == nil {
 		cfg.AssertionReplayService = cfg.Auth.Unstable.AssertionReplayService
@@ -74,8 +79,8 @@ func NewSAMLAuthService(cfg *SAMLAuthServiceConfig) (*SAMLAuthService, error) {
 		auth:                   cfg.Auth,
 		emitter:                cfg.Emitter,
 		assertionReplayService: cfg.AssertionReplayService,
-
-		samlProviders: make(map[string]*samlProvider),
+		license:                cfg.License,
+		samlProviders:          make(map[string]*samlProvider),
 	}, nil
 }
 
@@ -89,6 +94,10 @@ type samlProvider struct {
 var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 
 func (sas *SAMLAuthService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if sas.license.IsDisabled() {
+		return nil, ErrLicenseExpired
+	}
+
 	connector, provider, err := sas.getSAMLConnectorAndProvider(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -363,6 +372,10 @@ func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) auth.SAMLAuthRequest {
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
 func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlResponse string, connectorID string) (*auth.SAMLAuthResponse, error) {
+	if sas.license.IsDisabled() {
+		return nil, ErrLicenseExpired
+	}
+
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,

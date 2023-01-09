@@ -51,6 +51,7 @@ import (
 type OIDCAuthService struct {
 	auth         *auth.Server
 	emitter      apievents.Emitter
+	license      License
 	clients      map[string]*oidcClient
 	lock         sync.Mutex
 	getClaimsFun func(ctx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
@@ -59,11 +60,15 @@ type OIDCAuthService struct {
 type OIDCAuthServiceConfig struct {
 	Auth    *auth.Server
 	Emitter apievents.Emitter
+	License License
 }
 
 func (cfg *OIDCAuthServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Auth == nil {
 		return trace.BadParameter("auth.Server not provided")
+	}
+	if cfg.License == nil {
+		return trace.BadParameter("License not provided")
 	}
 	if cfg.Emitter == nil {
 		cfg.Emitter = events.NewDiscardEmitter()
@@ -79,6 +84,7 @@ func NewOIDCAuthService(cfg *OIDCAuthServiceConfig) (*OIDCAuthService, error) {
 	return &OIDCAuthService{
 		auth:         cfg.Auth,
 		emitter:      cfg.Emitter,
+		license:      cfg.License,
 		clients:      make(map[string]*oidcClient),
 		getClaimsFun: getClaims,
 	}, nil
@@ -270,6 +276,10 @@ func (c *oidcClient) waitFirstSync(timeout time.Duration) error {
 }
 
 func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	if oas.license.IsDisabled() {
+		return nil, ErrLicenseExpired
+	}
+
 	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -320,6 +330,10 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*auth.OIDCAuthResponse, error) {
+	if oas.license.IsDisabled() {
+		return nil, ErrLicenseExpired
+	}
+
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,

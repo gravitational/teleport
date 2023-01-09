@@ -38,6 +38,7 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	authPlugin, err := NewPlugin(Config{
+		License:    ValidLicense{},
 		GetBackend: func() backend.Backend { return authServer.Backend },
 	})
 	c.Assert(err, check.IsNil)
