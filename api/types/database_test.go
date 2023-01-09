@@ -19,6 +19,8 @@ package types
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -535,6 +537,193 @@ func TestDatabaseSelfHosted(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, DatabaseTypeSelfHosted, database.GetType())
 			require.False(t, database.IsCloudHosted())
+		})
+	}
+}
+
+func TestDynamoDBConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc       string
+		uri        string
+		region     string
+		account    string
+		wantSpec   DatabaseSpecV3
+		wantErrMsg string
+	}{
+		{
+			desc:    "account and region and empty URI is correct",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "aws://dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS URI and empty region is correct",
+			uri:     "dynamodb.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS streams dynamodb URI and empty region is correct",
+			uri:     "streams.dynamodb.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "streams.dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and AWS dax URI and empty region is correct",
+			uri:     "dax.us-west-1.amazonaws.com",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "dax.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and region and matching AWS URI region is correct",
+			uri:     "dynamodb.us-west-1.amazonaws.com",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:    "account and region and custom URI is correct",
+			uri:     "localhost:8080",
+			region:  "us-west-1",
+			account: "12345",
+			wantSpec: DatabaseSpecV3{
+				URI: "localhost:8080",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "12345",
+				},
+			},
+		},
+		{
+			desc:       "region and different AWS URI region is an error",
+			uri:        "dynamodb.us-west-2.amazonaws.com",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "does not match the configured URI",
+		},
+		{
+			desc:       "invalid AWS URI is an error",
+			uri:        "a.streams.dynamodb.us-west-1.amazonaws.com",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "invalid DynamoDB endpoint",
+		},
+		{
+			desc:       "custom URI and empty region is an error",
+			uri:        "localhost:8080",
+			account:    "12345",
+			wantErrMsg: "region is empty",
+		},
+		{
+			desc:       "empty URI and empty region is an error",
+			account:    "12345",
+			wantErrMsg: "region is empty",
+		},
+		{
+			desc:       "missing account id",
+			wantErrMsg: "account ID is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			database, err := NewDatabaseV3(Metadata{
+				Name: "test",
+			}, DatabaseSpecV3{
+				Protocol: "dynamodb",
+				URI:      tt.uri,
+				AWS: AWS{
+					Region:    tt.region,
+					AccountID: tt.account,
+				},
+			})
+			if tt.wantErrMsg != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			diff := cmp.Diff(tt.wantSpec, database.Spec, cmpopts.IgnoreFields(DatabaseSpecV3{}, "Protocol"))
+			require.Empty(t, diff)
+		})
+	}
+}
+
+func TestAWSIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  AWS
+		assert require.BoolAssertionFunc
+	}{
+		{
+			name:   "true",
+			input:  AWS{},
+			assert: require.True,
+		},
+		{
+			name: "true with unrecognized bytes",
+			input: AWS{
+				XXX_unrecognized: []byte{66, 0},
+			},
+			assert: require.True,
+		},
+		{
+			name: "true with nested unrecognized bytes",
+			input: AWS{
+				MemoryDB: MemoryDB{
+					XXX_unrecognized: []byte{99, 0},
+				},
+			},
+			assert: require.True,
+		},
+		{
+			name: "false",
+			input: AWS{
+				Region: "us-west-1",
+			},
+			assert: require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assert(t, test.input.IsEmpty())
 		})
 	}
 }

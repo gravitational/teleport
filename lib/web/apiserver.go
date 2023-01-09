@@ -112,6 +112,7 @@ type Handler struct {
 	auth                    *sessionCache
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
+	limiter                 *limiter.RateLimiter
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -315,7 +316,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// rateLimiter is used to limit unauthenticated challenge generation for
 	// passwordless and for unauthenticated metrics.
-	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+	h.limiter, err = limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{
 			{
 				Period:  defaults.LimiterPasswordlessPeriod,
@@ -333,7 +334,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if cfg.MinimalReverseTunnelRoutesOnly {
 		h.bindMinimalEndpoints()
 	} else {
-		h.bindDefaultEndpoints(rateLimiter)
+		h.bindDefaultEndpoints()
 	}
 
 	// if Web UI is enabled, check the assets dir:
@@ -476,7 +477,7 @@ func (h *Handler) bindMinimalEndpoints() {
 }
 
 // bindDefaultEndpoints binds the default endpoints for the web API.
-func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
+func (h *Handler) bindDefaultEndpoints() {
 	h.bindMinimalEndpoints()
 
 	// ping endpoint is used to check if the server is up. the /webapi/ping
@@ -501,20 +502,22 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", httplib.MakeHandler(h.desktopAccessScriptInstallADCSHandle))
 	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", httplib.MakeHandler(h.desktopAccessScriptConfigureHandle))
 
-	// DELETE IN: 5.1.0
-	//
-	// Migrated this endpoint to /webapi/sessions/web below.
-	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
-
 	// Forwards traces to the configured upstream collector
 	h.POST("/webapi/traces", h.WithAuth(h.traces))
 
-	// Web sessions
-	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	// App sessions
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
-	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
-	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
+	// DELETE IN 13, deprecated/unused web sessions routes (avatus)
+	// https://github.com/gravitational/teleport/pull/19892
+	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
+	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteWebSession))
+	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewWebSession))
+
+	// Web sessions
+	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
+	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteWebSession))
+	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
@@ -605,10 +608,10 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
-	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
+	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
 
 	// MFA public endpoints.
-	h.POST("/webapi/mfa/login/begin", h.withLimiter(challengeLimiter, h.mfaLoginBegin))
+	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
@@ -665,7 +668,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 
 	// create user events.
-	h.POST("/webapi/precapture", h.withLimiter(challengeLimiter, h.createPreUserEventHandle))
+	h.POST("/webapi/precapture", h.WithLimiter(h.createPreUserEventHandle))
 	// create authenticated user events.
 	h.POST("/webapi/capture", h.WithAuth(h.createUserEventHandle))
 }
@@ -1724,14 +1727,14 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 	}
 }
 
-// deleteSession is called to sign out user
+// deleteWebSession is called to sign out user
 //
 // DELETE /v1/webapi/sessions/:sid
 //
 // Response:
 //
 // {"message": "ok"}
-func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	err := h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1759,14 +1762,14 @@ type renewSessionRequest struct {
 	ReloadUser bool `json:"reloadUser"`
 }
 
-// renewSession updates this existing session with a new session.
+// renewWebSession updates this existing session with a new session.
 //
 // Depending on request fields sent in for extension, the new session creation can vary depending on:
 //   - AccessRequestID (opt): appends roles approved from access request to currently assigned roles or,
 //   - Switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
-func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -3270,10 +3273,22 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	})
 }
 
-// withLimiter adds IP-based rate limiting to fn.
-func (h *Handler) withLimiter(l *limiter.RateLimiter, fn httplib.HandlerFunc) httprouter.Handle {
+// WithLimiter adds IP-based rate limiting to fn.
+func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		err := l.RegisterRequest(r.RemoteAddr, nil /* customRate */)
+		return h.WithLimiterHandlerFunc(fn)(w, r, p)
+	})
+}
+
+// WithLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This
+// should be used when you need to nest this inside another HandlerFunc.
+func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		remote, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = h.limiter.RegisterRequest(remote, nil /* customRate */)
 		// MaxRateError doesn't play well with errors.Is, hence the cast.
 		if _, ok := err.(*ratelimit.MaxRateError); ok {
 			return nil, trace.LimitExceeded(err.Error())
@@ -3282,7 +3297,7 @@ func (h *Handler) withLimiter(l *limiter.RateLimiter, fn httplib.HandlerFunc) ht
 			return nil, trace.Wrap(err)
 		}
 		return fn(w, r, p)
-	})
+	}
 }
 
 // AuthenticateRequest authenticates request using combination of a session cookie

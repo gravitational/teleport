@@ -2722,6 +2722,34 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "AWS DynamoDB",
+			inFlags: CommandLineFlags{
+				DatabaseName:          "ddb",
+				DatabaseProtocol:      defaults.ProtocolDynamoDB,
+				DatabaseURI:           "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:  "123456789012",
+				DatabaseAWSExternalID: "12345678901234",
+				DatabaseAWSRegion:     "us-east-1",
+			},
+			outDatabase: service.Database{
+				Name:     "ddb",
+				Protocol: defaults.ProtocolDynamoDB,
+				URI:      "dynamodb.us-east-1.amazonaws.com",
+				AWS: service.DatabaseAWS{
+					Region:     "us-east-1",
+					AccountID:  "123456789012",
+					ExternalID: "12345678901234",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

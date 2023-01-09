@@ -64,8 +64,15 @@ Once a Node joins, it receives a host certificate signed by the cluster's
 Auth Service. To receive a host certificate upon joining a cluster, a new
 Teleport host must present an **invite token**.
 
-An invite token also defines which role a new host can assume within a cluster
-(e.g., `auth`, `proxy`, `node`, or `kube`).
+An invite token also defines which role a new host can assume within a cluster:
+
+- `proxy`
+- `node`
+- `auth`
+- `app`
+- `db`
+- `kube`
+- `windowsdesktop`
 
 Administrators can generate tokens as they are needed. A token can be used
 multiple times until its time to live (TTL) expires.
@@ -76,7 +83,7 @@ following example, a new token is created with a TTL of five minutes:
 ```code
 # Generate a short-lived invite token for a new node:
 $ export INVITE_TOKEN=$(tctl nodes add --ttl=5m --roles=node | grep "invite token:" | grep -Eo "[0-9a-z]{32}")
-$ echo ${INVITE_TOKEN}
+$ echo $INVITE_TOKEN
 # (=presets.tokens.first=)
 
 # You can also list all generated non-expired tokens:
@@ -134,8 +141,8 @@ Execute the following commands on the host where you will run your Node so you
 can use the `CA_PIN` and `INVITE_TOKEN` variables to start Teleport.
 
 ```code
-$ export CA_PIN=$<CA pin>
-$ export INVITE_TOKEN=<invite token>
+$ export CA_PIN=<Var name="ca-pin" />
+$ export INVITE_TOKEN=<Var name="invite-token" />
 ```
 
 <ScopedBlock scope={["oss", "enterprise"]}>
