@@ -145,6 +145,21 @@ func TestReconciler(t *testing.T) {
 				makeDynamicResource("res4", map[string]string{"env": "prod"}),
 			},
 		},
+		{
+			description: "verify access request resources",
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"env": []string{"prod"}},
+			}},
+			registeredResources: types.ResourcesWithLabels{
+				makeDynamicResource("res1", map[string]string{"env": "prod"}),
+			},
+			newResources: types.ResourcesWithLabels{
+				makeDynamicResource("res1", map[string]string{"env": "dev"}),
+			},
+			onDeleteCalls: types.ResourcesWithLabels{
+				makeDynamicResource("res1", map[string]string{"env": "prod"}),
+			},
+		},
 	}
 
 	for _, test := range tests {

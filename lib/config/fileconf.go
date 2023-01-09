@@ -85,6 +85,8 @@ type FileConfig struct {
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
 
+	Okta OktaService `yaml:"okta_service,omitempty"`
+
 	// Discovery is the "discovery_service" section in the Teleport
 	// configuration file
 	Discovery Discovery `yaml:"discovery_service,omitempty"`
@@ -1991,6 +1993,27 @@ type TracingService struct {
 }
 
 func (s *TracingService) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return false
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
+}
+
+// OktaService contains configuration for the okta_service.
+type OktaService struct {
+	// Enabled turns the Okta service role on or off for this process
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	OktaAPIEndpoint string `yaml:"api_endpoint"`
+
+	OktaAPITokenPath string `yaml:"api_token_path"`
+}
+
+func (s *OktaService) Enabled() bool {
 	if s.EnabledFlag == "" {
 		return false
 	}

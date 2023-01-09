@@ -4771,3 +4771,13 @@ message OktaAppLinkV1 {
   // The URI for the app link.
   string uri = 2 [(gogoproto.jsontag) = "uri"];
 }
+
+message OktaLabelRuleV1 {
+  Metadata metadata = 1;
+
+  string version = 2;
+
+  int32 priority = 3;
+
+  map<string, wrappers.StringValues> traits_map = 4;
+}

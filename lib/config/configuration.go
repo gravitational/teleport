@@ -435,6 +435,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Okta.Enabled() {
+		if err := applyOktaConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	if fc.Discovery.Enabled() {
 		applyDiscoveryConfig(fc, cfg)
@@ -1679,6 +1684,28 @@ func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
 
 		cfg.Tracing.CACerts = append(cfg.Tracing.CACerts, caCert)
 	}
+
+	return nil
+}
+
+func applyOktaConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.Okta.Enabled = true
+
+	if fc.Okta.OktaAPIEndpoint == "" {
+		return trace.BadParameter("okta_service is enabled but no endpoint_url is specified")
+	}
+
+	cfg.Okta.OktaAPIEndpoint = fc.Okta.OktaAPIEndpoint
+
+	if fc.Okta.OktaAPITokenPath == "" {
+		return trace.BadParameter("okta_service is enabled but no api_token_path is specified")
+	}
+	token, err := os.ReadFile(fc.Okta.OktaAPITokenPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg.Okta.OktaAPIToken = strings.TrimSpace(string(token))
 
 	return nil
 }

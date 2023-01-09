@@ -130,6 +130,9 @@ type Config struct {
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
 
+	// Okta defines the Okta integration configuration.
+	Okta OktaConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
@@ -1278,6 +1281,16 @@ func (t TracingConfig) Config(attrs ...attribute.KeyValue) (*tracing.Config, err
 	return traceConf, nil
 }
 
+// OktaConfig specifies the configuration for the Okta service
+type OktaConfig struct {
+	// Enabled turns the tracing service role on or off for this process.
+	Enabled bool
+
+	OktaAPIEndpoint string
+
+	OktaAPIToken string
+}
+
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
 // Access service.
 type WindowsDesktopConfig struct {
@@ -1549,6 +1562,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
+
+	cfg.Okta.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

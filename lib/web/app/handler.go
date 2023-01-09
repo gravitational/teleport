@@ -25,7 +25,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -213,20 +212,11 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session 
 	for _, server := range session.tr.c.servers {
 		app := server.GetApp()
 		if app.Origin() == types.OriginOkta {
-			oktaUrlBuilder := strings.Builder{}
-			// Set up the URL + IDP + Client ID
-			oktaUrlBuilder.WriteString("https://dev-53161101.okta.com/sso/saml2/0oa7ceq0x6G7LCqT25d7/")
-			// Append SAML deep link to application
-			applicationLink, err := url.Parse(app.GetURI())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			oktaUrlBuilder.WriteString(applicationLink.Path)
-			h.log.Infof("Redirecting to %s", oktaUrlBuilder.String())
+			h.log.Infof("Redirecting to %s", app.GetURI())
 			if err := cookie.SetSessionCookie(w, session.ws.GetUser(), session.ws.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
-			http.Redirect(w, r, oktaUrlBuilder.String(), http.StatusFound)
+			http.Redirect(w, r, app.GetURI(), http.StatusFound)
 			return nil
 		}
 	}
