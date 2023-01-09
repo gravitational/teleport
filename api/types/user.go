@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// User represents teleport embedded user or external user
+// User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets

@@ -42,9 +42,9 @@ func (process *TeleportProcess) initWindowsDesktopService() {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentWindowsDesktop, process.id),
 	})
-	process.registerWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
-		conn, err := process.waitForConnector(WindowsDesktopIdentityEvent, log)
+		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
@@ -151,7 +151,13 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		// Device authorization breaks browser-based access.
+		DisableDeviceAuthorization: true,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,6 +221,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
+		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,

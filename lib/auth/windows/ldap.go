@@ -36,6 +36,8 @@ type LDAPConfig struct {
 	// Username is an LDAP username, like "EXAMPLE\Administrator", where
 	// "EXAMPLE" is the NetBIOS version of Domain.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.
@@ -73,19 +75,24 @@ func (cfg LDAPConfig) DomainDN() string {
 }
 
 const (
-	// ComputerClass is the object class for computers in Active Directory
-	ComputerClass = "computer"
-	// ContainerClass is the object class for containers in Active Directory
-	ContainerClass = "container"
-	// GMSAClass is the object class for group managed service accounts in Active Directory.
-	GMSAClass = "msDS-GroupManagedServiceAccount"
-
 	// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
 
 	// WritableDomainControllerGroupID is the windows security identifier for dcs with write permissions
 	WritableDomainControllerGroupID = "516"
 	// ReadOnlyDomainControllerGroupID is the windows security identifier for read only dcs
 	ReadOnlyDomainControllerGroupID = "521"
+
+	// ClassComputer is the object class for computers in Active Directory
+	ClassComputer = "computer"
+	// ClassContainer is the object class for containers in Active Directory
+	ClassContainer = "container"
+	// ClassGMSA is the object class for group managed service accounts in Active Directory.
+	ClassGMSA = "msDS-GroupManagedServiceAccount"
+	// ClassUser is the object class for users in Active Directory
+	ClassUser = "user"
+
+	// CategoryPerson is object category for persons in Active Directory
+	CategoryPerson = "person"
 
 	// AttrName is the name of an LDAP object
 	AttrName = "name"
@@ -103,6 +110,12 @@ const (
 	AttrOSVersion = "operatingSystemVersion"
 	// AttrPrimaryGroupID is the primary group id of an LDAP object
 	AttrPrimaryGroupID = "primaryGroupID"
+	// AttrObjectSid is the Security Identifier of an LDAP object
+	AttrObjectSid = "objectSid"
+	// AttrObjectCategory is the object category of an LDAP object
+	AttrObjectCategory = "objectCategory"
+	// AttrObjectClass is the object class of an LDAP object
+	AttrObjectClass = "objectClass"
 
 	// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
 	// so in most cases the 1000 search page size will result in the optimal amount of requests made to
@@ -174,7 +187,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
 func (c *LDAPClient) Read(dn string, class string, attrs []string) ([]*ldap.Entry, error) {
-	return c.ReadWithFilter(dn, fmt.Sprintf("(objectClass=%s)", class), attrs)
+	return c.ReadWithFilter(dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
@@ -216,7 +229,7 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) 
 // CreateContainer creates an LDAP container entry if
 // it doesn't already exist.
 func (c *LDAPClient) CreateContainer(dn string) error {
-	err := c.Create(dn, ContainerClass, nil)
+	err := c.Create(dn, ClassContainer, nil)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil

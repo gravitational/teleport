@@ -7,15 +7,27 @@ on:
       - master
   pull_request:
     paths:
-      - /go.mod
-      - /go.sum
-      - operator/**
-      - api/types/**
-      - lib/tbot/**
+      - '/go.mod'
+      - '/go.sum'
+      - 'operator/**'
+      - 'api/types/**'
+      - 'lib/tbot/**'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths:
+      - '/go.mod'
+      - '/go.sum'
+      - 'operator/**'
+      - 'api/types/**'
+      - 'lib/tbot/**'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
     name: Unit Tests (Operator)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:

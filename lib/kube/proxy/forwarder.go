@@ -343,7 +343,7 @@ func (c authContext) String() string {
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix(), c.Identity.GetIdentity().ActiveRequests)
 }
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
@@ -828,6 +828,11 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		return nil, trace.Wrap(err)
@@ -861,19 +866,26 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
-		go func() {
-			<-stream.Done()
-			if err := session.leave(party.ID); err != nil {
-				f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
-			}
-		}()
 
 		err = session.join(party)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
+		closeC := make(chan struct{})
+		go func() {
+			defer close(closeC)
+			select {
+			case <-stream.Done():
+				party.InformClose()
+			case <-party.closeC:
+				return
+			}
+		}()
 		<-party.closeC
+		if _, err := session.leave(party.ID); err != nil {
+			f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+		}
+		<-closeC
 		return nil
 	}(); err != nil {
 		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
@@ -1165,7 +1177,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
@@ -1223,6 +1235,11 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
@@ -1280,7 +1297,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	<-party.closeC
 
-	if err := session.leave(party.ID); err != nil {
+	if _, err := session.leave(party.ID); err != nil {
 		f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
 	}
 
@@ -1297,7 +1314,7 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-	if err = executor.Stream(streamOptions); err != nil {
+	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		// send the status back to the client when forwarding mode is enabled
 		if err := proxy.sendStatus(err); err != nil {
@@ -1320,6 +1337,11 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	sess.forwarder, err = f.makeSessionForwarder(sess)
 	if err != nil {
@@ -1540,6 +1562,11 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	// sess.Close cancels the connection monitor context to release it sooner.
+	// When the server is under heavy load it can take a while to identify that
+	// the underlying connection is gone. This change prevents that and releases
+	// the resources as soon as we know the session is no longer active.
+	defer sess.close()
 
 	sess.upgradeToHTTP2 = true
 	sess.forwarder, err = f.makeSessionForwarder(sess)
@@ -1553,7 +1580,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-	rw := newResponseStatusRecorder(w)
+	rw := httplib.NewResponseStatusRecorder(w)
 	sess.forwarder.ServeHTTP(rw, req)
 
 	if sess.noAuditEvents {
@@ -1577,7 +1604,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		},
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
-		ResponseCode:              int32(rw.getStatus()),
+		ResponseCode:              int32(rw.Status()),
 		KubernetesClusterMetadata: ctx.eventClusterMeta(),
 	}
 	r := parseResourcePath(req.URL.Path)
@@ -1652,6 +1679,15 @@ type clusterSession struct {
 	// A HTTP2 configured transport does not work with connections that are going to be
 	// upgraded to SPDY, like in the cases of exec, port forward...
 	upgradeToHTTP2 bool
+	// monitorCancel is the conn monitor monitorCancel function.
+	monitorCancel context.CancelFunc
+}
+
+// close cancels the connection monitor context if available.
+func (s *clusterSession) close() {
+	if s.monitorCancel != nil {
+		s.monitorCancel()
+	}
 }
 
 // kubeClusterEndpoint can be used to connect to a kube cluster
@@ -1672,13 +1708,15 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	}
 
 	ctx, cancel := context.WithCancel(s.parent.ctx)
+	s.monitorCancel = cancel
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
-		Context: s.parent.ctx,
+		Context: ctx,
 		Cancel:  cancel,
 	})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1698,6 +1736,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	})
 	if err != nil {
 		tc.Close()
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
@@ -2108,46 +2147,4 @@ func (f *Forwarder) removeKubeDetails(name string) {
 		oldDetails.Close()
 	}
 	delete(f.clusterDetails, name)
-}
-
-type responseStatusRecorder struct {
-	http.ResponseWriter
-	flusher http.Flusher
-	status  int
-}
-
-func newResponseStatusRecorder(w http.ResponseWriter) *responseStatusRecorder {
-	rec := &responseStatusRecorder{ResponseWriter: w}
-	if flusher, ok := w.(http.Flusher); ok {
-		rec.flusher = flusher
-	}
-	return rec
-}
-
-func (r *responseStatusRecorder) WriteHeader(status int) {
-	r.status = status
-	r.ResponseWriter.WriteHeader(status)
-}
-
-// Flush optionally flushes the inner ResponseWriter if it supports that.
-// Otherwise, Flush is a noop.
-//
-// Flush is optionally used by github.com/gravitational/oxy/forward to flush
-// pending data on streaming HTTP responses (like streaming pod logs).
-//
-// Without this, oxy/forward will handle streaming responses by accumulating
-// ~32kb of response in a buffer before flushing it.
-func (r *responseStatusRecorder) Flush() {
-	if r.flusher != nil {
-		r.flusher.Flush()
-	}
-}
-
-func (r *responseStatusRecorder) getStatus() int {
-	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
-	// explicitly called.
-	if r.status == 0 {
-		return http.StatusOK
-	}
-	return r.status
 }

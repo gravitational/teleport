@@ -1196,6 +1196,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 // Checks if the cluster that is connecting is a pre-v11 cluster. If it is,
 // we disable the watcher for types.KindKubeServer and types.KindKubeCluster resources
 // since both resources are not supported in a v10 leaf cluster.
+//
+// **WARNING**: Ensure that the version below matches the version in which backward incompatible
+// changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
+// never become healthy due to unknown resources.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
 	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("11.0.0"))
 	if err != nil {
