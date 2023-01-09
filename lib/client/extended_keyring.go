@@ -46,17 +46,17 @@ var (
 
 // extendedKeyring is a wrapper for an in memory agent key ring with extensions.
 type extendedKeyring struct {
-	mu sync.Mutex
-
-	// locked locks the extended keyring.
-	locked bool
 	// keyring is the underlying keyring.
 	keyring agent.ExtendedAgent
+	// extensionHandlers are used to handle agent extension requests. These
+	// handlers are called under mu.Lock for safe access to protected fields.
+	extensionHandlers map[string]extensionHandler
+
+	mu sync.Mutex
+	// locked locks the extended keyring.
+	locked bool
 	// cryptoSigners are the corresponding crypto.Signers for added agent keys.
 	cryptoSigners map[string]crypto.Signer
-	// extensionHandlers are used to handle agent extension requests.
-	// These handlers are called under mu.Lock.
-	extensionHandlers map[string]extensionHandler
 }
 
 // ExtendedKeyringOpt is a keyring extension option that can be applied to a
@@ -104,52 +104,54 @@ func WithKeyExtension(s *Store) ExtendedKeyringOpt {
 
 // RemoveAll removes all identities.
 func (r *extendedKeyring) RemoveAll() error {
+	if err := r.keyring.RemoveAll(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	err := r.keyring.RemoveAll()
-	if err == nil {
-		r.cryptoSigners = make(map[string]crypto.Signer)
-	}
-	return trace.Wrap(err)
+	r.cryptoSigners = make(map[string]crypto.Signer)
+	return nil
 }
 
 // Remove removes all identities with the given public key.
 func (r *extendedKeyring) Remove(key ssh.PublicKey) error {
+	if err := r.keyring.Remove(key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	err := r.keyring.Remove(key)
-	if err == nil {
-		delete(r.cryptoSigners, string(key.Marshal()))
-	}
-	return trace.Wrap(err)
+	delete(r.cryptoSigners, string(key.Marshal()))
+	return nil
 }
 
 // Lock locks the agent. Sign, Remove, and Extension will fail, and List will return an empty list.
 func (r *extendedKeyring) Lock(passphrase []byte) error {
+	if err := r.keyring.Lock(passphrase); err != nil {
+		return trace.Wrap(err)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	err := r.keyring.Lock(passphrase)
-	if err == nil {
-		r.locked = true
-	}
-	return trace.Wrap(err)
+	r.locked = true
+	return nil
 }
 
 // Unlock undoes the effect of Lock
 func (r *extendedKeyring) Unlock(passphrase []byte) error {
+	if err := r.keyring.Unlock(passphrase); err != nil {
+		return trace.Wrap(err)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	err := r.keyring.Unlock(passphrase)
-	if err == nil {
-		r.locked = false
-	}
-	return trace.Wrap(err)
+	r.locked = false
+	return nil
 }
 
 // List returns the identities known to the agent.
 func (r *extendedKeyring) List() ([]*agent.Key, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	return r.keyring.List()
 }
 
@@ -157,9 +159,6 @@ func (r *extendedKeyring) List() ([]*agent.Key, error) {
 // is given, that certificate is added as public key. Note that
 // any constraints given are ignored.
 func (r *extendedKeyring) Add(key agent.AddedKey) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	cryptoSigner, ok := key.PrivateKey.(crypto.Signer)
 	if !ok {
 		return trace.BadParameter("invalid agent key: signer of type %T does not implement crypto.Signer", cryptoSigner)
@@ -173,36 +172,33 @@ func (r *extendedKeyring) Add(key agent.AddedKey) error {
 		}
 	}
 
-	err := r.keyring.Add(key)
-	if err == nil {
-		// Add crypto signer to cache.
-		r.cryptoSigners[string(sshPub.Marshal())] = cryptoSigner
+	if err := r.keyring.Add(key); err == nil {
+		return trace.Wrap(err)
 	}
-	return trace.Wrap(err)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cryptoSigners[string(sshPub.Marshal())] = cryptoSigner
+	return nil
 }
 
 // Sign returns a signature for the data.
 func (r *extendedKeyring) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	return r.keyring.Sign(key, data)
 }
 
 // SignWithFlags signs like Sign, but allows for additional flags to be sent/received.
 func (r *extendedKeyring) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	return r.keyring.SignWithFlags(key, data, flags)
 }
 
 // Signers returns signers for all the known keys.
 func (r *extendedKeyring) Signers() ([]ssh.Signer, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	return r.keyring.Signers()
 }
 
 // cryptoSignUnderLock returns a signature for the data using the sign@goteleport.com extension.
+// This method should be called under r.mu.Lock.
 func (r *extendedKeyring) cryptoSignUnderLock(key ssh.PublicKey, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	cryptoSigner, ok := r.cryptoSigners[string(key.Marshal())]
 	if !ok {

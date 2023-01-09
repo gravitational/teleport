@@ -336,7 +336,7 @@ func TestNewClientStoreFromAgent(t *testing.T) {
 	require.Equal(t, sockPath, agentSigner.sshAuthSock)
 
 	// Sign extension should produce verifiable signatures using the agent signer.
-	hashFunc := crypto.SHA1
+	hashFunc := crypto.SHA256
 	digest := make([]byte, 100)
 	_, err = rand.Read(digest)
 	require.NoError(t, err)

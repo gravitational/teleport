@@ -122,6 +122,9 @@ func NewClientStoreFromAgent(sshAuthSocket string) (*Store, error) {
 	return clientStore, nil
 }
 
+// agentSigner is a crypto.Signer backed by an ssh agent with the sign@goteleport.com extension.
+// We use a custom signer because it can be used to perform various signature algorithms, while
+// ssh.Signer can only perform ssh signatures which does not hash signature messages.
 type agentSigner struct {
 	sshAuthSock string
 	sshCert     *ssh.Certificate
