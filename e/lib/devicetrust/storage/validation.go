@@ -10,6 +10,12 @@ import (
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
+const (
+	maxCredentialIDLength       = 40 // UUID is 36 chars.
+	maxDeviceAssetTagLength     = 40 // macOS serial is 12 chars, UUID is 36 chars.
+	maxDeviceSerialNumberLength = maxDeviceAssetTagLength
+)
+
 // ValidateDeviceCredential validates a devicepb.DeviceCredential instance.
 // Returns the parsed public key.
 // The storage package is ultimately responsible for making sure data written to
@@ -21,6 +27,8 @@ func ValidateDeviceCredential(cred *devicepb.DeviceCredential) (crypto.PublicKey
 		return nil, trace.BadParameter("device credential required")
 	case cred.Id == "":
 		return nil, trace.BadParameter("credential ID required")
+	case len(cred.Id) > maxCredentialIDLength:
+		return nil, trace.BadParameter("credential ID exceeds %v characters", maxCredentialIDLength)
 	case len(cred.PublicKeyDer) == 0:
 		return nil, trace.BadParameter("credential public key required")
 	}
@@ -46,6 +54,8 @@ func ValidateCollectedData(cd *devicepb.DeviceCollectedData) error {
 		return trace.BadParameter("device data OS type required")
 	case cd.SerialNumber == "":
 		return trace.BadParameter("device serial number required")
+	case len(cd.SerialNumber) > maxDeviceSerialNumberLength:
+		return trace.BadParameter("device serial number exceeds %v characters", maxDeviceSerialNumberLength)
 	}
 	return nil
 }
@@ -66,6 +76,20 @@ func ValidateCollectedDataAgainstDevice(cd *devicepb.DeviceCollectedData, dev *d
 		return trace.BadParameter(
 			"collected data serial number mismatch: %q vs %q",
 			dev.AssetTag, cd.SerialNumber)
+	}
+	return nil
+}
+
+func validateDeviceForCreate(d *devicepb.Device) error {
+	switch {
+	case d == nil:
+		return trace.BadParameter("device required")
+	case d.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return trace.BadParameter("unknown or invalid os_type")
+	case d.AssetTag == "":
+		return trace.BadParameter("asset_tag required")
+	case len(d.AssetTag) > maxDeviceAssetTagLength:
+		return trace.BadParameter("asset_tag exceeds %v characters", maxDeviceAssetTagLength)
 	}
 	return nil
 }

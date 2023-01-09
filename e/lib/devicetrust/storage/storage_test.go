@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -347,6 +348,16 @@ func TestS_CreateDevice_errors(t *testing.T) {
 				return d
 			},
 			wantErr:   "asset_tag",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name: "asset_tag length",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.AssetTag = strings.Repeat("A", 41)
+				return d
+			},
+			wantErr:   "asset_tag exceeds",
 			assertErr: trace.IsBadParameter,
 		},
 		{
@@ -942,6 +953,18 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			wantErr:   "credential ID",
 		},
 		{
+			name:     "credential ID length",
+			deviceID: dev.Id,
+			createCred: func() *devicepb.DeviceCredential {
+				cp := proto.Clone(validCred).(*devicepb.DeviceCredential)
+				cp.Id = strings.Repeat("A", 41)
+				return cp
+			},
+			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			assertErr: trace.IsBadParameter,
+			wantErr:   "credential ID exceeds",
+		},
+		{
 			name:     "credential PublicKeyDer empty",
 			deviceID: dev.Id,
 			createCred: func() *devicepb.DeviceCredential {
@@ -998,6 +1021,30 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "OS type mismatch",
+		},
+		{
+			name:       "collectedData SerialNumber empty",
+			deviceID:   dev.Id,
+			createCred: func() *devicepb.DeviceCredential { return validCred },
+			createCD: func() *devicepb.DeviceCollectedData {
+				cp := proto.Clone(validCD).(*devicepb.DeviceCollectedData)
+				cp.SerialNumber = ""
+				return cp
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "serial number required",
+		},
+		{
+			name:       "collectedData SerialNumber length",
+			deviceID:   dev.Id,
+			createCred: func() *devicepb.DeviceCredential { return validCred },
+			createCD: func() *devicepb.DeviceCollectedData {
+				cp := proto.Clone(validCD).(*devicepb.DeviceCollectedData)
+				cp.SerialNumber = strings.Repeat("A", 41)
+				return cp
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "serial number exceeds",
 		},
 		{
 			name:       "collectedData SerialNumber mismatch",

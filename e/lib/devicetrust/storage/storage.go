@@ -82,7 +82,7 @@ func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device) []*d
 		resp[i] = &devicepb.DeviceOrStatus{}
 
 		// Is the device valid?
-		if err := validateForCreate(dev); err != nil {
+		if err := validateDeviceForCreate(dev); err != nil {
 			resp[i].Status = errToStatus(err)
 			continue
 		}
@@ -144,23 +144,11 @@ type assetTagKey struct {
 // Prefer using BulkCreateDevices if you want to create multiple devices
 // concurrently.
 func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.Device, error) {
-	if err := validateForCreate(dev); err != nil {
+	if err := validateDeviceForCreate(dev); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return s.createDevice(ctx, dev)
-}
-
-func validateForCreate(d *devicepb.Device) error {
-	switch {
-	case d == nil:
-		return trace.BadParameter("device required")
-	case d.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
-		return trace.BadParameter("unknown or invalid os_type")
-	case d.AssetTag == "":
-		return trace.BadParameter("asset_tag required")
-	}
-	return nil
 }
 
 func (s *S) createDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.Device, error) {
