@@ -628,19 +628,9 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 		kubeLabels = kubeAccessDetails.clusterLabels
 	}
 
-	// By default, if no kubernetes_users is set (which will be a majority),
-	// user will impersonate themselves, which is the backwards-compatible behavior.
-	if len(kubeUsers) == 0 {
-		kubeUsers = append(kubeUsers, authCtx.User.GetName())
-	}
-
-	// KubeSystemAuthenticated is a builtin group that allows
-	// any user to access common API methods, e.g. discovery methods
-	// required for initial client usage, without it, restricted user's
-	// kubectl clients will not work
-	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
-		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
-	}
+	// fillDefaultKubePrincipalDetails fills the default details in order to keep
+	// the correct behaviour when forwarding the request to the Kubernetes API.
+	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, authCtx.User.GetName())
 
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
 	// endpoint for a leaf teleport cluster.
@@ -730,6 +720,31 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 			isRemoteClosed: isRemoteClosed,
 		},
 	}, nil
+}
+
+// fillDefaultKubePrincipalDetails fills the default details in order to keep
+// the correct behaviour when forwarding the request to the Kubernetes API.
+// By default, if no kubernetes_users is set (which will be a majority),
+// user will impersonate themselves, which is the backwards-compatible behavior.
+// teleport.KubeSystemAuthenticated is a builtin group that allows
+// any user to access common API methods, e.g. discovery methods
+// required for initial client usage, without it, restricted user's
+// kubectl clients will not work
+func fillDefaultKubePrincipalDetails(kubeUsers []string, kubeGroups []string, username string) ([]string, []string) {
+	// By default, if no kubernetes_users is set (which will be a majority),
+	// user will impersonate themselves, which is the backwards-compatible behavior.
+	if len(kubeUsers) == 0 {
+		kubeUsers = append(kubeUsers, username)
+	}
+
+	// KubeSystemAuthenticated is a builtin group that allows
+	// any user to access common API methods, e.g. discovery methods
+	// required for initial client usage, without it, restricted user's
+	// kubectl clients will not work
+	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
+		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
+	}
+	return kubeUsers, kubeGroups
 }
 
 // kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
@@ -1602,6 +1617,28 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
 func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers http.Header) error {
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(log, ctx.kubeUsers, ctx.kubeGroups, headers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !ctx.teleportCluster.isRemote {
+		headers.Set(ImpersonateUserHeader, impersonateUser)
+
+		// Make sure to overwrite the exiting headers, instead of appending to
+		// them.
+		headers[ImpersonateGroupHeader] = nil
+		for _, group := range impersonateGroups {
+			headers.Add(ImpersonateGroupHeader, group)
+		}
+	}
+	return nil
+}
+
+// computeImpersonatedPrincipals computes the intersection between the information
+// received in the `Impersonate-User` and `Impersonate-Groups` headers and the
+// allowed values. If the user didn't specify any user and groups to impersoante,
+// Teleport will use every group the user is allowed to impersonate.
+func computeImpersonatedPrincipals(log logrus.FieldLogger, kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -1611,10 +1648,10 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 		switch header {
 		case ImpersonateUserHeader:
 			if impersonateUser != "" {
-				return trace.AccessDenied("%v, user already specified to %q", ImpersonationRequestDeniedMessage, impersonateUser)
+				return "", nil, trace.AccessDenied("%v, user already specified to %q", ImpersonationRequestDeniedMessage, impersonateUser)
 			}
 			if len(values) == 0 || len(values) > 1 {
-				return trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
+				return "", nil, trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
 			}
 			// when Kubernetes go-client sends impersonated groups it also sends the impersonated user.
 			// The issue arrises when the impersonated user was not defined and the user want to just impersonate
@@ -1626,18 +1663,18 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 			}
 			impersonateUser = values[0]
 
-			if _, ok := ctx.kubeUsers[impersonateUser]; !ok {
-				return trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
+			if _, ok := kubeUsers[impersonateUser]; !ok {
+				return "", nil, trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
 			}
 		case ImpersonateGroupHeader:
 			for _, group := range values {
-				if _, ok := ctx.kubeGroups[group]; !ok {
-					return trace.AccessDenied("%v, group header %q value is not allowed in roles", ImpersonationRequestDeniedMessage, group)
+				if _, ok := kubeGroups[group]; !ok {
+					return "", nil, trace.AccessDenied("%v, group header %q value is not allowed in roles", ImpersonationRequestDeniedMessage, group)
 				}
 				impersonateGroups = append(impersonateGroups, group)
 			}
 		default:
-			return trace.AccessDenied("%v, unsupported impersonation header %q", ImpersonationRequestDeniedMessage, header)
+			return "", nil, trace.AccessDenied("%v, unsupported impersonation header %q", ImpersonationRequestDeniedMessage, header)
 		}
 	}
 
@@ -1660,40 +1697,30 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 	// link the user identity with the IAM role, for example `IAM#{{external.email}}`
 	//
 	if impersonateUser == "" {
-		switch len(ctx.kubeUsers) {
+		switch len(kubeUsers) {
 		// this is currently not possible as kube users have at least one
 		// user (user name), but in case if someone breaks it, catch here
 		case 0:
-			return trace.AccessDenied("assumed at least one user to be present")
+			return "", nil, trace.AccessDenied("assumed at least one user to be present")
 		// if there is deterministic choice, make it to improve user experience
 		case 1:
-			for user := range ctx.kubeUsers {
+			for user := range kubeUsers {
 				impersonateUser = user
 				break
 			}
 		default:
-			return trace.AccessDenied(
+			return "", nil, trace.AccessDenied(
 				"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
 		}
 	}
 
 	if len(impersonateGroups) == 0 {
-		for group := range ctx.kubeGroups {
+		for group := range kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
 		}
 	}
 
-	if !ctx.teleportCluster.isRemote {
-		headers.Set(ImpersonateUserHeader, impersonateUser)
-
-		// Make sure to overwrite the exiting headers, instead of appending to
-		// them.
-		headers[ImpersonateGroupHeader] = nil
-		for _, group := range impersonateGroups {
-			headers.Add(ImpersonateGroupHeader, group)
-		}
-	}
-	return nil
+	return impersonateUser, impersonateGroups, nil
 }
 
 // catchAll forwards all HTTP requests to the target k8s API server
@@ -2550,7 +2577,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 		for _, item := range o.Items {
 			// Compute users and groups from available roles that match the
 			// cluster labels and kubernetes resources.
-			kubeGroups, kubeUsers, err := authCtx.Checker.CheckKubeGroupsAndUsers(
+			allowedKubeGroups, allowedKubeUsers, err := authCtx.Checker.CheckKubeGroupsAndUsers(
 				authCtx.sessionTTL,
 				false,
 				services.NewKubernetesClusterLabelMatcher(authCtx.kubeClusterLabels),
@@ -2566,22 +2593,19 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 			if err != nil {
 				continue
 			}
-			// By default, if no kubernetes_users is set (which will be a majority),
-			// user will impersonate themselves, which is the backwards-compatible behavior.
-			if len(kubeUsers) == 0 {
-				kubeUsers = append(kubeUsers, authCtx.User.GetName())
+			allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, authCtx.User.GetName())
+
+			impersonatedUsers, impersonatedGroups, err := computeImpersonatedPrincipals(
+				f.log, utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
+				req.Header,
+			)
+			if err != nil {
+				continue
 			}
 
-			// KubeSystemAuthenticated is a builtin group that allows
-			// any user to access common API methods, e.g. discovery methods
-			// required for initial client usage, without it, restricted user's
-			// kubectl clients will not work
-			if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
-				kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
-			}
 			// create a new kubernetes.Client using the impersonated users and groups
 			// that matched the current pod.
-			client, err := newImpersonatedKubeClient(details.kubeCreds, kubeUsers, kubeGroups)
+			client, err := newImpersonatedKubeClient(details.kubeCreds, impersonatedUsers, impersonatedGroups)
 			if err != nil {
 				return internalErrStatus, trace.Wrap(err)
 			}
@@ -2611,13 +2635,13 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 
 // newImpersonatedKubeClient creates a new Kubernetes Client that impersonates 3
 // a username and the groups.
-func newImpersonatedKubeClient(creds kubeCreds, usernames []string, groups []string) (*kubernetes.Clientset, error) {
+func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string) (*kubernetes.Clientset, error) {
 	c := &rest.Config{}
 	// clone cluster's rest config.
 	*c = *creds.getKubeRestConfig()
 	// change the impersonated headers.
 	c.Impersonate = rest.ImpersonationConfig{
-		UserName: usernames[0],
+		UserName: username,
 		Groups:   groups,
 	}
 	// TODO(tigrato): reuse the http client.
