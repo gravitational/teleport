@@ -60,6 +60,7 @@ type AccessRequest struct {
 	SuggestedReviewers []string               `protobuf:"bytes,10,rep,name=suggested_reviewers,json=suggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
 	// thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
 	ThresholdNames []string `protobuf:"bytes,11,rep,name=threshold_names,json=thresholdNames,proto3" json:"threshold_names,omitempty"`
+	// TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
 	// a list of resourceIDs requested in the AccessRequest
 	ResourceIds []*ResourceID `protobuf:"bytes,12,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
 	Resources   []*Resource   `protobuf:"bytes,13,rep,name=resources,proto3" json:"resources,omitempty"`
