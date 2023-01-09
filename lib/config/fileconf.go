@@ -1754,6 +1754,10 @@ type Proxy struct {
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
 
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration `yaml:"https_keypairs_reload_interval"`
+
 	// ACME configures ACME protocol support
 	ACME ACME `yaml:"acme"`
 
