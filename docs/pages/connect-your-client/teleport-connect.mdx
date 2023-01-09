@@ -126,8 +126,12 @@ progress when the app was closed. It will only restore the working directory for
 Teleport Connect ships with its own bundled version of tsh. Teleport Connect will always use this
 version of tsh for any actions performed within the app.
 
-Teleport Connect makes tsh available to use in your terminal of choice as well, with some slight
-differences between platforms.
+Teleport Connect makes tsh available to use in your terminal of choice as well. Please note that at
+the moment tsh and Teleport Connect operate on different sets of profiles, as Teleport Connect sets
+a custom home location through [the `TELEPORT_HOME` environment
+variable](../reference/cli.mdx/#tsh-environment-variables). For example, logging in to a new cluster
+through tsh will not make that cluster show up in Teleport Connect.
+
 
 <Tabs>
 <TabItem label="macOS">
