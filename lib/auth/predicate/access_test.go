@@ -104,7 +104,7 @@ func TestCheckAccessToNode(t *testing.T) {
 		},
 	})
 
-	denyMike := types.NewAccessPolicy("allow", types.AccessPolicySpecV1{
+	denyMike := types.NewAccessPolicy("deny", types.AccessPolicySpecV1{
 		Deny: map[string]string{
 			"access_node": "access_node.login == \"mike\"",
 		},
