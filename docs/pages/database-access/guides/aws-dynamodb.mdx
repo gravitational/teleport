@@ -4,13 +4,13 @@ description: How to access AWS DynamoDB with Teleport Database Access
 ---
 
 Access to AWS DynamoDB can be provided by [Teleport Database
-Access](../introduction.mdx) for the AWS Console and API. This allows for
-fine-grain access control through [Teleport's RBAC](../../application-access/introduction.mdx).
+Access](../introduction.mdx). This allows for
+fine-grain access control through [Teleport's RBAC](../../database-access/rbac.mdx).
 
 This guide will help you to:
 
 - Install the Teleport Database Service.
-- Set up the Teleport Database Service to access the AWS Console and API.
+- Set up the Teleport Database Service to access DynamoDB.
 - Connect to your DynamoDB databases through the Teleport Database Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -47,28 +47,22 @@ Service. (For Teleport Cloud customers, this will be similar to `mytenant.telepo
 This guide provides an example configuration of IAM access roles as a model,
 and uses an EC2 instance to serve the Teleport Database Access service.
 The level of access provided may not suit your needs, or may not fit your
-organization's access conventions. Adjust as needed to fit your needs.
+organization's access conventions. You should adjust the AWS IAM permissions to fit your needs.
 </Admonition>
 
 ## Step 1/4. Create IAM roles for DynamoDB access
 
-The setup described in this guide requires two IAM roles:
-
-- one to identify the EC2 instance running the Teleport Database Access service,
-- one applied to users that allows the former role to assume it, and allows
-access to DynamoDB.
+The setup described in this guide requires two IAM roles: one associated with the EC2 instance running the Teleport Database Access service and another that can be assumed by the EC2 instance role and grants access to DynamoDB services.
 
 ### EC2 instance role
 
-Visit the [Roles page](https://console.aws.amazon.com/iamv2/home#/roles) of
+Visit the [IAM > Roles page](https://console.aws.amazon.com/iamv2/home#/roles) of
 the AWS Console, then press "Create Role". Under **Trusted entity type** select
 "AWS service". Under **Use case** select "EC2", then click **Next**.
 
 ![Create Role to Identify EC2 Instance](../../../img/database-access/guides/dynamodb-create-ec2-role.png)
 
-This role requires no permissions, so on the next page you can click **Next**,
-then name the role and click **Create Role**. In this guide we'll use the example
-name `TeleportDatabaseService` for this role.
+On the "Add Permissions" page, you can simply click **Next** since this role does not require any permissions. In this guide, we will use the example name `TeleportDatabaseService` for this role. Once you have chosen a name, click **Create Role** to complete the process.
 
 ### DynamoDB access role
 
@@ -78,19 +72,19 @@ account to assume this role:
 
 ![Create Role Step 1](../../../img/database-access/guides/dynamodb-create-role-1.png)
 
-Press "Next". Find the AWS-managed policy `AmazonDynamoDBFullAccess` and then select the policy:
+Click **Next**. Find the AWS-managed policy `AmazonDynamoDBFullAccess` and then select the policy:
 
 ![Create Role Step 2](../../../img/database-access/guides/dynamodb-create-role-2.png)
 
 <Admonition type="note" title="Apply least-privilege permissions">
-`AmazonDynamoDBFullAccess` may provide too much access for your intentions. To
-use a different IAM policy to reduce permissions, see [Managing access
-permissions to your Amazon DynamoDB
+The `AmazonDynamoDBFullAccess` policy may grant more permissions than desired.
+If you want to use a different IAM policy to reduce permissions, refer to
+[Managing access permissions to your Amazon DynamoDB 
 Resources](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-overview.html)
-for more details.
+for more information.
 </Admonition>
 
-Press "Next". On the next page, enter a role name. In this guide we'll use
+Click **Next**. On the next page, enter a role name. In this guide we'll use
 the example name `ExampleTeleportDynamoDBRole` for this role.
 
 Under "Select trusted entities", update the JSON to allow the `TeleportDatabaseService`
@@ -104,7 +98,7 @@ role to assume this role:
             "Effect": "Allow",
             "Principal": {
                 "AWS": [
-                    "arn:aws:iam::(=aws.aws_access_key=):role/ExampleTeleportDynamoDBRole"
+                    "arn:aws:iam::(=aws.aws_access_key=):role/TeleportDatabaseService"
                 ]
             },
             "Action": "sts:AssumeRole",
@@ -114,7 +108,7 @@ role to assume this role:
 }
 ```
 
-Finally, click "Create role".
+Finally, click **Create Role**.
 
 ## Step 2/4. Configure the Teleport IAM role mapping
 
@@ -154,9 +148,9 @@ $ tctl create -f aws-dynamodb-access.yaml
 
 ## Step 3/4. Install the Teleport Database Service
 
-Create and EC2 instance to host the Teleport Database Service, and attach the
-`TeleportDatabaseService` to it. If you're hosting the service another way, you
-must provide AWS authentication to the host manually.
+Create an EC2 instance to host the Teleport Database Service, and attach the
+`TeleportDatabaseService` AWS IAM role to it. If you're hosting the service another way, you
+must provide AWS credentials to the service - see [AWS credentials configuration](https://docs.aws.amazon.com/sdkref/latest/guide/creds-config-files.html) for more details.
 
 <Admonition type="warning" title="non-standard AWS regions">
 For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
@@ -174,7 +168,8 @@ the command:
 ```code
 $ tctl tokens add \
     --type=db \
-    --db-name=aws-dynamodb
+    --db-name=example-dynamodb
+    --db-protocol=dynamodb
 ```
 
 Use the token provided by the output of this command in the next step.
@@ -207,7 +202,7 @@ db_service:
       "*": "*"
   # Lists statically registered databases proxied by this agent.
   databases:
-    - name: "aws-dynamodb"
+    - name: "example-dynamodb"
       protocol: "dynamodb"
       # optional uri, if uri is set then AWS region can be extracted from it
       # or if AWS region is already set then the regions must match.
@@ -248,7 +243,7 @@ connecting to your DynamoDB database.
 Create a proxy tunnel:
 
 ```code
-$ tsh proxy db --tunnel --port 8000 --db-user=ExampleTeleportDynamoDBRole dynamodb-name
+$ tsh proxy db --tunnel --port 8000 --db-user=ExampleTeleportDynamoDBRole example-dynamodb
 ```
 
 You can test the connection to the database through the `aws` cli:
