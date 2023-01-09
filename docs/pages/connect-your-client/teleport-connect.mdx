@@ -121,6 +121,36 @@ Connect will restore connections to all resources that were active before you cl
 When restoring terminal tabs, Teleport Connect doesn't attempt to re-execute commands that were in
 progress when the app was closed. It will only restore the working directory for those tabs.
 
+## Using tsh outside of Teleport Connect
+
+Teleport Connect ships with its own bundled version of tsh. Teleport Connect will always use this
+version of tsh for any actions performed within the app.
+
+Teleport Connect makes tsh available to use in your terminal of choice as well. Please note that at
+the moment tsh and Teleport Connect operate on different sets of profiles, as Teleport Connect sets
+a custom home location through [the `TELEPORT_HOME` environment
+variable](../reference/cli.mdx#tsh-environment-variables). For example, logging in to a new cluster
+through tsh will not make that cluster show up in Teleport Connect.
+
+
+<Tabs>
+<TabItem label="macOS">
+To add tsh to `PATH`, execute `tsh install` from the command bar in Teleport Connect. This will
+symlink tsh to `/usr/local/bin`. You can remove the symlink with `tsh uninstall`.
+
+If you used the tsh macOS .pkg installer before, this will overwrite the symlink made by that installer.
+</TabItem>
+<TabItem label="Linux">
+During installation, Teleport Connect automatically adds a symlink to tsh under
+`/usr/local/bin/tsh`, unless you have already installed the `teleport` package, which also creates
+that symlink.
+</TabItem>
+<TabItem label="Windows">
+During installation, Teleport Connect automatically adds the `resources\bin` folder from the
+installation directory to the `Path` user environment variable.
+</TabItem>
+</Tabs>
+
 ## Troubleshooting
 
 Logging out of a cluster, closing the app and logging in again resets all app state related to that
@@ -174,11 +204,12 @@ Teleport Connect updates and caches the local shell environment on app restart a
 a new shell session. If you add new environment variables to your shell startup files, Connect will
 see them only after you restart the app.
 
-### Insecure mode
+### Skipping TLS certificate verification
 
-You can open Teleport Connect in insecure mode, which skips HTTPS certificate verification when
-talking to a Teleport Proxy Service. This is useful in test environments or for demo purposes. We
-do not recommend using this mode in production.
+You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
+talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
+certificates](../management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+using this mode in production.
 
 <Tabs>
 <TabItem label="macOS">

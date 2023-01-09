@@ -33,10 +33,13 @@ import (
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
 
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
@@ -207,14 +210,18 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			},
 		}
 		// append trusted host certificate authorities
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			// append ssh ca certificates
-			for _, publicKey := range ca.HostCertificates {
-				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, publicKey, nil)
+			for _, publicKey := range ca.AuthorizedKeys {
+				knownHost, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
+					Hostname:      ca.ClusterName,
+					ProxyHost:     cfg.Key.ProxyHost,
+					AuthorizedKey: publicKey,
+				})
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(data))
+				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(knownHost))
 			}
 			// append tls ca certificates
 			idFile.CACerts.TLS = append(idFile.CACerts.TLS, ca.TLSCertificates...)
@@ -275,7 +282,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -299,7 +306,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -317,7 +324,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				block, _ := pem.Decode(cert)
 				cert, err := x509.ParseCertificate(block.Bytes)
@@ -422,7 +429,7 @@ func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error
 
 func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 	var caCerts []byte
-	for _, ca := range cfg.Key.TrustedCA {
+	for _, ca := range cfg.Key.TrustedCerts {
 		for _, cert := range ca.TLSCertificates {
 			block, _ := pem.Decode(cert)
 			caCerts = append(caCerts, block.Bytes...)
@@ -511,4 +518,107 @@ func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {
 		return trace.AlreadyExists("not overwriting destination files %s", strings.Join(existingFiles, ", "))
 	}
 	return nil
+}
+
+// KeyFromIdentityFile loads client key from identity file.
+func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.Key, error) {
+	if proxyHost == "" {
+		return nil, trace.BadParameter("proxyHost must be provided to parse identity file")
+	}
+	ident, err := identityfile.ReadFile(identityPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse identity file")
+	}
+
+	priv, err := keys.ParsePrivateKey(ident.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := client.NewKey(priv)
+	key.Cert = ident.Certs.SSH
+	key.TLSCert = ident.Certs.TLS
+	key.KeyIndex = client.KeyIndex{
+		ProxyHost:   proxyHost,
+		ClusterName: clusterName,
+	}
+
+	// validate TLS Cert (if present):
+	if len(ident.Certs.TLS) > 0 {
+		certDERBlock, _ := pem.Decode(ident.Certs.TLS)
+		cert, err := x509.ParseCertificate(certDERBlock.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if key.ClusterName == "" {
+			key.ClusterName = cert.Issuer.CommonName
+		}
+
+		parsedIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key.Username = parsedIdent.Username
+
+		// If this identity file has any database certs, copy it into the DBTLSCerts map.
+		if parsedIdent.RouteToDatabase.ServiceName != "" {
+			key.DBTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
+		}
+
+		// Similarly, if this identity has any app certs, copy them in.
+		if parsedIdent.RouteToApp.Name != "" {
+			key.AppTLSCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
+		}
+	} else {
+		key.Username, err = key.CertUsername()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	key.TrustedCerts, err = client.TrustedCertsFromCACerts(proxyHost, ident.CACerts.TLS, ident.CACerts.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return key, nil
+}
+
+// NewClientStoreFromIdentityFile initializes a new in-memory client store
+// and loads data from the given identity file into it. A temporary profile
+// is also added to its profile store with the limited profile data available
+// in the identity file.
+//
+// Since identity files do not save a proxy address, proxyAddr must be provided
+// to fill in this data gap. clusterName can also be provided to aim the key at
+// a leaf cluster rather than the default root cluster.
+func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*client.Store, error) {
+	proxyHost, err := utils.Host(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Preload the client key from the agent.
+	clientStore := client.NewMemClientStore()
+	if err := clientStore.AddKey(key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Save temporary profile into the key store.
+	profile := &profile.Profile{
+		WebProxyAddr: proxyAddr,
+		SiteName:     key.ClusterName,
+		Username:     key.Username,
+	}
+	if err := clientStore.SaveProfile(profile, true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clientStore, nil
 }

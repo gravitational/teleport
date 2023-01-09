@@ -950,6 +950,8 @@ func (d *DatabaseAD) IsEmpty() bool {
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
 	ResourceID string
+	// IsFlexiServer is true if the database is an Azure Flexible server.
+	IsFlexiServer bool
 }
 
 // CheckAndSetDefaults validates database Active Directory configuration.
@@ -1070,7 +1072,8 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			KDCHostName: d.AD.KDCHostName,
 		},
 		Azure: types.Azure{
-			ResourceID: d.Azure.ResourceID,
+			ResourceID:    d.Azure.ResourceID,
+			IsFlexiServer: d.Azure.IsFlexiServer,
 		},
 	})
 }
@@ -1283,6 +1286,9 @@ type WindowsDesktopConfig struct {
 	ListenAddr utils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
 
