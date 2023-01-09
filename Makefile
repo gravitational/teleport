@@ -468,11 +468,7 @@ release-darwin-unsigned: clean full build-archive
 
 .PHONY: release-darwin
 release-darwin: release-darwin-unsigned
-	mkdir -p $(BUILDDIR)/
-	cp ./build.assets/build-common.sh ./build.assets/notarize-binaries.sh $(BUILDDIR)/
-	chmod +x $(BUILDDIR)/notarize-binaries.sh
-	./$(BUILDDIR)/notarize-binaries.sh $(BINARIES)
-	rm $(BUILDDIR)/build-common.sh $(BUILDDIR)/notarize-binaries.sh
+	go run ./build.assets/tooling/cmd/notarize-apple-binaries/*.go $(BINARIES)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
