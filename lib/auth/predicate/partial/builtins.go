@@ -115,9 +115,9 @@ func builtinSplit(ctx *z3.Context) (z3.FuncDecl, error) {
 }
 
 func builtinStringListContains(ctx *z3.Context) (z3.FuncDecl, error) {
-	fnContains := ctx.FuncDeclRec("string_list_contains", []z3.Sort{ctx.StringSort(), ctx.StringSort()}, ctx.IntSort())
 	listSort := ctx.SequenceSort(ctx.StringSort())
-	list := ctx.Const("string_list_contains_list", listSort).(z3.Sequence)
+	fnContains := ctx.FuncDeclRec("string_list_contains", []z3.Sort{listSort, ctx.StringSort()}, ctx.BoolSort())
+	list := z3.Sequence(ctx.Const("string_list_contains_list", listSort).(z3.String))
 	matcher := ctx.StringConst("string_list_contains_matcher")
 
 	fnContains.DefineRec(
@@ -152,7 +152,12 @@ func builtinStringListAppend(ctx *z3.Context) (z3.FuncDecl, error) {
 func builtinStringListArray(args int) func(*z3.Context) (z3.FuncDecl, error) {
 	return func(ctx *z3.Context) (z3.FuncDecl, error) {
 		listSort := ctx.SequenceSort(ctx.StringSort())
-		fnArray := ctx.FuncDeclRec("string_list_array", []z3.Sort{listSort, ctx.StringSort()}, listSort)
+		paramSorts := make([]z3.Sort, args)
+		for i := 0; i < args; i++ {
+			paramSorts[i] = ctx.StringSort()
+		}
+
+		fnArray := ctx.FuncDeclRec("string_list_array", paramSorts, listSort)
 		empty := ctx.SequenceEmpty(listSort)
 		params := make([]z3.Value, args)
 		sequences := make([]z3.Sequence, args)
@@ -184,6 +189,19 @@ func builtinLenString(ctx *z3.Context) (z3.FuncDecl, error) {
 	fnLen.DefineRec(
 		[]z3.Value{input},
 		input.Length().AsAST(),
+	)
+
+	return fnLen, nil
+}
+
+func builtinLenStringList(ctx *z3.Context) (z3.FuncDecl, error) {
+	sort := ctx.SequenceSort(ctx.StringSort())
+	fnLen := ctx.FuncDeclRec("string_list_len", []z3.Sort{sort}, ctx.IntSort())
+	input := ctx.Const("string_list_len_input", sort)
+
+	fnLen.DefineRec(
+		[]z3.Value{input},
+		z3.Sequence(input.(z3.String)).Length().AsAST(),
 	)
 
 	return fnLen, nil

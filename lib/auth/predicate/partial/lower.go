@@ -154,7 +154,7 @@ func lowerBinary(ctx *ctx, node *ast.BinaryExpr) (z3.Value, error) {
 			return x.(z3.Int).Eq(y.(z3.Int)), nil
 		case z3.KindBool:
 			return x.(z3.Bool).Eq(y.(z3.Bool)), nil
-		case z3.KindString:
+		case z3.KindSequence:
 			return x.(z3.String).Eq(y.(z3.String)), nil
 		default:
 			return nil, trace.BadParameter("type %v does not support equals", ty)
@@ -318,8 +318,9 @@ func lowerCallExpr(ctx *ctx, node *ast.CallExpr) (z3.Value, error) {
 	case "replace":
 		fnGen = builtinReplace
 	case "len":
-		// todo: len list?
 		fnGen = builtinLenString
+	case "string_list_len":
+		fnGen = builtinLenStringList
 	case "regex":
 		fnGen = builtinRegex
 	case "matches":

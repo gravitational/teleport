@@ -77,17 +77,21 @@ func TestSolverFn(t *testing.T) {
 			solution: "\"HOST\"",
 		},
 		{
-			expr:     "len(array(\"pizza\", \"party\")) == x",
+			expr:     "string_list_len(array(\"pizza\", \"party\")) == x",
 			ty:       TypeInt,
-			solution: "\"12981\"",
+			solution: "2",
+		},
+		{
+			expr:     "contains(array(\"pizza\", \"party\"), \"pizza\") == x",
+			ty:       TypeBool,
+			solution: "true",
+		},
+		{
+			expr:     "contains(array(\"pizza\", \"party\"), \"burger\") == x",
+			ty:       TypeBool,
+			solution: "false",
 		},
 	}
-
-	// test:
-	// contains
-	// len
-	// append
-	// array
 
 	state := NewSolver()
 	for _, c := range testCases {
