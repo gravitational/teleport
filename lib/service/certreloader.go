@@ -107,7 +107,7 @@ func (c *CertReloader) loadCertificates() error {
 		certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
 		if err != nil {
 			// If one certificate fails to load, then no certificate is updated.
-			return trace.Wrap(err)
+			return trace.WrapWithMessage(err, "TLS certificate %v and key %v failed to load", pair.Certificate, pair.PrivateKey)
 		}
 
 		// Parse the end entity cert and add it to certificate.Leaf.
@@ -116,7 +116,7 @@ func (c *CertReloader) loadCertificates() error {
 		leaf, err := x509.ParseCertificate(certificate.Certificate[0])
 		if err != nil {
 			// If one certificate fails to load, then no certificate is updated.
-			return trace.Wrap(err)
+			return trace.WrapWithMessage(err, "TLS certificate %v and key %v failed to be parsed", pair.Certificate, pair.PrivateKey)
 		}
 		certificate.Leaf = leaf
 
