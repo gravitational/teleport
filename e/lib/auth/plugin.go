@@ -121,10 +121,10 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		return trace.Wrap(err)
 	}
 	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
-		AugmentContextCertsFunc: authServer.AuthServer.AugmentContextUserCertificates,
-		Authorizer:              p.authorizer,
-		Emitter:                 p.emitter,
-		Storage:                 deviceStorage,
+		AuthServer: authServer.AuthServer,
+		Authorizer: p.authorizer,
+		Emitter:    p.emitter,
+		Storage:    deviceStorage,
 	})
 	if err != nil {
 		return trace.Wrap(err)

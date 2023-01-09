@@ -5,6 +5,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -21,15 +22,21 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// AugmentContextCertsFunc mimics the signature of
+// [auth.Server.AugmentContextUserCertificates].
+type AugmentContextCertsFunc func(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 
 // E is an integrated test environment for device trust.
 type E struct {
 	DevicesClient devicepb.DeviceTrustServiceClient
 
-	augmentCertsFunc devicetrustv1.AugmentContextCertsFunc
+	augmentCertsFunc AugmentContextCertsFunc
+	authSpec         *types.AuthPreferenceSpecV2
 	authorizer       auth.Authorizer
 	emitter          apievents.Emitter
 	closers          []func() error
@@ -47,25 +54,30 @@ func (e *E) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// Opt is a creation option for testenv.E.
+// Opt is a creation option for [E].
 type Opt func(*E)
 
-// WithAugmentCertsFunc customizes the testenv.E augment certs function.
-func WithAugmentCertsFunc(f devicetrustv1.AugmentContextCertsFunc) Opt {
+// WithAugmentCertsFunc customizes the [E] augment certs function.
+func WithAugmentCertsFunc(f AugmentContextCertsFunc) Opt {
 	return func(e *E) { e.augmentCertsFunc = f }
 }
 
-// WithAuthorizer customizes the testenv.E authorizer.
+// WithAuthPreferenceSpec customizes the underlying [E] auth preference spec.
+func WithAuthPreferenceSpec(spec types.AuthPreferenceSpecV2) Opt {
+	return func(e *E) { e.authSpec = &spec }
+}
+
+// WithAuthorizer customizes the [E] authorizer.
 func WithAuthorizer(a auth.Authorizer) Opt {
 	return func(e *E) { e.authorizer = a }
 }
 
-// WithEmitter customizes the testenv.E event emitter.
+// WithEmitter customizes the [E] event emitter.
 func WithEmitter(em apievents.Emitter) Opt {
 	return func(e *E) { e.emitter = em }
 }
 
-// MustNew creates a new testenv.E or panics.
+// MustNew creates a new [E] or panics.
 func MustNew(opts ...Opt) *E {
 	env, err := New(opts...)
 	if err != nil {
@@ -74,12 +86,35 @@ func MustNew(opts ...Opt) *E {
 	return env
 }
 
-// New creates a new testenv.E.
+// NewUsingT creates a new [E] using t to report failures or register the
+// appropriate cleanups.
+// Additionally, it also sets [modules.SetTestModules] to an Enterprise build
+// type.
+func NewUsingT(t *testing.T, opts ...Opt) *E {
+	env, err := New(opts...)
+	if err != nil {
+		t.Fatalf("Failed to create testenv.E: %v", err)
+	}
+	t.Cleanup(func() { _ = env.Close() })
+
+	// A few device trust endpoints (like authn) indirectly check for Enterprise.
+	// It's a bit silly in this module (since this is teleport.e), but those
+	// checks come from OSS code.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	return env
+}
+
+// New creates a new [E].
 func New(opts ...Opt) (*E, error) {
 	e := &E{
 		augmentCertsFunc: fakeAugmentCertsFunc,
-		authorizer:       &noopAuthorizer{},
-		emitter:          &noopEmitter{},
+		// A non-nil spec is good enough for most tests.
+		authSpec:   &types.AuthPreferenceSpecV2{},
+		authorizer: &noopAuthorizer{},
+		emitter:    &noopEmitter{},
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -106,10 +141,13 @@ func New(opts ...Opt) (*E, error) {
 
 	// Device service.
 	dtV1, err := devicetrustv1.New(devicetrustv1.ServiceParams{
-		AugmentContextCertsFunc: e.augmentCertsFunc,
-		Authorizer:              e.authorizer,
-		Emitter:                 e.emitter,
-		Storage:                 dtStorage,
+		AuthServer: &fakeAuthServer{
+			augmentFunc: e.augmentCertsFunc,
+			authSpec:    e.authSpec,
+		},
+		Authorizer: e.authorizer,
+		Emitter:    e.emitter,
+		Storage:    dtStorage,
 	})
 	if err != nil {
 		return nil, err
@@ -171,6 +209,19 @@ func fakeAugmentCertsFunc(ctx context.Context, authCtx *auth.Context, opts *auth
 			Bytes: []byte("<insert TLS cert here>"),
 		}),
 	}, nil
+}
+
+type fakeAuthServer struct {
+	augmentFunc AugmentContextCertsFunc
+	authSpec    *types.AuthPreferenceSpecV2
+}
+
+func (s *fakeAuthServer) AugmentContextUserCertificates(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+	return s.augmentFunc(ctx, authCtx, opts)
+}
+
+func (s *fakeAuthServer) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return types.NewAuthPreference(*s.authSpec)
 }
 
 type noopAuthorizer struct{}

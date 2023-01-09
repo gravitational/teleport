@@ -14,7 +14,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
@@ -23,11 +25,11 @@ import (
 
 func TestService_AuthenticateDevice(t *testing.T) {
 	emitter := &eventstest.MockEmitter{}
-	env := testenv.MustNew(
+	env := testenv.NewUsingT(
+		t,
 		testenv.WithAugmentCertsFunc(fakeAugmentFunc),
 		testenv.WithEmitter(emitter),
 	)
-	defer env.Close()
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -175,8 +177,10 @@ func TestService_AuthenticateDevice(t *testing.T) {
 
 func TestService_AuthenticateDevice_errors(t *testing.T) {
 	emitter := &eventstest.MockEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
-	defer env.Close()
+	env := testenv.NewUsingT(
+		t,
+		testenv.WithEmitter(emitter),
+	)
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -377,9 +381,80 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 					WantFail: true,
 				},
 			})
-
 		})
 	}
+}
+
+func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.NewUsingT(
+		t,
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			DeviceTrust: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeOff,
+			},
+		}),
+		testenv.WithEmitter(emitter),
+	)
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Create an enrolled device for testing.
+	dev1, key1, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+	emitter.Reset() // Clear create/enrollment events.
+
+	// authenticate wraps the AuthenticateDevice logic so error handling is
+	// simpler below.
+	// It specifically relies on dev1, key1 and stops at the "init" step (which is
+	// expected to fail).
+	authenticate := func() error {
+		stream, err := devices.AuthenticateDevice(ctx)
+		if err != nil {
+			return err
+		}
+
+		if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+			Payload: &devicepb.AuthenticateDeviceRequest_Init{
+				Init: &devicepb.AuthenticateDeviceInit{
+					UserCertificates: nil,
+					CredentialId:     key1.id,
+					DeviceData: &devicepb.DeviceCollectedData{
+						CollectTime:  timestamppb.Now(),
+						OsType:       dev1.OsType,
+						SerialNumber: dev1.AssetTag,
+					},
+				},
+			},
+		}); err != nil {
+			return err
+		}
+
+		// Expected to fail at this stage.
+		_, err = stream.Recv()
+		return err
+	}
+
+	t.Run("authn not allowed", func(t *testing.T) {
+		err := authenticate()
+
+		// Assert error.
+		if !trace.IsBadParameter(err) {
+			t.Fatalf("AuthenticateDevice returned err = %T, want trace.BadParameterError", err)
+		}
+		assert.ErrorContains(t, err, "device trust disabled", "AuthenticateDevice error mismatch")
+
+		// Assert no audit noise.
+		if events := emitter.Events(); len(events) > 0 {
+			t.Errorf("AuthenticateDevice issued unexpected audit events: %v, want no events", events)
+		}
+	})
 }
 
 func createAndEnroll(ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device) (*devicepb.Device, *fakeEnclaveKey, error) {

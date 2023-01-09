@@ -2,29 +2,39 @@ package devicetrustv1
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
+	config "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// AugmentContextCertsFunc augments the context certificate and the supplied
-// certificates with device extensions.
-// All certificates must be valid, issued by the Teleport CA, match each other,
-// and conform to whatever checks the underlying implementation sees fit to
-// perform.
-// See [lib.auth.Server.AugmentContextUserCertificates]
-type AugmentContextCertsFunc func(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
+// AuthServer represents the [auth.Server] methods used by [Service].
+type AuthServer interface {
+	// AugmentContextCertsFunc augments the context certificate and the supplied
+	// certificates with device extensions.
+	// All certificates must be valid, issued by the Teleport CA, match each
+	// other, and conform to whatever checks the underlying implementation sees
+	// fit to perform.
+	// See [auth.Server.AugmentContextUserCertificates]
+	AugmentContextUserCertificates(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
+
+	// GetAuthPreference gets the cluster's auth preferences.
+	// This method is not guarded by user permissions.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+}
 
 // Service implements the teleport.devicetrust.v1.DeviceTrustService RPC
 // service.
@@ -33,39 +43,39 @@ type Service struct {
 
 	logger *log.Entry
 
-	augmentCertsFunc AugmentContextCertsFunc
-	authorizer       auth.Authorizer
-	emitter          apievents.Emitter
-	storage          *storage.S
+	authServer AuthServer
+	authorizer auth.Authorizer
+	emitter    apievents.Emitter
+	storage    *storage.S
 }
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
-	AugmentContextCertsFunc AugmentContextCertsFunc
-	Authorizer              auth.Authorizer
-	Emitter                 apievents.Emitter
-	Storage                 *storage.S
+	AuthServer AuthServer
+	Authorizer auth.Authorizer
+	Emitter    apievents.Emitter
+	Storage    *storage.S
 }
 
 // New creates a new DeviceTrustService implementer.
 func New(params ServiceParams) (*Service, error) {
 	switch {
-	case params.AugmentContextCertsFunc == nil:
-		return nil, trace.BadParameter("augmentContextCertsFunc required")
+	case params.AuthServer == nil:
+		return nil, trace.BadParameter("parameter AuthServer required")
 	case params.Authorizer == nil:
-		return nil, trace.BadParameter("authorizer required")
+		return nil, trace.BadParameter("parameter Authorizer required")
 	case params.Emitter == nil:
-		return nil, trace.BadParameter("emitter required")
+		return nil, trace.BadParameter("parameter Emitter required")
 	case params.Storage == nil:
-		return nil, trace.BadParameter("storage required")
+		return nil, trace.BadParameter("parameter Storage required")
 	}
 
 	return &Service{
-		logger:           log.WithField(trace.Component, "devicetrust.service"),
-		augmentCertsFunc: params.AugmentContextCertsFunc,
-		authorizer:       params.Authorizer,
-		emitter:          params.Emitter,
-		storage:          params.Storage,
+		logger:     log.WithField(trace.Component, "devicetrust.service"),
+		authServer: params.AuthServer,
+		authorizer: params.Authorizer,
+		emitter:    params.Emitter,
+		storage:    params.Storage,
 	}, nil
 }
 
@@ -314,6 +324,8 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	return trace.Wrap(err)
 }
 
+var authnDisabledLogOnce sync.Once
+
 func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
 	// Authenticate the user, but do not perform any additional authorization
 	// checks. Any user may authenticate devices.
@@ -323,11 +335,22 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		return trace.Wrap(err)
 	}
 
+	authPref, err := s.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if config.GetEffectiveMode(authPref.GetDeviceTrust()) == constants.DeviceTrustModeOff {
+		authnDisabledLogOnce.Do(func() {
+			s.logger.Warn("Device authentication attempted, but device trust is disabled by cluster settings")
+		})
+		return trace.BadParameter("device trust disabled by cluster settings")
+	}
+
 	c := &authnCeremony{
 		logger:  s.logger,
 		storage: s.storage,
 		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
-			certs, err := s.augmentCertsFunc(ctx, authCtx, opts)
+			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
 		},
 	}
