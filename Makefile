@@ -468,9 +468,10 @@ release-darwin-unsigned: clean full build-archive
 
 .PHONY: release-darwin
 release-darwin: release-darwin-unsigned
-	go run ./build.assets/tooling/cmd/notarize-apple-binaries/*.go \
+	cd ./build.assets/tooling/ && \
+	go run ./cmd/notarize-apple-binaries/*.go \
 		-apple-username "$$APPLE_USERNAME" -apple-password "$$APPLE_PASSWORD" \
-		-log-level 6 $(BINARIES)
+		-log-level 6 $(addprefix $$(PWD)/,$(BINARIES))
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
