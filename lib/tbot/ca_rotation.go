@@ -156,6 +156,7 @@ func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
 				types.HostCA:     clusterName,
 				types.UserCA:     clusterName,
 				types.DatabaseCA: clusterName,
+				types.OpenSSHCA:  clusterName,
 			}.IntoMap(),
 		}},
 	})

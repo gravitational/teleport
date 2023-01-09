@@ -1328,7 +1328,8 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *Context, opts *AugmentUserCertificateOpts) (*proto.Certs, error) {
+	authCtx *Context, opts *AugmentUserCertificateOpts,
+) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
 		return nil, trace.BadParameter("authCtx required")
@@ -4264,7 +4265,7 @@ func (a *Server) addAdditionalTrustedKeysAtomic(
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 	switch caID.Type {
-	case types.UserCA, types.HostCA:
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
 		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
 		if err != nil {
 			return keySet, trace.Wrap(err)

@@ -128,7 +128,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			PublicKey:  publicKey,
 			PrivateKey: privateKey,
 		}}
-	case types.UserCA, types.HostCA:
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
 		ca.Spec.ActiveKeys = types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{
 				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),

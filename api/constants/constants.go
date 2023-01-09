@@ -146,6 +146,10 @@ const (
 	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
 	DatabaseCAMinVersion = "10.0.0"
 
+	// OpenSSHCAMinVersion is the minimum Teleport version that supports OpenSSH Certificate Authority.
+	// TODO: change this to be correct before merging
+	OpenSSHCAMinVersion = "12.0.0"
+
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 )

@@ -65,7 +65,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		return trace.Wrap(err)
 	}
 	switch ca.GetType() {
-	case types.UserCA, types.HostCA:
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
 		err = checkUserOrHostCA(ca)
 	case types.DatabaseCA:
 		err = checkDatabaseCA(ca)
