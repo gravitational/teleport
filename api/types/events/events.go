@@ -129,7 +129,7 @@ func (e *Exec) TrimToMaxSize(maxSize int) AuditEvent {
 // TrimToMaxSize trims the UserLogin event to the given maximum size.
 // The initial implementation is to cover concerns that a malicious user could
 // craft a request that creates error messages too large to be handled by the
-// underlying storage and thus cause the events to be ommitted entirely. See
+// underlying storage and thus cause the events to be omitted entirely. See
 // teleport-private#172.
 func (e *UserLogin) TrimToMaxSize(maxSize int) AuditEvent {
 	size := e.Size()
