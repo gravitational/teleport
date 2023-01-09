@@ -110,6 +110,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
 		types.KindNode:                    rc.createNode,
+		types.KindOIDCConnector:           rc.createOIDCConnector,
+		types.KindSAMLConnector:           rc.createSAMLConnector,
 	}
 	rc.config = config
 
@@ -123,7 +125,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update
 
-	Examples:
+	Example:
 	$ tctl update rc/remote`).SetValue(&rc.ref)
 	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
 	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
@@ -276,10 +278,6 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		// locate the creator function for a given resource kind:
 		creator, found := rc.CreateHandlers[ResourceKind(raw.Kind)]
 		if !found {
-			// if we're trying to create an OIDC/SAML connector with the OSS version of tctl, return a specific error
-			if raw.Kind == "oidc" || raw.Kind == "saml" {
-				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. If you are connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
-			}
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
 		// only return in case of error, to create multiple resources
@@ -642,6 +640,66 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 
 	_, err = client.UpsertNode(ctx, server)
 	return trace.Wrap(err)
+}
+
+func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	conn, err := services.UnmarshalOIDCConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := conn.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	connectorName := conn.GetName()
+	_, err = client.GetOIDCConnector(ctx, connectorName, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.IsForced() && exists {
+		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+	}
+	if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	// Create services.SAMLConnector from raw YAML to extract the connector name.
+	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	connectorName := conn.GetName()
+	foundConn, err := client.GetSAMLConnector(ctx, connectorName, true)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.IsForced() && exists {
+		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+	}
+
+	// If the connector being pushed to the backend does not have a signing key
+	// in it and an existing connector was found in the backend, extract the
+	// signing key from the found connector and inject it into the connector
+	// being injected into the backend.
+	if conn.GetSigningKeyPair() == nil && exists {
+		conn.SetSigningKeyPair(foundConn.GetSigningKeyPair())
+	}
+	if err := conn.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = client.UpsertSAMLConnector(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	return nil
 }
 
 // Delete deletes resource by name

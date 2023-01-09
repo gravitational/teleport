@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -215,7 +216,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
 	_, err = identityfile.Write(identityfile.WriteConfig{
@@ -321,6 +322,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// execution of this test.
 	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
@@ -361,6 +363,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// Set up a test proxy service.
 	cfg = service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -403,6 +406,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.SetAuthServerAddress(proxyAddr)
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false

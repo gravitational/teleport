@@ -17,6 +17,15 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths-ignore:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:

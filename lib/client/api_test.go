@@ -885,7 +885,7 @@ func TestCommandLimit(t *testing.T) {
 			mfaRequired: true,
 			expected:    1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 500},
 				})
 				require.NoError(t, err)
@@ -911,7 +911,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=1",
 			expected: 1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 1},
 				})
 				require.NoError(t, err)
@@ -923,7 +923,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=2",
 			expected: 1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 2},
 				})
 				require.NoError(t, err)
@@ -935,7 +935,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=500",
 			expected: 250,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 500},
 				})
 				require.NoError(t, err)
@@ -947,7 +947,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=max",
 			expected: math.MaxInt64 / 2,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: math.MaxInt64},
 				})
 				require.NoError(t, err)

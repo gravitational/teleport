@@ -395,7 +395,7 @@ func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (stri
 }
 
 func pickActiveAzureApp(cf *CLIConf) (*azureApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

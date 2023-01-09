@@ -42,7 +42,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -202,6 +202,17 @@ func TestValidateDatabase(t *testing.T) {
 			inputName: "valid-cassandra-without-uri",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolCassandra,
+				AWS: types.AWS{
+					Region:    "us-east-1",
+					AccountID: "123456789012",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "valid-dynamodb-without-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
 				AWS: types.AWS{
 					Region:    "us-east-1",
 					AccountID: "1234567890",
@@ -421,7 +432,7 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstance(t *testing.T) {
 	instance := &rds.DBInstance{
-		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:1234567890:db:instance-1"),
+		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 		DBInstanceIdentifier:             aws.String("instance-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbiResourceId:                    aws.String("resource-1"),
@@ -442,7 +453,7 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
 			types.OriginLabel:  types.OriginCloud,
-			labelAccountID:     "1234567890",
+			labelAccountID:     "123456789012",
 			labelRegion:        "us-west-1",
 			labelEngine:        RDSEnginePostgres,
 			labelEngineVersion: "13.0",
@@ -453,7 +464,7 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-west-1",
 			RDS: types.RDS{
 				InstanceID: "instance-1",
@@ -472,7 +483,7 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 	instance := &rds.DBInstance{
-		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:1234567890:db:instance-1"),
+		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 		DBInstanceIdentifier:             aws.String("instance-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbiResourceId:                    aws.String("resource-1"),
@@ -493,7 +504,7 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
-			labelAccountID:      "1234567890",
+			labelAccountID:      "123456789012",
 			labelRegion:         "us-west-1",
 			labelEngine:         RDSEnginePostgres,
 			labelEngineVersion:  "13.0",
@@ -505,7 +516,7 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-west-1",
 			RDS: types.RDS{
 				InstanceID: "instance-1",
@@ -524,7 +535,7 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 // TestDatabaseFromRDSCluster tests converting an RDS cluster to a database resource.
 func TestDatabaseFromRDSCluster(t *testing.T) {
 	cluster := &rds.DBCluster{
-		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:1234567890:cluster:cluster-1"),
+		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbClusterResourceId:              aws.String("resource-1"),
 		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -544,7 +555,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	}
 
 	expectedAWS := types.AWS{
-		AccountID: "1234567890",
+		AccountID: "123456789012",
 		Region:    "us-east-1",
 		RDS: types.RDS{
 			ClusterID:  "cluster-1",
@@ -559,7 +570,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
 				types.OriginLabel:  types.OriginCloud,
-				labelAccountID:     "1234567890",
+				labelAccountID:     "123456789012",
 				labelRegion:        "us-east-1",
 				labelEngine:        RDSEngineAuroraMySQL,
 				labelEngineVersion: "8.0.0",
@@ -583,7 +594,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
 				types.OriginLabel:  types.OriginCloud,
-				labelAccountID:     "1234567890",
+				labelAccountID:     "123456789012",
 				labelRegion:        "us-east-1",
 				labelEngine:        RDSEngineAuroraMySQL,
 				labelEngineVersion: "8.0.0",
@@ -604,7 +615,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
 			types.OriginLabel:  types.OriginCloud,
-			labelAccountID:     "1234567890",
+			labelAccountID:     "123456789012",
 			labelRegion:        "us-east-1",
 			labelEngine:        RDSEngineAuroraMySQL,
 			labelEngineVersion: "8.0.0",
@@ -659,7 +670,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 // TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overridden name.
 func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 	cluster := &rds.DBCluster{
-		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:1234567890:cluster:cluster-1"),
+		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbClusterResourceId:              aws.String("resource-1"),
 		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
@@ -679,7 +690,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 	}
 
 	expectedAWS := types.AWS{
-		AccountID: "1234567890",
+		AccountID: "123456789012",
 		Region:    "us-east-1",
 		RDS: types.RDS{
 			ClusterID:  "cluster-1",
@@ -694,7 +705,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
 				types.OriginLabel:   types.OriginCloud,
-				labelAccountID:      "1234567890",
+				labelAccountID:      "123456789012",
 				labelRegion:         "us-east-1",
 				labelEngine:         RDSEngineAuroraMySQL,
 				labelEngineVersion:  "8.0.0",
@@ -719,7 +730,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
 				types.OriginLabel:   types.OriginCloud,
-				labelAccountID:      "1234567890",
+				labelAccountID:      "123456789012",
 				labelRegion:         "us-east-1",
 				labelEngine:         RDSEngineAuroraMySQL,
 				labelEngineVersion:  "8.0.0",
@@ -741,7 +752,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
 			types.OriginLabel:   types.OriginCloud,
-			labelAccountID:      "1234567890",
+			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEngine:         RDSEngineAuroraMySQL,
 			labelEngineVersion:  "8.0.0",
@@ -797,7 +808,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 func TestDatabaseFromRDSProxy(t *testing.T) {
 	var port int64 = 9999
 	dbProxy := &rds.DBProxy{
-		DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456:db-proxy:prx-abcdef"),
+		DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-abcdef"),
 		DBProxyName:  aws.String("testproxy"),
 		EngineFamily: aws.String(rds.EngineFamilyMysql),
 		Endpoint:     aws.String("proxy.rds.test"),
@@ -808,7 +819,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 		Endpoint:            aws.String("custom.proxy.rds.test"),
 		DBProxyEndpointName: aws.String("custom"),
 		DBProxyName:         aws.String("testproxy"),
-		DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456:db-proxy-endpoint:prx-endpoint-abcdef"),
+		DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy-endpoint:prx-endpoint-abcdef"),
 		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
 	}
 
@@ -824,7 +835,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Labels: map[string]string{
 				"key":             "val",
 				types.OriginLabel: types.OriginCloud,
-				labelAccountID:    "123456",
+				labelAccountID:    "123456789012",
 				labelRegion:       "ca-central-1",
 				labelEngine:       "MYSQL",
 				labelVPCID:        "test-vpc-id",
@@ -834,7 +845,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			URI:      "proxy.rds.test:9999",
 			AWS: types.AWS{
 				Region:    "ca-central-1",
-				AccountID: "123456",
+				AccountID: "123456789012",
 				RDSProxy: types.RDSProxy{
 					ResourceID: "prx-abcdef",
 					Name:       "testproxy",
@@ -855,7 +866,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Labels: map[string]string{
 				"key":             "val",
 				types.OriginLabel: types.OriginCloud,
-				labelAccountID:    "123456",
+				labelAccountID:    "123456789012",
 				labelRegion:       "ca-central-1",
 				labelEngine:       "MYSQL",
 				labelVPCID:        "test-vpc-id",
@@ -866,7 +877,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			URI:      "custom.proxy.rds.test:9999",
 			AWS: types.AWS{
 				Region:    "ca-central-1",
-				AccountID: "123456",
+				AccountID: "123456789012",
 				RDSProxy: types.RDSProxy{
 					ResourceID:         "prx-abcdef",
 					Name:               "testproxy",
@@ -946,7 +957,7 @@ func TestIsRDSClusterSupported(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cluster := &rds.DBCluster{
-				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:test"),
+				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:test"),
 				DBClusterIdentifier: aws.String(test.name),
 				DbClusterResourceId: aws.String(uuid.New().String()),
 				Engine:              aws.String(RDSEngineAuroraMySQL),
@@ -996,7 +1007,7 @@ func TestIsRDSInstanceSupported(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cluster := &rds.DBInstance{
-				DBInstanceArn:       aws.String("arn:aws:rds:us-east-1:1234567890:instance:test"),
+				DBInstanceArn:       aws.String("arn:aws:rds:us-east-1:123456789012:instance:test"),
 				DBClusterIdentifier: aws.String(test.name),
 				DbiResourceId:       aws.String(uuid.New().String()),
 				Engine:              aws.String(test.engine),
@@ -1025,7 +1036,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		cluster := &redshift.Cluster{
 			ClusterIdentifier:   aws.String("mycluster"),
-			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:1234567890:namespace:u-u-i-d"),
+			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
 			Endpoint: &redshift.Endpoint{
 				Address: aws.String("localhost"),
 				Port:    aws.Int64(5439),
@@ -1046,7 +1057,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
 				types.OriginLabel:                 types.OriginCloud,
-				labelAccountID:                    "1234567890",
+				labelAccountID:                    "123456789012",
 				labelRegion:                       "us-east-1",
 				"key":                             "val",
 				"elasticbeanstalk:environment-id": "id",
@@ -1055,7 +1066,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Protocol: defaults.ProtocolPostgres,
 			URI:      "localhost:5439",
 			AWS: types.AWS{
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				Region:    "us-east-1",
 				Redshift: types.Redshift{
 					ClusterID: "mycluster",
@@ -1073,7 +1084,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 	t.Run("success with name override", func(t *testing.T) {
 		cluster := &redshift.Cluster{
 			ClusterIdentifier:   aws.String("mycluster"),
-			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:1234567890:namespace:u-u-i-d"),
+			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
 			Endpoint: &redshift.Endpoint{
 				Address: aws.String("localhost"),
 				Port:    aws.Int64(5439),
@@ -1098,7 +1109,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
 				types.OriginLabel:                 types.OriginCloud,
-				labelAccountID:                    "1234567890",
+				labelAccountID:                    "123456789012",
 				labelRegion:                       "us-east-1",
 				labelTeleportDBName:               "mycluster-override-2",
 				"key":                             "val",
@@ -1108,7 +1119,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Protocol: defaults.ProtocolPostgres,
 			URI:      "localhost:5439",
 			AWS: types.AWS{
-				AccountID: "1234567890",
+				AccountID: "123456789012",
 				Region:    "us-east-1",
 				Redshift: types.Redshift{
 					ClusterID: "mycluster",
@@ -1134,7 +1145,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 
 func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
@@ -1176,7 +1187,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
 			types.OriginLabel: types.OriginCloud,
-			labelAccountID:    "1234567890",
+			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "configuration",
 			"key":             "value",
@@ -1185,7 +1196,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 		Protocol: defaults.ProtocolRedis,
 		URI:      "configuration.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID:       "my-cluster",
@@ -1204,7 +1215,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 
 func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) {
 	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
@@ -1249,7 +1260,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
-			labelAccountID:      "1234567890",
+			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "configuration",
 			labelTeleportDBName: "my-override-cluster-2",
@@ -1259,7 +1270,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 		Protocol: defaults.ProtocolRedis,
 		URI:      "configuration.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID:       "my-cluster",
@@ -1278,7 +1289,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 
 func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
@@ -1305,7 +1316,7 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
 			types.OriginLabel: types.OriginCloud,
-			labelAccountID:    "1234567890",
+			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "primary",
 			"key":             "value",
@@ -1314,7 +1325,7 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Protocol: defaults.ProtocolRedis,
 		URI:      "primary.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID:       "my-cluster",
@@ -1331,7 +1342,7 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
 			types.OriginLabel: types.OriginCloud,
-			labelAccountID:    "1234567890",
+			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "reader",
 			"key":             "value",
@@ -1340,7 +1351,7 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Protocol: defaults.ProtocolRedis,
 		URI:      "reader.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID:       "my-cluster",
@@ -1359,7 +1370,7 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 
 func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
@@ -1389,7 +1400,7 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
-			labelAccountID:      "1234567890",
+			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "primary",
 			labelTeleportDBName: "my-override-cluster-2",
@@ -1399,7 +1410,7 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		Protocol: defaults.ProtocolRedis,
 		URI:      "primary.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID:       "my-cluster",
@@ -1416,7 +1427,7 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
-			labelAccountID:      "1234567890",
+			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "reader",
 			labelTeleportDBName: "my-override-cluster-2",
@@ -1426,7 +1437,7 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		Protocol: defaults.ProtocolRedis,
 		URI:      "reader.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID:       "my-cluster",
@@ -1445,7 +1456,7 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 
 func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 	cluster := &memorydb.Cluster{
-		ARN:        aws.String("arn:aws:memorydb:us-east-1:1234567890:cluster:my-cluster"),
+		ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
 		Name:       aws.String("my-cluster"),
 		Status:     aws.String("available"),
 		TLSEnabled: aws.Bool(true),
@@ -1462,7 +1473,7 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
 			types.OriginLabel: types.OriginCloud,
-			labelAccountID:    "1234567890",
+			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "cluster",
 			"key":             "value",
@@ -1471,7 +1482,7 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 		Protocol: defaults.ProtocolRedis,
 		URI:      "memorydb.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			MemoryDB: types.MemoryDB{
 				ClusterName:  "my-cluster",
@@ -1489,14 +1500,14 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 }
 
 func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
-	workgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
+	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup",
 		Description: "Redshift Serverless workgroup in eu-west-2",
 		Labels: map[string]string{
 			types.OriginLabel: types.OriginCloud,
-			labelAccountID:    "1234567890",
+			labelAccountID:    "123456789012",
 			labelRegion:       "eu-west-2",
 			labelEndpointType: "workgroup",
 			labelNamespace:    "my-namespace",
@@ -1505,9 +1516,9 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
-		URI:      "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
+		URI:      "my-workgroup.123456789012.eu-west-2.redshift-serverless.amazonaws.com:5439",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "eu-west-2",
 			RedshiftServerless: types.RedshiftServerless{
 				WorkgroupName: "my-workgroup",
@@ -1523,15 +1534,15 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 }
 
 func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
-	workgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
-	endpoint := cloudtest.RedshiftServerlessEndpointAccess(workgroup, "my-endpoint", "eu-west-2")
+	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
+	endpoint := mocks.RedshiftServerlessEndpointAccess(workgroup, "my-endpoint", "eu-west-2")
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup-my-endpoint",
 		Description: "Redshift Serverless endpoint in eu-west-2",
 		Labels: map[string]string{
 			types.OriginLabel: types.OriginCloud,
-			labelAccountID:    "1234567890",
+			labelAccountID:    "123456789012",
 			labelRegion:       "eu-west-2",
 			labelEndpointType: "vpc-endpoint",
 			labelWorkgroup:    "my-workgroup",
@@ -1541,9 +1552,9 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
-		URI:      "my-endpoint-endpoint-xxxyyyzzz.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
+		URI:      "my-endpoint-endpoint-xxxyyyzzz.123456789012.eu-west-2.redshift-serverless.amazonaws.com:5439",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "eu-west-2",
 			RedshiftServerless: types.RedshiftServerless{
 				WorkgroupName: "my-workgroup",
@@ -1552,7 +1563,7 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 			},
 		},
 		TLS: types.DatabaseTLS{
-			ServerName: "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com",
+			ServerName: "my-workgroup.123456789012.eu-west-2.redshift-serverless.amazonaws.com",
 		},
 	})
 	require.NoError(t, err)
@@ -1564,7 +1575,7 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 
 func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 	cluster := &memorydb.Cluster{
-		ARN:        aws.String("arn:aws:memorydb:us-east-1:1234567890:cluster:my-cluster"),
+		ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
 		Name:       aws.String("my-cluster"),
 		Status:     aws.String("available"),
 		TLSEnabled: aws.Bool(true),
@@ -1584,7 +1595,7 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
-			labelAccountID:      "1234567890",
+			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "cluster",
 			labelTeleportDBName: "override-1",
@@ -1594,7 +1605,7 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 		Protocol: defaults.ProtocolRedis,
 		URI:      "memorydb.localhost:6379",
 		AWS: types.AWS{
-			AccountID: "1234567890",
+			AccountID: "123456789012",
 			Region:    "us-east-1",
 			MemoryDB: types.MemoryDB{
 				ClusterName:  "my-cluster",
