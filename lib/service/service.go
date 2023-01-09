@@ -4164,11 +4164,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
-		certReloaderCfg := CertReloaderConfig{
+		certReloader := NewCertReloader(CertReloaderConfig{
 			KeyPairs:               process.Config.Proxy.KeyPairs,
 			KeyPairsReloadInterval: process.Config.Proxy.KeyPairsReloadInterval,
-		}
-		certReloader := NewCertReloader(certReloaderCfg)
+		})
 		if err := certReloader.Run(context.TODO()); err != nil {
 			return nil, trace.Wrap(err)
 		}
