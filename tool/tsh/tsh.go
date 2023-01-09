@@ -3447,19 +3447,24 @@ var defaultWebProxyPorts = []int{
 	defaults.HTTPListenPort, teleport.StandardHTTPSPort,
 }
 
-// Generate error message from attempting hosts at different ports for web proxy
-func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) (errorMessage string) {
-	var addresses = ""
-	for i := 0; i < len(ports); i++ {
-		addresses += fmt.Sprintf("%v:%v", proxyAddress, ports[i])
-		if (i + 1) < len(ports) {
-			addresses += " or "
-		}
+// proxyHostsErrorMsgDefault returns the error message from attempting hosts at
+// different ports for the Web Proxy.
+func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
+	buf := &bytes.Buffer{}
+	buf.WriteString("Teleport proxy not available at proxy address ")
+	buf.WriteString(proxyAddress)
+	buf.WriteString(". Confirm address and connectivity. ")
 
+	for i, port := range ports {
+		if i > 0 {
+			buf.WriteString(" or ")
+		}
+		buf.WriteString(proxyAddress)
+		buf.WriteString(":")
+		buf.WriteString(strconv.Itoa(port))
 	}
-	msg := fmt.Sprintf("Teleport proxy not available at proxy address %s. "+
-		"Confirm address and connectivity.", addresses)
-	return msg
+
+	return buf.String()
 }
 
 // setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
