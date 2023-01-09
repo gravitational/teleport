@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -31,13 +32,13 @@ import (
 func TestCertReloader(t *testing.T) {
 	testCases := []struct {
 		desc                   string
-		certsUpdate            func(t *testing.T, certs *certFiles)
+		certsUpdate            func(t *testing.T, certs []KeyPairPath)
 		certsReloadErrorAssert require.ErrorAssertionFunc
 		certsAssert            func(t *testing.T, before []tls.Certificate, now []tls.Certificate)
 	}{
 		{
-			desc: "c1 and c2 certs do not change without an update",
-			certsUpdate: func(t *testing.T, certs *certFiles) {
+			desc: "c0 and c1 certs do not change without an update",
+			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
 				// No update.
 			},
 			certsReloadErrorAssert: require.NoError,
@@ -50,16 +51,16 @@ func TestCertReloader(t *testing.T) {
 			},
 		},
 		{
-			desc: "c1 cert does change with an update",
-			certsUpdate: func(t *testing.T, certs *certFiles) {
-				// Update c1 cert.
+			desc: "c0 cert does change with an update",
+			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+				// Update c0 cert.
 				key, crt := newCertKeyPair(t)
-				write(t, certs.c1Key, key)
-				write(t, certs.c1Crt, crt)
+				write(t, certs[0].PrivateKey, key)
+				write(t, certs[0].Certificate, crt)
 			},
 			certsReloadErrorAssert: require.NoError,
 			certsAssert: func(t *testing.T, before []tls.Certificate, after []tls.Certificate) {
-				// Only c1 has been updated.
+				// Only c0 has been updated.
 				require.Len(t, before, 2)
 				require.Len(t, after, 2)
 				require.NotEqual(t, before[0], after[0])
@@ -67,17 +68,17 @@ func TestCertReloader(t *testing.T) {
 			},
 		},
 		{
-			desc: "c1 and c2 certs do change with an update",
-			certsUpdate: func(t *testing.T, certs *certFiles) {
-				// Update c1 cert.
+			desc: "c0 and c1 certs do change with an update",
+			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+				// Update c0 cert.
 				key, crt := newCertKeyPair(t)
-				write(t, certs.c1Key, key)
-				write(t, certs.c1Crt, crt)
+				write(t, certs[0].PrivateKey, key)
+				write(t, certs[0].Certificate, crt)
 
-				// Update c2 cert.
+				// Update c1 cert.
 				key, crt = newCertKeyPair(t)
-				write(t, certs.c2Key, key)
-				write(t, certs.c2Crt, crt)
+				write(t, certs[1].PrivateKey, key)
+				write(t, certs[1].Certificate, crt)
 			},
 			certsReloadErrorAssert: require.NoError,
 			certsAssert: func(t *testing.T, before []tls.Certificate, after []tls.Certificate) {
@@ -89,16 +90,16 @@ func TestCertReloader(t *testing.T) {
 			},
 		},
 		{
-			desc: "c1 and c2 certs do not change with an incomplete update",
-			certsUpdate: func(t *testing.T, certs *certFiles) {
-				// Update c1 cert.
+			desc: "c0 and c1 certs do not change with an incomplete update",
+			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+				// Update c0 cert.
 				key, crt := newCertKeyPair(t)
-				write(t, certs.c1Key, key)
-				write(t, certs.c1Crt, crt)
+				write(t, certs[0].PrivateKey, key)
+				write(t, certs[0].Certificate, crt)
 
-				// Update only c2 key.
+				// Update only c1 key.
 				key, _ = newCertKeyPair(t)
-				write(t, certs.c2Key, key)
+				write(t, certs[1].PrivateKey, key)
 			},
 			certsReloadErrorAssert: require.Error,
 			certsAssert: func(t *testing.T, before []tls.Certificate, after []tls.Certificate) {
@@ -110,12 +111,12 @@ func TestCertReloader(t *testing.T) {
 			},
 		},
 		{
-			desc: "c1 cert does not change during an ongoing update",
-			certsUpdate: func(t *testing.T, certs *certFiles) {
-				// Update c1 key, and partially update c1 cert.
+			desc: "c0 cert does not change during an ongoing update",
+			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+				// Update c0 key, and partially update c0 cert.
 				key, crt := newCertKeyPair(t)
-				write(t, certs.c1Key, key)
-				write(t, certs.c1Crt, crt[0:1024])
+				write(t, certs[0].PrivateKey, key)
+				write(t, certs[0].Certificate, crt[0:1024])
 			},
 			certsReloadErrorAssert: require.Error,
 			certsAssert: func(t *testing.T, before []tls.Certificate, after []tls.Certificate) {
@@ -127,13 +128,15 @@ func TestCertReloader(t *testing.T) {
 			},
 		},
 		{
-			desc: "c1 and c2 certs do not change if one of them is corrupted",
-			certsUpdate: func(t *testing.T, certs *certFiles) {
-				// Corrupt c1 cert key.
-				_, err := certs.c1Key.WriteAt([]byte{1, 2, 3, 4, 5, 6, 7, 8}, 0)
+			desc: "c0 and c1 certs do not change if one of them is corrupted",
+			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+				// Corrupt c0 cert key.
+				f, err := os.OpenFile(certs[0].PrivateKey, os.O_WRONLY, 0600)
 				require.NoError(t, err)
-				err = certs.c1Key.Sync()
+				_, err = f.WriteAt([]byte{1, 2, 3, 4, 5, 6, 7, 8}, 0)
 				require.NoError(t, err)
+				require.NoError(t, f.Sync())
+				require.NoError(t, f.Close())
 			},
 			certsReloadErrorAssert: require.Error,
 			certsAssert: func(t *testing.T, before []tls.Certificate, after []tls.Certificate) {
@@ -150,14 +153,13 @@ func TestCertReloader(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Create empty certs and ensure they get cleaned up.
 			certs := newCerts(t)
-			defer certs.cleanup(t)
 
 			// Start cert reloader.
 			// Set the reload interval to 0 so that the reloading goroutine is not spawned.
 			// This gives us more flexibility in the tests, so that we can call loadCertificates
 			// when we want.
 			cfg := CertReloaderConfig{
-				KeyPairs:               certs.keyPairPaths(),
+				KeyPairs:               certs,
 				KeyPairsReloadInterval: 0,
 			}
 			certReloader := NewCertReloader(cfg)
@@ -171,7 +173,7 @@ func TestCertReloader(t *testing.T) {
 			copy(before, certReloader.certificates)
 
 			// Perform cert update.
-			tc.certsUpdate(t, &certs)
+			tc.certsUpdate(t, certs)
 
 			// Perform cert reload.
 			err = certReloader.loadCertificates()
@@ -183,67 +185,32 @@ func TestCertReloader(t *testing.T) {
 	}
 }
 
-// certFiles contains 2 certificate key pairs.
-type certFiles struct {
-	c1Key *os.File
-	c1Crt *os.File
-	c2Key *os.File
-	c2Crt *os.File
-}
-
-// newCerts creates files for 2 certificate key pairs,
-// generates 2 certificate key pairs, and writes them
-// to the files created.
-func newCerts(t *testing.T) certFiles {
-	// Create files where key-pair certs will be written to.
-	c1Key, err := os.CreateTemp("", "cert1_*.key")
-	require.NoError(t, err)
-	c1Crt, err := os.CreateTemp("", "cert1_*.crt")
-	require.NoError(t, err)
-
-	c2Key, err := os.CreateTemp("", "cert2_*.key")
-	require.NoError(t, err)
-	c2Crt, err := os.CreateTemp("", "cert2_*.crt")
-	require.NoError(t, err)
-
-	// Create key-pair certs and write them to the files.
-	c1KeyBytes, c1CrtBytes := newCertKeyPair(t)
-	write(t, c1Key, c1KeyBytes)
-	write(t, c1Crt, c1CrtBytes)
-
-	c2KeyBytes, c2CrtBytes := newCertKeyPair(t)
-	write(t, c2Key, c2KeyBytes)
-	write(t, c2Crt, c2CrtBytes)
-
-	return certFiles{
-		c1Key: c1Key,
-		c1Crt: c1Crt,
-		c2Key: c2Key,
-		c2Crt: c2Crt,
-	}
-}
-
-// keyPairPaths returns the paths to both certs.
-func (c *certFiles) keyPairPaths() []KeyPairPath {
-	return []KeyPairPath{
+// newCerts creates 2 certificate key pairs and returns
+// the key pair paths to them.
+func newCerts(t *testing.T) []KeyPairPath {
+	dir := t.TempDir()
+	certs := []KeyPairPath{
 		{
-			PrivateKey:  c.c1Key.Name(),
-			Certificate: c.c1Crt.Name(),
+			PrivateKey:  path.Join(dir, "c0.key"),
+			Certificate: path.Join(dir, "c0.crt"),
 		},
 		{
-			PrivateKey:  c.c2Key.Name(),
-			Certificate: c.c2Crt.Name(),
+			PrivateKey:  path.Join(dir, "c1.key"),
+			Certificate: path.Join(dir, "c1.crt"),
 		},
 	}
-}
 
-// cleanup deletes all cert files.
-func (c *certFiles) cleanup(t *testing.T) {
-	files := []*os.File{c.c1Key, c.c1Crt, c.c2Key, c.c2Crt}
-	for _, f := range files {
-		err := os.Remove(f.Name())
-		require.NoError(t, err)
-	}
+	// Create c0 cert.
+	key, crt := newCertKeyPair(t)
+	write(t, certs[0].PrivateKey, key)
+	write(t, certs[0].Certificate, crt)
+
+	// Create c1 cert.
+	key, crt = newCertKeyPair(t)
+	write(t, certs[1].PrivateKey, key)
+	write(t, certs[1].Certificate, crt)
+
+	return certs
 }
 
 // newCertKeyPair creates a new cert.
@@ -257,13 +224,8 @@ func newCertKeyPair(t *testing.T) ([]byte, []byte) {
 	return key, crt
 }
 
-// write deletes the content of the file, and writes a new `content`,
-// making sure to fsync afterwards.
-func write(t *testing.T, f *os.File, content []byte) {
-	require.NoError(t, f.Truncate(0))
-	_, err := f.Seek(0, 0)
+// write rewrites the file with a new `content`.
+func write(t *testing.T, filename string, content []byte) {
+	err := os.WriteFile(filename, content, 0600)
 	require.NoError(t, err)
-	_, err = f.Write(content)
-	require.NoError(t, err)
-	require.NoError(t, f.Sync())
 }
