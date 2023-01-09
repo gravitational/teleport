@@ -208,6 +208,10 @@ type IdentityContext struct {
 	// trusted-cluster-related role mapping being applied.
 	UnmappedRoles []string
 
+	// UnmappedAccessPolicies lists the original access policies of this Teleport user without
+	// trusted-cluster-related mapping being applied.
+	UnmappedAccessPolicies []string
+
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
 	CertValidBefore time.Time

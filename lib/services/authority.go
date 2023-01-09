@@ -273,6 +273,8 @@ type UserCertParams struct {
 	PermitFileCopying bool
 	// Roles is a list of roles assigned to this user
 	Roles []string
+	// AccessPolicies is a list of access policies assigned to this user
+	AccessPolicies []string
 	// CertificateFormat is the format of the SSH certificate.
 	CertificateFormat string
 	// RouteToCluster specifies the target cluster
@@ -372,6 +374,15 @@ func MarshalCertRoles(roles []string) (string, error) {
 	return string(out), err
 }
 
+// MarshalCertAccessPolicies marshal access policy list to OpenSSH
+func MarshalCertAccessPolicies(roles []string) (string, error) {
+	out, err := json.Marshal(types.CertRoles{Version: types.V1, Roles: roles})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), err
+}
+
 // UnmarshalCertRoles marshals roles list to OpenSSH format
 func UnmarshalCertRoles(data string) ([]string, error) {
 	var certRoles types.CertRoles
@@ -379,6 +390,15 @@ func UnmarshalCertRoles(data string) ([]string, error) {
 		return nil, trace.BadParameter(err.Error())
 	}
 	return certRoles.Roles, nil
+}
+
+// UnarshalCertAccessPolicies marshal access policy list to OpenSSH
+func UnmarshalCertAccessPolicies(data string) ([]string, error) {
+	var certAccessPolicies types.CertRoles
+	if err := utils.FastUnmarshal([]byte(data), &certAccessPolicies); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	return certAccessPolicies.Roles, nil
 }
 
 // UnmarshalCertAuthority unmarshals the CertAuthority resource to JSON.

@@ -94,6 +94,10 @@ type User interface {
 	GetTraits() map[string][]string
 	// GetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
+	// SetAccessPolicies sets user access policies
+	SetAccessPolicies(policies []string)
+	// GetAccessPolicies gets user access policies
+	GetAccessPolicies() []string
 }
 
 // NewUser creates new empty user
@@ -388,6 +392,16 @@ func (u *UserV2) ResetLocks() {
 	u.Spec.Status.LockedMessage = ""
 	u.Spec.Status.LockExpires = time.Time{}
 	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
+}
+
+// SetAccessPolicies sets user access policies
+func (u *UserV2) SetAccessPolicies(policies []string) {
+	u.Spec.AccessPolicies = policies
+}
+
+// GetAccessPolicies gets user access policies
+func (u *UserV2) GetAccessPolicies() []string {
+	return u.Spec.AccessPolicies
 }
 
 // IsEmpty returns true if there's no info about who created this user
