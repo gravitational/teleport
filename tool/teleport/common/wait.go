@@ -45,26 +45,20 @@ type waitFlags struct {
 	timeout  time.Duration
 }
 
-func wait(flags waitFlags) {
-	// We get parameters from environment variables
+func onWaitDuration(flags waitFlags) error {
 	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
-	ctx, cancel := signal.NotifyContext(
-		context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt,
-	)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
 	defer cancel()
 
-	if flags.duration != 0 {
-		err := waitDuration(ctx, flags.duration)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	if flags.domain != "" {
-		err := waitNoResolve(ctx, flags.domain, flags.period, flags.timeout)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	return trace.Wrap(waitDuration(ctx, flags.duration))
+}
+
+func onWaitNoResolve(flags waitFlags) error {
+	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
+	defer cancel()
+
+	return trace.Wrap(waitNoResolve(ctx, flags.domain, flags.period, flags.timeout))
 }
 
 func waitDuration(ctx context.Context, duration time.Duration) error {

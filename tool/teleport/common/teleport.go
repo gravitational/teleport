@@ -374,13 +374,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes")
 	dumpNodeConfigure.Flag("node-name", "Name for the teleport node.").StringVar(&dumpFlags.NodeName)
 
-	waitCmd := app.Command(teleport.WaitSubCommand, "Used internally by Teleport to wait until a specific condition is reached.").Hidden()
-	waitNoResolveCmd := waitCmd.Command("no-resolve", "Used internally to wait until a domain stops resolving IP addresses.")
+	waitCmd := app.Command(teleport.WaitSubCommand, "Used internally by Teleport to onWait until a specific condition is reached.").Hidden()
+	waitNoResolveCmd := waitCmd.Command("no-resolve", "Used internally to onWait until a domain stops resolving IP addresses.")
 	waitNoResolveCmd.Arg("domain", "Domain that is resolved.").StringVar(&waitFlags.domain)
 	waitNoResolveCmd.Flag("period", "Resolution try period. A jitter is applied.").Default(waitNoResolveDefaultPeriod).DurationVar(&waitFlags.period)
 	waitNoResolveCmd.Flag("timeout", "Stops waiting after this duration and exits in error.").Default(waitNoResolveDefaultTimeout).DurationVar(&waitFlags.timeout)
-	waitDurationCmd := waitCmd.Command("duration", "Used internally to wait a given duration before exiting.")
-	waitDurationCmd.Arg("duration", "Duration to wait before exit.").DurationVar(&waitFlags.duration)
+	waitDurationCmd := waitCmd.Command("duration", "Used internally to onWait a given duration before exiting.")
+	waitDurationCmd.Arg("duration", "Duration to onWait before exit.").DurationVar(&waitFlags.duration)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -437,8 +437,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
 		srv.RunAndExit(teleport.ParkSubCommand)
-	case waitNoResolveCmd.FullCommand(), waitDurationCmd.FullCommand():
-		wait(waitFlags)
+	case waitNoResolveCmd.FullCommand():
+		err = onWaitNoResolve(waitFlags)
+	case waitDurationCmd.FullCommand():
+		err = onWaitDuration(waitFlags)
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():
