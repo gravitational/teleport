@@ -414,6 +414,10 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		return nil, trace.Wrap(err)
 	}
 
+	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
+		certs, err := a.generateCertsBot(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
+		return certs, trace.Wrap(err)
+	}
 	certs, err := a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
 	return certs, trace.Wrap(err)
 }
