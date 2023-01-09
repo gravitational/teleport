@@ -590,7 +590,7 @@ func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.
 		certTypes = append(certTypes, types.DatabaseCA)
 	}
 	if openSSHCASupported {
-		// OpenSSH CA was introduced in Teleport 12.1. Do not send it to older clusters
+		// OpenSSH CA was introduced in Teleport 12.0. Do not send it to older clusters
 		// as they don't understand it.
 		certTypes = append(certTypes, types.OpenSSHCA)
 	}
