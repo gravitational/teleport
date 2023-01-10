@@ -2739,6 +2739,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeCluster()
 		case types.KindKubeServer:
 			resources[i] = respResource.GetKubernetesServer()
+		case types.KindKubePod:
+			resources[i] = respResource.GetKubernetesPod()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -2769,14 +2771,15 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 
 	for {
 		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:           req.Namespace,
-			ResourceType:        req.ResourceType,
-			StartKey:            startKey,
-			Limit:               chunkSize,
-			Labels:              req.Labels,
-			SearchKeywords:      req.SearchKeywords,
-			PredicateExpression: req.PredicateExpression,
-			UseSearchAsRoles:    req.UseSearchAsRoles,
+			Namespace:            req.Namespace,
+			ResourceType:         req.ResourceType,
+			StartKey:             startKey,
+			Limit:                chunkSize,
+			Labels:               req.Labels,
+			SearchKeywords:       req.SearchKeywords,
+			PredicateExpression:  req.PredicateExpression,
+			UseSearchAsRoles:     req.UseSearchAsRoles,
+			KubernetesPodsFilter: req.KubernetesPodsFilter,
 		})
 		if err != nil {
 			if trace.IsLimitExceeded(err) {

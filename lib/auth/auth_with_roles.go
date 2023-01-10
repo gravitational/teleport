@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -29,10 +30,14 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -41,6 +46,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -50,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1262,6 +1269,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	limit := int(req.Limit)
 	actionVerbs := []string{types.VerbList, types.VerbRead}
 	switch req.ResourceType {
+	case types.KindKubePod:
+		rsp, err := a.listKubernetesPods(ctx, true /* repect limit value*/, req)
+		return rsp, trace.Wrap(err)
 	case types.KindNode:
 		// We are checking list only for Nodes to keep backwards compatibility.
 		// The read verb got added to GetNodes initially in:
@@ -1327,6 +1337,208 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	return &resp, nil
+}
+
+// listKubernetesPods discovers the Kube proxy endpoint and performs a Kubernetes
+// list Pod request on behalf of the user.
+// To discover the Kube Proxy endpoint, it analyzes the proxy listening mode and
+// if it's "multiplex", Teleport sends the request directly to the first public
+// proxy available with the Kube SNI. If the mode was separate, Teleport pings
+// the proxy discover endpoint `/webapi/ping` to discover the Kube Proxy address.
+// After discovering the correct endpoint, it creates a Kubernetes Client with
+// short-lived user certificates that include in the roles field the available
+// search_as_role roles.
+func (a *ServerWithRoles) listKubernetesPods(ctx context.Context, respectLimit bool, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if len(req.KubernetesPodsFilter.Cluster) == 0 {
+		return nil, trace.BadParameter("when listing Pods, KubernetesPodsFilter.Cluster cannot be empty")
+	}
+
+	resp := &types.ListResourcesResponse{
+		Resources: make([]types.ResourceWithLabels, 0, int(req.Limit)),
+	}
+
+	limit := int(req.Limit)
+	filter := services.MatchResourceFilter{
+		ResourceKind:        req.ResourceType,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+	}
+
+	err := a.iterateKubernetesPods(
+		ctx, req, respectLimit,
+		func(r types.ResourceWithLabels, continueKey string) (int, error) {
+			switch match, err := services.MatchResourceByFilters(r, filter, nil /* ignore dup matches  */); {
+			case err != nil:
+				return len(resp.Resources), trace.Wrap(err)
+			case match:
+				resp.Resources = append(resp.Resources, r)
+			}
+			// repectLimit is true only if we do not require the fake pagination field.
+			if len(resp.Resources) == limit && respectLimit {
+				resp.NextKey = continueKey
+				return len(resp.Resources), ErrDone
+			}
+			return len(resp.Resources), nil
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// iterateKubernetesPods creates a new Kubernetes Client with temporary user
+// certificates and iterates through the returned Kubernetes Pods.
+// For each Pod discovered, the fn function is called to decide the action.
+// Kubernetes continue key is a base64 encoded json payload with the resource
+// version of the request. In order to resume the operation when using the paginated
+// mode, Teleport respects the Kubernetes Continue Key and will return it to the client
+// as a NextKey.
+// In order to have the expected behavior Teleport must respect the ContinueKey and
+// cannot manipulate it. It means that Teleport needs to manipulate the number of
+// requested items from the Kubernetes Cluster in order to have the expected behavior.
+func (a *ServerWithRoles) iterateKubernetesPods(
+	ctx context.Context,
+	req proto.ListResourcesRequest,
+	respectLimit bool,
+	fn func(types.ResourceWithLabels, string) (int, error),
+) error {
+	c, err := a.getKubernetesClient(ctx, req.KubernetesPodsFilter.Cluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	continueKey := req.StartKey
+	itemsAppended := 0
+	for {
+		podList, err := c.CoreV1().Pods(req.KubernetesPodsFilter.Namespace).List(ctx, v1.ListOptions{
+			Limit:    decideLimit(int64(req.Limit), int64(itemsAppended), respectLimit),
+			Continue: continueKey,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, pod := range podList.Items {
+			resource, err := types.NewKubernetesPodV1(
+				types.Metadata{
+					Name:   pod.Name,
+					Labels: pod.Labels,
+				},
+				types.KubernetesPodSpecV1{
+					Namespace: pod.Namespace,
+				},
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			itemsAppended, err = fn(resource, podList.Continue)
+			if errors.Is(err, ErrDone) {
+				return nil
+			} else if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if len(podList.Continue) == 0 {
+			return nil
+		}
+		continueKey = podList.Continue
+	}
+}
+
+// decideLimit returns the number of items we should request for. If respectLimit
+// is true, it returns the difference between the max number of items and the
+// number of items already included in the response.
+// If false, returns the max number of items.
+func decideLimit(limit, items int64, respectLimit bool) int64 {
+	if respectLimit {
+		return limit - items
+	}
+	return limit
+}
+
+// getKubernetesClient creates a new Kubernetes client configured with temporary
+// certificates bounded with `search_as_role` roles.
+func (a *ServerWithRoles) getKubernetesClient(ctx context.Context, kubeCluster string) (*kubernetes.Clientset, error) {
+	authServer := a.authServer
+	clusterName, err := authServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privKey, err := native.GeneratePrivateKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	id := tlsca.Identity{
+		Username:          a.context.User.GetName(),
+		Groups:            a.context.Checker.RoleNames(),
+		KubernetesUsers:   a.context.User.GetKubeUsers(),
+		KubernetesGroups:  a.context.User.GetKubeGroups(),
+		KubernetesCluster: kubeCluster,
+		RouteToCluster:    clusterName.GetClusterName(),
+		Traits:            a.context.User.GetTraits(),
+		// pass the MFAVerified to make sure the request goes through.
+		MFAVerified: a.context.Identity.GetIdentity().MFAVerified,
+	}
+
+	subj, err := id.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     authServer.GetClock(),
+		PublicKey: privKey.Public(),
+		Subject:   subj,
+		NotAfter:  authServer.GetClock().Now().Add(10 * time.Minute),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsClientConfig := rest.TLSClientConfig{
+		CAData:   ca.GetActiveKeys().TLS[0].Cert,
+		CertData: cert,
+		KeyData:  privKey.PrivateKeyPEM(),
+	}
+	networkCfg, err := authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxy := a.getProxyPublicAddr()
+	if networkCfg.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+		tlsClientConfig.ServerName = constants.KubeSNIPrefix + clusterName.GetClusterName()
+	} else {
+		proxy, err = a.getKubeProxyAddr(ctx, proxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	restConfig := &rest.Config{
+		Host:            "https://" + proxy,
+		TLSClientConfig: tlsClientConfig,
+	}
+
+	client, err := kubernetes.NewForConfig(restConfig)
+	return client, trace.Wrap(err)
 }
 
 // resourceAccessChecker allows access to be checked differently per resource type.
@@ -1469,6 +1681,28 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 	var resources []types.ResourceWithLabels
 	switch req.ResourceType {
+	case types.KindKubePod:
+		// We reset the start key when listing pods because it's not a valid
+		// kubernetes next token when fake pagination is enabled.
+		reqCopy := req
+		reqCopy.StartKey = ""
+		rsp, err := a.listKubernetesPods(
+			ctx,
+			false, /* do not repect the limit value */
+			reqCopy,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		pods, err := types.ResourcesWithLabels(rsp.Resources).AsKubePods()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sortedClusters := types.KubePods(pods)
+		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedClusters.AsResources()
 	case types.KindNode:
 		nodes, err := a.GetNodes(ctx, req.Namespace)
 		if err != nil {
@@ -2108,6 +2342,25 @@ func (a *ServerWithRoles) getProxyPublicAddr() string {
 		}
 	}
 	return ""
+}
+
+// getKubeProxyAddr hits the proxyAddr ping endpoint - proxyAddr/webapi/ping -
+// to discover the real kubernetes proxy address when proxy listener mode is
+// separate.
+func (a *ServerWithRoles) getKubeProxyAddr(ctx context.Context, proxyAddr string) (string, error) {
+	cfg := &webclient.Config{
+		Context:   ctx,
+		Insecure:  true,
+		ProxyAddr: proxyAddr,
+	}
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	rsp, err := webclient.Ping(cfg)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return rsp.Proxy.Kube.PublicAddr, nil
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {

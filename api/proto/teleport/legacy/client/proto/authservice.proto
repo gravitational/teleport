@@ -1631,6 +1631,8 @@ message PaginatedResource {
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
     // DatabaseService represents a DatabaseService resource.
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // KubernetesPod represents a Kubernetes Pod resource.
+    types.KubernetesPodV1 KubernetesPod = 10 [(gogoproto.jsontag) = "kubernetes_pod,omitempty"];
   }
 }
 
@@ -1681,6 +1683,11 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  // KubernetesPodsFilter specifies a Kubernetes Pod filter.
+  types.KubernetesPodsFilter KubernetesPodsFilter = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_pods_filter,omitempty"
+  ];
 }
 
 // ListResourceResponse response of ListResources.

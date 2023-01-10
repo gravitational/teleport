@@ -1328,7 +1328,8 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *Context, opts *AugmentUserCertificateOpts) (*proto.Certs, error) {
+	authCtx *Context, opts *AugmentUserCertificateOpts,
+) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
 		return nil, trace.BadParameter("authCtx required")

@@ -230,6 +230,19 @@ func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
 	return clusters, nil
 }
 
+// AsKubePods converts each resource into type *KubernetesPodV1.
+func (r ResourcesWithLabels) AsKubePods() ([]*KubernetesPodV1, error) {
+	pods := make([]*KubernetesPodV1, 0, len(r))
+	for _, resource := range r {
+		pod, ok := resource.(*KubernetesPodV1)
+		if !ok {
+			return nil, trace.BadParameter("expected types.KubernetesPodV1, got: %T", resource)
+		}
+		pods = append(pods, pod)
+	}
+	return pods, nil
+}
+
 // AsKubeServers converts each resource into type KubeServer.
 func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
 	servers := make([]KubeServer, 0, len(r))

@@ -383,6 +383,19 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
+	// If KubeCluster not provided try to read it from kubeconfig.
+	if len(cf.KubernetesCluster) == 0 {
+		cf.KubernetesCluster = selectedKubeCluster(proxyClient.ClusterName())
+	}
+	if cf.ResourceKind == types.KindKubePod && len(cf.KubernetesCluster) == 0 {
+		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
+	}
+	// if --all-namespaces flag was provided we search in every namespace.
+	// This means sending an empty namespace to the ListResources API.
+	if cf.kubeAllNamespaces {
+		cf.kubeNamespace = ""
+	}
+
 	authClient := proxyClient.CurrentCluster()
 
 	req := proto.ListResourcesRequest{
@@ -391,6 +404,10 @@ func onRequestSearch(cf *CLIConf) error {
 		PredicateExpression: cf.PredicateExpression,
 		SearchKeywords:      tc.SearchKeywords,
 		UseSearchAsRoles:    true,
+		KubernetesPodsFilter: types.KubernetesPodsFilter{
+			Cluster:   cf.KubernetesCluster,
+			Namespace: cf.kubeNamespace,
+		},
 	}
 
 	results, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
@@ -410,24 +427,49 @@ func onRequestSearch(cf *CLIConf) error {
 	var rows [][]string
 	var resourceIDs []string
 	for _, resource := range resources {
-		resourceID := types.ResourceIDToString(types.ResourceID{
-			ClusterName: proxyClient.ClusterName(),
-			Kind:        resource.GetKind(),
-			Name:        resource.GetName(),
-		})
-		resourceIDs = append(resourceIDs, resourceID)
-		hostName := ""
-		if r, ok := resource.(interface{ GetHostname() string }); ok {
-			hostName = r.GetHostname()
+		var row []string
+		switch r := resource.(type) {
+		case *types.KubernetesPodV1:
+			resourceID := types.ResourceIDToString(types.ResourceID{
+				ClusterName:     proxyClient.ClusterName(),
+				Kind:            resource.GetKind(),
+				Name:            cf.KubernetesCluster,
+				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
+			})
+			resourceIDs = append(resourceIDs, resourceID)
+
+			row = []string{
+				resource.GetName(),
+				r.Spec.Namespace,
+				sortedLabels(resource.GetAllLabels()),
+				resourceID,
+			}
+
+		default:
+			resourceID := types.ResourceIDToString(types.ResourceID{
+				ClusterName: proxyClient.ClusterName(),
+				Kind:        resource.GetKind(),
+				Name:        resource.GetName(),
+			})
+			resourceIDs = append(resourceIDs, resourceID)
+			hostName := ""
+			if r, ok := resource.(interface{ GetHostname() string }); ok {
+				hostName = r.GetHostname()
+			}
+			row = []string{
+				resource.GetName(),
+				hostName,
+				sortedLabels(resource.GetAllLabels()),
+				resourceID,
+			}
 		}
-		rows = append(rows, []string{
-			resource.GetName(),
-			hostName,
-			sortedLabels(resource.GetAllLabels()),
-			resourceID,
-		})
+		rows = append(rows, row)
 	}
-	table := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Hostname", "Labels", "Resource ID"}, rows, "Labels")
+	tableColumns := []string{"Name", "Hostname", "Labels", "Resource ID"}
+	if cf.ResourceKind == types.KindKubePod {
+		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
+	}
+	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
 	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}

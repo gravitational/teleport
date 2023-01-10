@@ -462,3 +462,190 @@ func DeduplicateKubeClusters(kubeclusters []KubeCluster) []KubeCluster {
 
 	return result
 }
+
+var _ ResourceWithLabels = &KubernetesPodV1{}
+
+// NewKubernetesPodV1 creates a new kubernetes pod resource.
+func NewKubernetesPodV1(meta Metadata, spec KubernetesPodSpecV1) (*KubernetesPodV1, error) {
+	pod := &KubernetesPodV1{
+		Metadata: meta,
+		Spec:     spec,
+	}
+	if err := pod.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pod, nil
+}
+
+// GetKind returns resource kind.
+func (k *KubernetesPodV1) GetKind() string {
+	return k.Kind
+}
+
+// GetSubKind returns resource subkind.
+func (k *KubernetesPodV1) GetSubKind() string {
+	return k.SubKind
+}
+
+// SetSubKind sets resource subkind.
+func (k *KubernetesPodV1) SetSubKind(subKind string) {
+	k.SubKind = subKind
+}
+
+// GetVersion returns resource version.
+func (k *KubernetesPodV1) GetVersion() string {
+	return k.Version
+}
+
+// GetName returns the name of the resource.
+func (k *KubernetesPodV1) GetName() string {
+	return k.Metadata.GetName()
+}
+
+// SetName sets the name of the resource.
+func (k *KubernetesPodV1) SetName(name string) {
+	k.Metadata.SetName(name)
+}
+
+// Expiry returns object expiry setting.
+func (k *KubernetesPodV1) Expiry() time.Time {
+	if k.Metadata.Expires != nil {
+		return *k.Metadata.Expires
+	}
+	return time.Time{}
+}
+
+// SetExpiry sets object expiry.
+func (k *KubernetesPodV1) SetExpiry(expire time.Time) {
+	k.Metadata.Expires = &expire
+}
+
+// GetMetadata returns object metadata.
+func (k *KubernetesPodV1) GetMetadata() Metadata {
+	return k.Metadata
+}
+
+// GetResourceID returns resource ID.
+func (k *KubernetesPodV1) GetResourceID() int64 {
+	return k.Metadata.ID
+}
+
+// SetResourceID sets resource ID.
+func (k *KubernetesPodV1) SetResourceID(id int64) {
+	k.Metadata.ID = id
+}
+
+// CheckAndSetDefaults validates the Resource and sets any empty fields to
+// default values.
+func (k *KubernetesPodV1) CheckAndSetDefaults() error {
+	k.setStaticFields()
+	if err := k.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(k.Spec.Namespace) == 0 {
+		return trace.BadParameter("kubernetes_pod %q misses the namespace", k.GetName())
+	}
+
+	return nil
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (k *KubernetesPodV1) setStaticFields() {
+	k.Kind = KindKubePod
+	k.Version = V1
+}
+
+// Origin returns the origin value of the resource.
+func (k *KubernetesPodV1) Origin() string {
+	return k.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (k *KubernetesPodV1) SetOrigin(origin string) {
+	k.Metadata.SetOrigin(origin)
+}
+
+// GetAllLabels returns all resource's labels.
+func (k *KubernetesPodV1) GetAllLabels() map[string]string {
+	return k.Metadata.Labels
+}
+
+// GetStaticLabels returns the resource's static labels.
+func (k *KubernetesPodV1) GetStaticLabels() map[string]string {
+	return k.Metadata.Labels
+}
+
+// SetStaticLabels sets the resource's static labels.
+func (k *KubernetesPodV1) SetStaticLabels(sl map[string]string) {
+	k.Metadata.Labels = sl
+}
+
+// MatchSearch goes through select field values of a resource
+// and tries to match against the list of search values.
+func (k *KubernetesPodV1) MatchSearch(searchValues []string) bool {
+	fieldVals := append(utils.MapToStrings(k.GetAllLabels()), k.GetName(), k.Spec.Namespace)
+	return MatchSearch(fieldVals, searchValues, nil)
+}
+
+// KubePods represents a list of Kubernetes pods.
+type KubePods []*KubernetesPodV1
+
+// Find returns Kubernetes Pod with the specified name or nil if the pod was not
+// found.
+func (s KubePods) Find(name string) *KubernetesPodV1 {
+	for _, cluster := range s {
+		if cluster.GetName() == name {
+			return cluster
+		}
+	}
+	return nil
+}
+
+// ToMap returns these kubernetes pods as a map keyed by pod name.
+func (s KubePods) ToMap() map[string]*KubernetesPodV1 {
+	m := make(map[string]*KubernetesPodV1)
+	for _, kubeCluster := range s {
+		m[kubeCluster.GetName()] = kubeCluster
+	}
+	return m
+}
+
+// Len returns the slice length.
+func (s KubePods) Len() int { return len(s) }
+
+// Less compares Kubernetes Pods by name.
+func (s KubePods) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+// Swap swaps two Kubernetes Pods.
+func (s KubePods) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s KubePods) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindKubernetesCluster)
+	}
+
+	return nil
+}
+
+// AsResources returns as type resources with labels.
+func (s KubePods) AsResources() ResourcesWithLabels {
+	resources := make(ResourcesWithLabels, 0, len(s))
+	for _, cluster := range s {
+		resources = append(resources, ResourceWithLabels(cluster))
+	}
+	return resources
+}

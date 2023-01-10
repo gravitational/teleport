@@ -4153,6 +4153,41 @@ message NetworkRestrictionsV4 {
   ];
 }
 
+// KubernetesPodV1 represents a Kubernetes Pod resource.
+message KubernetesPodV1 {
+  // Kind is the Kubernetes Pod resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the Kubernetes Pod metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec contains the Kubernetes Pod data.
+  KubernetesPodSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// KubernetesPodSpecV1 is the Kubernetes Pod resource spec.
+message KubernetesPodSpecV1 {
+  // Namespace is the resource namespace.
+  string Namespace = 1 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// KubernetesPodsFilter specifies a Kubernetes Pod filter.
+message KubernetesPodsFilter {
+  // Cluster is the Kubernetes Cluster to request pods.
+  string Cluster = 1 [(gogoproto.jsontag) = "cluster,omitempty"];
+  // Namespace is the Kubernetes namespace where the pods must be located.
+  // To search on every Kubernetes Namespace, do not define the value.
+  string Namespace = 2 [(gogoproto.jsontag) = "namespace,omitempty"];
+}
+
 // WindowsDesktopServiceV3 represents a windows desktop access service.
 message WindowsDesktopServiceV3 {
   // Header is the common resource header.
