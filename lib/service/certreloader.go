@@ -19,8 +19,8 @@ package service
 import (
 	"context"
 	"crypto/tls"
-	"sync"
 	"crypto/x509"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
