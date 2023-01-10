@@ -629,7 +629,7 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 	}
 
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
-	// the correct behaviour when forwarding the request to the Kubernetes API.
+	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, authCtx.User.GetName())
 
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
@@ -723,7 +723,7 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 }
 
 // fillDefaultKubePrincipalDetails fills the default details in order to keep
-// the correct behaviour when forwarding the request to the Kubernetes API.
+// the correct behavior when forwarding the request to the Kubernetes API.
 // By default, if no kubernetes_users is set (which will be a majority),
 // user will impersonate themselves, which is the backwards-compatible behavior.
 // teleport.KubeSystemAuthenticated is a builtin group that allows
@@ -895,7 +895,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
 		if actx.kubeResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
-			kubeResources := getKubeResourcesFromAllowedRequestIds(actx.Checker.GetAllowedResourceIDs())
+			kubeResources := getKubeResourcesFromAllowedRequestIds(ks, actx.Checker.GetAllowedResourceIDs())
 			if err := matchKubernetesResource(*actx.kubeResource, kubeResources, nil /*denied branch is empty*/); err != nil {
 				return clusterNotFound
 			}
@@ -911,13 +911,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	return clusterNotFound
 }
 
-func getKubeResourcesFromAllowedRequestIds(resourceIDs []types.ResourceID) []types.KubernetesResource {
+func getKubeResourcesFromAllowedRequestIds(ks types.KubeCluster, resourceIDs []types.ResourceID) []types.KubernetesResource {
 	kubeResources := make([]types.KubernetesResource, 0, len(resourceIDs))
 	for _, resourceID := range resourceIDs {
-		if !slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) {
+		if !slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || resourceID.Name != ks.GetName() {
 			continue
 		}
-		split := strings.SplitN(resourceID.SubResourceName, "/", 1)
+		split := strings.SplitN(resourceID.SubResourceName, "/", 2)
 		if len(split) != 2 {
 			continue
 		}
