@@ -38,6 +38,8 @@ type Config struct {
 	// expected location by the time we get around to creating the client.
 	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
 	GatewayCertReissuer             *GatewayCertReissuer
+	// PrehogAddr is the URL where prehog events should be submitted.
+	PrehogAddr string
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)

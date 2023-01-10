@@ -497,6 +497,10 @@ type ProxyConfig struct {
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
 
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration
+
 	// ACME is ACME protocol support config
 	ACME ACME
 
@@ -950,6 +954,8 @@ func (d *DatabaseAD) IsEmpty() bool {
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
 	ResourceID string
+	// IsFlexiServer is true if the database is an Azure Flexible server.
+	IsFlexiServer bool
 }
 
 // CheckAndSetDefaults validates database Active Directory configuration.
@@ -1070,7 +1076,8 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			KDCHostName: d.AD.KDCHostName,
 		},
 		Azure: types.Azure{
-			ResourceID: d.Azure.ResourceID,
+			ResourceID:    d.Azure.ResourceID,
+			IsFlexiServer: d.Azure.IsFlexiServer,
 		},
 	})
 }
