@@ -100,8 +100,8 @@ func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error
 	srv := httptest.NewUnstartedServer(handler)
 
 	if !loopback {
-		// replace the test-supplied loopback listener with the first available
-		// non-loopback address
+		// Replace the test-supplied loopback listener with the first available
+		// non-loopback address.
 		srv.Listener.Close()
 		l, err := net.Listen("tcp", "0.0.0.0:0")
 		if err != nil {
