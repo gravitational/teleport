@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1"
 )
 
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile

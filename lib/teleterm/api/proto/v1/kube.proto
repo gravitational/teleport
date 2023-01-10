@@ -18,7 +18,7 @@ package teleport.terminal.v1;
 
 import "v1/label.proto";
 
-option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
 
 // Kube describes connected Kubernetes cluster
 message Kube {

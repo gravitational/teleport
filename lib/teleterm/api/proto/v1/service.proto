@@ -26,7 +26,7 @@ import "v1/kube.proto";
 import "v1/server.proto";
 import "v1/usage_events.proto";
 
-option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
 
 // TerminalService describes Teleterm service
 service TerminalService {

@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.terminal.v1;
 
-option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
 
 // TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
 // app about actions that happen outside of the app itself.

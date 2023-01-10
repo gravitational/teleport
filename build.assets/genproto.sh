@@ -12,7 +12,7 @@ main() {
   # the correct relative path.
   trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
   # cleanup gen/proto folders
-  rm -fr api/gen/proto gen/proto lib/teleterm/api/protogen lib/prehog/gen lib/prehog/gen-js
+  rm -fr api/gen/proto gen/proto lib/teleterm/api/gen/proto lib/prehog/gen/proto lib/prehog/gen-js
 
   # Generate Gogo protos.
   buf generate --template=buf-gogo.gen.yaml api/proto
@@ -25,6 +25,7 @@ main() {
     --path=api/proto/teleport/loginrule/ \
     --path=api/proto/teleport/proxy/ \
     --path=proto/teleport/lib/multiplexer/
+  buf generate --template=buf-go.gen.yaml lib/teleterm/api/proto
 
   # Generate connect-go protos.
   buf generate --template=buf-connect-go.gen.yaml lib/prehog/proto

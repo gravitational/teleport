@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 

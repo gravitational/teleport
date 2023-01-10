@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
 	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha/v1alphaconnect"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1"
 	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
 )

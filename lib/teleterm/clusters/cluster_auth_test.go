@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1"
 )
 
 func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {

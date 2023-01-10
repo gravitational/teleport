@@ -1,15 +1,5 @@
 version: v1
 plugins:
-  - name: go
-    out: lib/teleterm/api/protogen/golang
-    opt:
-      - paths=source_relative
-
-  - name: go-grpc
-    out: lib/teleterm/api/protogen/golang
-    opt:
-      - paths=source_relative
-
   - name: js
     out: lib/teleterm/api/protogen/js
     opt:
