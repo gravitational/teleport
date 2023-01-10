@@ -14,19 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { map, sortBy } from 'lodash';
-
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import makeCluster from './makeCluster';
+import { makeClusterList } from './makeCluster';
 
 const service = {
   fetchClusters() {
-    return api
-      .get(cfg.api.clustersPath)
-      .then(json => map(json, makeCluster))
-      .then(clusters => sortBy(clusters, 'clusterId'));
+    return api.get(cfg.api.clustersPath).then(makeClusterList);
   },
 };
 
