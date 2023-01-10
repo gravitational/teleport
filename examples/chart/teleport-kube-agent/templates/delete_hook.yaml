@@ -58,23 +58,13 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: post-delete-job
-        image: "mirror.gcr.io/library/alpine"
+        image: alpine/k8s:1.26.0
         command:
         - sh
         - "-c"
         - |
             /bin/sh <<'EOF'
-              # install curl and grp
-              apk add curl grep
-              # download kubectl
-              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-              curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
-              echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c
-              if [ $? -ne 0 ]; then
-                  exit $?
-              fi
-              chmod +x kubectl
               # list secrets with format {{ .Release.Name }}-.*-state and delete them.
-              ./kubectl get secrets --no-headers=true  | awk '{print $1}' | grep -E -i "{{ .Release.Name }}-.*-state" |  xargs -r ./kubectl delete secret
+              kubectl get secrets --no-headers=true  | awk '{print $1}' | grep -E -i "{{ .Release.Name }}-.*-state" |  xargs -r kubectl delete secret
               exit 0
             EOF
