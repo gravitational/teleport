@@ -179,6 +179,8 @@ type CLIConf struct {
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
 	DaemonCertsDir string
+	// DaemonPrehogAddr is the URL where prehog events should be submitted.
+	DaemonPrehogAddr string
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -621,6 +623,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
+	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
 
 	// AWS.
 	// Use Interspersed(false) to forward all flags to AWS CLI.
