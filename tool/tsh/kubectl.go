@@ -208,19 +208,14 @@ func createKubeAccessRequest(cf *CLIConf, resources []resourceKind, args []strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	kubeName, err := getKubeClusterName(args, proxyClient.ClusterName())
+	kubeName, err := getKubeClusterName(args, tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, rec := range resources {
 		cf.RequestedResourceIDs = append(
 			cf.RequestedResourceIDs,
-			filepath.Join("/", proxyClient.ClusterName(), rec.kind, kubeName, rec.subResourceName),
+			filepath.Join("/", tc.SiteName, rec.kind, kubeName, rec.subResourceName),
 		)
 	}
 	cf.Reason = fmt.Sprintf("Resource request automatically created for %v", args)
