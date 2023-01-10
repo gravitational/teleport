@@ -20,15 +20,17 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha";
 
-message ConnectUserLoginEvent {
+message ConnectClusterLoginEvent {
   // anonymized
   string cluster_name = 1;
   // anonymized
   string user_name = 2;
-  string arch = 3;
-  string os = 4;
-  string os_version = 5;
-  string connect_version = 6;
+  // local/github/saml/oidc/passwordless
+  string connector_type = 3;
+  string arch = 4;
+  string os = 5;
+  string os_version = 6;
+  string app_version = 7;
 }
 
 message ConnectProtocolUseEvent {
@@ -68,11 +70,11 @@ message ConnectFileTransferRunEvent {
   string cluster_name = 1;
   // anonymized
   string user_name = 2;
-  // upload/download
-  string direction = 3;
+  bool is_upload = 3;
 }
 
 message ConnectUserJobRoleUpdateEvent {
+  // Software Engineer, DevOps Engineer etc.
   string job_role = 1;
 }
 
@@ -84,7 +86,7 @@ message SubmitConnectEventRequest {
   google.protobuf.Timestamp timestamp = 2;
 
   oneof event {
-    ConnectUserLoginEvent user_login = 3;
+    ConnectClusterLoginEvent cluster_login = 3;
     ConnectProtocolUseEvent protocol_use = 4;
     ConnectAccessRequestCreateEvent access_request_create = 5;
     ConnectAccessRequestReviewEvent access_request_review = 6;

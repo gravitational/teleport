@@ -7,44 +7,48 @@
 import * as jspb from "google-protobuf";
 import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/timestamp_pb";
 
-export class ConnectUserLoginEvent extends jspb.Message { 
+export class ConnectClusterLoginEvent extends jspb.Message { 
     getClusterName(): string;
-    setClusterName(value: string): ConnectUserLoginEvent;
+    setClusterName(value: string): ConnectClusterLoginEvent;
 
     getUserName(): string;
-    setUserName(value: string): ConnectUserLoginEvent;
+    setUserName(value: string): ConnectClusterLoginEvent;
+
+    getConnectorType(): string;
+    setConnectorType(value: string): ConnectClusterLoginEvent;
 
     getArch(): string;
-    setArch(value: string): ConnectUserLoginEvent;
+    setArch(value: string): ConnectClusterLoginEvent;
 
     getOs(): string;
-    setOs(value: string): ConnectUserLoginEvent;
+    setOs(value: string): ConnectClusterLoginEvent;
 
     getOsVersion(): string;
-    setOsVersion(value: string): ConnectUserLoginEvent;
+    setOsVersion(value: string): ConnectClusterLoginEvent;
 
-    getConnectVersion(): string;
-    setConnectVersion(value: string): ConnectUserLoginEvent;
+    getAppVersion(): string;
+    setAppVersion(value: string): ConnectClusterLoginEvent;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ConnectUserLoginEvent.AsObject;
-    static toObject(includeInstance: boolean, msg: ConnectUserLoginEvent): ConnectUserLoginEvent.AsObject;
+    toObject(includeInstance?: boolean): ConnectClusterLoginEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ConnectClusterLoginEvent): ConnectClusterLoginEvent.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ConnectUserLoginEvent, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ConnectUserLoginEvent;
-    static deserializeBinaryFromReader(message: ConnectUserLoginEvent, reader: jspb.BinaryReader): ConnectUserLoginEvent;
+    static serializeBinaryToWriter(message: ConnectClusterLoginEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ConnectClusterLoginEvent;
+    static deserializeBinaryFromReader(message: ConnectClusterLoginEvent, reader: jspb.BinaryReader): ConnectClusterLoginEvent;
 }
 
-export namespace ConnectUserLoginEvent {
+export namespace ConnectClusterLoginEvent {
     export type AsObject = {
         clusterName: string,
         userName: string,
+        connectorType: string,
         arch: string,
         os: string,
         osVersion: string,
-        connectVersion: string,
+        appVersion: string,
     }
 }
 
@@ -163,8 +167,8 @@ export class ConnectFileTransferRunEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): ConnectFileTransferRunEvent;
 
-    getDirection(): string;
-    setDirection(value: string): ConnectFileTransferRunEvent;
+    getIsUpload(): boolean;
+    setIsUpload(value: boolean): ConnectFileTransferRunEvent;
 
 
     serializeBinary(): Uint8Array;
@@ -181,7 +185,7 @@ export namespace ConnectFileTransferRunEvent {
     export type AsObject = {
         clusterName: string,
         userName: string,
-        direction: string,
+        isUpload: boolean,
     }
 }
 
@@ -217,10 +221,10 @@ export class SubmitConnectEventRequest extends jspb.Message {
     setTimestamp(value?: google_protobuf_timestamp_pb.Timestamp): SubmitConnectEventRequest;
 
 
-    hasUserLogin(): boolean;
-    clearUserLogin(): void;
-    getUserLogin(): ConnectUserLoginEvent | undefined;
-    setUserLogin(value?: ConnectUserLoginEvent): SubmitConnectEventRequest;
+    hasClusterLogin(): boolean;
+    clearClusterLogin(): void;
+    getClusterLogin(): ConnectClusterLoginEvent | undefined;
+    setClusterLogin(value?: ConnectClusterLoginEvent): SubmitConnectEventRequest;
 
 
     hasProtocolUse(): boolean;
@@ -275,7 +279,7 @@ export namespace SubmitConnectEventRequest {
     export type AsObject = {
         distinctId: string,
         timestamp?: google_protobuf_timestamp_pb.Timestamp.AsObject,
-        userLogin?: ConnectUserLoginEvent.AsObject,
+        clusterLogin?: ConnectClusterLoginEvent.AsObject,
         protocolUse?: ConnectProtocolUseEvent.AsObject,
         accessRequestCreate?: ConnectAccessRequestCreateEvent.AsObject,
         accessRequestReview?: ConnectAccessRequestReviewEvent.AsObject,
@@ -287,7 +291,7 @@ export namespace SubmitConnectEventRequest {
     export enum EventCase {
         EVENT_NOT_SET = 0,
     
-    USER_LOGIN = 3,
+    CLUSTER_LOGIN = 3,
 
     PROTOCOL_USE = 4,
 

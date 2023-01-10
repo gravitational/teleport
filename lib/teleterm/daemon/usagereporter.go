@@ -136,9 +136,9 @@ func getAnonymizedPrehogEvent(req *api.ReportUsageEventRequest) (*prehogapi.Subm
 		return nil, trace.Wrap(err)
 	}
 	switch e := prehogEvent.GetEvent().(type) {
-	case *prehogapi.SubmitConnectEventRequest_UserLogin:
-		e.UserLogin.ClusterName = anonymizer.AnonymizeString(e.UserLogin.ClusterName)
-		e.UserLogin.UserName = anonymizer.AnonymizeString(e.UserLogin.UserName)
+	case *prehogapi.SubmitConnectEventRequest_ClusterLogin:
+		e.ClusterLogin.ClusterName = anonymizer.AnonymizeString(e.ClusterLogin.ClusterName)
+		e.ClusterLogin.UserName = anonymizer.AnonymizeString(e.ClusterLogin.UserName)
 		return prehogEvent, nil
 	case *prehogapi.SubmitConnectEventRequest_ProtocolUse:
 		e.ProtocolUse.ClusterName = anonymizer.AnonymizeString(e.ProtocolUse.ClusterName)
