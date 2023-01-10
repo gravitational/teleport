@@ -1,4 +1,6 @@
 version: v1
 directories:
   - api/proto
+  - lib/prehog/proto
+  - lib/teleterm/api/proto
   - proto
