@@ -1541,6 +1541,10 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 
 // applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
 func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
+	if err := fc.WindowsDesktop.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg.WindowsDesktop.Enabled = true
 
 	if fc.WindowsDesktop.ListenAddress != "" {
