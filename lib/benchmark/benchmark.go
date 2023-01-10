@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
@@ -275,7 +274,7 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		Host:   host,
 		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
-	path := profile.FullProfilePath("")
+
 	if login != "" {
 		c.HostLogin = login
 		c.Username = login
@@ -283,7 +282,9 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 	if proxy != "" {
 		c.SSHProxyAddr = proxy
 	}
-	if err := c.LoadProfile(path, proxy); err != nil {
+
+	profileStore := client.NewFSProfileStore("")
+	if err := c.LoadProfile(profileStore, proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tc, err := client.NewClient(&c)

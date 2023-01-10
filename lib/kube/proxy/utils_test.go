@@ -44,10 +44,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -109,7 +111,9 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	// Use sync recording to not involve the uploader.
 	recConfig, err := authServer.AuthServer.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
-	recConfig.SetMode(types.RecordAtNode)
+	// Always use *-sync to prevent fileStreamer from running against os.RemoveAll
+	// once the test ends.
+	recConfig.SetMode(types.RecordAtNodeSync)
 	err = authServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
@@ -130,7 +134,11 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyLockWatcher)
+	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: testCtx.clusterName,
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
@@ -161,11 +169,19 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	// Create kubernetes service server.
 	testCtx.kubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
-			Namespace:         apidefaults.Namespace,
-			Keygen:            keyGen,
-			ClusterName:       testCtx.clusterName,
-			Authz:             proxyAuthorizer,
-			AuthClient:        testCtx.authClient,
+			Namespace:   apidefaults.Namespace,
+			Keygen:      keyGen,
+			ClusterName: testCtx.clusterName,
+			Authz:       proxyAuthorizer,
+			// fileStreamer continues to write events after the server is shutdown and
+			// races against os.RemoveAll leading the test to fail.
+			// Using "node-sync" mode to write the events and session recordings
+			// directly to AuthClient solves the issue.
+			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
+			// events like session.end to testCtx.emitter as well.
+			AuthClient: newAuthClientWithStreamer(testCtx),
+			// StreamEmitter is required although not used because we are using
+			// "node-sync" as session recording mode.
 			StreamEmitter:     testCtx.emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: testCtx.authClient,
@@ -375,4 +391,25 @@ func (c *testContext) newJoiningSession(cfg *rest.Config, sessionID string, mode
 	}
 	stream, err := streamproto.NewSessionStream(ws.conn, streamproto.ClientHandshake{Mode: mode})
 	return stream, trace.Wrap(err)
+}
+
+// authClientWithStreamer wraps auth.Client and replaces the CreateAuditStream
+// and ResumeAuditStream methods to use a events.TeeStreamer to leverage the StreamEmitter
+// even when recording mode is *-sync.
+type authClientWithStreamer struct {
+	*auth.Client
+	streamer *events.TeeStreamer
+}
+
+// newAuthClientWithStreamer creates a new authClient wrapper.
+func newAuthClientWithStreamer(testCtx *testContext) *authClientWithStreamer {
+	return &authClientWithStreamer{Client: testCtx.authClient, streamer: events.NewTeeStreamer(testCtx.authClient, testCtx.emitter)}
+}
+
+func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {
+	return a.streamer.CreateAuditStream(ctx, sID)
+}
+
+func (a *authClientWithStreamer) ResumeAuditStream(ctx context.Context, sID sessPkg.ID, uploadID string) (apievents.Stream, error) {
+	return a.streamer.ResumeAuditStream(ctx, sID, uploadID)
 }

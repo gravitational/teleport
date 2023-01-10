@@ -145,6 +145,9 @@ const (
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
+	// KindKubePod is an Kubernetes Pod resource type.
+	KindKubePod = "pod"
+
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
@@ -305,6 +308,9 @@ const (
 
 	// KindInstance represents a teleport instance independent of any specific service.
 	KindInstance = "instance"
+
+	// V6 is the sixth version of resources.
+	V6 = "v6"
 
 	// V5 is the fifth version of resources.
 	V5 = "v5"
@@ -560,6 +566,11 @@ var RequestableResourceKinds = []string{
 	KindWindowsDesktop,
 	KindOktaApps,
 	KindOktaGroups,
+}
+
+// KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
+var KubernetesResourcesKinds = []string{
+	KindKubePod,
 }
 
 const (

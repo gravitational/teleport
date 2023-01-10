@@ -390,8 +390,8 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 	require.NoError(t, err)
 	_, leafCACertPEM, err := genUserKey("example.com")
 	require.NoError(t, err)
-	creds.TrustedCA[0].ClusterName = clusterName
-	creds.TrustedCA = append(creds.TrustedCA, auth.TrustedCerts{
+	creds.TrustedCerts[0].ClusterName = clusterName
+	creds.TrustedCerts = append(creds.TrustedCerts, auth.TrustedCerts{
 		ClusterName:     leafClusterName,
 		TLSCertificates: [][]byte{leafCACertPEM},
 	})
@@ -515,7 +515,7 @@ func genUserKey(hostname string) (*client.Key, []byte, error) {
 	return &client.Key{
 		PrivateKey: priv,
 		TLSCert:    tlsCert,
-		TrustedCA: []auth.TrustedCerts{{
+		TrustedCerts: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, caCert, nil

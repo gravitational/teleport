@@ -103,7 +103,6 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
-	// GetAllLabels returns the labels for this request.
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -413,34 +412,36 @@ func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
 }
 
-func (a *AccessRequestV3) GetStaticLabels() map[string]string {
-	return a.Metadata.Labels
+// GetStaticLabels returns the access request static labels.
+func (r *AccessRequestV3) GetStaticLabels() map[string]string {
+	return r.Metadata.Labels
 }
 
-// SetStaticLabels sets the app static labels.
-func (a *AccessRequestV3) SetStaticLabels(sl map[string]string) {
-	a.Metadata.Labels = sl
+// SetStaticLabels sets the access request static labels.
+func (r *AccessRequestV3) SetStaticLabels(sl map[string]string) {
+	r.Metadata.Labels = sl
 }
 
-func (a *AccessRequestV3) GetAllLabels() map[string]string {
-	return a.Metadata.Labels
+// GetAllLabels returns the access request static labels.
+func (r *AccessRequestV3) GetAllLabels() map[string]string {
+	return r.Metadata.Labels
 }
 
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
-func (a *AccessRequestV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
+func (r *AccessRequestV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, values, nil)
 }
 
 // Origin returns the origin value of the resource.
-func (a *AccessRequestV3) Origin() string {
-	return a.Metadata.Origin()
+func (r *AccessRequestV3) Origin() string {
+	return r.Metadata.Origin()
 }
 
 // SetOrigin sets the origin value of the resource.
-func (a *AccessRequestV3) SetOrigin(origin string) {
-	a.Metadata.SetOrigin(origin)
+func (r *AccessRequestV3) SetOrigin(origin string) {
+	r.Metadata.SetOrigin(origin)
 }
 
 // String returns a text representation of this AccessRequest
@@ -545,15 +546,11 @@ func (s RequestStrategy) RequireReason() bool {
 
 // stateVariants allows iteration of the expected variants
 // of RequestState.
-var stateVariants = [8]RequestState{
+var stateVariants = [4]RequestState{
 	RequestState_NONE,
 	RequestState_PENDING,
 	RequestState_APPROVED,
 	RequestState_DENIED,
-	RequestState_PROCESSED,
-	RequestState_PROCESS_FAILED,
-	RequestState_CLEANED_UP,
-	RequestState_CLEANUP_FAILED,
 }
 
 // Parse attempts to interpret a value as a string representation
@@ -588,29 +585,9 @@ func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED
 }
 
-// IsProcessed request state
-func (s RequestState) IsProcessed() bool {
-	return s == RequestState_PROCESSED
-}
-
-// IsProcessFailed request state
-func (s RequestState) IsProcessFailed() bool {
-	return s == RequestState_PROCESS_FAILED
-}
-
-// IsCleanedUp request state
-func (s RequestState) IsCleanedUp() bool {
-	return s == RequestState_CLEANED_UP
-}
-
-// IsCleanupFailed request state
-func (s RequestState) IsCleanupFailed() bool {
-	return s == RequestState_CLEANUP_FAILED
-}
-
 // IsResolved request state
 func (s RequestState) IsResolved() bool {
-	return s.IsApproved() || s.IsDenied() || s.IsProcessed() || s.IsProcessFailed() || s.IsCleanedUp() || s.IsCleanupFailed()
+	return s.IsApproved() || s.IsDenied()
 }
 
 // key values for map encoding of request filter
