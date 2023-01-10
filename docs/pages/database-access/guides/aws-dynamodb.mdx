@@ -132,7 +132,7 @@ spec:
     db_labels:
       '*': '*'
     db_users:
-    - '*'
+    - 'ExampleTeleportDynamoDBRole' # only the role name, do not specify the full AWS ARN
 ```
 
 Create the new role:
@@ -154,7 +154,7 @@ for more details.
 <Admonition type="warning" title="non-standard AWS regions">
 For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
 regions, please set the corresponding region in the `AWS_REGION` environment
-variable or in the AWS credentials file so that the Application Service can use
+variable or in the AWS credentials file so that the Database Service can use
 the correct STS endpoint.
 </Admonition>
 
@@ -167,7 +167,7 @@ the command:
 ```code
 $ tctl tokens add \
     --type=db \
-    --db-name=example-dynamodb
+    --db-name=example-dynamodb \
     --db-protocol=dynamodb
 ```
 
@@ -175,7 +175,7 @@ Use the token provided by the output of this command in the next step.
 
 ### Install and start Teleport
 
-Install Teleport on the host where you will run the Teleport Application
+Install Teleport on the host where you will run the Teleport Database
 Service. See our [Installation](../../installation.mdx) page for options
 besides Linux servers.
 
