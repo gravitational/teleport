@@ -888,9 +888,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
-	v := []string{}
-	kubectl := app.Command("kubectl", "Run shell or execute a command on a remote SSH node").Interspersed(false)
-	kubectl.Arg("", "").StringsVar(&v)
+	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster").Interspersed(false)
+	// This hack is required in order to accept any args for tsh kubectl.
+	kubectl.Arg("", "").StringsVar(new([]string))
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
