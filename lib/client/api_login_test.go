@@ -428,17 +428,9 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		SshAuthorizedKey: key.Cert,
 	}
 
-	// Reset dtAuthnRunCeremony after tests.
-	oldIgnorePing := *client.DTAttemptLoginIgnorePing
-	oldRunCeremony := *client.DTAuthnRunCeremony
-	t.Cleanup(func() {
-		*client.DTAttemptLoginIgnorePing = oldIgnorePing
-		*client.DTAuthnRunCeremony = oldRunCeremony
-	})
-
 	t.Run("device login", func(t *testing.T) {
 		// We need this because the running standalone process is not Enterprise.
-		*client.DTAttemptLoginIgnorePing = true
+		teleportClient.SetDTAttemptLoginIgnorePing(true)
 
 		// validatingRunCeremony checks the parameters passed to dtAuthnRunCeremony
 		// and returns validCerts on success.
@@ -455,7 +447,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			}
 			return validCerts, nil
 		}
-		*client.DTAuthnRunCeremony = validatingRunCeremony
+		teleportClient.SetDTAuthnRunCeremony(validatingRunCeremony)
 
 		// Sanity check that we can do authenticated actions before
 		// AttemptDeviceLogin.
@@ -486,11 +478,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 
 	t.Run("attempt login respects ping", func(t *testing.T) {
 		runCeremonyCalled := false
-		*client.DTAttemptLoginIgnorePing = false
-		*client.DTAuthnRunCeremony = func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAttemptLoginIgnorePing(false)
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 			runCeremonyCalled = true
 			return nil, errors.New("dtAuthnRunCeremony called unexpectedly")
-		}
+		})
 
 		// Sanity check the Ping response.
 		resp, err := teleportClient.Ping(ctx)
