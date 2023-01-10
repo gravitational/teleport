@@ -581,8 +581,8 @@ func (s *server) diffConns(newConns, existingConns map[string]types.TunnelConnec
 	return connsToAdd, connsToUpdate, connsToRemove
 }
 
-func (s *server) Wait() {
-	s.srv.Wait(context.TODO())
+func (s *server) Wait(ctx context.Context) {
+	s.srv.Wait(ctx)
 }
 
 func (s *server) Start() error {
