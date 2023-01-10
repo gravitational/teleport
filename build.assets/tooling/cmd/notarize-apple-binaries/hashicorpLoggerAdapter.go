@@ -158,8 +158,8 @@ func (hclla HCLogLogrusAdapter) SetLevel(level hclog.Level) {
 }
 
 // Returns the current level
-func (hccla HCLogLogrusAdapter) GetLevel() hclog.Level {
-	switch hccla.logger.GetLevel() {
+func (hclla HCLogLogrusAdapter) GetLevel() hclog.Level {
+	switch hclla.logger.GetLevel() {
 	case logrus.FatalLevel:
 	case logrus.PanicLevel:
 	case logrus.ErrorLevel:

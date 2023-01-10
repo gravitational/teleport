@@ -31,7 +31,7 @@ import (
 
 const (
 	DevelopereIdentity string = "0FFD3E3413AB4C599C53FBB1D8CA690915E33D83"
-	BundleId           string = "com.gravitational.teleport"
+	BundleID           string = "com.gravitational.teleport"
 )
 
 type GonWrapper struct {
@@ -108,7 +108,7 @@ func (gw *GonWrapper) NotarizeBinaries(zipPath string) error {
 	logrus.Infof("Uploading %q to Apple for notarization ticket issuance. This may take awhile...", zipPath)
 	notarizationInfo, err := notarize.Notarize(gw.ctx, &notarize.Options{
 		File:     zipPath,
-		BundleId: BundleId,
+		BundleId: BundleID,
 		Username: gw.config.AppleUsername,
 		Password: gw.config.ApplePassword,
 		Logger:   gw.logger,

@@ -13,7 +13,7 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
 	github.com/seqsense/s3sync v1.8.2
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/testify v1.8.1
 	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/mod v0.6.0
 	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
@@ -29,6 +29,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.6.3 // indirect
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.10 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 )
 
