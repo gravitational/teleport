@@ -40,7 +40,7 @@ in configuration examples provided in this guide with that value.
 Open CircleCI and select the project you wish to allow access to your Teleport
 cluster. In the top right corner click "Project settings". You should be
 presented with an interface titled "Overview" with a section called
-"Project ID". Note this value down and substitute "$PROJECT_ID" in configuration
+"Project ID". Note this value down and substitute `$PROJECT_ID` in configuration
 examples provided in this guide with that value.
 
 ## Step 2/4. Create the join token for CircleCI
@@ -83,6 +83,10 @@ $ tctl bots add circleci-demo --roles=access --logins=root --token=circleci-toke
 
 ## Step 4/4. Configure CircleCI workflow
 
+Replace `tele.example.com:443` with the public-facing address of your Teleport
+Proxy. Replace `my-node` with the name of the Teleport node that you wish to connect
+to.
+
 ```yaml
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
@@ -96,7 +100,7 @@ jobs:
           name: "teleport"
           command: |
             ./tbot start --auth-server=tele.example.com:443 --join-method=circleci --token=circleci-token --oneshot --destination-dir=./certs --data-dir=./data
-            ./tsh -i ./certs/identity --proxy tele.example.com:443 ssh root@noah-laptop "echo $CIRCLE_BUILD_URL >> ~/circle_run_log"
+            ./tsh -i ./certs/identity --proxy tele.example.com:443 ssh root@my-node "echo $CIRCLE_BUILD_URL >> ~/circle_run_log"
 workflows:
   teleport-workflow:
     jobs:
@@ -109,3 +113,10 @@ For more informatiom about CircleCI itself, read
 [their documentation](https://circleci.com/docs/).
 
 ### Using CircleCI contexts
+
+You can further limit which jobs within a project workflow are able to access
+your Teleport cluster using CircleCI contexts. This provides more granularity
+than granting access to an entire project which may also run third-party code as
+part of one of the jobs in a workflow.
+
+TODO: Explain this.
