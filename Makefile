@@ -1011,12 +1011,6 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
-# Interactively enters a Docker container (which you can build and run Teleport Connect inside of).
-# Similar to `enter`, but uses the teleterm container.
-.PHONY:enter/teleterm
-enter/teleterm:
-	make -C build.assets enter/teleterm
-
 
 BUF := buf
 
@@ -1064,7 +1058,7 @@ print/env:
 	env
 
 # grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
-# Terminal. This target runs in the buildbox-teleterm container.
+# Terminal. This target runs in the buildbox container.
 #
 # It exists as a separate target because on M1 MacBooks we must build grpc_node_plugin from source.
 # That involves apt-get install of cmake & build-essential as well pulling hundreds of megabytes of

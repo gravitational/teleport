@@ -153,6 +153,8 @@ RUN apt-get -y update && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
+        # Used during tag builds to build the RPM package of Connect.
+        rpm \
         softhsm2 \
         sudo \
         tree \
