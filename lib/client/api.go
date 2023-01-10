@@ -3208,8 +3208,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 // confirmSSHConnectivityErrorMsg returns the error message for Proxy SSH
 // connectivity errors.
 func confirmSSHConnectivityErrorMsg(proxyAddress string) string {
-	return fmt.Sprintf("Unable to successfully connect and authenticate to ssh proxy address=%v. "+
-		"Required for Teleport client. "+
+	return fmt.Sprintf("Unable to connect to ssh proxy address=%v required for client interactions. "+
 		"Confirm connectivity and availability.", proxyAddress)
 }
 
