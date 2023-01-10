@@ -172,7 +172,7 @@ func (r *extendedKeyring) Add(key agent.AddedKey) error {
 		}
 	}
 
-	if err := r.keyring.Add(key); err == nil {
+	if err := r.keyring.Add(key); err != nil {
 		return trace.Wrap(err)
 	}
 
