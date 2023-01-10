@@ -17,7 +17,6 @@ limitations under the License.
 package proxy
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -27,7 +26,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http/httpproxy"
@@ -268,14 +266,14 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 				t.Setenv("HTTP_PROXY", fmt.Sprintf("http://localhost:%s", port))
 			}
 
-			// Always set addr to the https server.
-			// If HTTP_PROXY was set above, the http proxy should be hit regardless.
-			addr := httpsSrv.Listener.Addr().String()
-			clt := newClient(t, addr, nil)
+			clt := newClient(t, nil)
 
 			// Perform any request.
-			ctx := context.Background()
-			_, err = clt.PostJSON(ctx, clt.Endpoint("content"), nil)
+			// Set addr to the https server. If HTTP_PROXY was set above,
+			// the http proxy should be hit regardless.
+			addr := httpsSrv.Listener.Addr().String()
+			url := "https://" + addr + "/v1/content"
+			_, err = clt.Post(url, "application/json", nil)
 			require.NoError(t, err)
 
 			// Validate that the correct server was hit.
@@ -330,13 +328,13 @@ func TestHttpRoundTripperExtraHeaders(t *testing.T) {
 			require.NoError(t, err)
 			defer httpsSrv.Close()
 
-			// Set the address to the localhost https server.
-			addr := httpsSrv.Listener.Addr().String()
-			clt := newClient(t, addr, tc.extraHeaders)
+			clt := newClient(t, tc.extraHeaders)
 
 			// Perform any request.
-			ctx := context.Background()
-			_, err = clt.PostJSON(ctx, clt.Endpoint("content"), nil)
+			// Set the address to the localhost https server.
+			addr := httpsSrv.Listener.Addr().String()
+			url := "https://" + addr + "/v1/content"
+			_, err = clt.Post(url, "application/json", nil)
 			require.NoError(t, err)
 		})
 	}
@@ -368,7 +366,7 @@ func newServer(handler http.HandlerFunc, loopback bool, https bool) (*httptest.S
 }
 
 // newClient creates a new https roundtrip client.
-func newClient(t *testing.T, addr string, extraHeaders map[string]string) *roundtrip.Client {
+func newClient(t *testing.T, extraHeaders map[string]string) *http.Client {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			// Setting insecure ensures that https requests succeed.
@@ -378,13 +376,9 @@ func newClient(t *testing.T, addr string, extraHeaders map[string]string) *round
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 		},
 	}
-	httpClient := &http.Client{
+	return &http.Client{
 		Transport: NewHTTPRoundTripper(transport, extraHeaders),
 	}
-	opt := roundtrip.HTTPClient(httpClient)
-	clt, err := roundtrip.NewClient("https://"+addr, "v1", opt)
-	require.NoError(t, err)
-	return clt
 }
 
 func TestParse(t *testing.T) {
