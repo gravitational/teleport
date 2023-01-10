@@ -14,19 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file was partially copied from x/crypto/ssh/agent.keyring.go
-
-// Copyright 2014 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package client
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"io"
 	"strconv"
 	"sync"
 
@@ -37,128 +33,145 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 var (
-	errLocked   = trace.AccessDenied("extendedKeyring: locked")
-	errNotFound = trace.NotFound("extendedKeyring: key not found")
+	errLocked   = trace.AccessDenied("extendedAgent: locked")
+	errNotFound = trace.NotFound("extendedAgent: key not found")
 )
 
-// extendedKeyring is a wrapper for an in memory agent key ring with extensions.
-type extendedKeyring struct {
-	// keyring is the underlying keyring.
-	keyring agent.ExtendedAgent
+// extendedAgent is a wrapper for an agent with extensions.
+type extendedAgent struct {
+	// agent is the underlying agent.
+	agent agent.ExtendedAgent
 	// extensionHandlers are used to handle agent extension requests. These
 	// handlers are called under mu.Lock for safe access to protected fields.
 	extensionHandlers map[string]extensionHandler
 
 	mu sync.Mutex
-	// locked locks the extended keyring.
+	// locked locks the extended agent.
 	locked bool
 	// cryptoSigners are the corresponding crypto.Signers for added agent keys.
 	cryptoSigners map[string]crypto.Signer
 }
 
-// ExtendedKeyringOpt is a keyring extension option that can be applied to a
-// new keyring to implement an agent extension.
-type ExtendedKeyringOpt func(r *extendedKeyring)
-
-// NewExtendedKeyring returns an Agent that holds keys in memory. It is safe
-// for concurrent use by multiple goroutines.
-func NewExtendedKeyring(opts ...ExtendedKeyringOpt) (agent.ExtendedAgent, error) {
-	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
-	if !ok {
-		return nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
-	}
-
-	extendedKeyring := &extendedKeyring{
-		keyring:           keyring,
+// NewExtendedAgent returns an extended agent wrapper for the given agent.
+func NewExtendedAgent(agent agent.ExtendedAgent, extensions ...AgentExtension) (agent.ExtendedAgent, error) {
+	extendedAgent := &extendedAgent{
+		agent:             agent,
 		cryptoSigners:     make(map[string]crypto.Signer),
 		extensionHandlers: make(map[string]extensionHandler),
 	}
 
-	for _, opt := range opts {
-		opt(extendedKeyring)
+	for _, e := range extensions {
+		extendedAgent.extensionHandlers[e.name] = e.handler
 	}
 
-	return extendedKeyring, nil
+	return extendedAgent, nil
 }
 
-// WithSignExtension adds the sign@goteleport.com extension to the extended keyring.
+// AgentExtensionOpt holds details for a specific ssh agent extension.
+type AgentExtension struct {
+	name    string
+	handler extensionHandler
+}
+
+// extensionHandler handles an agent extension request.
+type extensionHandler func(a *extendedAgent, contents []byte) ([]byte, error)
+
+// WithSignExtension returns the AgentExtension for sign@goteleport.com.
 // This enabled forwarded keys to be used as a crypto.Signer in addition to the usual
-// ssh.Signer, enabling non ssh cryptographical operations, such as TLS handhshakes.
-func WithSignExtension() ExtendedKeyringOpt {
-	return func(r *extendedKeyring) {
-		r.extensionHandlers[signAgentExtension] = signExtensionHandler(r)
+// ssh.Signer, enabling non ssh cryptographic operations, such as TLS handshakes.
+func WithSignExtension() AgentExtension {
+	return AgentExtension{
+		name:    signAgentExtension,
+		handler: signExtensionHandler(),
 	}
 }
 
-// WithKeyExtension adds the key@goteleport.com extension to the extended keyring.
-// This extension can be used to retrieve a client's profile and certs from the
-// client store.
-func WithKeyExtension(s *Store) ExtendedKeyringOpt {
-	return func(r *extendedKeyring) {
-		r.extensionHandlers[keyAgentExtension] = keyExtensionHandler(r, s)
+// WithSignExtension returns the AgentExtension for key@goteleport.com.
+// This extension can be used to retrieve a client's profile and certs from the client store.
+func WithKeyExtension(s *Store) AgentExtension {
+	return AgentExtension{
+		name:    keyAgentExtension,
+		handler: keyExtensionHandler(s),
+	}
+}
+
+// WithConfirmation wraps the AgentExtension with a confirmation prompt.
+func (inner AgentExtension) WithConfirmation(ctx context.Context, in io.Reader, out io.Writer, promptMsg string) AgentExtension {
+	return AgentExtension{
+		name: inner.name,
+		handler: func(a *extendedAgent, contents []byte) ([]byte, error) {
+			ok, err := prompt.Confirmation(ctx, out, prompt.NewContextReader(in), promptMsg)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			} else if !ok {
+				return nil, trace.AccessDenied("denied")
+			}
+			return inner.handler(a, contents)
+		},
 	}
 }
 
 // RemoveAll removes all identities.
-func (r *extendedKeyring) RemoveAll() error {
-	if err := r.keyring.RemoveAll(); err != nil {
+func (a *extendedAgent) RemoveAll() error {
+	if err := a.agent.RemoveAll(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.cryptoSigners = make(map[string]crypto.Signer)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.cryptoSigners = make(map[string]crypto.Signer)
 	return nil
 }
 
 // Remove removes all identities with the given public key.
-func (r *extendedKeyring) Remove(key ssh.PublicKey) error {
-	if err := r.keyring.Remove(key); err != nil {
+func (a *extendedAgent) Remove(key ssh.PublicKey) error {
+	if err := a.agent.Remove(key); err != nil {
 		return trace.Wrap(err)
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.cryptoSigners, string(key.Marshal()))
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.cryptoSigners, string(key.Marshal()))
 	return nil
 }
 
 // Lock locks the agent. Sign, Remove, and Extension will fail, and List will return an empty list.
-func (r *extendedKeyring) Lock(passphrase []byte) error {
-	if err := r.keyring.Lock(passphrase); err != nil {
+func (a *extendedAgent) Lock(passphrase []byte) error {
+	if err := a.agent.Lock(passphrase); err != nil {
 		return trace.Wrap(err)
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.locked = true
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.locked = true
 	return nil
 }
 
 // Unlock undoes the effect of Lock
-func (r *extendedKeyring) Unlock(passphrase []byte) error {
-	if err := r.keyring.Unlock(passphrase); err != nil {
+func (a *extendedAgent) Unlock(passphrase []byte) error {
+	if err := a.agent.Unlock(passphrase); err != nil {
 		return trace.Wrap(err)
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.locked = false
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.locked = false
 	return nil
 }
 
 // List returns the identities known to the agent.
-func (r *extendedKeyring) List() ([]*agent.Key, error) {
-	return r.keyring.List()
+func (a *extendedAgent) List() ([]*agent.Key, error) {
+	return a.agent.List()
 }
 
-// Insert adds a private key to the keyring. If a certificate
+// Insert adds a private key to the agent. If a certificate
 // is given, that certificate is added as public key. Note that
 // any constraints given are ignored.
-func (r *extendedKeyring) Add(key agent.AddedKey) error {
+func (a *extendedAgent) Add(key agent.AddedKey) error {
 	cryptoSigner, ok := key.PrivateKey.(crypto.Signer)
 	if !ok {
 		return trace.BadParameter("invalid agent key: signer of type %T does not implement crypto.Signer", cryptoSigner)
@@ -172,35 +185,35 @@ func (r *extendedKeyring) Add(key agent.AddedKey) error {
 		}
 	}
 
-	if err := r.keyring.Add(key); err != nil {
+	if err := a.agent.Add(key); err != nil {
 		return trace.Wrap(err)
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.cryptoSigners[string(sshPub.Marshal())] = cryptoSigner
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.cryptoSigners[string(sshPub.Marshal())] = cryptoSigner
 	return nil
 }
 
 // Sign returns a signature for the data.
-func (r *extendedKeyring) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
-	return r.keyring.Sign(key, data)
+func (a *extendedAgent) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
+	return a.agent.Sign(key, data)
 }
 
 // SignWithFlags signs like Sign, but allows for additional flags to be sent/received.
-func (r *extendedKeyring) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
-	return r.keyring.SignWithFlags(key, data, flags)
+func (a *extendedAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
+	return a.agent.SignWithFlags(key, data, flags)
 }
 
 // Signers returns signers for all the known keys.
-func (r *extendedKeyring) Signers() ([]ssh.Signer, error) {
-	return r.keyring.Signers()
+func (a *extendedAgent) Signers() ([]ssh.Signer, error) {
+	return a.agent.Signers()
 }
 
 // cryptoSignUnderLock returns a signature for the data using the sign@goteleport.com extension.
-// This method should be called under r.mu.Lock.
-func (r *extendedKeyring) cryptoSignUnderLock(key ssh.PublicKey, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	cryptoSigner, ok := r.cryptoSigners[string(key.Marshal())]
+// This method should be called under a.mu.Lock.
+func (a *extendedAgent) cryptoSignUnderLock(key ssh.PublicKey, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+	cryptoSigner, ok := a.cryptoSigners[string(key.Marshal())]
 	if !ok {
 		return nil, errNotFound
 	}
@@ -226,22 +239,19 @@ const (
 	saltLengthAuto = "auto"
 )
 
-// extensionHandler handles an agent extension request.
-type extensionHandler func(contents []byte) ([]byte, error)
-
-// The keyring may support extensions provided through agentOpts on creation.
-func (r *extendedKeyring) Extension(extensionType string, contents []byte) ([]byte, error) {
+// The extendedAgent may support extensions provided during creation.
+func (a *extendedAgent) Extension(extensionType string, contents []byte) ([]byte, error) {
 	if extensionType == queryAgentExtension {
-		return r.queryExtension()
+		return a.queryExtension()
 	}
 
-	if handler, ok := r.extensionHandlers[extensionType]; ok {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		if r.locked {
+	if handler, ok := a.extensionHandlers[extensionType]; ok {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.locked {
 			return nil, errLocked
 		}
-		return handler(contents)
+		return handler(a, contents)
 	}
 	return nil, agent.ErrExtensionUnsupported
 }
@@ -253,9 +263,9 @@ type QueryExtensionResponse struct {
 }
 
 // queryExtension returns a list of supported extensions.
-func (r *extendedKeyring) queryExtension() ([]byte, error) {
-	extensionNames := make([]string, 0, len(r.extensionHandlers))
-	for extensionName := range r.extensionHandlers {
+func (a *extendedAgent) queryExtension() ([]byte, error) {
+	extensionNames := make([]string, 0, len(a.extensionHandlers))
+	for extensionName := range a.extensionHandlers {
 		extensionNames = append(extensionNames, extensionName)
 	}
 
@@ -300,8 +310,8 @@ type SignExtensionRequest struct {
 }
 
 // signExtensionHandler returns an extensionHandler for the sign@goteleport.com extension.
-func signExtensionHandler(r *extendedKeyring) extensionHandler {
-	return func(contents []byte) ([]byte, error) {
+func signExtensionHandler() extensionHandler {
+	return func(a *extendedAgent, contents []byte) ([]byte, error) {
 		var req SignExtensionRequest
 		if err := ssh.Unmarshal(contents, &req); err != nil {
 			return nil, trace.Wrap(err)
@@ -327,7 +337,7 @@ func signExtensionHandler(r *extendedKeyring) extensionHandler {
 			signerOpts = pssOpts
 		}
 
-		signature, err := r.cryptoSignUnderLock(sshPub, req.Digest, signerOpts)
+		signature, err := a.cryptoSignUnderLock(sshPub, req.Digest, signerOpts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -392,19 +402,14 @@ type ForwardedKey struct {
 }
 
 // keyExtensionHandler returns an extensionHandler for the key@goteleport.com extension.
-func keyExtensionHandler(r *extendedKeyring, s *Store) extensionHandler {
-	return func(contents []byte) ([]byte, error) {
+func keyExtensionHandler(s *Store) extensionHandler {
+	return func(a *extendedAgent, contents []byte) ([]byte, error) {
 		profileName, err := s.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		profile, err := s.GetProfile(profileName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		profileBlob, err := json.Marshal(profile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -425,8 +430,13 @@ func keyExtensionHandler(r *extendedKeyring, s *Store) extensionHandler {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, ok := r.cryptoSigners[string(sshpub.Marshal())]; !ok {
+		if _, ok := a.cryptoSigners[string(sshpub.Marshal())]; !ok {
 			return nil, trace.NotFound("key not found")
+		}
+
+		profileBlob, err := json.Marshal(profile)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		forwardedKey := ForwardedKey{

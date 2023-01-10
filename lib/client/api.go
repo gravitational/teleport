@@ -981,8 +981,8 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 	// If Teleport local agent forwarding was requested, enable agent extensions.
 	if c.ForwardAgent == ForwardAgentLocal {
-		localAgentCfg.KeyringOpts = []ExtendedKeyringOpt{
-			WithKeyExtension(localAgentCfg.ClientStore),
+		localAgentCfg.AgentExtensions = []AgentExtension{
+			WithKeyExtension(localAgentCfg.ClientStore).WithConfirmation(context.TODO(), c.Stdin, c.Stdout, `Local SSH Agent: incoming request for local teleport certificates requires confirmation. If you did not issue a "tsh" command, this is likely a break-in attempt by a malicious user. Allow request?`),
 			WithSignExtension(),
 		}
 	}

@@ -292,7 +292,7 @@ func TestNewClientStoreFromAgent(t *testing.T) {
 		require.NoError(t, l.Close())
 	})
 
-	remoteAgent := newTestExtendedKeyring(t, WithKeyExtension(remoteClientStore), WithSignExtension())
+	remoteAgent := newTestExtendedAgent(t, WithKeyExtension(remoteClientStore), WithSignExtension())
 	err = remoteAgent.Add(agentKey)
 	require.NoError(t, err)
 	go func() {

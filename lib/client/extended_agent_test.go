@@ -14,15 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file was partially copied from x/crypto/ssh/agent.keyring.go
-
-// Copyright 2014 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package client
 
 import (
+	"bytes"
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -30,71 +26,73 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/profile"
 )
 
-func newTestExtendedKeyring(t *testing.T, opts ...ExtendedKeyringOpt) *extendedKeyring {
-	keyring, err := NewExtendedKeyring(opts...)
+func newTestExtendedAgent(t *testing.T, extensions ...AgentExtension) *extendedAgent {
+	agent, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok, "unexpected agent type: %T, expected agent.ExtendedAgent", agent)
+
+	agent, err := NewExtendedAgent(agent, extensions...)
 	require.NoError(t, err)
 
-	extendedKeyring, ok := keyring.(*extendedKeyring)
-	require.True(t, ok, "expected *extendedKeyring but got %T", keyring)
+	extendedAgent, ok := agent.(*extendedAgent)
+	require.True(t, ok, "unexpected agent type: %T, expected *ExtendedAgent", agent)
 
-	return extendedKeyring
+	return extendedAgent
 }
 
-func TestExtendedKeyringAddRemove(t *testing.T) {
-	keyring := newTestExtendedKeyring(t)
+func TestExtendedAgentAddRemove(t *testing.T) {
+	agent := newTestExtendedAgent(t)
 	key := newTestKey(t)
 	agentKey, err := key.AsAgentKey()
 	require.NoError(t, err)
 
 	// Add, Remove, and RemoveAll should add/remove crypto signers.
-	err = keyring.Add(agentKey)
+	err = agent.Add(agentKey)
 	require.NoError(t, err)
-	require.Len(t, keyring.cryptoSigners, 1)
+	require.Len(t, agent.cryptoSigners, 1)
 
 	sshCert, err := key.SSHCert()
 	require.NoError(t, err)
-	err = keyring.Remove(sshCert)
+	err = agent.Remove(sshCert)
 	require.NoError(t, err)
-	require.Empty(t, keyring.cryptoSigners)
+	require.Empty(t, agent.cryptoSigners)
 
-	err = keyring.Add(agentKey)
+	err = agent.Add(agentKey)
 	require.NoError(t, err)
 
-	err = keyring.RemoveAll()
+	err = agent.RemoveAll()
 	require.NoError(t, err)
-	require.Empty(t, keyring.cryptoSigners)
+	require.Empty(t, agent.cryptoSigners)
 }
 
-func TestExtendedKeyringLock(t *testing.T) {
+func TestExtendedAgentLock(t *testing.T) {
 	// Lock should apply to extensions.
 	extensionName := "test"
-	keyring := newTestExtendedKeyring(t, func(r *extendedKeyring) {
-		r.extensionHandlers[extensionName] = func(contents []byte) ([]byte, error) { return nil, nil }
-	})
+	agent := newTestExtendedAgent(t, AgentExtension{extensionName, func(a *extendedAgent, contents []byte) ([]byte, error) { return nil, nil }})
 
 	passphrase := "password"
-	err := keyring.Lock([]byte(passphrase))
+	err := agent.Lock([]byte(passphrase))
 	require.NoError(t, err)
-	require.True(t, keyring.locked)
+	require.True(t, agent.locked)
 
-	_, err = keyring.Extension(extensionName, nil)
+	_, err = agent.Extension(extensionName, nil)
 	require.Equal(t, errLocked, err)
 
-	err = keyring.Unlock([]byte(passphrase))
+	err = agent.Unlock([]byte(passphrase))
 	require.NoError(t, err)
-	require.False(t, keyring.locked)
+	require.False(t, agent.locked)
 
-	_, err = keyring.Extension(extensionName, nil)
+	_, err = agent.Extension(extensionName, nil)
 	require.NoError(t, err)
 }
 
-func TestExtendedKeyringQueryExtension(t *testing.T) {
-	keyring := newTestExtendedKeyring(t, WithKeyExtension(NewMemClientStore()), WithSignExtension())
-	supportedExtensions, err := callQueryExtension(keyring)
+func TestQueryExtension(t *testing.T) {
+	agent := newTestExtendedAgent(t, WithKeyExtension(NewMemClientStore()), WithSignExtension())
+	supportedExtensions, err := callQueryExtension(agent)
 	require.NoError(t, err)
 	expectSupportedExtension := map[string]bool{
 		signAgentExtension: true,
@@ -103,18 +101,18 @@ func TestExtendedKeyringQueryExtension(t *testing.T) {
 	require.Equal(t, expectSupportedExtension, supportedExtensions)
 }
 
-func TestExtendedKeyringSignExtension(t *testing.T) {
-	keyring := newTestExtendedKeyring(t, WithSignExtension())
+func TestSignExtension(t *testing.T) {
+	agent := newTestExtendedAgent(t, WithSignExtension())
 	key := newTestKey(t)
 	agentKey, err := key.AsAgentKey()
 	require.NoError(t, err)
 	sshCert, err := key.SSHCert()
 	require.NoError(t, err)
 
-	_, err = callSignExtension(keyring, sshCert, []byte{}, nil)
+	_, err = callSignExtension(agent, sshCert, []byte{}, nil)
 	require.True(t, trace.IsNotFound(err), "Expected not found error but got %v", err)
 
-	err = keyring.Add(agentKey)
+	err = agent.Add(agentKey)
 	require.NoError(t, err)
 
 	// Test sign extension with each hash function supported by the crypto/rsa package.
@@ -136,7 +134,7 @@ func TestExtendedKeyringSignExtension(t *testing.T) {
 				digest = h.Sum(nil)
 			}
 
-			sig, err := callSignExtension(keyring, sshCert, digest, hashFunc)
+			sig, err := callSignExtension(agent, sshCert, digest, hashFunc)
 			require.NoError(t, err)
 			rsaPub, ok := key.Public().(*rsa.PublicKey)
 			require.True(t, ok)
@@ -169,7 +167,7 @@ func TestExtendedKeyringSignExtension(t *testing.T) {
 					},
 				} {
 					t.Run(tt.name, func(t *testing.T) {
-						sig, err := callSignExtension(keyring, sshCert, digest, tt.opts)
+						sig, err := callSignExtension(agent, sshCert, digest, tt.opts)
 						require.NoError(t, err)
 						rsaPub, ok := key.Public().(*rsa.PublicKey)
 						require.True(t, ok)
@@ -182,19 +180,19 @@ func TestExtendedKeyringSignExtension(t *testing.T) {
 	}
 }
 
-func TestExtendedKeyringKeyExtension(t *testing.T) {
+func TestExtensionWithConfirmation(t *testing.T) {
 	clientStore := NewMemClientStore()
-	keyring := newTestExtendedKeyring(t, WithKeyExtension(clientStore))
+	agent := newTestExtendedAgent(t, WithKeyExtension(clientStore))
 	key := newTestKey(t)
 	agentKey, err := key.AsAgentKey()
 	require.NoError(t, err)
-	err = keyring.Add(agentKey)
+	err = agent.Add(agentKey)
 	require.NoError(t, err)
 	sshCert, err := key.SSHCert()
 	require.NoError(t, err)
 
 	// Key extension should return not found.
-	_, _, err = callKeyExtension(keyring)
+	_, _, err = callKeyExtension(agent)
 	require.True(t, trace.IsNotFound(err), "Expected not found error but got %v", err)
 
 	// Add the key and profile to to client store.
@@ -209,7 +207,7 @@ func TestExtendedKeyringKeyExtension(t *testing.T) {
 	require.NoError(t, err)
 
 	// Key extension should return the key.
-	forwardedProfile, forwardedKey, err := callKeyExtension(keyring)
+	forwardedProfile, forwardedKey, err := callKeyExtension(agent)
 	require.NoError(t, err)
 	require.Equal(t, forwardedProfile, profile)
 	require.Equal(t, forwardedKey, &ForwardedKey{
@@ -220,8 +218,38 @@ func TestExtendedKeyringKeyExtension(t *testing.T) {
 	})
 
 	// Key extension should return not found if the agent key is missing.
-	err = keyring.Remove(sshCert)
+	err = agent.Remove(sshCert)
 	require.NoError(t, err)
-	_, _, err = callKeyExtension(keyring)
+	_, _, err = callKeyExtension(agent)
 	require.True(t, trace.IsNotFound(err), "Expected not found error but got %v", err)
+}
+
+func TestExtendedAgentKeyExtension(t *testing.T) {
+	ctx := context.Background()
+
+	// create a dummy extension.
+	extension := AgentExtension{
+		name:    "dummy",
+		handler: func(a *extendedAgent, contents []byte) ([]byte, error) { return nil, nil },
+	}
+
+	// wrap the dummy extension with confirmation.
+	inBuf := []byte{}
+	in := bytes.NewBuffer(inBuf)
+	outBuf := []byte{}
+	out := bytes.NewBuffer(outBuf)
+	extension = extension.WithConfirmation(ctx, in, out, "prompt")
+
+	agent := newTestExtendedAgent(t, extension)
+
+	_, err := in.WriteString("y")
+	require.NoError(t, err)
+	_, err = agent.Extension(extension.name, nil)
+	require.NoError(t, err)
+	require.Contains(t, out.String(), "prompt")
+
+	_, err = in.WriteString("N")
+	require.NoError(t, err)
+	_, err = agent.Extension(extension.name, nil)
+	require.Error(t, err)
 }
