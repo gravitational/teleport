@@ -724,15 +724,15 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 
 // fillDefaultKubePrincipalDetails fills the default details in order to keep
 // the correct behavior when forwarding the request to the Kubernetes API.
-// By default, if no kubernetes_users is set (which will be a majority),
-// user will impersonate themselves, which is the backwards-compatible behavior.
-// teleport.KubeSystemAuthenticated is a builtin group that allows
-// any user to access common API methods, e.g. discovery methods
-// required for initial client usage, without it, restricted user's
-// kubectl clients will not work
+// By default, if no kubernetes_users are set (which will be a majority), a
+// user will impersonate himself, which is the backwards-compatible behavior.
+// We also append teleport.KubeSystemAuthenticated to kubernetes_groups, which is
+// a builtin group that allows any user to access common API methods,
+// e.g. discovery methods required for initial client usage, without it,
+// restricted user's kubectl clients will not work.
 func fillDefaultKubePrincipalDetails(kubeUsers []string, kubeGroups []string, username string) ([]string, []string) {
-	// By default, if no kubernetes_users is set (which will be a majority),
-	// user will impersonate themselves, which is the backwards-compatible behavior.
+	// By default, if no kubernetes_users are set (which will be a majority), a
+	// user will impersonate himself, which is the backwards-compatible behavior.
 	if len(kubeUsers) == 0 {
 		kubeUsers = append(kubeUsers, username)
 	}
@@ -900,7 +900,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 				return clusterNotFound
 			}
 		}
-		// store a copu of the Kubernetes Cluster.
+		// store a copy of the Kubernetes Cluster.
 		actx.kubernetesCluster = ks
 		return nil
 	}
