@@ -1291,6 +1291,9 @@ type WindowsDesktopConfig struct {
 
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
+	// Hosts is an optional list of static, AD-connected Windows hosts. This gives users
+	// a way to specify AD-connected hosts that won't be found by the filters
+	// specified in Discovery (or if Discovery is omitted).
 	Hosts []utils.NetAddr
 
 	// NonADHosts is an optional list of static Windows hosts to expose through this

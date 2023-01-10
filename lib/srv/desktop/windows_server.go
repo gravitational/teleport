@@ -189,7 +189,7 @@ type HeartbeatConfig struct {
 	PublicAddr string
 	// OnHeartbeat is called after each heartbeat attempt.
 	OnHeartbeat func(error)
-	// StaticHosts is an optional list of static Windows hosts to register.
+	// StaticHosts is an optional list of AD-connected static Windows hosts to register.
 	StaticHosts []utils.NetAddr
 	// NonADHosts is an optional list of static Windows hosts to register, that are not part of Active Directory.
 	NonADHosts []utils.NetAddr
