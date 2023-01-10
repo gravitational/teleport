@@ -258,7 +258,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		return trace.Wrap(err)
 	}
 
-	err = c.clusterClient.SaveProfile(c.dir, true)
+	err = c.clusterClient.SaveProfile(true)
 	if err != nil {
 		return trace.Wrap(err)
 	}

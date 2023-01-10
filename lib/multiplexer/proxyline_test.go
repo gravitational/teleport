@@ -19,13 +19,22 @@ package multiplexer
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"crypto/x509/pkix"
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var (
@@ -332,6 +341,246 @@ func TestUnmarshalTLVs(t *testing.T) {
 			require.NoError(t, err)
 		}
 		require.Equal(t, tt.expectedTLVs, tlvs)
+	}
+}
+
+func TestProxyLine_AddSignature(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc      string
+		inputTLVs []TLV
+		signature string
+		cert      string
+
+		wantErr      string
+		expectedTLVs []TLV
+	}{
+		{
+			desc:         "missing signature bytes",
+			inputTLVs:    nil,
+			signature:    "",
+			cert:         "abc",
+			wantErr:      "missing signature",
+			expectedTLVs: nil,
+		},
+		{
+			desc:         "missing cert",
+			inputTLVs:    nil,
+			signature:    "abc",
+			cert:         "",
+			wantErr:      "missing signing certificate",
+			expectedTLVs: nil,
+		},
+		{
+			desc:      "no existing signature on proxy line",
+			inputTLVs: nil,
+			signature: "123",
+			cert:      "456",
+			wantErr:   "",
+			expectedTLVs: []TLV{
+				{Type: PP2TypeTeleport,
+					Value: []byte{0x1, 0x0, 0x3, 0x34, 0x35, 0x36, 0x2, 0x0, 0x3, 0x31, 0x32, 0x33}},
+			},
+		},
+		{
+			desc:      "existing signature on proxy line",
+			inputTLVs: []TLV{{Type: PP2TypeTeleport, Value: []byte{0x01, 0x02, 0x03}}},
+			signature: "123",
+			cert:      "456",
+			wantErr:   "",
+			expectedTLVs: []TLV{
+				{Type: PP2TypeTeleport,
+					Value: []byte{0x1, 0x0, 0x3, 0x34, 0x35, 0x36, 0x2, 0x0, 0x3, 0x31, 0x32, 0x33}},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			pl := ProxyLine{
+				TLVs: tt.inputTLVs,
+			}
+
+			err := pl.AddSignature([]byte(tt.signature), []byte(tt.cert))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr, "Didn't find expected error")
+			} else {
+				require.NoError(t, err, "Unexpected error found")
+			}
+
+			require.Equal(t, tt.expectedTLVs, pl.TLVs, "Proxy line TLVs mismatch")
+		})
+	}
+}
+
+func TestProxyLine_VerifySignature(t *testing.T) {
+	t.Parallel()
+	const clusterName = "test-teleport"
+	clock := clockwork.NewFakeClockAt(time.Now())
+	tlsProxyCert, casGetter, jwtSigner := getTestCertCAsGetterAndSigner(t, clusterName)
+
+	ip := "1.2.3.4"
+	sAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 444}
+	dAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 555}
+
+	signature, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	wrongClusterSignature, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
+		ClusterName:        "wrong-cluster",
+		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	wrongSourceSignature, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      "4.3.2.1:1234",
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	ca, err := casGetter.GetCertAuthority(context.Background(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName,
+	}, false)
+	require.NoError(t, err)
+	hostCACert := ca.GetTrustedTLSKeyPairs()[0].Cert
+
+	_, wrongCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "wrong-cluster", Organization: []string{"wrong-cluster"}}, []string{"wrong-cluster"}, time.Hour)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc string
+
+		sAddr            net.TCPAddr
+		dAddr            net.TCPAddr
+		hostCACert       []byte
+		localClusterName string
+		signature        string
+		cert             []byte
+
+		wantErr string
+	}{
+		{
+			desc:             "wrong CA certificate",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       []byte(fixtures.TLSCACertPEM),
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "certificate signed by unknown authority",
+		},
+		{
+			desc:             "mangled signing certificate",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             []byte{0x01},
+			wantErr:          "expected PEM-encoded block",
+		},
+		{
+			desc:             "mangled signature",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        "42",
+			cert:             tlsProxyCert,
+			wantErr:          "compact JWS format must have three parts",
+		},
+		{
+			desc:             "wrong signature (source address)",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        wrongSourceSignature,
+			cert:             tlsProxyCert,
+			wantErr:          "validation failed, invalid subject claim (sub)",
+		},
+		{
+			desc:             "wrong signature (cluster)",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        wrongClusterSignature,
+			cert:             tlsProxyCert,
+			wantErr:          "validation failed, invalid issuer claim (iss)",
+		},
+		{
+			desc:             "wrong CA cert",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       wrongCACert,
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "certificate signed by unknown authority",
+		},
+		{
+			desc:             "non local cluster",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: "different-cluster",
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "signing certificate is not signed by local cluster CA",
+		},
+		{
+			desc:             "success",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			pl := ProxyLine{
+				Source:      sAddr,
+				Destination: dAddr,
+			}
+			err := pl.AddSignature([]byte(tt.signature), tt.cert)
+			require.NoError(t, err)
+
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					TLS: []*types.TLSKeyPair{
+						{
+							Cert: tt.hostCACert,
+							Key:  nil,
+						},
+					},
+				},
+			})
+			mockCAGetter := &mockCAsGetter{HostCA: ca}
+
+			require.NoError(t, err)
+
+			err = pl.VerifySignature(context.Background(), mockCAGetter, tt.localClusterName, clock)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 

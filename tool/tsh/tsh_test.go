@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -39,7 +40,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -60,6 +60,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
@@ -312,7 +313,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRoleV3("populist", types.RoleSpecV5{
+	populist, err := types.NewRoleV3("populist", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -325,7 +326,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV5{})
+	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -460,9 +461,9 @@ func TestLoginIdentityOut(t *testing.T) {
 		requiresTLSRouting bool
 	}{
 		{
-			name: "write indentity out",
+			name: "write identity out",
 			validationFunc: func(t *testing.T, identityPath string) {
-				_, err := client.KeyFromIdentityFile(identityPath)
+				_, err := identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
 				require.NoError(t, err)
 			},
 		},
@@ -535,6 +536,8 @@ func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.P
 }
 
 func TestRelogin(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -610,6 +613,8 @@ func TestRelogin(t *testing.T) {
 }
 
 func TestSwitchingProxies(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -732,6 +737,8 @@ func TestSwitchingProxies(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
+	t.Parallel()
+
 	var conf CLIConf
 	conf.HomePath = t.TempDir()
 
@@ -909,14 +916,14 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
 	})
 	require.NoError(t, err)
 
-	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV5{
+	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -1279,7 +1286,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	requester, err := types.NewRole("requester", types.RoleSpecV5{
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				SearchAsRoles: []string{"node-access"},
@@ -1288,7 +1295,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV5{
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{
 				"access": {"true"},
@@ -1506,6 +1513,8 @@ func TestSSHAccessRequest(t *testing.T) {
 }
 
 func TestAccessRequestOnLeaf(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1516,7 +1525,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	requester, err := types.NewRoleV3("requester", types.RoleSpecV5{
+	requester, err := types.NewRoleV3("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"access"},
@@ -1650,65 +1659,9 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
-func TestIdentityRead(t *testing.T) {
-	// 3 different types of identities
-	ids := []string{
-		"cert-key.pem", // cert + key concatenated togther, cert first
-		"key-cert.pem", // cert + key concatenated togther, key first
-		"key",          // two separate files: key and key-cert.pub
-	}
-	for _, id := range ids {
-		// test reading:
-		k, err := client.KeyFromIdentityFile(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
-		require.NoError(t, err)
-		require.NotNil(t, k)
-
-		cb, err := k.HostKeyCallback(false)
-		require.NoError(t, err)
-		require.Nil(t, cb)
-
-		// test creating an auth method from the key:
-		am, err := k.AsAuthMethod()
-		require.NoError(t, err)
-		require.NotNil(t, am)
-	}
-	k, err := client.KeyFromIdentityFile("../../fixtures/certs/identities/lonekey")
-	require.Nil(t, k)
-	require.Error(t, err)
-
-	// lets read an indentity which includes a CA cert
-	k, err = client.KeyFromIdentityFile("../../fixtures/certs/identities/key-cert-ca.pem")
-	require.NoError(t, err)
-	require.NotNil(t, k)
-
-	cb, err := k.HostKeyCallback(true)
-	require.NoError(t, err)
-	require.NotNil(t, cb)
-
-	// prepare the cluster CA separately
-	certBytes, err := os.ReadFile("../../fixtures/certs/identities/ca.pem")
-	require.NoError(t, err)
-
-	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
-	require.NoError(t, err)
-
-	var a net.Addr
-	// host auth callback must succeed
-	require.NoError(t, cb(hosts[0], a, cert))
-
-	// load an identity which include TLS certificates
-	k, err = client.KeyFromIdentityFile("../../fixtures/certs/identities/tls.pem")
-	require.NoError(t, err)
-	require.NotNil(t, k)
-	require.NotNil(t, k.TLSCert)
-
-	// generate a TLS client config
-	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
-	require.NoError(t, err)
-	require.NotNil(t, conf)
-}
-
 func TestFormatConnectCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		clusterFlag string
 		comment     string
@@ -2353,6 +2306,8 @@ func TestSetX11Config(t *testing.T) {
 // TestAuthClientFromTSHProfile tests if API Client can be successfully created from tsh profile where clusters
 // certs are stored separately in CAS directory and in case where legacy certs.pem file was used.
 func TestAuthClientFromTSHProfile(t *testing.T) {
+	t.Parallel()
+
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -2601,6 +2556,13 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 	}
 }
 
+func setOverrideStdout(stdout io.Writer) cliOption {
+	return func(cf *CLIConf) error {
+		cf.overrideStdout = stdout
+		return nil
+	}
+}
+
 func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
@@ -2642,6 +2604,8 @@ func testSerialization(t *testing.T, expected string, serializer func(string) (s
 }
 
 func TestSerializeVersion(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name     string
 		expected string
@@ -2674,6 +2638,8 @@ func TestSerializeVersion(t *testing.T) {
 }
 
 func TestSerializeApps(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[{
 		"kind": "app",
@@ -2706,12 +2672,16 @@ func TestSerializeApps(t *testing.T) {
 }
 
 func TestSerializeAppsEmpty(t *testing.T) {
+	t.Parallel()
+
 	testSerialization(t, "[]", func(f string) (string, error) {
 		return serializeApps(nil, f)
 	})
 }
 
 func TestSerializeAppConfig(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"name": "my app",
@@ -2736,6 +2706,8 @@ func TestSerializeAppConfig(t *testing.T) {
 }
 
 func TestSerializeDatabases(t *testing.T) {
+	t.Parallel()
+
 	expectedFmt := `
 	[{
     "kind": "db",
@@ -2824,9 +2796,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role1", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2850,9 +2822,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2877,9 +2849,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2898,9 +2870,9 @@ func TestSerializeDatabases(t *testing.T) {
 			dbUsersData: `,
     "users": {}`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2929,12 +2901,16 @@ func TestSerializeDatabases(t *testing.T) {
 }
 
 func TestSerializeDatabasesEmpty(t *testing.T) {
+	t.Parallel()
+
 	testSerialization(t, "[]", func(f string) (string, error) {
 		return serializeDatabases(nil, f, nil)
 	})
 }
 
 func TestSerializeDatabaseEnvironment(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"A": "1",
@@ -2951,6 +2927,8 @@ func TestSerializeDatabaseEnvironment(t *testing.T) {
 }
 
 func TestSerializeDatabaseConfig(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"name": "my db",
@@ -2975,6 +2953,8 @@ func TestSerializeDatabaseConfig(t *testing.T) {
 }
 
 func TestSerializeNodes(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[{
     "kind": "node",
@@ -3011,12 +2991,16 @@ func TestSerializeNodes(t *testing.T) {
 }
 
 func TestSerializeNodesEmpty(t *testing.T) {
+	t.Parallel()
+
 	testSerialization(t, "[]", func(f string) (string, error) {
 		return serializeNodes(nil, f)
 	})
 }
 
 func TestSerializeClusters(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[
 		{
@@ -3059,6 +3043,8 @@ func TestSerializeClusters(t *testing.T) {
 }
 
 func TestSerializeProfiles(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
   "active": {
@@ -3147,6 +3133,8 @@ func TestSerializeProfiles(t *testing.T) {
 }
 
 func TestSerializeProfilesNoOthers(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"active": {
@@ -3175,6 +3163,8 @@ func TestSerializeProfilesNoOthers(t *testing.T) {
 }
 
 func TestSerializeProfilesNoActive(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
 		"profiles": []
@@ -3219,6 +3209,8 @@ func TestSerializeProfilesWithEnvVars(t *testing.T) {
 }
 
 func TestSerializeEnvironment(t *testing.T) {
+	t.Parallel()
+
 	expected := fmt.Sprintf(`
 	{
 		%q: "example.com",
@@ -3237,6 +3229,8 @@ func TestSerializeEnvironment(t *testing.T) {
 }
 
 func TestSerializeAccessRequests(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	{
     "kind": "access_request",
@@ -3269,6 +3263,8 @@ func TestSerializeAccessRequests(t *testing.T) {
 }
 
 func TestSerializeKubeSessions(t *testing.T) {
+	t.Parallel()
+
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
@@ -3381,6 +3377,8 @@ func TestSerializeKubeSessions(t *testing.T) {
 }
 
 func TestSerializeKubeClusters(t *testing.T) {
+	t.Parallel()
+
 	expected := `
 	[
 		{
@@ -3428,6 +3426,8 @@ func TestSerializeKubeClusters(t *testing.T) {
 }
 
 func TestSerializeMFADevices(t *testing.T) {
+	t.Parallel()
+
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
@@ -3460,9 +3460,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	roleDevStage := &types.RoleV5{
+	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
@@ -3474,9 +3474,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			},
 		},
 	}
-	roleDevProd := &types.RoleV5{
+	roleDevProd := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
@@ -3828,6 +3828,8 @@ func TestExportingTraces(t *testing.T) {
 }
 
 func TestShowSessions(t *testing.T) {
+	t.Parallel()
+
 	expected := `[
     {
         "ei": 0,

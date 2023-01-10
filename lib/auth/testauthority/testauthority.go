@@ -59,6 +59,8 @@ func (n *Keygen) GetNewKeyPairFromPool() (priv []byte, pub []byte, err error) {
 	return n.GenerateKeyPair()
 }
 
+// GenerateKeyPair returns a new private key in PEM format and an ssh
+// public key in authorized_key format.
 func (n *Keygen) GenerateKeyPair() (priv []byte, pub []byte, err error) {
 	return native.GenerateKeyPair()
 }

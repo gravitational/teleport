@@ -371,7 +371,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := client.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -379,12 +379,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
-		return trace.Wrap(err)
+
+	// Some protocols require the --tunnel flag, e.g. Snowflake, DynamoDB.
+	if !cf.LocalProxyTunnel && requiresLocalProxyTunnel(routeToDatabase.Protocol) {
+		return trace.BadParameter(formatDbCmdUnsupportedWithCondition(cf, routeToDatabase, "without the --tunnel flag"))
 	}
 
-	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
-		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
+	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
+		return trace.Wrap(err)
 	}
 
 	rootCluster, err := client.RootClusterName(cf.Context)
@@ -440,6 +442,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
+			dbcmd.WithTolerateMissingCLIClient(),
 		}
 		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
 			return trace.Wrap(err)
@@ -890,6 +893,16 @@ func envVarCommand(format, key, value string) (string, error) {
 
 	default:
 		return "", trace.BadParameter("unsupported format %q", format)
+	}
+}
+
+// requiresLocalProxyTunnel returns whether the given protocol requires a local proxy with the --tunnel flag.
+func requiresLocalProxyTunnel(protocol string) bool {
+	switch protocol {
+	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
+		return true
+	default:
+		return false
 	}
 }
 

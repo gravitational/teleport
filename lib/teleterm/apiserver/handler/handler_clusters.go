@@ -85,18 +85,13 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
-	loggedInUser := cluster.GetLoggedInUser()
 	apiCluster := &api.Cluster{
-		Uri:       cluster.URI.String(),
-		Name:      cluster.Name,
-		ProxyHost: cluster.GetProxyHost(),
-		Connected: cluster.Connected(),
-		LoggedInUser: &api.LoggedInUser{
-			Name:           loggedInUser.Name,
-			SshLogins:      loggedInUser.SSHLogins,
-			Roles:          loggedInUser.Roles,
-			ActiveRequests: loggedInUser.ActiveRequests,
-		},
+		Uri:           cluster.URI.String(),
+		Name:          cluster.Name,
+		ProxyHost:     cluster.GetProxyHost(),
+		Connected:     cluster.Connected(),
+		AuthClusterId: cluster.AuthClusterID,
+		LoggedInUser:  newAPILoggedInUser(cluster.LoggedInUser),
 	}
 
 	// Only include features in the api response if they
@@ -108,6 +103,17 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	}
 
 	return apiCluster
+}
+
+func newAPILoggedInUser(user clusters.LoggedInUser) *api.LoggedInUser {
+	return &api.LoggedInUser{
+		Name:               user.Name,
+		SshLogins:          user.SSHLogins,
+		Roles:              user.Roles,
+		ActiveRequests:     user.ActiveRequests,
+		SuggestedReviewers: user.SuggestedReviewers,
+		RequestableRoles:   user.RequestableRoles,
+	}
 }
 
 func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {
