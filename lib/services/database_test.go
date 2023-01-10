@@ -24,6 +24,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
@@ -1788,6 +1790,14 @@ func TestGetLabelEngineVersion(t *testing.T) {
 			},
 			want: "8.0.0",
 		},
+		{
+			name: "azure-mysql-8.0.0 flex server",
+			labels: map[string]string{
+				labelEngine:        AzureEngineMySQLFlex,
+				labelEngineVersion: string(armmysqlflexibleservers.ServerVersionEight021),
+			},
+			want: "8.0.21",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1957,4 +1967,274 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 			tc.expectedDB(t, database)
 		})
 	}
+}
+
+func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
+	t.Parallel()
+	subID := "sub123"
+	group := "test-group"
+	region := "eastus"
+	provider := AzureEngineMySQLFlex
+
+	tests := []struct {
+		desc                     string
+		serverName               string
+		replicationRole          armmysqlflexibleservers.ReplicationRole
+		sourceServerID           *string
+		wantReplicationRoleLabel string
+		wantSourceServerLabel    string
+		wantDBDesc               string
+	}{
+		{
+			desc:            "server without replication",
+			serverName:      "azure-mysql-flex",
+			replicationRole: armmysqlflexibleservers.ReplicationRoleNone,
+			wantDBDesc:      "Azure MySQL Flexible server in eastus",
+		},
+		{
+			desc:                     "source server",
+			serverName:               "azure-mysql-flex-source",
+			replicationRole:          armmysqlflexibleservers.ReplicationRoleSource,
+			wantReplicationRoleLabel: "Source",
+			wantDBDesc:               "Azure MySQL Flexible server in eastus (source endpoint)",
+		},
+		{
+			desc:                     "replica server",
+			serverName:               "azure-mysql-flex-replica",
+			replicationRole:          armmysqlflexibleservers.ReplicationRoleReplica,
+			sourceServerID:           to.Ptr(makeAzureResourceID(subID, group, provider, "azure-mysql-flex-source")),
+			wantReplicationRoleLabel: "Replica",
+			wantSourceServerLabel:    "azure-mysql-flex-source",
+			wantDBDesc:               "Azure MySQL Flexible server in eastus (replica endpoint)",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			rid := makeAzureResourceID(subID, group, provider, tt.serverName)
+			server := armmysqlflexibleservers.Server{
+				Name:     to.Ptr(tt.serverName),
+				ID:       to.Ptr(rid),
+				Location: to.Ptr(region),
+				Tags: map[string]*string{
+					"foo": to.Ptr("bar"),
+				},
+				Properties: &armmysqlflexibleservers.ServerProperties{
+					FullyQualifiedDomainName: to.Ptr(tt.serverName + ".mysql" + azureutils.DatabaseEndpointSuffix),
+					State:                    to.Ptr(armmysqlflexibleservers.ServerStateReady),
+					Version:                  to.Ptr(armmysqlflexibleservers.ServerVersionEight021),
+					ReplicationRole:          &tt.replicationRole,
+					SourceServerResourceID:   tt.sourceServerID,
+				},
+			}
+
+			wantLabels := map[string]string{
+				types.OriginLabel:   types.OriginCloud,
+				labelRegion:         region,
+				labelEngine:         provider,
+				labelEngineVersion:  "8.0.21",
+				labelResourceGroup:  group,
+				labelSubscriptionID: subID,
+				"foo":               "bar",
+			}
+			if tt.wantReplicationRoleLabel != "" {
+				wantLabels[labelReplicationRole] = tt.wantReplicationRoleLabel
+			}
+			if tt.wantSourceServerLabel != "" {
+				wantLabels[labelSourceServer] = tt.wantSourceServerLabel
+			}
+			wantDB, err := types.NewDatabaseV3(types.Metadata{
+				Name:        tt.serverName,
+				Description: tt.wantDBDesc,
+				Labels:      wantLabels,
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      tt.serverName + ".mysql.database.azure.com:3306",
+				Azure: types.Azure{
+					Name:          tt.serverName,
+					ResourceID:    rid,
+					IsFlexiServer: true,
+				},
+			})
+			require.NoError(t, err)
+
+			actual, err := NewDatabaseFromAzureMySQLFlexServer(&server)
+			require.NoError(t, err)
+			require.Equal(t, wantDB, actual)
+		})
+	}
+}
+
+func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
+	t.Parallel()
+	subID := "sub123"
+	group := "test-group"
+	region := "eastus"
+	provider := AzureEnginePostgresFlex
+
+	tests := []struct {
+		desc       string
+		serverName string
+		wantDBDesc string
+	}{
+		{
+			desc:       "server without replication",
+			serverName: "azure-postgres-flex",
+			wantDBDesc: "Azure PostgreSQL Flexible server in eastus",
+		},
+		// TODO(gavin): add more tests if replication is done somehow in postgres. it's different than the azure mysql flex setup for some reason.
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			rid := makeAzureResourceID(subID, group, provider, tt.serverName)
+			server := armpostgresqlflexibleservers.Server{
+				Name:     to.Ptr(tt.serverName),
+				ID:       to.Ptr(rid),
+				Location: to.Ptr(region),
+				Tags: map[string]*string{
+					"foo": to.Ptr("bar"),
+				},
+				Properties: &armpostgresqlflexibleservers.ServerProperties{
+					FullyQualifiedDomainName: to.Ptr(tt.serverName + ".postgres" + azureutils.DatabaseEndpointSuffix),
+					State:                    to.Ptr(armpostgresqlflexibleservers.ServerStateReady),
+					Version:                  to.Ptr(armpostgresqlflexibleservers.ServerVersionFourteen),
+				},
+			}
+
+			wantLabels := map[string]string{
+				types.OriginLabel:   types.OriginCloud,
+				labelRegion:         region,
+				labelEngine:         provider,
+				labelEngineVersion:  "14",
+				labelResourceGroup:  group,
+				labelSubscriptionID: subID,
+				"foo":               "bar",
+			}
+			wantDB, err := types.NewDatabaseV3(types.Metadata{
+				Name:        tt.serverName,
+				Description: tt.wantDBDesc,
+				Labels:      wantLabels,
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      tt.serverName + ".postgres.database.azure.com:5432",
+				Azure: types.Azure{
+					Name:          tt.serverName,
+					ResourceID:    rid,
+					IsFlexiServer: true,
+				},
+			})
+			require.NoError(t, err)
+
+			actual, err := NewDatabaseFromAzurePostgresFlexServer(&server)
+			require.NoError(t, err)
+			require.Equal(t, wantDB, actual)
+		})
+	}
+}
+
+func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
+	t.Parallel()
+	subID := "sub123"
+	group := "group"
+	serverName := "test-server"
+	tests := []struct {
+		desc         string
+		protocol     string
+		engine       string
+		staticIsFlex bool
+		wantIsFlex   bool
+	}{
+		{
+			desc:       "mysql flex",
+			protocol:   defaults.ProtocolMySQL,
+			engine:     AzureEngineMySQLFlex,
+			wantIsFlex: true,
+		},
+		{
+			desc:       "postgres flex",
+			protocol:   defaults.ProtocolPostgres,
+			engine:     AzureEnginePostgresFlex,
+			wantIsFlex: true,
+		},
+		{
+			desc:         "static config mysql flex",
+			protocol:     defaults.ProtocolMySQL,
+			staticIsFlex: true,
+			wantIsFlex:   true,
+		},
+		{
+			desc:         "static config postgres flex",
+			protocol:     defaults.ProtocolPostgres,
+			staticIsFlex: true,
+			wantIsFlex:   true,
+		},
+		{
+			desc:       "mysql single server",
+			protocol:   defaults.ProtocolMySQL,
+			engine:     AzureEngineMySQL,
+			wantIsFlex: false,
+		},
+		{
+			desc:       "postgres single server",
+			protocol:   defaults.ProtocolPostgres,
+			engine:     AzureEnginePostgres,
+			wantIsFlex: false,
+		},
+		{
+			desc:       "mysql non-azure",
+			protocol:   defaults.ProtocolMySQL,
+			wantIsFlex: false,
+		},
+		{
+			desc:       "postgres non-azure",
+			protocol:   defaults.ProtocolPostgres,
+			wantIsFlex: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			db, err := types.NewDatabaseV3(types.Metadata{
+				Name:        serverName,
+				Description: "test azure db server",
+				Labels: map[string]string{
+					types.OriginLabel:   types.OriginCloud,
+					labelRegion:         "eastus",
+					labelEngine:         tt.engine,
+					labelEngineVersion:  "1.2.3",
+					labelResourceGroup:  group,
+					labelSubscriptionID: subID,
+					"foo":               "bar",
+				},
+			}, types.DatabaseSpecV3{
+				Protocol: tt.protocol,
+				URI:      "example.com:1234",
+				Azure: types.Azure{
+					Name:          serverName,
+					ResourceID:    makeAzureResourceID(subID, group, tt.engine, serverName),
+					IsFlexiServer: tt.staticIsFlex,
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantIsFlex, IsAzureFlexServer(db))
+
+			user := MakeAzureDatabaseLoginUsername(db, "alice")
+			if tt.wantIsFlex {
+				require.Equal(t, "alice", user)
+			} else {
+				require.Equal(t, "alice@test-server", user)
+			}
+		})
+	}
+}
+
+func makeAzureResourceID(subID, group, provider, resourceName string) string {
+	return fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
+		subID, group, provider, resourceName)
 }

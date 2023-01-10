@@ -1044,7 +1044,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	filters := []string{
 		fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
 		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
-		fmt.Sprintf("(%s=%s)", windows.AttrName, username),
+		fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
 	}
 	entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
 	if err != nil {
