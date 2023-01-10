@@ -278,7 +278,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		)
 	})
 
-	t.Run("OpenSSH CA not returned for pre v12.1", func(t *testing.T) {
+	t.Run("OpenSSH CA not returned for pre v12", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
 		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
 			Token:           validToken,
