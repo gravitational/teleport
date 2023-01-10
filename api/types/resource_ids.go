@@ -50,7 +50,7 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 	}
 
 	split := strings.Split(id.SubResourceName, "/")
-	if len(split) == 2 {
+	if len(split) != 2 {
 		return trace.BadParameter("resource of kind %q must follow the following format: <namespace>/<name>", id.Kind)
 	}
 
