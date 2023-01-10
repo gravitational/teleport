@@ -872,6 +872,9 @@ func (c *Config) DefaultResourceFilter() *proto.ListResourcesRequest {
 	}
 }
 
+// dtAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
+type dtAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+
 // TeleportClient is a wrapper around SSH client with teleport specific
 // workflow built in.
 // TeleportClient is NOT safe for concurrent use.
@@ -890,6 +893,15 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
+
+	// dtAttemptLoginIgnorePing allows tests to override AttemptDeviceLogin's Ping
+	// response validation.
+	dtAttemptLoginIgnorePing bool
+
+	// dtAuthnRunCeremony allows tests to override the default device
+	// authentication function.
+	// Defaults to [dtauthn.RunCeremony].
+	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -3038,6 +3050,15 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 // cluster doesn't support device authn, device wasn't enrolled, etc).
 // Use [TeleportClient.DeviceLogin] if you want more control over process.
 func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) error {
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !tc.dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrustDisabled {
+		log.Debug("Device Trust: skipping device authentication, device trust disabled")
+		return nil
+	}
+
 	newCerts, err := tc.DeviceLogin(ctx, &devicepb.UserCertificates{
 		// Augment the SSH certificate.
 		// The TLS certificate is already part of the connection.
@@ -3058,9 +3079,6 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 	return trace.Wrap(tc.ActivateKey(ctx, &cp))
 }
 
-// dtAuthnRunCeremony is used to fake device authentication for tests.
-var dtAuthnRunCeremony = dtauthn.RunCeremony
-
 // DeviceLogin attempts to authenticate the current device with Teleport.
 // The device must be previously registered and enrolled for the authentication
 // to succeed (see `tsh device enroll`).
@@ -3072,9 +3090,6 @@ var dtAuthnRunCeremony = dtauthn.RunCeremony
 //
 // Device Trust is a Teleport Enterprise feature.
 func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-	// TODO(codingllama): Determine if Device Trust is supported/enabled.
-	//  One should only pay for the roundtrip if they actually use the feature.
-
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3083,7 +3098,14 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newCerts, err := dtAuthnRunCeremony(ctx, authClient.DevicesClient(), certs)
+
+	// Allow tests to override the default authn function.
+	runCeremony := tc.dtAuthnRunCeremony
+	if runCeremony == nil {
+		runCeremony = dtauthn.RunCeremony
+	}
+
+	newCerts, err := runCeremony(ctx, authClient.DevicesClient(), certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
