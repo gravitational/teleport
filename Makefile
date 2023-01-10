@@ -1040,6 +1040,7 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host: protos/all
+	$(BUF) generate --template=lib/prehog/buf-teleterm.gen.yaml lib/prehog/proto
 	$(BUF) generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
 
 .PHONY: goinstall
