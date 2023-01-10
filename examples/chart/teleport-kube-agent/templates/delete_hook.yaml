@@ -59,7 +59,7 @@ spec:
       containers:
       - name: pre-delete-job
         image: "mirror.gcr.io/library/alpine"
-        command: 
+        command:
         - sh
         - "-c"
         - |
