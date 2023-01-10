@@ -4,7 +4,7 @@ metadata:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-4"
     "helm.sh/hook-delete-policy": hook-succeeded
 ---
@@ -14,7 +14,7 @@ metadata:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-3"
     "helm.sh/hook-delete-policy": hook-succeeded
 rules:
@@ -28,7 +28,7 @@ metadata:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-2"
     "helm.sh/hook-delete-policy": hook-succeeded
 roleRef:
@@ -46,7 +46,7 @@ metadata:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-1"
     "helm.sh/hook-delete-policy": hook-succeeded
 spec:
@@ -57,7 +57,7 @@ spec:
       serviceAccountName: {{ .Release.Name }}-delete-hook
       restartPolicy: OnFailure
       containers:
-      - name: pre-delete-job
+      - name: post-delete-job
         image: "mirror.gcr.io/library/alpine"
         command:
         - sh
