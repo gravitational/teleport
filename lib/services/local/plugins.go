@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,7 +40,18 @@ func NewPluginsService(backend backend.Backend) *PluginsService {
 }
 
 // CreatePlugin implements services.Plugins
-func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+func (s *PluginsService) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error {
+	if req == nil {
+		return trace.BadParameter("req is nil")
+	}
+
+	plugin := req.Plugin
+	if plugin == nil {
+		return trace.BadParameter("req.Plugin is nil")
+	}
+
+	// TODO: exchange initial credentials for live credentials
+
 	if err := plugin.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

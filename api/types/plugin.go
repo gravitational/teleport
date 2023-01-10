@@ -58,8 +58,9 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 
-		// Check credentials. Empty credentials are okay when first provisioning.
 		if p.Credentials == nil {
+			// TODO: after credential exchange during creation is implemented,
+			// this should validate that credentials are not empty
 			break
 		}
 		if p.Credentials.GetOAuth2AccessToken() == nil {
@@ -181,9 +182,6 @@ func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
-	if c.IssuedAt.IsZero() {
-		return trace.BadParameter("issued_at must be set")
-	}
 	if c.AuthorizationCode == "" {
 		return trace.BadParameter("authorization_code must be set")
 	}
@@ -195,11 +193,11 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 }
 
 func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
-	if c.IssuedAt.IsZero() {
-		return trace.BadParameter("issued_at must be set")
-	}
 	if c.AccessToken == "" {
 		return trace.BadParameter("access_token must be set")
+	}
+	if c.RefreshToken == "" {
+		return trace.BadParameter("refresh_token must be set")
 	}
 
 	return nil

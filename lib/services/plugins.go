@@ -21,6 +21,7 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -28,7 +29,7 @@ import (
 
 // Plugins is the plugin service
 type Plugins interface {
-	CreatePlugin(ctx context.Context, plugin types.Plugin) error
+	CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error
 	DeleteAllPlugins(ctx context.Context) error
 	DeletePlugin(ctx context.Context, name string) error
 	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)

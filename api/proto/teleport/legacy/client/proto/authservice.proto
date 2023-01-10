@@ -2012,6 +2012,16 @@ message ListReleasesRequest {
   // ListReleases currently takes no params
 }
 
+// CreatePluginRequest creates a new plugin from the given spec and initial credentials.
+message CreatePluginRequest {
+  // Plugin is the plugin object without live credentials.
+  types.PluginV1 Plugin = 1 [(gogoproto.jsontag) = "plugin"];
+  // InitialCredentials are the initial credentials of the plugin.
+  // In the scope of processing this request, these are exchanged for
+  // "live" credentials, which are stored in the Plugin.
+  types.PluginInitialCredentialsV1 InitialCredentials = 2 [(gogoproto.jsontag) = "initial_credentials"];
+}
+
 // SetPluginCredentialsRequest is a request to set credentials for an existing plugin
 message SetPluginCredentialsRequest {
   // Name is the name of the plugin instance.
@@ -2615,7 +2625,7 @@ service AuthService {
   rpc ListReleases(ListReleasesRequest) returns (ListReleasesResponse);
 
   // CreatePlugin creates a new plugin instance.
-  rpc CreatePlugin(types.PluginV1) returns (google.protobuf.Empty);
+  rpc CreatePlugin(CreatePluginRequest) returns (google.protobuf.Empty);
   // GetPlugin returns a plugin instance by name.
   rpc GetPlugin(types.ResourceWithSecretsRequest) returns (types.PluginV1);
   // GetPlugins returns all plugin instances.

@@ -5303,15 +5303,15 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 }
 
 // CreatePlugin creates a new plugin instance.
-func (a *ServerWithRoles) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+func (a *ServerWithRoles) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error {
 	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	plugin, err := a.authServer.CreatePlugin(ctx, plugin)
-	if err != nil {
+	if err := a.authServer.CreatePlugin(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 

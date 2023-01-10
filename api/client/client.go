@@ -3017,12 +3017,8 @@ func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesReques
 }
 
 // CreatePlugin creates a new plugin instance.
-func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
-	v1, ok := plugin.(*types.PluginV1)
-	if !ok {
-		return trace.BadParameter("unsupported plugin type %T", plugin)
-	}
-	_, err := c.grpc.CreatePlugin(ctx, v1, c.callOpts...)
+func (c *Client) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error {
+	_, err := c.grpc.CreatePlugin(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

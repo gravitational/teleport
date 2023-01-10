@@ -4530,12 +4530,12 @@ func (g *GRPCServer) ListReleases(ctx context.Context, req *proto.ListReleasesRe
 }
 
 // CreatePlugin creates a new plugin instance.
-func (g *GRPCServer) CreatePlugin(ctx context.Context, in *types.PluginV1) (*emptypb.Empty, error) {
+func (g *GRPCServer) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.CreatePlugin(ctx, in)
+	err = auth.CreatePlugin(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

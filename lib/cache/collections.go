@@ -2728,7 +2728,14 @@ func (s *plugins) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if err := s.pluginsCache.CreatePlugin(ctx, resource); err != nil {
+		v1, ok := resource.(*types.PluginV1)
+		if !ok {
+			return trace.BadParameter("unsupported plugin version %T", event.Resource)
+		}
+		req := &proto.CreatePluginRequest{
+			Plugin: v1,
+		}
+		if err := s.pluginsCache.CreatePlugin(ctx, req); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}

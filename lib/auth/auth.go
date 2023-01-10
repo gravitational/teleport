@@ -3866,11 +3866,11 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 }
 
 // CreatePlugin creates a new plugin instance.
-func (a *Server) CreatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error) {
-	if err := a.Services.Plugins.CreatePlugin(ctx, plugin); err != nil {
-		return nil, trace.Wrap(err)
+func (a *Server) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error {
+	if err := a.Services.Plugins.CreatePlugin(ctx, req); err != nil {
+		return trace.Wrap(err)
 	}
-	return plugin, nil
+	return nil
 }
 
 // GetPlugin returns a plugin instance by name.
