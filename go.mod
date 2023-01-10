@@ -105,6 +105,7 @@ require (
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.0 // replaced
 	github.com/snowflakedb/gosnowflake v1.6.16
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
@@ -145,6 +146,7 @@ require (
 	k8s.io/apiserver v0.26.0
 	k8s.io/cli-runtime v0.26.0
 	k8s.io/client-go v0.26.0
+	k8s.io/component-base v0.26.0
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kubectl v0.26.0
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
@@ -170,11 +172,6 @@ require (
 require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
-)
-
-require (
-	github.com/spf13/pflag v1.0.5
-	k8s.io/component-base v0.26.0
 )
 
 require (
