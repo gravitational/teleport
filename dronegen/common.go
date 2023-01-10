@@ -134,11 +134,11 @@ func cloneRepoCommands(cloneDirectory, commit string) []string {
 }
 
 type buildType struct {
-	os       string
-	arch     string
-	fips     bool
-	centos7  bool
-	unsigned bool
+	os              string
+	arch            string
+	fips            bool
+	centos7         bool
+	windowsUnsigned bool
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
@@ -265,18 +265,12 @@ func releaseMakefileTarget(b buildType) string {
 		makefileTarget += "-fips"
 	}
 
-	// Override non-Linux targets.
+	// Override Windows targets.
 	if b.os == "windows" {
-		if b.unsigned {
+		if b.windowsUnsigned {
 			makefileTarget = "release-windows-unsigned"
 		} else {
 			makefileTarget = "release-windows"
-		}
-	} else if b.os == "darwin" {
-		if b.unsigned {
-			makefileTarget = "release-darwin-unsigned"
-		} else {
-			makefileTarget = "release-darwin"
 		}
 	}
 
