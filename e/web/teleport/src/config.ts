@@ -26,6 +26,8 @@ const cfg = {
     recoveryStepNewDevice: '/web/recovery/steps/:tokenId/new/device',
     recoveryStepDevices: '/web/recovery/steps/:tokenId/devices',
     recoveryStepCodes: '/web/recovery/steps/:tokenId/codes',
+
+    downloadCenter: '/web/downloads',
   },
 
   api: {
@@ -50,6 +52,9 @@ const cfg = {
     recoveryCodesPath: '/v1/enterprise/cloud/recovery/codes',
 
     upgradeWindowStartPath: '/v1/enterprise/cloud/upgradewindowstart',
+
+    releases: '/v1/enterprise/releases',
+    license: '/v1/enterprise/license',
   },
 
   getAccessRequestRoute(requestId?: string) {

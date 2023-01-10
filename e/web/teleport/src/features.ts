@@ -8,6 +8,8 @@ import Ctx from 'teleport/teleportContext';
 import cfg from 'e-teleport/config';
 import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
 
+import { Downloads } from 'e-teleport/Downloads';
+
 const AuthConnectors = React.lazy(
   () =>
     import(
@@ -101,6 +103,60 @@ class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
   };
 }
 
+class FeatureDownloadCenter extends Feature {
+  topNavTitle = 'Downloads';
+
+  route = {
+    title: 'Downloads',
+    path: cfg.routes.downloadCenter,
+    exact: true,
+    component: Downloads,
+  };
+
+  isAvailable(ctx: Ctx): boolean {
+    return ctx.storeUser.hasDownloadCenterListAccess();
+  }
+
+  register(ctx: Ctx) {
+    ctx.storeNav.addSideItem({
+      title: 'Downloads',
+      Icon: Icons.Download,
+      getLink() {
+        return cfg.routes.downloadCenter;
+      },
+    });
+
+    ctx.features.push(this);
+  }
+}
+
+class FeatureSupport extends Feature {
+  topNavTitle = 'Support';
+  route = {
+    title: 'Support',
+    path: '',
+    exact: true,
+    component: () => {
+      return null;
+    },
+  };
+
+  isAvailable = () => true;
+
+  register(ctx: Ctx) {
+    ctx.storeNav.addSideItem({
+      title: 'Support',
+      Icon: Icons.Question,
+      getLink() {
+        return 'https://support.goteleport.com/';
+      },
+      isExternalLink: true,
+    });
+
+    ctx.features.push(this);
+  }
+}
+
 export function getEnterpriseFeatures() {
   return [
     new OSS.FeatureNodes(),
@@ -120,5 +176,7 @@ export function getEnterpriseFeatures() {
     new OSS.FeatureTrust(),
     new FeatureHelpAndSupport(),
     new FeatureAccount(),
+    new FeatureDownloadCenter(),
+    new FeatureSupport(),
   ];
 }
