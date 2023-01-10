@@ -60,8 +60,8 @@ const (
 	retryAttempts = 2
 )
 
-func NewConnectUsageReporter(ctx context.Context) (*usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], error) {
-	submitter, err := newPrehogSubmitter(ctx, "https://localhost:8443") // TODO: change the address before merge
+func NewConnectUsageReporter(ctx context.Context, prehogAddr string) (*usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], error) {
+	submitter, err := newPrehogSubmitter(ctx, prehogAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

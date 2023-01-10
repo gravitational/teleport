@@ -47,7 +47,7 @@ func New(cfg Config) (*Service, error) {
 
 	closeContext, cancel := context.WithCancel(context.Background())
 
-	connectUsageReporter, err := NewConnectUsageReporter(closeContext)
+	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
