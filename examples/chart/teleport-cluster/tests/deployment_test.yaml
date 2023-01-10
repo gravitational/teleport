@@ -231,6 +231,26 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should not mount secret when credentialSecretName is blank in values
+    template: deployment.yaml
+    values:
+      - ../.lint/gcp-ha-workload.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: "gcp-credentials"
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: gcp-credentials
+            secret:
+              secretName: teleport-gcp-credentials
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should mount GCP credentials for initContainer in GCP mode
     template: deployment.yaml
     values:

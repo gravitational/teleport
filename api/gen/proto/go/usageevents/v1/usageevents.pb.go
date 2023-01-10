@@ -72,59 +72,11 @@ func (m *UIBannerClickEvent) GetAlert() string {
 	return ""
 }
 
-// UIOnboardGetStartedClickEvent is a UI event sent when the "get started"
-// button is clicked.
-type UIOnboardGetStartedClickEvent struct {
-	// The event username. Not extracted from identity as this is pre-registration.
-	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *UIOnboardGetStartedClickEvent) Reset()         { *m = UIOnboardGetStartedClickEvent{} }
-func (m *UIOnboardGetStartedClickEvent) String() string { return proto.CompactTextString(m) }
-func (*UIOnboardGetStartedClickEvent) ProtoMessage()    {}
-func (*UIOnboardGetStartedClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{1}
-}
-func (m *UIOnboardGetStartedClickEvent) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *UIOnboardGetStartedClickEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_UIOnboardGetStartedClickEvent.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *UIOnboardGetStartedClickEvent) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UIOnboardGetStartedClickEvent.Merge(m, src)
-}
-func (m *UIOnboardGetStartedClickEvent) XXX_Size() int {
-	return m.Size()
-}
-func (m *UIOnboardGetStartedClickEvent) XXX_DiscardUnknown() {
-	xxx_messageInfo_UIOnboardGetStartedClickEvent.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UIOnboardGetStartedClickEvent proto.InternalMessageInfo
-
-func (m *UIOnboardGetStartedClickEvent) GetUsername() string {
-	if m != nil {
-		return m.Username
-	}
-	return ""
-}
-
 // UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
 // registration is complete.
 type UIOnboardCompleteGoToDashboardClickEvent struct {
+	// The event username. Not extracted from identity as this is pre-registration.
+	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -136,7 +88,7 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) Reset() {
 func (m *UIOnboardCompleteGoToDashboardClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardCompleteGoToDashboardClickEvent) ProtoMessage()    {}
 func (*UIOnboardCompleteGoToDashboardClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{2}
+	return fileDescriptor_94cf2ca1c69fd564, []int{1}
 }
 func (m *UIOnboardCompleteGoToDashboardClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -165,6 +117,13 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardCompleteGoToDashboardClickEvent proto.InternalMessageInfo
 
+func (m *UIOnboardCompleteGoToDashboardClickEvent) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
 // UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
 // "add first resource" button.
 type UIOnboardAddFirstResourceClickEvent struct {
@@ -177,7 +136,7 @@ func (m *UIOnboardAddFirstResourceClickEvent) Reset()         { *m = UIOnboardAd
 func (m *UIOnboardAddFirstResourceClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardAddFirstResourceClickEvent) ProtoMessage()    {}
 func (*UIOnboardAddFirstResourceClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{3}
+	return fileDescriptor_94cf2ca1c69fd564, []int{2}
 }
 func (m *UIOnboardAddFirstResourceClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -220,7 +179,7 @@ func (m *UIOnboardAddFirstResourceLaterClickEvent) Reset() {
 func (m *UIOnboardAddFirstResourceLaterClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardAddFirstResourceLaterClickEvent) ProtoMessage()    {}
 func (*UIOnboardAddFirstResourceLaterClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{4}
+	return fileDescriptor_94cf2ca1c69fd564, []int{3}
 }
 func (m *UIOnboardAddFirstResourceLaterClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -263,7 +222,7 @@ func (m *UIOnboardSetCredentialSubmitEvent) Reset()         { *m = UIOnboardSetC
 func (m *UIOnboardSetCredentialSubmitEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardSetCredentialSubmitEvent) ProtoMessage()    {}
 func (*UIOnboardSetCredentialSubmitEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{5}
+	return fileDescriptor_94cf2ca1c69fd564, []int{4}
 }
 func (m *UIOnboardSetCredentialSubmitEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -303,7 +262,11 @@ func (m *UIOnboardSetCredentialSubmitEvent) GetUsername() string {
 // when the MFA challenge is completed.
 type UIOnboardRegisterChallengeSubmitEvent struct {
 	// The event username. Not extracted from identity as this is pre-registration.
-	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	// The type of MFA used.
+	MfaType string `protobuf:"bytes,2,opt,name=mfa_type,json=mfaType,proto3" json:"mfa_type,omitempty"`
+	// The type of login used.
+	LoginFlow            string   `protobuf:"bytes,3,opt,name=login_flow,json=loginFlow,proto3" json:"login_flow,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -313,7 +276,7 @@ func (m *UIOnboardRegisterChallengeSubmitEvent) Reset()         { *m = UIOnboard
 func (m *UIOnboardRegisterChallengeSubmitEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardRegisterChallengeSubmitEvent) ProtoMessage()    {}
 func (*UIOnboardRegisterChallengeSubmitEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{6}
+	return fileDescriptor_94cf2ca1c69fd564, []int{5}
 }
 func (m *UIOnboardRegisterChallengeSubmitEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -349,6 +312,20 @@ func (m *UIOnboardRegisterChallengeSubmitEvent) GetUsername() string {
 	return ""
 }
 
+func (m *UIOnboardRegisterChallengeSubmitEvent) GetMfaType() string {
+	if m != nil {
+		return m.MfaType
+	}
+	return ""
+}
+
+func (m *UIOnboardRegisterChallengeSubmitEvent) GetLoginFlow() string {
+	if m != nil {
+		return m.LoginFlow
+	}
+	return ""
+}
+
 // UIRecoveryCodesContinueClickEvent is a UI event sent during
 // registration when the user configures cluster recovery codes.
 type UIRecoveryCodesContinueClickEvent struct {
@@ -363,7 +340,7 @@ func (m *UIRecoveryCodesContinueClickEvent) Reset()         { *m = UIRecoveryCod
 func (m *UIRecoveryCodesContinueClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIRecoveryCodesContinueClickEvent) ProtoMessage()    {}
 func (*UIRecoveryCodesContinueClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{7}
+	return fileDescriptor_94cf2ca1c69fd564, []int{6}
 }
 func (m *UIRecoveryCodesContinueClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -399,19 +376,120 @@ func (m *UIRecoveryCodesContinueClickEvent) GetUsername() string {
 	return ""
 }
 
+// UIRecoveryCodesCopyClickEvent is a UI event sent during
+// registration when the user copies recovery codes.
+type UIRecoveryCodesCopyClickEvent struct {
+	// The event username. Not extracted from identity as this is pre-registration.
+	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UIRecoveryCodesCopyClickEvent) Reset()         { *m = UIRecoveryCodesCopyClickEvent{} }
+func (m *UIRecoveryCodesCopyClickEvent) String() string { return proto.CompactTextString(m) }
+func (*UIRecoveryCodesCopyClickEvent) ProtoMessage()    {}
+func (*UIRecoveryCodesCopyClickEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{7}
+}
+func (m *UIRecoveryCodesCopyClickEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIRecoveryCodesCopyClickEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIRecoveryCodesCopyClickEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIRecoveryCodesCopyClickEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIRecoveryCodesCopyClickEvent.Merge(m, src)
+}
+func (m *UIRecoveryCodesCopyClickEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIRecoveryCodesCopyClickEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIRecoveryCodesCopyClickEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIRecoveryCodesCopyClickEvent proto.InternalMessageInfo
+
+func (m *UIRecoveryCodesCopyClickEvent) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
+// UIRecoveryCodesPrintClickEvent is a UI event sent during
+// registration when the user prints recovery codes.
+type UIRecoveryCodesPrintClickEvent struct {
+	// The event username. Not extracted from identity as this is pre-registration.
+	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UIRecoveryCodesPrintClickEvent) Reset()         { *m = UIRecoveryCodesPrintClickEvent{} }
+func (m *UIRecoveryCodesPrintClickEvent) String() string { return proto.CompactTextString(m) }
+func (*UIRecoveryCodesPrintClickEvent) ProtoMessage()    {}
+func (*UIRecoveryCodesPrintClickEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{8}
+}
+func (m *UIRecoveryCodesPrintClickEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIRecoveryCodesPrintClickEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIRecoveryCodesPrintClickEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIRecoveryCodesPrintClickEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIRecoveryCodesPrintClickEvent.Merge(m, src)
+}
+func (m *UIRecoveryCodesPrintClickEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIRecoveryCodesPrintClickEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIRecoveryCodesPrintClickEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIRecoveryCodesPrintClickEvent proto.InternalMessageInfo
+
+func (m *UIRecoveryCodesPrintClickEvent) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 type UsageEventOneOf struct {
 	// Types that are valid to be assigned to Event:
 	//
 	//	*UsageEventOneOf_UiBannerClick
-	//	*UsageEventOneOf_UiOnboardGetStartedClick
 	//	*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick
 	//	*UsageEventOneOf_UiOnboardAddFirstResourceClick
 	//	*UsageEventOneOf_UiOnboardAddFirstResourceLaterClick
 	//	*UsageEventOneOf_UiOnboardSetCredentialSubmit
 	//	*UsageEventOneOf_UiOnboardRegisterChallengeSubmit
 	//	*UsageEventOneOf_UiRecoveryCodesContinueClick
+	//	*UsageEventOneOf_UiRecoveryCodesCopyClick
+	//	*UsageEventOneOf_UiRecoveryCodesPrintClick
 	Event                isUsageEventOneOf_Event `protobuf_oneof:"event"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`
@@ -422,7 +500,7 @@ func (m *UsageEventOneOf) Reset()         { *m = UsageEventOneOf{} }
 func (m *UsageEventOneOf) String() string { return proto.CompactTextString(m) }
 func (*UsageEventOneOf) ProtoMessage()    {}
 func (*UsageEventOneOf) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{8}
+	return fileDescriptor_94cf2ca1c69fd564, []int{9}
 }
 func (m *UsageEventOneOf) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -460,9 +538,6 @@ type isUsageEventOneOf_Event interface {
 type UsageEventOneOf_UiBannerClick struct {
 	UiBannerClick *UIBannerClickEvent `protobuf:"bytes,1,opt,name=ui_banner_click,json=uiBannerClick,proto3,oneof" json:"ui_banner_click,omitempty"`
 }
-type UsageEventOneOf_UiOnboardGetStartedClick struct {
-	UiOnboardGetStartedClick *UIOnboardGetStartedClickEvent `protobuf:"bytes,2,opt,name=ui_onboard_get_started_click,json=uiOnboardGetStartedClick,proto3,oneof" json:"ui_onboard_get_started_click,omitempty"`
-}
 type UsageEventOneOf_UiOnboardCompleteGoToDashboardClick struct {
 	UiOnboardCompleteGoToDashboardClick *UIOnboardCompleteGoToDashboardClickEvent `protobuf:"bytes,3,opt,name=ui_onboard_complete_go_to_dashboard_click,json=uiOnboardCompleteGoToDashboardClick,proto3,oneof" json:"ui_onboard_complete_go_to_dashboard_click,omitempty"`
 }
@@ -481,15 +556,22 @@ type UsageEventOneOf_UiOnboardRegisterChallengeSubmit struct {
 type UsageEventOneOf_UiRecoveryCodesContinueClick struct {
 	UiRecoveryCodesContinueClick *UIRecoveryCodesContinueClickEvent `protobuf:"bytes,8,opt,name=ui_recovery_codes_continue_click,json=uiRecoveryCodesContinueClick,proto3,oneof" json:"ui_recovery_codes_continue_click,omitempty"`
 }
+type UsageEventOneOf_UiRecoveryCodesCopyClick struct {
+	UiRecoveryCodesCopyClick *UIRecoveryCodesCopyClickEvent `protobuf:"bytes,9,opt,name=ui_recovery_codes_copy_click,json=uiRecoveryCodesCopyClick,proto3,oneof" json:"ui_recovery_codes_copy_click,omitempty"`
+}
+type UsageEventOneOf_UiRecoveryCodesPrintClick struct {
+	UiRecoveryCodesPrintClick *UIRecoveryCodesPrintClickEvent `protobuf:"bytes,10,opt,name=ui_recovery_codes_print_click,json=uiRecoveryCodesPrintClick,proto3,oneof" json:"ui_recovery_codes_print_click,omitempty"`
+}
 
 func (*UsageEventOneOf_UiBannerClick) isUsageEventOneOf_Event()                       {}
-func (*UsageEventOneOf_UiOnboardGetStartedClick) isUsageEventOneOf_Event()            {}
 func (*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick) isUsageEventOneOf_Event() {}
 func (*UsageEventOneOf_UiOnboardAddFirstResourceClick) isUsageEventOneOf_Event()      {}
 func (*UsageEventOneOf_UiOnboardAddFirstResourceLaterClick) isUsageEventOneOf_Event() {}
 func (*UsageEventOneOf_UiOnboardSetCredentialSubmit) isUsageEventOneOf_Event()        {}
 func (*UsageEventOneOf_UiOnboardRegisterChallengeSubmit) isUsageEventOneOf_Event()    {}
 func (*UsageEventOneOf_UiRecoveryCodesContinueClick) isUsageEventOneOf_Event()        {}
+func (*UsageEventOneOf_UiRecoveryCodesCopyClick) isUsageEventOneOf_Event()            {}
+func (*UsageEventOneOf_UiRecoveryCodesPrintClick) isUsageEventOneOf_Event()           {}
 
 func (m *UsageEventOneOf) GetEvent() isUsageEventOneOf_Event {
 	if m != nil {
@@ -501,13 +583,6 @@ func (m *UsageEventOneOf) GetEvent() isUsageEventOneOf_Event {
 func (m *UsageEventOneOf) GetUiBannerClick() *UIBannerClickEvent {
 	if x, ok := m.GetEvent().(*UsageEventOneOf_UiBannerClick); ok {
 		return x.UiBannerClick
-	}
-	return nil
-}
-
-func (m *UsageEventOneOf) GetUiOnboardGetStartedClick() *UIOnboardGetStartedClickEvent {
-	if x, ok := m.GetEvent().(*UsageEventOneOf_UiOnboardGetStartedClick); ok {
-		return x.UiOnboardGetStartedClick
 	}
 	return nil
 }
@@ -554,29 +629,45 @@ func (m *UsageEventOneOf) GetUiRecoveryCodesContinueClick() *UIRecoveryCodesCont
 	return nil
 }
 
+func (m *UsageEventOneOf) GetUiRecoveryCodesCopyClick() *UIRecoveryCodesCopyClickEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiRecoveryCodesCopyClick); ok {
+		return x.UiRecoveryCodesCopyClick
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetUiRecoveryCodesPrintClick() *UIRecoveryCodesPrintClickEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiRecoveryCodesPrintClick); ok {
+		return x.UiRecoveryCodesPrintClick
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*UsageEventOneOf) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*UsageEventOneOf_UiBannerClick)(nil),
-		(*UsageEventOneOf_UiOnboardGetStartedClick)(nil),
 		(*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick)(nil),
 		(*UsageEventOneOf_UiOnboardAddFirstResourceClick)(nil),
 		(*UsageEventOneOf_UiOnboardAddFirstResourceLaterClick)(nil),
 		(*UsageEventOneOf_UiOnboardSetCredentialSubmit)(nil),
 		(*UsageEventOneOf_UiOnboardRegisterChallengeSubmit)(nil),
 		(*UsageEventOneOf_UiRecoveryCodesContinueClick)(nil),
+		(*UsageEventOneOf_UiRecoveryCodesCopyClick)(nil),
+		(*UsageEventOneOf_UiRecoveryCodesPrintClick)(nil),
 	}
 }
 
 func init() {
 	proto.RegisterType((*UIBannerClickEvent)(nil), "teleport.usageevents.v1.UIBannerClickEvent")
-	proto.RegisterType((*UIOnboardGetStartedClickEvent)(nil), "teleport.usageevents.v1.UIOnboardGetStartedClickEvent")
 	proto.RegisterType((*UIOnboardCompleteGoToDashboardClickEvent)(nil), "teleport.usageevents.v1.UIOnboardCompleteGoToDashboardClickEvent")
 	proto.RegisterType((*UIOnboardAddFirstResourceClickEvent)(nil), "teleport.usageevents.v1.UIOnboardAddFirstResourceClickEvent")
 	proto.RegisterType((*UIOnboardAddFirstResourceLaterClickEvent)(nil), "teleport.usageevents.v1.UIOnboardAddFirstResourceLaterClickEvent")
 	proto.RegisterType((*UIOnboardSetCredentialSubmitEvent)(nil), "teleport.usageevents.v1.UIOnboardSetCredentialSubmitEvent")
 	proto.RegisterType((*UIOnboardRegisterChallengeSubmitEvent)(nil), "teleport.usageevents.v1.UIOnboardRegisterChallengeSubmitEvent")
 	proto.RegisterType((*UIRecoveryCodesContinueClickEvent)(nil), "teleport.usageevents.v1.UIRecoveryCodesContinueClickEvent")
+	proto.RegisterType((*UIRecoveryCodesCopyClickEvent)(nil), "teleport.usageevents.v1.UIRecoveryCodesCopyClickEvent")
+	proto.RegisterType((*UIRecoveryCodesPrintClickEvent)(nil), "teleport.usageevents.v1.UIRecoveryCodesPrintClickEvent")
 	proto.RegisterType((*UsageEventOneOf)(nil), "teleport.usageevents.v1.UsageEventOneOf")
 }
 
@@ -585,45 +676,50 @@ func init() {
 }
 
 var fileDescriptor_94cf2ca1c69fd564 = []byte{
-	// 597 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x95, 0x4f, 0x8b, 0xd3, 0x4e,
-	0x18, 0xc7, 0x93, 0xdf, 0xcf, 0xfd, 0xe3, 0x88, 0x2c, 0x04, 0xc1, 0x22, 0x6b, 0xa9, 0xad, 0x0b,
-	0xbb, 0x2b, 0x34, 0xac, 0x82, 0x07, 0x15, 0xa5, 0x8d, 0xba, 0x59, 0x10, 0x0a, 0xa9, 0xbd, 0x78,
-	0x19, 0xa6, 0xc9, 0xb3, 0xe9, 0x60, 0x3a, 0x53, 0x26, 0x93, 0xa2, 0x77, 0x6f, 0x5e, 0xbc, 0xfb,
-	0x86, 0x3c, 0x7a, 0xf2, 0x2c, 0x7d, 0x25, 0x92, 0xe9, 0x74, 0x18, 0x6b, 0xd3, 0xf4, 0x38, 0x99,
-	0xef, 0xf3, 0x3c, 0x9f, 0x3c, 0xff, 0x06, 0x9d, 0x49, 0xc8, 0x60, 0xc6, 0x85, 0xf4, 0x8b, 0x9c,
-	0xa4, 0x00, 0x73, 0x60, 0x32, 0xf7, 0xe7, 0x17, 0xf6, 0xb1, 0x3b, 0x13, 0x5c, 0x72, 0xef, 0xee,
-	0x4a, 0xda, 0xb5, 0xef, 0xe6, 0x17, 0xed, 0x73, 0xe4, 0x8d, 0xae, 0xfa, 0x84, 0x31, 0x10, 0x41,
-	0x46, 0xe3, 0x8f, 0x6f, 0xca, 0x1b, 0xef, 0x0e, 0xda, 0x23, 0x19, 0x08, 0xd9, 0x70, 0x5b, 0xee,
-	0xe9, 0xcd, 0x68, 0x79, 0x68, 0x3f, 0x47, 0xf7, 0x47, 0x57, 0x03, 0x36, 0xe6, 0x44, 0x24, 0x97,
-	0x20, 0x87, 0x92, 0x08, 0x09, 0x89, 0x65, 0x76, 0x0f, 0x1d, 0x16, 0x39, 0x08, 0x46, 0xa6, 0xa0,
-	0x2d, 0xcd, 0xb9, 0x7d, 0x8e, 0x4e, 0x8d, 0x71, 0xc0, 0xa7, 0xb3, 0x0c, 0x24, 0x5c, 0xf2, 0xf7,
-	0xfc, 0x35, 0xc9, 0x27, 0xcb, 0x8f, 0xc6, 0x4f, 0xfb, 0x04, 0x75, 0x8c, 0xb6, 0x97, 0x24, 0x6f,
-	0xa9, 0xc8, 0x65, 0x04, 0x39, 0x2f, 0x44, 0x0c, 0x96, 0xcc, 0x76, 0xb9, 0x2e, 0x7b, 0x47, 0xa4,
-	0xfd, 0x47, 0xed, 0x57, 0xe8, 0x81, 0xd1, 0x0e, 0x41, 0x06, 0x02, 0x12, 0x60, 0x92, 0x92, 0x6c,
-	0x58, 0x8c, 0xa7, 0x54, 0xd6, 0xf3, 0x07, 0xe8, 0xc4, 0x38, 0x88, 0x20, 0xa5, 0x79, 0xe9, 0x7f,
-	0x42, 0xb2, 0x0c, 0x58, 0x0a, 0xbb, 0x3a, 0x51, 0x14, 0x11, 0xc4, 0x7c, 0x0e, 0xe2, 0x73, 0xc0,
-	0x13, 0xc8, 0x03, 0xce, 0x24, 0x65, 0x05, 0xec, 0x98, 0xc5, 0x5f, 0x87, 0xe8, 0x68, 0x54, 0x56,
-	0x50, 0x49, 0x07, 0x0c, 0x06, 0xd7, 0xde, 0x08, 0x1d, 0x15, 0x14, 0x8f, 0x55, 0x0d, 0x71, 0x5c,
-	0xfa, 0x51, 0x66, 0xb7, 0x1e, 0x3f, 0xea, 0x56, 0x54, 0xbd, 0xfb, 0x6f, 0xc9, 0x43, 0x27, 0xba,
-	0x5d, 0x50, 0xeb, 0xab, 0xf7, 0x09, 0x1d, 0x17, 0x14, 0xf3, 0xe5, 0x1f, 0xe3, 0x14, 0x24, 0xce,
-	0x97, 0x05, 0xd7, 0x31, 0xfe, 0x53, 0x31, 0x9e, 0x6e, 0x89, 0xb1, 0xa5, 0x55, 0x42, 0x27, 0x6a,
-	0x14, 0x74, 0xb3, 0xc0, 0xfb, 0xee, 0xa2, 0x33, 0x2b, 0x74, 0xac, 0xbb, 0x05, 0xa7, 0x1c, 0x4b,
-	0x8e, 0x93, 0x55, 0xc3, 0x68, 0x8e, 0xff, 0x15, 0x47, 0xaf, 0x9e, 0xa3, 0xa6, 0xeb, 0x42, 0x27,
-	0xea, 0x18, 0xa4, 0x6a, 0xad, 0xf7, 0xd5, 0x45, 0x1d, 0x8b, 0x8e, 0x24, 0x09, 0xbe, 0x2e, 0x3b,
-	0x0f, 0x0b, 0xdd, 0x7a, 0x9a, 0xeb, 0x86, 0xe2, 0x7a, 0x51, 0xcf, 0x55, 0xdd, 0xe1, 0xa1, 0x13,
-	0x35, 0x0d, 0xd2, 0x46, 0xd9, 0x7a, 0xae, 0x36, 0xd0, 0x64, 0xe5, 0x24, 0x68, 0xa6, 0xbd, 0x5d,
-	0x73, 0x55, 0x33, 0x4e, 0x7f, 0xe5, 0xaa, 0x5a, 0xeb, 0x7d, 0x71, 0x51, 0xcb, 0xa2, 0xcb, 0x41,
-	0xe2, 0xd8, 0x4c, 0x1e, 0xce, 0xd5, 0xd4, 0x34, 0xf6, 0x15, 0xd4, 0xb3, 0x7a, 0xa8, 0xaa, 0xb9,
-	0x0d, 0x9d, 0xe8, 0xd8, 0xd0, 0x6c, 0x10, 0x79, 0xdf, 0x5c, 0xf4, 0xd0, 0xc2, 0x10, 0x7a, 0x7c,
-	0x71, 0xbc, 0x9a, 0xdf, 0x15, 0xca, 0x81, 0x42, 0x79, 0x59, 0x8f, 0xb2, 0x6d, 0x03, 0x84, 0x4e,
-	0xd4, 0x32, 0x38, 0x15, 0xc2, 0x55, 0x66, 0x84, 0xde, 0x05, 0x38, 0x2e, 0x97, 0x01, 0x8e, 0xf5,
-	0x36, 0xd0, 0xe5, 0x3a, 0xac, 0xcd, 0x4c, 0xcd, 0x2e, 0x59, 0x66, 0xa6, 0x5a, 0xd4, 0x3f, 0x40,
-	0x7b, 0xca, 0x5d, 0x7f, 0xf0, 0x63, 0xd1, 0x74, 0x7f, 0x2e, 0x9a, 0xee, 0xef, 0x45, 0xd3, 0xfd,
-	0xd0, 0x4b, 0xa9, 0x9c, 0x14, 0xe3, 0x6e, 0xcc, 0xa7, 0x7e, 0x2a, 0xc8, 0x9c, 0x4a, 0x22, 0x29,
-	0x67, 0x24, 0xf3, 0xcd, 0x93, 0x43, 0x66, 0xd4, 0x4f, 0x81, 0xf9, 0xea, 0x7d, 0xf1, 0x53, 0xbe,
-	0xf6, 0x06, 0x8d, 0xf7, 0xd5, 0xc5, 0x93, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x98, 0xec, 0x2c,
-	0x19, 0xa5, 0x06, 0x00, 0x00,
+	// 677 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x95, 0xcf, 0x6b, 0xd4, 0x40,
+	0x14, 0xc7, 0x93, 0xfe, 0xdc, 0x1d, 0x91, 0x4a, 0x10, 0xdc, 0x4a, 0xbb, 0xd4, 0xad, 0x85, 0xb6,
+	0xc2, 0x86, 0x2a, 0x28, 0x68, 0x51, 0xda, 0xd5, 0x9a, 0x8a, 0xb0, 0x92, 0x76, 0x2f, 0x5e, 0x86,
+	0xd9, 0xe4, 0x6d, 0x3a, 0x98, 0x9d, 0x09, 0x93, 0xc9, 0xd6, 0x45, 0xbc, 0x79, 0xf3, 0xe2, 0xdd,
+	0x7f, 0xc8, 0xa3, 0x57, 0x6f, 0xd2, 0xbf, 0x44, 0x32, 0x3b, 0x9b, 0xc6, 0xfd, 0xd1, 0xe4, 0x98,
+	0x79, 0xdf, 0x79, 0xef, 0xc3, 0xcb, 0xfb, 0xbe, 0x41, 0x7b, 0x12, 0x42, 0x88, 0xb8, 0x90, 0x76,
+	0x12, 0x93, 0x00, 0x60, 0x00, 0x4c, 0xc6, 0xf6, 0xe0, 0x20, 0xff, 0xd9, 0x8c, 0x04, 0x97, 0xdc,
+	0xba, 0x37, 0x96, 0x36, 0xf3, 0xb1, 0xc1, 0x41, 0x63, 0x1f, 0x59, 0x9d, 0xd3, 0x63, 0xc2, 0x18,
+	0x88, 0x56, 0x48, 0xbd, 0x4f, 0x6f, 0xd2, 0x88, 0x75, 0x17, 0x2d, 0x93, 0x10, 0x84, 0xac, 0x99,
+	0x5b, 0xe6, 0x6e, 0xd5, 0x1d, 0x7d, 0x34, 0x4e, 0xd0, 0x6e, 0xe7, 0xb4, 0xcd, 0xba, 0x9c, 0x08,
+	0xbf, 0xc5, 0xfb, 0x51, 0x08, 0x12, 0xde, 0xf2, 0x73, 0xfe, 0x9a, 0xc4, 0x17, 0xa3, 0xc3, 0xeb,
+	0x0c, 0xf7, 0x51, 0x25, 0x89, 0x41, 0x30, 0xd2, 0x07, 0x9d, 0x24, 0xfb, 0x6e, 0xec, 0xa0, 0xed,
+	0x2c, 0xcf, 0x91, 0xef, 0x9f, 0x50, 0x11, 0x4b, 0x17, 0x62, 0x9e, 0x08, 0x0f, 0xae, 0x53, 0x34,
+	0xf6, 0x73, 0xe5, 0x26, 0x65, 0xef, 0x89, 0xcc, 0x03, 0x37, 0x5e, 0xa1, 0x07, 0x99, 0xf6, 0x0c,
+	0x64, 0x4b, 0x80, 0x0f, 0x4c, 0x52, 0x12, 0x9e, 0x25, 0xdd, 0x3e, 0x95, 0xc5, 0x4c, 0x5f, 0xd1,
+	0x4e, 0x96, 0xc0, 0x85, 0x80, 0xc6, 0x69, 0xfe, 0x0b, 0x12, 0x86, 0xc0, 0x02, 0x28, 0x99, 0xc4,
+	0x5a, 0x47, 0x95, 0x7e, 0x8f, 0x60, 0x39, 0x8c, 0xa0, 0xb6, 0xa0, 0x62, 0xab, 0xfd, 0x1e, 0x39,
+	0x1f, 0x46, 0x60, 0x6d, 0x22, 0x14, 0xf2, 0x80, 0x32, 0xdc, 0x0b, 0xf9, 0x65, 0x6d, 0x51, 0x05,
+	0xab, 0xea, 0xe4, 0x24, 0xe4, 0x97, 0x23, 0x7e, 0x17, 0x3c, 0x3e, 0x00, 0x31, 0x6c, 0x71, 0x1f,
+	0xe2, 0x16, 0x67, 0x92, 0xb2, 0x04, 0x4a, 0xf6, 0xf4, 0x05, 0xda, 0x9c, 0x4a, 0x10, 0x0d, 0x4b,
+	0x5e, 0x3e, 0x44, 0xf5, 0x89, 0xcb, 0x1f, 0x04, 0x65, 0xb2, 0xe4, 0xed, 0x3f, 0x55, 0xb4, 0xd6,
+	0x49, 0xa7, 0x4a, 0x49, 0xdb, 0x0c, 0xda, 0x3d, 0xab, 0x83, 0xd6, 0x12, 0x8a, 0xbb, 0x6a, 0xae,
+	0xb0, 0x97, 0xe6, 0x51, 0xd7, 0x6e, 0x3d, 0x7e, 0xd4, 0x9c, 0x33, 0x89, 0xcd, 0xe9, 0x31, 0x74,
+	0x0c, 0xf7, 0x76, 0x42, 0x73, 0xa7, 0xd6, 0x4f, 0x13, 0xed, 0x25, 0x14, 0xf3, 0xd1, 0x7f, 0xc2,
+	0x9e, 0x1e, 0x42, 0x1c, 0x70, 0x2c, 0x39, 0xf6, 0xc7, 0x73, 0xa8, 0x2b, 0x2e, 0xaa, 0x8a, 0x47,
+	0x37, 0x54, 0x2c, 0x37, 0xcc, 0x8e, 0xe1, 0x6e, 0x27, 0xb4, 0x50, 0x6b, 0x7d, 0x37, 0xd1, 0x76,
+	0x8e, 0x8e, 0xf8, 0x3e, 0xee, 0xa5, 0x43, 0x8b, 0x85, 0x9e, 0x5a, 0xcd, 0xb5, 0xa4, 0xb8, 0x0e,
+	0x8b, 0xb9, 0xe6, 0x9b, 0xc3, 0x31, 0xdc, 0x7a, 0x86, 0x34, 0x53, 0x36, 0xd9, 0xab, 0x19, 0x34,
+	0x61, 0x6a, 0x22, 0xcd, 0xb4, 0x5c, 0xb6, 0x57, 0x05, 0x4e, 0xfc, 0xaf, 0x57, 0xf3, 0xb5, 0xd6,
+	0x37, 0x13, 0x6d, 0xe5, 0xe8, 0x62, 0x90, 0xd8, 0xcb, 0x4c, 0x8b, 0x63, 0x65, 0xb8, 0xda, 0x8a,
+	0x82, 0x7a, 0x5e, 0x0c, 0x35, 0xcf, 0xf2, 0x8e, 0xe1, 0x6e, 0x64, 0x34, 0x33, 0x44, 0xd6, 0x0f,
+	0x13, 0x3d, 0xcc, 0x61, 0x08, 0xed, 0x7c, 0xec, 0x8d, 0xad, 0x3f, 0x46, 0x59, 0x55, 0x28, 0x2f,
+	0x8b, 0x51, 0x6e, 0x5a, 0x1e, 0x8e, 0xe1, 0x6e, 0x65, 0x38, 0x73, 0x84, 0xe3, 0xce, 0x08, 0x6d,
+	0x47, 0xec, 0xa5, 0x7e, 0xc4, 0x9e, 0x5e, 0x07, 0xfa, 0x77, 0x55, 0x0a, 0x3b, 0x53, 0xb0, 0x4c,
+	0x46, 0x9d, 0x99, 0x2f, 0xb2, 0x3e, 0xa3, 0x8d, 0x59, 0x14, 0xd1, 0x50, 0x13, 0x54, 0x15, 0xc1,
+	0xd3, 0xf2, 0x04, 0xf9, 0x6d, 0xe4, 0x18, 0x6e, 0x6d, 0xaa, 0xba, 0x16, 0x58, 0x5f, 0xd0, 0xe6,
+	0x74, 0xe5, 0x28, 0x5d, 0x48, 0xba, 0x34, 0x52, 0xa5, 0x9f, 0x95, 0x2d, 0x3d, 0xb1, 0xcb, 0x1c,
+	0xc3, 0x5d, 0x9f, 0xa8, 0x7d, 0xad, 0x38, 0x5e, 0x45, 0xcb, 0x2a, 0xd1, 0xbb, 0xa5, 0xca, 0xc2,
+	0x9d, 0xc5, 0xe3, 0xf6, 0xaf, 0xab, 0xba, 0xf9, 0xfb, 0xaa, 0x6e, 0xfe, 0xbd, 0xaa, 0x9b, 0x1f,
+	0x8f, 0x02, 0x2a, 0x2f, 0x92, 0x6e, 0xd3, 0xe3, 0x7d, 0x3b, 0x10, 0x64, 0x40, 0x25, 0x91, 0x94,
+	0x33, 0x12, 0xda, 0xd9, 0x4b, 0x4c, 0x22, 0x6a, 0x07, 0xc0, 0x6c, 0xf5, 0xec, 0xda, 0x01, 0x9f,
+	0x78, 0x9a, 0xbb, 0x2b, 0x2a, 0xf0, 0xe4, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x17, 0x4f, 0xa8,
+	0x46, 0xbc, 0x07, 0x00, 0x00,
 }
 
 func (m *UIBannerClickEvent) Marshal() (dAtA []byte, err error) {
@@ -660,40 +756,6 @@ func (m *UIBannerClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *UIOnboardGetStartedClickEvent) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *UIOnboardGetStartedClickEvent) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UIOnboardGetStartedClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Username) > 0 {
-		i -= len(m.Username)
-		copy(dAtA[i:], m.Username)
-		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.Username)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *UIOnboardCompleteGoToDashboardClickEvent) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -717,6 +779,13 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) MarshalToSizedBuffer(dAtA []b
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.Username)))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -833,6 +902,20 @@ func (m *UIOnboardRegisterChallengeSubmitEvent) MarshalToSizedBuffer(dAtA []byte
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if len(m.LoginFlow) > 0 {
+		i -= len(m.LoginFlow)
+		copy(dAtA[i:], m.LoginFlow)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.LoginFlow)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.MfaType) > 0 {
+		i -= len(m.MfaType)
+		copy(dAtA[i:], m.MfaType)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.MfaType)))
+		i--
+		dAtA[i] = 0x12
+	}
 	if len(m.Username) > 0 {
 		i -= len(m.Username)
 		copy(dAtA[i:], m.Username)
@@ -859,6 +942,74 @@ func (m *UIRecoveryCodesContinueClickEvent) MarshalTo(dAtA []byte) (int, error) 
 }
 
 func (m *UIRecoveryCodesContinueClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.Username)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UIRecoveryCodesCopyClickEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIRecoveryCodesCopyClickEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIRecoveryCodesCopyClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.Username)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UIRecoveryCodesPrintClickEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIRecoveryCodesPrintClickEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIRecoveryCodesPrintClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -931,27 +1082,6 @@ func (m *UsageEventOneOf_UiBannerClick) MarshalToSizedBuffer(dAtA []byte) (int, 
 		}
 		i--
 		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-func (m *UsageEventOneOf_UiOnboardGetStartedClick) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UsageEventOneOf_UiOnboardGetStartedClick) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.UiOnboardGetStartedClick != nil {
-		{
-			size, err := m.UiOnboardGetStartedClick.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUsageevents(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x12
 	}
 	return len(dAtA) - i, nil
 }
@@ -1081,6 +1211,48 @@ func (m *UsageEventOneOf_UiRecoveryCodesContinueClick) MarshalToSizedBuffer(dAtA
 	}
 	return len(dAtA) - i, nil
 }
+func (m *UsageEventOneOf_UiRecoveryCodesCopyClick) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiRecoveryCodesCopyClick) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiRecoveryCodesCopyClick != nil {
+		{
+			size, err := m.UiRecoveryCodesCopyClick.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiRecoveryCodesPrintClick) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiRecoveryCodesPrintClick) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiRecoveryCodesPrintClick != nil {
+		{
+			size, err := m.UiRecoveryCodesPrintClick.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x52
+	}
+	return len(dAtA) - i, nil
+}
 func encodeVarintUsageevents(dAtA []byte, offset int, v uint64) int {
 	offset -= sovUsageevents(v)
 	base := offset
@@ -1108,7 +1280,7 @@ func (m *UIBannerClickEvent) Size() (n int) {
 	return n
 }
 
-func (m *UIOnboardGetStartedClickEvent) Size() (n int) {
+func (m *UIOnboardCompleteGoToDashboardClickEvent) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1118,18 +1290,6 @@ func (m *UIOnboardGetStartedClickEvent) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovUsageevents(uint64(l))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *UIOnboardCompleteGoToDashboardClickEvent) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1186,6 +1346,14 @@ func (m *UIOnboardRegisterChallengeSubmitEvent) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovUsageevents(uint64(l))
 	}
+	l = len(m.MfaType)
+	if l > 0 {
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	l = len(m.LoginFlow)
+	if l > 0 {
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1193,6 +1361,38 @@ func (m *UIOnboardRegisterChallengeSubmitEvent) Size() (n int) {
 }
 
 func (m *UIRecoveryCodesContinueClickEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Username)
+	if l > 0 {
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIRecoveryCodesCopyClickEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Username)
+	if l > 0 {
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIRecoveryCodesPrintClickEvent) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1231,18 +1431,6 @@ func (m *UsageEventOneOf_UiBannerClick) Size() (n int) {
 	_ = l
 	if m.UiBannerClick != nil {
 		l = m.UiBannerClick.Size()
-		n += 1 + l + sovUsageevents(uint64(l))
-	}
-	return n
-}
-func (m *UsageEventOneOf_UiOnboardGetStartedClick) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.UiOnboardGetStartedClick != nil {
-		l = m.UiOnboardGetStartedClick.Size()
 		n += 1 + l + sovUsageevents(uint64(l))
 	}
 	return n
@@ -1315,6 +1503,30 @@ func (m *UsageEventOneOf_UiRecoveryCodesContinueClick) Size() (n int) {
 	_ = l
 	if m.UiRecoveryCodesContinueClick != nil {
 		l = m.UiRecoveryCodesContinueClick.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiRecoveryCodesCopyClick) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiRecoveryCodesCopyClick != nil {
+		l = m.UiRecoveryCodesCopyClick.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiRecoveryCodesPrintClick) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiRecoveryCodesPrintClick != nil {
+		l = m.UiRecoveryCodesPrintClick.Size()
 		n += 1 + l + sovUsageevents(uint64(l))
 	}
 	return n
@@ -1409,7 +1621,7 @@ func (m *UIBannerClickEvent) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *UIOnboardGetStartedClickEvent) Unmarshal(dAtA []byte) error {
+func (m *UIOnboardCompleteGoToDashboardClickEvent) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1432,10 +1644,10 @@ func (m *UIOnboardGetStartedClickEvent) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: UIOnboardGetStartedClickEvent: wiretype end group for non-group")
+			return fmt.Errorf("proto: UIOnboardCompleteGoToDashboardClickEvent: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UIOnboardGetStartedClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: UIOnboardCompleteGoToDashboardClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1470,57 +1682,6 @@ func (m *UIOnboardGetStartedClickEvent) Unmarshal(dAtA []byte) error {
 			}
 			m.Username = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipUsageevents(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *UIOnboardCompleteGoToDashboardClickEvent) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowUsageevents
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: UIOnboardCompleteGoToDashboardClickEvent: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UIOnboardCompleteGoToDashboardClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipUsageevents(dAtA[iNdEx:])
@@ -1789,6 +1950,70 @@ func (m *UIOnboardRegisterChallengeSubmitEvent) Unmarshal(dAtA []byte) error {
 			}
 			m.Username = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MfaType", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MfaType = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LoginFlow", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.LoginFlow = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipUsageevents(dAtA[iNdEx:])
@@ -1838,6 +2063,172 @@ func (m *UIRecoveryCodesContinueClickEvent) Unmarshal(dAtA []byte) error {
 		}
 		if fieldNum <= 0 {
 			return fmt.Errorf("proto: UIRecoveryCodesContinueClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Username", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Username = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIRecoveryCodesCopyClickEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIRecoveryCodesCopyClickEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIRecoveryCodesCopyClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Username", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Username = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIRecoveryCodesPrintClickEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIRecoveryCodesPrintClickEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIRecoveryCodesPrintClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1957,41 +2348,6 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Event = &UsageEventOneOf_UiBannerClick{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardGetStartedClick", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &UIOnboardGetStartedClickEvent{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Event = &UsageEventOneOf_UiOnboardGetStartedClick{v}
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
@@ -2202,6 +2558,76 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Event = &UsageEventOneOf_UiRecoveryCodesContinueClick{v}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiRecoveryCodesCopyClick", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIRecoveryCodesCopyClickEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiRecoveryCodesCopyClick{v}
+			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiRecoveryCodesPrintClick", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIRecoveryCodesPrintClickEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiRecoveryCodesPrintClick{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

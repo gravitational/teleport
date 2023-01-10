@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -47,18 +48,31 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 	return authContext, nil
 }
 
+// AuthorizerOpts holds creation options for [NewAuthorizer].
+type AuthorizerOpts struct {
+	ClusterName string
+	AccessPoint AuthorizerAccessPoint
+	LockWatcher *services.LockWatcher
+
+	// DisableDeviceAuthorization disables device authorization via [Authorizer].
+	// It is meant for services that do explicit device authorization, like the
+	// Auth Server APIs. Most services should not set this field.
+	DisableDeviceAuthorization bool
+}
+
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, accessPoint AuthorizerAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
-	if clusterName == "" {
+func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
+	if opts.ClusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
-	if accessPoint == nil {
+	if opts.AccessPoint == nil {
 		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
 	return &authorizer{
-		clusterName: clusterName,
-		accessPoint: accessPoint,
-		lockWatcher: lockWatcher,
+		clusterName:                opts.ClusterName,
+		accessPoint:                opts.AccessPoint,
+		lockWatcher:                opts.LockWatcher,
+		disableDeviceAuthorization: opts.DisableDeviceAuthorization,
 	}, nil
 }
 
@@ -97,9 +111,10 @@ type AuthorizerAccessPoint interface {
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName string
-	accessPoint AuthorizerAccessPoint
-	lockWatcher *services.LockWatcher
+	clusterName                string
+	accessPoint                AuthorizerAccessPoint
+	lockWatcher                *services.LockWatcher
+	disableDeviceAuthorization bool
 }
 
 // Context is authorization context
@@ -199,6 +214,13 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	// Enforce required private key policy if set.
 	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Device Trust: authorize device extensions.
+	if !a.disableDeviceAuthorization {
+		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return authContext, nil
@@ -341,7 +363,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roleSet, err := services.RoleSetFromSpec(
 		string(types.RoleRemoteProxy),
-		types.RoleSpecV5{
+		types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:       []string{types.Wildcard},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -403,14 +425,14 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}, nil
 }
 
-func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV5 {
+func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV6 {
 	base := roleSpecForProxy(clusterName)
 	base.Allow.Rules = append(base.Allow.Rules, types.NewRule(types.KindHostCert, services.RW()))
 	return base
 }
 
-func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
-	return types.RoleSpecV5{
+func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
+	return types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Namespaces:       []string{types.Wildcard},
 			ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -500,7 +522,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAuth:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -509,11 +531,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProvisionToken:
-		return services.RoleFromSpec(role.String(), types.RoleSpecV5{})
+		return services.RoleFromSpec(role.String(), types.RoleSpecV6{})
 	case types.RoleNode:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -545,7 +567,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleApp:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -576,7 +598,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDatabase:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:     []string{types.Wildcard},
 					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -620,7 +642,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleSignup:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -632,7 +654,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAdmin:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.MaxDuration(),
 				},
@@ -653,7 +675,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleNop:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{},
 					Rules:      []types.Rule{},
@@ -662,7 +684,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleKube:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -687,7 +709,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleWindowsDesktop:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -711,7 +733,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDiscovery:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{

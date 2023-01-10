@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"text/template"
 	"time"
@@ -608,6 +609,67 @@ func TestEnvVarCommand(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, test.expectOutput, actualOutput)
+			}
+		})
+	}
+}
+
+// TestList verifies "tsh ls" functionality
+func TestList(t *testing.T) {
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+		}),
+	)
+	rootNodeAddress, err := s.root.NodeSSHAddr()
+	require.NoError(t, err)
+	leafNodeAddress, err := s.leaf.NodeSSHAddr()
+	require.NoError(t, err)
+
+	testCases := []struct {
+		description string
+		command     []string
+		resultNodes []string
+	}{
+		{
+			description: "List root cluster nodes",
+			command:     []string{"ls"},
+			resultNodes: []string{"localnode " + rootNodeAddress.String()},
+		},
+		{
+			description: "List leaf cluster nodes",
+			command:     []string{"ls", "-c", "leaf1"},
+			resultNodes: []string{"localnode " + leafNodeAddress.String()},
+		},
+		{
+			description: "List all clusters nodes",
+			command:     []string{"ls", "-R"},
+			resultNodes: []string{"leaf1     localnode", "localhost localnode"},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.description, func(t *testing.T) {
+			tshHome, _ := mustLogin(t, s)
+			stdout := new(bytes.Buffer)
+
+			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
+
+			require.NoError(t, err)
+			require.Equal(t, len(test.resultNodes), len(strings.Split(stdout.String(), "\n"))-4) // 4 - unimportant new lines
+			for _, node := range test.resultNodes {
+				require.Contains(t, stdout.String(), node)
 			}
 		})
 	}
