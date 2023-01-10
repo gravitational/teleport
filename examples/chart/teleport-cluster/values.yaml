@@ -325,6 +325,9 @@ log:
 # NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also be used - you can only set one or the other.
 affinity: {}
 
+# Whether to enable/disable access to the in-cluster kubernetes cluster
+kubernetesServiceEnabled: true
+
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 annotations:
