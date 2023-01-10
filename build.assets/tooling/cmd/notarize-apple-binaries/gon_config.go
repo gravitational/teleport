@@ -18,9 +18,7 @@ package main
 
 import (
 	"debug/macho"
-	"encoding/binary"
 	"flag"
-	"io"
 	"os"
 
 	"github.com/gravitational/trace"
@@ -130,40 +128,26 @@ func (gc *GonConfig) verifyPathIsNotDirectory(filePath string) error {
 // Returns an error if the file is not a valid Apple binary
 // Effectively does `file $BINARY | grep -ic 'mach-o'`
 func (gc *GonConfig) verifyFileIsAppleBinary(filePath string) error {
-	// Note that this may also match Java bytecode but writing around
-	// that corner case is not worth the time required.
-	// See https://github.com/file/file/blob/master/magic/Magdir/mach for details
-	fileHandle, err := os.Open(filePath)
+	// First check to see if the binary is a typical mach-o binary.
+	// If it's not, it could still be a multiarch "fat" mach-o binary,
+	// so we try that next. If both fail then the file is not an Apple
+	// binary.
+	fileHandle, err := macho.Open(filePath)
 	if err != nil {
-		return trace.Wrap(err, "failed to read file %q for reading", filePath)
-	}
+		fatFileHandle, err := macho.OpenFat(filePath)
+		if err != nil {
+			return trace.Wrap(err, "the provided file %q is neither a normal or multiarch mach-o binary.", filePath)
+		}
 
-	magicValueByteSize := 4
-	magicValueBytes := make([]byte, magicValueByteSize)
-	bytesRead, err := io.ReadFull(fileHandle, magicValueBytes)
-	if err != nil {
-		return trace.Wrap(err, "failed to read magic value from file %q", filePath)
-	}
-	if bytesRead != magicValueByteSize {
-		return trace.Errorf("failed to read first %d bytes from file %q (%d bytes read)", magicValueByteSize, filePath, bytesRead)
-	}
-
-	// The magic value can be one of six values:
-	// * 0xFEEDFACE and its byte order reverse, 0xCEFAEDFE (32 bit architectures, using mach_header struct)
-	// * 0xFEEDFACF and its byte order reverse, 0xCFFAEDFE (64 bit architectures, using mach_header_64 struct)
-	// * 0xCAFEBABE and its byte order reverse, 0xBEBAFECA (multi-CPU binaries, using fat_header struct)
-	// See https://math-atlas.sourceforge.net/devel/assembly/MachORuntime.pdf for details.
-	magicValue := binary.BigEndian.Uint32(magicValueBytes)
-	magicValueReversed := binary.LittleEndian.Uint32(magicValueBytes)
-	logrus.Debugf("File %q has magic 0x%x (reverse byte order: 0x%x)", filePath, magicValue, magicValueReversed)
-	if magicValue != macho.Magic32 &&
-		magicValue != macho.Magic64 &&
-		magicValue != macho.MagicFat &&
-		magicValueReversed != macho.Magic32 &&
-		magicValueReversed != macho.Magic64 &&
-		magicValueReversed != macho.MagicFat {
-		return trace.Errorf("binary at path %q does not match any known mach-o binary file types (magic bytes 0x%x)",
-			filePath, magicValueBytes)
+		err = fatFileHandle.Close()
+		if err != nil {
+			return trace.Wrap(err, "identified %q as a multiarch mach-o binary but failed to close the file handle", filePath)
+		}
+	} else {
+		err := fileHandle.Close()
+		if err != nil {
+			return trace.Wrap(err, "identified %q as a mach-o binary but failed to close the file handle", filePath)
+		}
 	}
 
 	return nil

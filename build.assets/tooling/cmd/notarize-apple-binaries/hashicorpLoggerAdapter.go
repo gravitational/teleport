@@ -45,67 +45,67 @@ func NewHCLogLogrusAdapter() HCLogLogrusAdapter {
 // keys must be strings
 // vals can be any type, but display is implementation specific
 // Emit a message and key/value pairs at a provided log level
-func (hclla HCLogLogrusAdapter) Log(level hclog.Level, msg string, args ...interface{}) {
+func (h HCLogLogrusAdapter) Log(level hclog.Level, msg string, args ...interface{}) {
 	logrusLevel := hclogLevelToLogrusLevel(level)
 	msgWithImpliedArgs := fmt.Sprintf("%s %%s", msg)
-	argsWithImpliedArgsString := append(args, hclla.createImpliedArgsString())
-	hclla.logger.Logf(logrusLevel, msgWithImpliedArgs, argsWithImpliedArgsString)
+	argsWithImpliedArgsString := append(args, h.createImpliedArgsString())
+	h.logger.Logf(logrusLevel, msgWithImpliedArgs, argsWithImpliedArgsString)
 }
 
 // Emit a message and key/value pairs at the TRACE level
-func (hclla HCLogLogrusAdapter) Trace(msg string, args ...interface{}) {
-	hclla.Log(hclog.Trace, msg, args)
+func (h HCLogLogrusAdapter) Trace(msg string, args ...interface{}) {
+	h.Log(hclog.Trace, msg, args)
 }
 
 // Emit a message and key/value pairs at the DEBUG level
-func (hclla HCLogLogrusAdapter) Debug(msg string, args ...interface{}) {
-	hclla.Log(hclog.Debug, msg, args)
+func (h HCLogLogrusAdapter) Debug(msg string, args ...interface{}) {
+	h.Log(hclog.Debug, msg, args)
 }
 
 // Emit a message and key/value pairs at the INFO level
-func (hclla HCLogLogrusAdapter) Info(msg string, args ...interface{}) {
-	hclla.Log(hclog.Info, msg, args)
+func (h HCLogLogrusAdapter) Info(msg string, args ...interface{}) {
+	h.Log(hclog.Info, msg, args)
 }
 
 // Emit a message and key/value pairs at the WARN level
-func (hclla HCLogLogrusAdapter) Warn(msg string, args ...interface{}) {
-	hclla.Log(hclog.Warn, msg, args)
+func (h HCLogLogrusAdapter) Warn(msg string, args ...interface{}) {
+	h.Log(hclog.Warn, msg, args)
 }
 
 // Emit a message and key/value pairs at the ERROR level
-func (hclla HCLogLogrusAdapter) Error(msg string, args ...interface{}) {
-	hclla.Log(hclog.Error, msg, args)
+func (h HCLogLogrusAdapter) Error(msg string, args ...interface{}) {
+	h.Log(hclog.Error, msg, args)
 }
 
 // Indicate if TRACE logs would be emitted. This and the other Is* guards
 // are used to elide expensive logging code based on the current level.
-func (hclla HCLogLogrusAdapter) IsTrace() bool {
-	return hclla.logger.IsLevelEnabled(logrus.TraceLevel)
+func (h HCLogLogrusAdapter) IsTrace() bool {
+	return h.logger.IsLevelEnabled(logrus.TraceLevel)
 }
 
 // Indicate if DEBUG logs would be emitted. This and the other Is* guards
-func (hclla HCLogLogrusAdapter) IsDebug() bool {
-	return hclla.logger.IsLevelEnabled(logrus.DebugLevel)
+func (h HCLogLogrusAdapter) IsDebug() bool {
+	return h.logger.IsLevelEnabled(logrus.DebugLevel)
 }
 
 // Indicate if INFO logs would be emitted. This and the other Is* guards
-func (hclla HCLogLogrusAdapter) IsInfo() bool {
-	return hclla.logger.IsLevelEnabled(logrus.InfoLevel)
+func (h HCLogLogrusAdapter) IsInfo() bool {
+	return h.logger.IsLevelEnabled(logrus.InfoLevel)
 }
 
 // Indicate if WARN logs would be emitted. This and the other Is* guards
-func (hclla HCLogLogrusAdapter) IsWarn() bool {
-	return hclla.logger.IsLevelEnabled(logrus.WarnLevel)
+func (h HCLogLogrusAdapter) IsWarn() bool {
+	return h.logger.IsLevelEnabled(logrus.WarnLevel)
 }
 
 // Indicate if ERROR logs would be emitted. This and the other Is* guards
-func (hclla HCLogLogrusAdapter) IsError() bool {
-	return hclla.logger.IsLevelEnabled(logrus.ErrorLevel)
+func (h HCLogLogrusAdapter) IsError() bool {
+	return h.logger.IsLevelEnabled(logrus.ErrorLevel)
 }
 
 // ImpliedArgs returns With key/value pairs
-func (hclla HCLogLogrusAdapter) ImpliedArgs() []interface{} {
-	return hclla.impliedArgs
+func (h HCLogLogrusAdapter) ImpliedArgs() []interface{} {
+	return h.impliedArgs
 }
 
 // Creates a sublogger that will always have the given key/value pairs
@@ -124,20 +124,20 @@ func (HCLogLogrusAdapter) With(args ...interface{}) hclog.Logger {
 }
 
 // Returns the Name of the logger
-func (hclla HCLogLogrusAdapter) Name() string {
-	return hclla.name
+func (h HCLogLogrusAdapter) Name() string {
+	return h.name
 }
 
 // Create a logger that will prepend the name string on the front of all messages.
 // If the logger already has a name, the new value will be appended to the current
 // name. That way, a major subsystem can use this to decorate all it's own logs
 // without losing context.
-func (hclla HCLogLogrusAdapter) Named(name string) hclog.Logger {
-	if hclla.name != "" {
-		name = fmt.Sprintf("%s.%s", name, hclla.name)
+func (h HCLogLogrusAdapter) Named(name string) hclog.Logger {
+	if h.name != "" {
+		name = fmt.Sprintf("%s.%s", name, h.name)
 	}
 
-	return hclla.ResetNamed(name)
+	return h.ResetNamed(name)
 }
 
 // Create a logger that will prepend the name string on the front of all messages.
@@ -153,16 +153,14 @@ func (HCLogLogrusAdapter) ResetNamed(name string) hclog.Logger {
 // Updates the level. This should affect all related loggers as well,
 // unless they were created with IndependentLevels. If an
 // implementation cannot update the level on the fly, it should no-op.
-func (hclla HCLogLogrusAdapter) SetLevel(level hclog.Level) {
-	hclla.logger.SetLevel(hclogLevelToLogrusLevel(level))
+func (h HCLogLogrusAdapter) SetLevel(level hclog.Level) {
+	h.logger.SetLevel(hclogLevelToLogrusLevel(level))
 }
 
 // Returns the current level
-func (hclla HCLogLogrusAdapter) GetLevel() hclog.Level {
-	switch hclla.logger.GetLevel() {
-	case logrus.FatalLevel:
-	case logrus.PanicLevel:
-	case logrus.ErrorLevel:
+func (h HCLogLogrusAdapter) GetLevel() hclog.Level {
+	switch h.logger.GetLevel() {
+	case logrus.FatalLevel, logrus.PanicLevel, logrus.ErrorLevel:
 		return hclog.Error
 	case logrus.WarnLevel:
 		return hclog.Warn
@@ -179,14 +177,14 @@ func (hclla HCLogLogrusAdapter) GetLevel() hclog.Level {
 
 // Return a value that conforms to the stdlib log.Logger interface
 // Options are ignored as it's not currently worth the time to implement them
-func (hclla HCLogLogrusAdapter) StandardLogger(options *hclog.StandardLoggerOptions) *log.Logger {
-	return log.New(hclla.StandardWriter(options), "", 0)
+func (h HCLogLogrusAdapter) StandardLogger(options *hclog.StandardLoggerOptions) *log.Logger {
+	return log.New(h.StandardWriter(options), "", 0)
 }
 
 // Return a value that conforms to io.Writer, which can be passed into log.SetOutput()
 // Options are ignored as it's not currently worth the time to implement them
-func (hclla HCLogLogrusAdapter) StandardWriter(_ *hclog.StandardLoggerOptions) io.Writer {
-	logrusOut := hclla.logger.Out
+func (h HCLogLogrusAdapter) StandardWriter(_ *hclog.StandardLoggerOptions) io.Writer {
+	logrusOut := h.logger.Out
 	if logrusOut != nil {
 		return logrusOut
 	}
@@ -214,14 +212,14 @@ func hclogLevelToLogrusLevel(level hclog.Level) logrus.Level {
 	return logrus.InfoLevel
 }
 
-func (hclla HCLogLogrusAdapter) createImpliedArgsString() string {
-	keyPairCount := len(hclla.impliedArgs) / 2
+func (h HCLogLogrusAdapter) createImpliedArgsString() string {
+	keyPairCount := len(h.impliedArgs) / 2
 	keyPairString := ""
 	for keyPairNumber := 0; keyPairNumber < keyPairCount; keyPairNumber++ {
 		if keyPairString != "" {
 			keyPairString = fmt.Sprintf("%s, ", keyPairString)
 		}
-		keyPairString = fmt.Sprintf("%s%+v=%+v", keyPairString, hclla.impliedArgs[2*keyPairNumber], hclla.impliedArgs[(2*keyPairNumber)+1])
+		keyPairString = fmt.Sprintf("%s%+v=%+v", keyPairString, h.impliedArgs[2*keyPairNumber], h.impliedArgs[(2*keyPairNumber)+1])
 	}
 
 	return keyPairString

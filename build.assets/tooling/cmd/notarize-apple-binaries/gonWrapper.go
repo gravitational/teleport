@@ -26,12 +26,11 @@ import (
 	"github.com/mitchellh/gon/notarize"
 	"github.com/mitchellh/gon/package/zip"
 	"github.com/mitchellh/gon/sign"
-	"github.com/sirupsen/logrus"
 )
 
 const (
-	DevelopereIdentity string = "0FFD3E3413AB4C599C53FBB1D8CA690915E33D83"
-	BundleID           string = "com.gravitational.teleport"
+	DeveloperIdentity string = "0FFD3E3413AB4C599C53FBB1D8CA690915E33D83"
+	BundleID          string = "com.gravitational.teleport"
 )
 
 type GonWrapper struct {
@@ -60,15 +59,15 @@ func (gw *GonWrapper) SignAndNotarizeBinaries() error {
 	}
 	defer os.RemoveAll(path.Dir(zipPath))
 
-	logrus.Info("Signing and notarization complete!")
+	gw.logger.Info("Signing and notarization complete!")
 	return nil
 }
 
 func (gw *GonWrapper) SignBinaries() error {
-	logrus.Infof("Signing binaries %v...", gw.config.BinaryPaths)
+	gw.logger.Info("Signing binaries %v...", gw.config.BinaryPaths)
 	err := sign.Sign(gw.ctx, &sign.Options{
 		Files:    gw.config.BinaryPaths,
-		Identity: DevelopereIdentity,
+		Identity: DeveloperIdentity,
 		Logger:   gw.logger,
 	})
 
@@ -81,14 +80,14 @@ func (gw *GonWrapper) SignBinaries() error {
 
 func (gw *GonWrapper) ZipBinaries() (string, error) {
 	zipFileName := "notarization.zip"
-	logrus.Infof("Zipping binaries into %q for notarization upload...", zipFileName)
+	gw.logger.Info("Zipping binaries into %q for notarization upload...", zipFileName)
 	tmpDir, err := os.MkdirTemp("", "gon-zip-directory-*")
 	if err != nil {
 		return "", trace.Wrap(err, "failed to create temporary directory for binary zipping")
 	}
 
 	outputPath := path.Join(tmpDir, zipFileName)
-	logrus.Debugf("Using binary zip path %q", outputPath)
+	gw.logger.Debug("Using binary zip path %q", outputPath)
 
 	err = zip.Zip(gw.ctx, &zip.Options{
 		Files:      gw.config.BinaryPaths,
@@ -105,7 +104,7 @@ func (gw *GonWrapper) ZipBinaries() (string, error) {
 }
 
 func (gw *GonWrapper) NotarizeBinaries(zipPath string) error {
-	logrus.Infof("Uploading %q to Apple for notarization ticket issuance. This may take awhile...", zipPath)
+	gw.logger.Info("Uploading %q to Apple for notarization ticket issuance. This may take awhile...", zipPath)
 	notarizationInfo, err := notarize.Notarize(gw.ctx, &notarize.Options{
 		File:     zipPath,
 		BundleId: BundleID,
