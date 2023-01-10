@@ -27,7 +27,8 @@ import (
 )
 
 type Args struct {
-	*LoggerConfig
+	logLevel      uint
+	logJSON       bool
 	AppleUsername string
 	ApplePassword string
 	BinaryPaths   []string
@@ -35,7 +36,8 @@ type Args struct {
 
 func NewArgs() *Args {
 	args := &Args{}
-	args.LoggerConfig = NewLoggerConfig()
+	flag.UintVar(&args.logLevel, "log-level", uint(logrus.InfoLevel), "Log level from 0 to 6, 6 being the most verbose")
+	flag.BoolVar(&args.logJSON, "log-json", false, "True if the log entries should use JSON format, false for text logging")
 	flag.StringVar(&args.AppleUsername, "apple-username", "", "Apple Connect username used for notarization")
 	flag.StringVar(&args.ApplePassword, "apple-password", "", "Apple Connect password used for notarization")
 
@@ -43,12 +45,21 @@ func NewArgs() *Args {
 }
 
 func (a *Args) Check() error {
-	err := a.LoggerConfig.Check()
+	err := a.checkLoggerArguments()
 	if err != nil {
-		return trace.Wrap(err, "failed to validate the logger config")
+		return trace.Wrap(err, "failed to validate the logger arguments")
 	}
 
-	err = a.validateAppleUsername()
+	err = a.checkGonArguments()
+	if err != nil {
+		return trace.Wrap(err, "failed to validate gon arguments")
+	}
+
+	return nil
+}
+
+func (a *Args) checkGonArguments() error {
+	err := a.validateAppleUsername()
 	if err != nil {
 		return trace.Wrap(err, "failed to validate the apple-username flag")
 	}
@@ -64,6 +75,22 @@ func (a *Args) Check() error {
 	}
 
 	// It might be worth adding an actual login check here in the future
+
+	return nil
+}
+
+func (a *Args) checkLoggerArguments() error {
+	if err := a.validateLogLevel(); err != nil {
+		return trace.Wrap(err, "failed to validate the log level flag")
+	}
+
+	return nil
+}
+
+func (a *Args) validateLogLevel() error {
+	if a.logLevel > 6 {
+		return trace.BadParameter("the log-level flag should be between 0 and 6")
+	}
 
 	return nil
 }
@@ -175,7 +202,7 @@ func parseArgs() (*Args, error) {
 
 	// This needs to be called as soon as possible so that the logger can
 	// be used when checking args
-	args.LoggerConfig.setupLogger()
+	NewLoggerConfig(args.logLevel, args.logJSON).setupLogger()
 
 	err := args.Check()
 	if err != nil {

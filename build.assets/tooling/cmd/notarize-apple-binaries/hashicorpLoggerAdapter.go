@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/sirupsen/logrus"
@@ -35,9 +36,9 @@ type HCLogLogrusAdapter struct {
 	impliedArgs []interface{}
 }
 
-func NewHCLogLogrusAdapter() HCLogLogrusAdapter {
+func NewHCLogLogrusAdapter(logrusLogger *logrus.Logger) HCLogLogrusAdapter {
 	return HCLogLogrusAdapter{
-		logger: logrus.StandardLogger(),
+		logger: logrusLogger,
 	}
 }
 
@@ -109,7 +110,7 @@ func (h HCLogLogrusAdapter) ImpliedArgs() []interface{} {
 }
 
 // Creates a sublogger that will always have the given key/value pairs
-func (HCLogLogrusAdapter) With(args ...interface{}) hclog.Logger {
+func (h HCLogLogrusAdapter) With(args ...interface{}) hclog.Logger {
 	// Ensure that there is a key for every value
 	if len(args)%2 != 0 {
 		extraValue := args[len(args)-1]
@@ -118,7 +119,7 @@ func (HCLogLogrusAdapter) With(args ...interface{}) hclog.Logger {
 		args = append(args, extraValue)
 	}
 
-	newLogger := NewHCLogLogrusAdapter()
+	newLogger := NewHCLogLogrusAdapter(h.logger)
 	newLogger.impliedArgs = append(newLogger.impliedArgs, args)
 	return newLogger
 }
@@ -143,8 +144,8 @@ func (h HCLogLogrusAdapter) Named(name string) hclog.Logger {
 // Create a logger that will prepend the name string on the front of all messages.
 // This sets the name of the logger to the value directly, unlike Named which honor
 // the current name as well.
-func (HCLogLogrusAdapter) ResetNamed(name string) hclog.Logger {
-	newLogger := NewHCLogLogrusAdapter()
+func (h HCLogLogrusAdapter) ResetNamed(name string) hclog.Logger {
+	newLogger := NewHCLogLogrusAdapter(h.logger)
 	newLogger.name = name
 
 	return newLogger
@@ -214,13 +215,16 @@ func hclogLevelToLogrusLevel(level hclog.Level) logrus.Level {
 
 func (h HCLogLogrusAdapter) createImpliedArgsString() string {
 	keyPairCount := len(h.impliedArgs) / 2
-	keyPairString := ""
+	var argsStringBuilder strings.Builder
 	for keyPairNumber := 0; keyPairNumber < keyPairCount; keyPairNumber++ {
-		if keyPairString != "" {
-			keyPairString = fmt.Sprintf("%s, ", keyPairString)
+		if argsStringBuilder.Len() != 0 {
+			fmt.Fprint(&argsStringBuilder, ", ")
 		}
-		keyPairString = fmt.Sprintf("%s%+v=%+v", keyPairString, h.impliedArgs[2*keyPairNumber], h.impliedArgs[(2*keyPairNumber)+1])
+		keyPairPosition := 2 * keyPairNumber
+		key := h.impliedArgs[keyPairPosition]
+		value := h.impliedArgs[keyPairPosition+1]
+		fmt.Fprintf(&argsStringBuilder, "%+v=%+v", key, value)
 	}
 
-	return keyPairString
+	return argsStringBuilder.String()
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/mitchellh/gon/notarize"
 	"github.com/mitchellh/gon/package/zip"
 	"github.com/mitchellh/gon/sign"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -44,7 +45,7 @@ type GonWrapper struct {
 func NewGonWrapper(appleUsername, applePassword string, BinaryPaths []string) *GonWrapper {
 	return &GonWrapper{
 		ctx:           context.Background(),
-		logger:        NewHCLogLogrusAdapter(),
+		logger:        NewHCLogLogrusAdapter(logrus.StandardLogger()),
 		AppleUsername: appleUsername,
 		ApplePassword: applePassword,
 		BinaryPaths:   BinaryPaths,
