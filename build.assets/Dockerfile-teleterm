@@ -1,9 +1,0 @@
-ARG BUILDBOX_VERSION
-FROM public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION as base
-
-ARG BUILDARCH
-
-# Install rpm tools so we can build rpm packages
-RUN apt-get update -y && apt-get install -q -y --no-install-recommends rpm && \
-    apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/*
