@@ -518,6 +518,23 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
 - [ ] Database Acces: `tsh proxy db`
 - [ ] Application Access: `tsh login app && tsh proxy app`
 
+### Remote `tsh` support with forwarded Teleport Key Agent
+
+These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
+
+1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login with per-session MFA required: `auth_service.authentication.require_session_mfa: yes` or `role.role_options.require_session_mfa: yes`.
+2. [ ] Connect to a Teleport Node with forwarded Teleport Key Agent: `tsh ssh -o "ForwardAgent local" user@node`. If you are using a local Teleport cluster, connect as a different OS user than your current OS user, so that `~/.tsh` is empty in the remote session.
+  - [ ] `~/.tsh` is empty.
+  - [ ] `tsh status` prompts for confirmation and prints the same status as the local status.
+  - [ ] `tsh ls` prompts for confirmation and prints the available node list.
+  - [ ] Connect to teleport within session to recursively forward Teleport Key Agent: `tsh ssh -A user@node`.
+    - [ ]  successfully connects to node with confirmation and mfa prompts.
+    - [ ] `tsh status` prompts for confirmation and prints the same status as the local status.
+    - [ ] `tsh ssh user@node` successfully connects to node with with confirmation and mfa prompts.
+4. In you local terminal, `tsh logout`.
+5. In the remote sessions, `tsh status` and other `tsh` commands should now fail.
+6. In you local terminal, `tsh login` as a different user. `tsh` commands should still fail.
+
 ## WEB UI
 
 ## Main
