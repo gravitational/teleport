@@ -4772,12 +4772,23 @@ message OktaAppLinkV1 {
   string uri = 2 [(gogoproto.jsontag) = "uri"];
 }
 
-message OktaLabelRuleV1 {
-  Metadata metadata = 1;
+message OktaLabelRule {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
 
-  string version = 2;
+  // Kind is the oktagroup resource kind. Always "oktagroup".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the app resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
 
-  int32 priority = 3;
+  int32 priority = 5;
 
-  map<string, wrappers.StringValues> traits_map = 4;
+  map<string, wrappers.StringValues> traits_map = 6;
 }
