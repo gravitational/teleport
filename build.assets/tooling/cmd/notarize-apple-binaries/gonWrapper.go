@@ -34,16 +34,20 @@ const (
 )
 
 type GonWrapper struct {
-	ctx    context.Context
-	logger hclog.Logger
-	config *GonConfig
+	ctx           context.Context
+	logger        hclog.Logger
+	AppleUsername string
+	ApplePassword string
+	BinaryPaths   []string
 }
 
-func NewGonWrapper(config *GonConfig) *GonWrapper {
+func NewGonWrapper(appleUsername, applePassword string, BinaryPaths []string) *GonWrapper {
 	return &GonWrapper{
-		ctx:    context.Background(),
-		logger: NewHCLogLogrusAdapter(),
-		config: config,
+		ctx:           context.Background(),
+		logger:        NewHCLogLogrusAdapter(),
+		AppleUsername: appleUsername,
+		ApplePassword: applePassword,
+		BinaryPaths:   BinaryPaths,
 	}
 }
 
@@ -64,15 +68,15 @@ func (gw *GonWrapper) SignAndNotarizeBinaries() error {
 }
 
 func (gw *GonWrapper) SignBinaries() error {
-	gw.logger.Info("Signing binaries %v...", gw.config.BinaryPaths)
+	gw.logger.Info("Signing binaries %v...", gw.BinaryPaths)
 	err := sign.Sign(gw.ctx, &sign.Options{
-		Files:    gw.config.BinaryPaths,
+		Files:    gw.BinaryPaths,
 		Identity: DeveloperIdentity,
 		Logger:   gw.logger,
 	})
 
 	if err != nil {
-		return trace.Wrap(err, "gon failed to sign binaries %v", gw.config.BinaryPaths)
+		return trace.Wrap(err, "gon failed to sign binaries %v", gw.BinaryPaths)
 	}
 
 	return nil
@@ -90,14 +94,14 @@ func (gw *GonWrapper) ZipBinaries() (string, error) {
 	gw.logger.Debug("Using binary zip path %q", outputPath)
 
 	err = zip.Zip(gw.ctx, &zip.Options{
-		Files:      gw.config.BinaryPaths,
+		Files:      gw.BinaryPaths,
 		OutputPath: outputPath,
 		Logger:     gw.logger,
 	})
 
 	if err != nil {
 		os.RemoveAll(tmpDir)
-		return "", trace.Wrap(err, "gon failed to zip binaries %v to zip %q", gw.config.BinaryPaths, outputPath)
+		return "", trace.Wrap(err, "gon failed to zip binaries %v to zip %q", gw.BinaryPaths, outputPath)
 	}
 
 	return outputPath, nil
@@ -108,13 +112,13 @@ func (gw *GonWrapper) NotarizeBinaries(zipPath string) error {
 	notarizationInfo, err := notarize.Notarize(gw.ctx, &notarize.Options{
 		File:     zipPath,
 		BundleId: BundleID,
-		Username: gw.config.AppleUsername,
-		Password: gw.config.ApplePassword,
+		Username: gw.AppleUsername,
+		Password: gw.ApplePassword,
 		Logger:   gw.logger,
 	})
 	if err != nil {
 		return trace.Wrap(err, "gon failed to notarize binaries %v in zip %q with notarization info %+v",
-			gw.config.BinaryPaths, zipPath, notarizationInfo)
+			gw.BinaryPaths, zipPath, notarizationInfo)
 	}
 
 	return nil

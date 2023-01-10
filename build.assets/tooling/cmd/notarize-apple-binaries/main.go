@@ -35,7 +35,7 @@ func run() error {
 		return trace.Wrap(err, "failed to parse args")
 	}
 
-	err = NewGonWrapper(args.GonConfig).SignAndNotarizeBinaries()
+	err = NewGonWrapper(args.AppleUsername, args.ApplePassword, args.BinaryPaths).SignAndNotarizeBinaries()
 	if err != nil {
 		return trace.Wrap(err, "failed to sign and notarize binaries")
 	}
