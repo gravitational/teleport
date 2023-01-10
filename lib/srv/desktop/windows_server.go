@@ -107,6 +107,7 @@ type WindowsService struct {
 	lc *windows.LDAPClient
 
 	mu              sync.Mutex // mu protects the fields that follow
+	ldapConfigured  bool
 	ldapInitialized bool
 	ldapCertRenew   *time.Timer
 
@@ -343,11 +344,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		LC:          s.lc,
 	})
 
-	// initialize LDAP - if this fails it will automatically schedule a retry.
-	// we don't want to return an error in this case, because failure to start
-	// the service brings down the entire Teleport process
-	if err := s.initializeLDAP(); err != nil {
-		s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
+	if s.cfg.LDAPConfig.Addr != "" {
+		s.ldapConfigured = true
+		// initialize LDAP - if this fails it will automatically schedule a retry.
+		// we don't want to return an error in this case, because failure to start
+		// the service brings down the entire Teleport process
+		if err := s.initializeLDAP(); err != nil {
+			s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
+		}
 	}
 
 	ok := false
@@ -476,10 +480,6 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 // and authenticate with the LDAP server, then the operation will be automatically
 // retried.
 func (s *WindowsService) initializeLDAP() error {
-	if s.cfg.LDAPConfig.Addr == "" {
-		s.ldapInitialized = true
-		return nil
-	}
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
 		s.cfg.Log.Warn("Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
@@ -657,6 +657,20 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
+func (s *WindowsService) readyForConnections() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// If LDAP was not configured, we assume all hosts are non-AD
+	// and the server can accept connections right away.
+	if !s.ldapConfigured {
+		return true
+	}
+
+	// If LDAP was configured, then we need to wait for it to be initialized
+	// before accepting connections.
+	return s.ldapInitialized
+}
+
 func (s *WindowsService) ldapReady() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -681,7 +695,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// don't handle connections until the LDAP initialization retry loop has succeeded
 	// (it would fail anyway, but this presents a better error to the user)
-	if !s.ldapReady() {
+	if !s.readyForConnections() {
 		const msg = "This service cannot accept connections until LDAP initialization has completed."
 		log.Error(msg)
 		sendTDPError(msg)
