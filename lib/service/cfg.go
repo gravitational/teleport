@@ -497,6 +497,10 @@ type ProxyConfig struct {
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
 
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration
+
 	// ACME is ACME protocol support config
 	ACME ACME
 
