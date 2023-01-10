@@ -29,7 +29,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/component-base/cli"
@@ -230,12 +229,22 @@ func createKubeAccessRequest(cf *CLIConf, resources []resourceKind, args []strin
 // the --kubeconfig flag that overrrides the default kubeconfig location
 // and the --context flag that overrides the default context to use.
 func extractKubeConfigAndContext(args []string) (kubeconfig string, context string) {
-	// ignore any error on parse since we are only interested in two flag values.
-	fs := pflag.NewFlagSet("kubectl", pflag.ContinueOnError)
-	fs.StringVar(&kubeconfig, "kubeconfig", "", "")
-	fs.StringVar(&context, "context", "", "")
-	// ignore returned error.
-	_ = fs.Parse(args)
+	if len(args) <= 2 {
+		return
+	}
+	command := cmd.NewDefaultKubectlCommandWithArgs(
+		cmd.KubectlOptions{
+			Arguments: args[2:],
+		},
+	)
+
+	if err := command.ParseFlags(args[2:]); err != nil {
+		return
+	}
+
+	kubeconfig = command.Flag("kubeconfig").Value.String()
+	context = command.Flag("context").Value.String()
+
 	return
 }
 
