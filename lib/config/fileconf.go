@@ -487,7 +487,6 @@ func awsRegions() []string {
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 	regions := awsRegions()
-	var err error
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -514,6 +513,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 		}
 
 		var installParams services.InstallerParams
+		var err error
 
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
