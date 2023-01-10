@@ -533,6 +533,10 @@ func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
 }
 
 func onJoinOpenSSH(clf config.CommandLineFlags) error {
+	if err := checkSSHDConfigAlreadyUpdated(clf.OpenSSHConfigPath); err != nil {
+		return trace.Wrap(err)
+	}
+
 	addr, err := utils.ParseAddr(clf.ProxyServer)
 	if err != nil {
 		return trace.Wrap(err)
@@ -619,6 +623,24 @@ func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs) error {
 		}
 	}
 
+	if err := certsFile.Sync(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+const sshdConfigSectionModificationHeader = "### Section created by 'teleport join openssh'"
+
+func checkSSHDConfigAlreadyUpdated(sshdConfigPath string) error {
+	contents, err := os.ReadFile(sshdConfigPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if strings.Contains(string(contents), sshdConfigSectionModificationHeader) {
+		return trace.AlreadyExists("not updating %s as it has already been modified by teleport", sshdConfigPath)
+	}
 	return nil
 }
 
@@ -632,12 +654,13 @@ func updateSSHDConfig(keyDir, sshdConfigPath string) error {
 	defer sshdConfig.Close()
 
 	configUpdate := fmt.Sprintf(`
-### Section created by 'teleport join openssh'
+%s
 TrustedUserCaKeys %s
 HostKey %s
 HostCertificate %s
 ### Section end
 `,
+		sshdConfigSectionModificationHeader,
 		filepath.Join(keyDir, "teleport_user_ca.pub"),
 		filepath.Join(keyDir, "teleport"),
 		filepath.Join(keyDir, "teleport-cert.pub"),
@@ -653,6 +676,15 @@ HostCertificate %s
 
 	if _, err := io.Copy(sshdConfigTmp, sshdConfig); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if err := sshdConfigTmp.Sync(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	cmd := exec.Command("sshd", "-t", "-f", sshdConfigTmp.Name())
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, "teleport generated an invalid ssh config file, not writing")
 	}
 
 	if err := os.Rename(sshdConfigTmp.Name(), sshdConfigPath); err != nil {
