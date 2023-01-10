@@ -4348,6 +4348,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthType("all"),
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
