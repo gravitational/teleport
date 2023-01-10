@@ -63,7 +63,7 @@ type RotateRequest struct {
 // Types returns cert authority types requested to be rotated.
 func (r *RotateRequest) Types() []types.CertAuthType {
 	switch r.Type {
-	case "":
+	case "all":
 		return types.CertAuthTypes[:]
 	case types.HostCA:
 		return []types.CertAuthType{types.HostCA}
@@ -88,8 +88,8 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.Mode == "" {
 		r.Mode = types.RotationModeManual
 	}
-	// Empty r.Type is valid too.
-	if err := r.Type.Check(); err != nil && r.Type != "" {
+	// Type all is valid too.
+	if err := r.Type.Check(); err != nil && r.Type != "all" {
 		return trace.Wrap(err)
 	}
 	if r.GracePeriod == nil {
