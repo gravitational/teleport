@@ -1353,7 +1353,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				SPN:        database.AD.SPN,
 			},
 			Azure: service.DatabaseAzure{
-				ResourceID: database.Azure.ResourceID,
+				ResourceID:    database.Azure.ResourceID,
+				IsFlexiServer: database.Azure.IsFlexiServer,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
