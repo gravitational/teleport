@@ -33,9 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
-	prehogv1 "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
-	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha/prehogv1alphaconnect"
+	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
+	prehogv1 "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
+	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha/v1alphaconnect"
 	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
 )

@@ -1,10 +1,6 @@
 # buf-teleterm.gen.yaml is identical to buf.gen.yaml,
 # with the exception of three additional JS plugins.
 version: v1
-managed:
-  enabled: true
-  go_package_prefix:
-    default: github.com/gravitational/teleport/lib/prehog/gen
 plugins:
   - name: js
     out: lib/prehog/gen-js

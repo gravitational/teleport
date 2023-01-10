@@ -2,13 +2,13 @@
 //
 // Source: prehog/v1alpha/teleport.proto
 
-package prehogv1alphaconnect
+package v1alphaconnect
 
 import (
 	context "context"
 	errors "errors"
 	connect_go "github.com/bufbuild/connect-go"
-	v1alpha "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
+	v1alpha "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
 	http "net/http"
 	strings "strings"
 )

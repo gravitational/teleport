@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
+	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"

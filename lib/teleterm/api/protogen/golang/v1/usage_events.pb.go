@@ -21,7 +21,7 @@
 package v1
 
 import (
-	v1alpha "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
+	v1alpha "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

@@ -25,7 +25,9 @@ main() {
     --path=api/proto/teleport/loginrule/ \
     --path=api/proto/teleport/proxy/ \
     --path=proto/teleport/lib/multiplexer/
-  buf generate --template=lib/prehog/buf.gen.yaml lib/prehog/proto
+
+  # Generate connect-go protos.
+  buf generate --template=buf-connect-go.gen.yaml lib/prehog/proto
 
   # Generate lib/teleterm & JS protos.
   # TODO(ravicious): Refactor generating JS protos to follow the approach from above, that is have a
