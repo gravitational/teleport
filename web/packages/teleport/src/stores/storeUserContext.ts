@@ -122,6 +122,14 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.accessRequestId;
   }
 
+  getLicenceAccess() {
+    return this.state.acl.license;
+  }
+
+  getDownloadAccess() {
+    return this.state.acl.download;
+  }
+
   getAccessRequestAccess() {
     return this.state.acl.accessRequests;
   }
@@ -132,6 +140,14 @@ export default class StoreUserContext extends Store<UserContext> {
   hasPrereqAccessToAddAgents() {
     const { tokens } = this.state.acl;
     return tokens.create;
+  }
+
+  // hasDownloadCenterListAccess checks if the user
+  // has access to download either teleport binaries or the license.
+  // Since the page is used to download both of them, having access to one
+  // is enough to show access this page.
+  hasDownloadCenterListAccess() {
+    return this.state.acl.license.read || this.state.acl.download.list;
   }
 
   // hasAccessToAgentQuery checks for at least one valid query permission.

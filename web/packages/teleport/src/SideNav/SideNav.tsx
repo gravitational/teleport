@@ -26,6 +26,7 @@ import SideNavItem from './SideNavItem';
 import SideNavItemGroup from './SideNavItemGroup';
 import logoSvg from './logo';
 import useSideNav from './useSideNav';
+import SideNavExternalLink from './SideNavExternalLink';
 
 export default function Container() {
   const state = useSideNav();
@@ -40,7 +41,11 @@ export function SideNav(props: ReturnType<typeof useSideNav>) {
       return <SideNavItemGroup path={path} item={item} key={index} />;
     }
 
-    return (
+    return item.isExternalLink ? (
+      <SideNavExternalLink key={index} icon={item.Icon} href={item.route}>
+        {item.title}
+      </SideNavExternalLink>
+    ) : (
       <SideNavItem key={index} as={NavLink} exact={item.exact} to={item.route}>
         <SideNavItemIcon as={item.Icon} />
         {item.title}

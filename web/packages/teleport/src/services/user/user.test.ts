@@ -128,6 +128,20 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      license: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      download: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       tokens: {
         list: false,
         read: false,

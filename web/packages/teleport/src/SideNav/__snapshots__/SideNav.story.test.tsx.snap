@@ -206,6 +206,63 @@ exports[`rendering of SideNav 1`] = `
   color: #FFFFFF;
 }
 
+.c15 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border: none;
+  border-left: 4px solid transparent;
+  cursor: pointer;
+  outline: none;
+  text-decoration: none;
+  width: 100%;
+  line-height: 24px;
+  position: relative;
+  font-size: 12px;
+  font-weight: 400;
+  font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+  padding-left: 64px;
+  padding-right: 32px;
+  background: #222C59;
+  color: rgba(255,255,255,0.56);
+  min-height: 56px;
+  padding-right: 8px;
+}
+
+.c15:active,
+.c15.active {
+  border-left-color: #651FFF;
+  background: #2C3A73;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.c15:active .marker,
+.c15.active .marker {
+  background: #651FFF;
+}
+
+.c15:hover {
+  background: #2C3A73;
+}
+
+.c15:focus,
+.c15:hover {
+  color: #FFFFFF;
+}
+
+.c16 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: -40px;
+  margin-right: 16px;
+  color: inherit;
+  font-size: 16px;
+  margin-left: auto;
+  transform: rotate(-45deg);
+}
+
 .c2 {
   box-sizing: border-box;
   padding-left: 24px;
@@ -471,6 +528,23 @@ exports[`rendering of SideNav 1`] = `
           Trust
         </a>
       </div>
+      <a
+        class="c15"
+        href="https://example.com"
+        target="_blank"
+      >
+        <span
+          class="c6 icon icon-question-circle sc-AxjAm c7"
+          color="inherit"
+          font-size="16px"
+        />
+        Support
+        <span
+          class="c6 icon icon-arrow_forward sc-AxjAm c16"
+          color="inherit"
+          font-size="16px"
+        />
+      </a>
     </div>
   </nav>
 </div>
