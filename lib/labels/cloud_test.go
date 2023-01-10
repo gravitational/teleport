@@ -59,6 +59,10 @@ func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
 	return "", nil
 }
 
+func (m *mockIMDSClient) GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error) {
+	return &types.InstanceMetadata{}, nil
+}
+
 func TestCloudLabelsSync(t *testing.T) {
 	ctx := context.Background()
 	tags := map[string]string{"a": "1", "b": "2"}

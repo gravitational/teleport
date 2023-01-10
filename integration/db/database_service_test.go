@@ -104,4 +104,7 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 	}
 
 	require.Equal(t, expectedDBResourceMatcher, dbServic01.ResourceMatchers)
+
+	expectedInstanceMetadata := &types.InstanceMetadata{}
+	require.Equal(t, expectedInstanceMetadata, dbServic01.InstanceMetadata)
 }

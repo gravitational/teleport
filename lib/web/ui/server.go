@@ -237,6 +237,8 @@ type DatabaseService struct {
 	Name string `json:"name"`
 	// ResourceMatchers is a list of resource matchers of the DatabaseService.
 	ResourceMatchers []*types.DatabaseResourceMatcher `json:"resource_matchers"`
+	// InstanceMetadata contains the metadata from the DatabaseService.
+	InstanceMetadata *types.InstanceMetadata `json:"instance_metadata"`
 }
 
 // MakeDatabaseService creates DatabaseService resource.
@@ -244,6 +246,7 @@ func MakeDatabaseService(databaseService types.DatabaseService) DatabaseService 
 	return DatabaseService{
 		Name:             databaseService.GetName(),
 		ResourceMatchers: databaseService.GetResourceMatchers(),
+		InstanceMetadata: databaseService.GetInstanceMetadata(),
 	}
 }
 

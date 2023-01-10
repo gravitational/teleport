@@ -747,6 +747,12 @@ type TestCloudClients struct {
 	AzureManagedSQLServer   azure.ManagedSQLServerClient
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
+
+	NextError error
+}
+
+func (c *TestCloudClients) WithError(err error) {
+	c.NextError = err
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -827,6 +833,12 @@ func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdm
 
 // GetInstanceMetadata returns the instance metadata.
 func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error) {
+	if c.NextError != nil {
+		err := c.NextError
+		c.NextError = nil
+		return nil, err
+	}
+
 	return c.InstanceMetadata, nil
 }
 

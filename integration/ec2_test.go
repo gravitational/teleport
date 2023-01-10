@@ -34,6 +34,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -298,7 +300,8 @@ func TestIAMNodeJoin(t *testing.T) {
 }
 
 type mockIMDSClient struct {
-	tags map[string]string
+	instanceMetadata *types.InstanceMetadata
+	tags             map[string]string
 }
 
 func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
@@ -325,9 +328,16 @@ func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
 	return "", nil
 }
 
-// TestEC2Labels is an integration test which asserts that Teleport correctly picks up
-// EC2 tags when running on an EC2 instance.
-func TestEC2Labels(t *testing.T) {
+func (m *mockIMDSClient) GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error) {
+	return m.instanceMetadata, nil
+}
+
+// TestEC2Instrospection is an integration test which asserts that Teleport correctly picks up
+// EC2 tags and AWS Identity when running on an EC2 instance.
+func TestEC2Instrospection(t *testing.T) {
+	dummyAWSAccountID := "0123456789012"
+	dummyAWSRole := "SomeRole"
+
 	storageConfig := backend.Config{
 		Type: lite.GetName(),
 		Params: backend.Params{
@@ -373,6 +383,14 @@ func TestEC2Labels(t *testing.T) {
 		tags: map[string]string{
 			"Name": "my-instance",
 		},
+		instanceMetadata: &types.InstanceMetadata{
+			AWSIdentity: &types.AWSInstanceIdentity{
+				AccountID:    dummyAWSAccountID,
+				ARN:          "arn:aws:sts::" + dummyAWSAccountID + ":assumed-role/" + dummyAWSRole + "/i-12345678901234567",
+				ResourceName: dummyAWSRole,
+				ResourceType: "assumed-role",
+			},
+		},
 	}
 
 	proc, err := service.NewTeleport(tconf)
@@ -383,64 +401,92 @@ func TestEC2Labels(t *testing.T) {
 	ctx := context.Background()
 	authServer := proc.GetAuthServer()
 
-	var nodes []types.Server
-	var apps []types.AppServer
-	var databases []types.DatabaseServer
-	var kubes []types.KubeServer
-	// Wait for everything to come online.
-	require.Eventually(t, func() bool {
-		var err error
-		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		kubes, err = authServer.GetKubernetesServers(ctx)
-		require.NoError(t, err)
+	t.Run("Labels", func(t *testing.T) {
+		var nodes []types.Server
+		var apps []types.AppServer
+		var databases []types.DatabaseServer
+		var kubes []types.KubeServer
+		// Wait for everything to come online.
+		require.Eventually(t, func() bool {
+			var err error
+			nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
+			require.NoError(t, err)
+			apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
+			require.NoError(t, err)
+			databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
+			require.NoError(t, err)
+			kubes, err = authServer.GetKubernetesServers(ctx)
+			require.NoError(t, err)
 
-		// dedupClusters is required because GetKubernetesServers returns duplicated servers
-		// because it lists the KindKubeServer and KindKubeService.
-		// We must remove this once legacy heartbeat is removed.
-		// DELETE IN 13.0.0
-		var dedupClusters []types.KubeServer
-		dedup := map[string]struct{}{}
-		for _, kube := range kubes {
-			if _, ok := dedup[kube.GetName()]; ok {
-				continue
+			// dedupClusters is required because GetKubernetesServers returns duplicated servers
+			// because it lists the KindKubeServer and KindKubeService.
+			// We must remove this once legacy heartbeat is removed.
+			// DELETE IN 13.0.0
+			var dedupClusters []types.KubeServer
+			dedup := map[string]struct{}{}
+			for _, kube := range kubes {
+				if _, ok := dedup[kube.GetName()]; ok {
+					continue
+				}
+				dedup[kube.GetName()] = struct{}{}
+				dedupClusters = append(dedupClusters, kube)
 			}
-			dedup[kube.GetName()] = struct{}{}
-			dedupClusters = append(dedupClusters, kube)
-		}
 
-		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(dedupClusters) == 1
-	}, 10*time.Second, time.Second)
+			return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(dedupClusters) == 1
+		}, 10*time.Second, time.Second)
 
-	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
+		tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
 
-	// Check that EC2 labels were applied.
-	require.Eventually(t, func() bool {
-		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
-		require.NoError(t, err)
-		_, nodeHasLabel := node.GetAllLabels()[tagName]
-		apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, apps, 1)
-		app := apps[0].GetApp()
-		_, appHasLabel := app.GetAllLabels()[tagName]
+		// Check that EC2 labels were applied.
+		require.Eventually(t, func() bool {
+			node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
+			require.NoError(t, err)
+			_, nodeHasLabel := node.GetAllLabels()[tagName]
+			apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
+			require.NoError(t, err)
+			require.Len(t, apps, 1)
+			app := apps[0].GetApp()
+			_, appHasLabel := app.GetAllLabels()[tagName]
 
-		databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, databases, 1)
-		database := databases[0].GetDatabase()
-		_, dbHasLabel := database.GetAllLabels()[tagName]
+			databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
+			require.NoError(t, err)
+			require.Len(t, databases, 1)
+			database := databases[0].GetDatabase()
+			_, dbHasLabel := database.GetAllLabels()[tagName]
 
-		kubeClusters := helpers.GetKubeClusters(t, authServer)
-		require.Len(t, kubeClusters, 1)
-		kube := kubeClusters[0]
-		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
-		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
-	}, 10*time.Second, time.Second)
+			kubeClusters := helpers.GetKubeClusters(t, authServer)
+			require.Len(t, kubeClusters, 1)
+			kube := kubeClusters[0]
+			_, kubeHasLabel := kube.GetStaticLabels()[tagName]
+			return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
+		}, 10*time.Second, time.Second)
+	})
+
+	t.Run("AWS Identity", func(t *testing.T) {
+		var databaseServices []types.DatabaseService
+
+		// Wait for everything to come online.
+		require.Eventually(t, func() bool {
+			resources, err := client.GetResourcesWithFilters(ctx, authServer, proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseService,
+				Limit:        10, // we only expect 1
+			})
+			require.NoError(t, err)
+
+			databaseServices, err = types.ResourcesWithLabels(resources).AsDatabaseServices()
+			require.NoError(t, err)
+
+			return len(databaseServices) == 1
+		}, 10*time.Second, time.Second)
+
+		require.Len(t, databaseServices, 1)
+		dbService := databaseServices[0]
+
+		require.Equal(t, dummyAWSAccountID, dbService.GetInstanceMetadata().AWSIdentity.AccountID)
+		require.Equal(t, "assumed-role", dbService.GetInstanceMetadata().AWSIdentity.ResourceType)
+		require.Equal(t, dummyAWSRole, dbService.GetInstanceMetadata().AWSIdentity.ResourceName)
+	})
+
 }
 
 // TestEC2Hostname is an integration test which asserts that Teleport sets its

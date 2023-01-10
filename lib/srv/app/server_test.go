@@ -577,6 +577,10 @@ func (i *testIMClient) GetID(ctx context.Context) (string, error) {
 	return i.id, nil
 }
 
+func (i *testIMClient) GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error) {
+	return &types.InstanceMetadata{}, nil
+}
+
 func mustNewCloudImporter(t *testing.T, config *labels.CloudConfig) labels.Importer {
 	importer, err := labels.NewCloudImporter(context.Background(), config)
 	require.NoError(t, err)

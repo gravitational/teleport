@@ -18,19 +18,25 @@ package db
 
 import (
 	"context"
+	"crypto/tls"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -65,6 +71,163 @@ func TestDatabaseServerStart(t *testing.T) {
 	for _, server := range servers {
 		require.Equal(t, map[string]string{"echo": "test"},
 			server.GetDatabase().GetAllLabels())
+	}
+}
+
+func TestConfigCheckAndSet_CloudInstanceMetadataClient(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tt := range []struct {
+		name          string
+		initialConfig func() *Config
+		check         func(t *testing.T, gotConfig *Config)
+	}{
+		{
+			name: "when not defined, loads the client from CloudClients",
+			initialConfig: func() *Config {
+				return &Config{
+					CloudClients: &cloud.TestCloudClients{
+						InstanceMetadata: azure.NewInstanceMetadataClient(),
+					},
+					CloudInstanceMetadataClient: nil,
+				}
+			},
+			check: func(t *testing.T, gotConfig *Config) {
+				require.IsType(t, &azure.InstanceMetadataClient{}, gotConfig.CloudInstanceMetadataClient)
+			},
+		},
+		{
+			name: "when not defined, and CloudClients returns nil: loads the DisabledIMDSClient",
+			initialConfig: func() *Config {
+				return &Config{
+					CloudClients: &cloud.TestCloudClients{
+						InstanceMetadata: nil,
+					},
+					CloudInstanceMetadataClient: nil,
+				}
+			},
+			check: func(t *testing.T, gotConfig *Config) {
+				require.IsType(t, &cloud.DisabledIMDSClient{}, gotConfig.CloudInstanceMetadataClient)
+			},
+		},
+		{
+			name: "not defined and Cloud Clients can't provide one: sets a Disabled one",
+			initialConfig: func() *Config {
+				testCloudClients := &cloud.TestCloudClients{}
+				testCloudClients.WithError(trace.NotFound("no instance metadata service found"))
+
+				return &Config{
+					CloudClients:                testCloudClients,
+					CloudInstanceMetadataClient: nil,
+				}
+			},
+			check: func(t *testing.T, gotConfig *Config) {
+				require.IsType(t, &cloud.DisabledIMDSClient{}, gotConfig.CloudInstanceMetadataClient)
+			},
+		},
+		{
+			name: "when defined, doesn't change the value",
+			initialConfig: func() *Config {
+				return &Config{
+					CloudInstanceMetadataClient: cloud.NewDisabledIMDSClient(),
+				}
+			},
+			check: func(t *testing.T, gotConfig *Config) {
+				require.IsType(t, &cloud.DisabledIMDSClient{}, gotConfig.CloudInstanceMetadataClient)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := tt.initialConfig()
+			loadDummyValues(t, conf)
+
+			err := conf.CheckAndSetDefaults(ctx)
+			require.NoError(t, err)
+
+			tt.check(t, conf)
+		})
+	}
+}
+
+func loadDummyValues(t *testing.T, initialConfig *Config) {
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: "clustername",
+		AccessPoint: &auth.Client{},
+		LockWatcher: &services.LockWatcher{},
+	})
+	require.NoError(t, err)
+	initialConfig.DataDir = t.TempDir()
+	initialConfig.AuthClient = &auth.Client{}
+	initialConfig.AccessPoint = &auth.Client{}
+	initialConfig.StreamEmitter = &auth.Client{}
+	initialConfig.Hostname = "x"
+	initialConfig.HostID = "x"
+	initialConfig.TLSConfig = &tls.Config{}
+	initialConfig.Authorizer = authorizer
+	initialConfig.GetRotation = func(role types.SystemRole) (*types.Rotation, error) {
+		return nil, nil
+	}
+	initialConfig.LockWatcher = &services.LockWatcher{}
+}
+
+func TestGetDatabaseServiceInfo(t *testing.T) {
+	ctx := context.Background()
+	dummyAWSAccountID := "0123456789012"
+	dummyAWSRole := "SomeRole"
+
+	dummyInstanceMetadata := &types.InstanceMetadata{
+		AWSIdentity: &types.AWSInstanceIdentity{
+			AccountID:    dummyAWSAccountID,
+			ARN:          "arn:aws:sts::" + dummyAWSAccountID + ":assumed-role/" + dummyAWSRole + "/i-12345678901234567",
+			ResourceName: dummyAWSRole,
+			ResourceType: "assumed-role",
+		},
+	}
+
+	for _, tt := range []struct {
+		name   string
+		config *Config
+		check  func(t *testing.T, gotResource *types.DatabaseServiceV1)
+	}{
+		{
+			name: "when using the Disabled IMDS Client, returns empty",
+			config: &Config{
+				CloudInstanceMetadataClient: cloud.NewDisabledIMDSClient(),
+			},
+			check: func(t *testing.T, gotResource *types.DatabaseServiceV1) {
+				require.Equal(t, &types.InstanceMetadata{}, gotResource.Spec.InstanceMetadata)
+			},
+		},
+		{
+			name: "when a client exists, it sets the InstanceMetadata with the returned values",
+			config: &Config{
+				CloudInstanceMetadataClient: &cloud.TestIMDSClient{
+					InstanceMetadata: dummyInstanceMetadata,
+				},
+			},
+			check: func(t *testing.T, gotResource *types.DatabaseServiceV1) {
+				require.Equal(t, dummyInstanceMetadata, gotResource.Spec.InstanceMetadata)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			loadDummyValues(t, tt.config)
+
+			err := tt.config.CheckAndSetDefaults(ctx)
+			require.NoError(t, err)
+
+			s := Server{
+				cfg: *tt.config,
+			}
+
+			resource, err := s.getDatabaseServiceInfoFn(ctx)()
+			require.NoError(t, err)
+
+			databaseService, ok := resource.(*types.DatabaseServiceV1)
+			require.True(t, ok, "failed to convert resource to types.DatabaseServiceV1")
+
+			tt.check(t, databaseService)
+		})
 	}
 }
 

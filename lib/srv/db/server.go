@@ -132,6 +132,9 @@ type Config struct {
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker discoveryResourceChecker
+	// CloudInstanceMetadataClient is a Cloud Client that can fetch Instance Metadata.
+	// It's an abstraction over multiple cloud clients, matching the Cloud where the current process is running.
+	CloudInstanceMetadataClient clients.InstanceMetadata
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -210,6 +213,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		})
 		if err != nil {
 			return trace.Wrap(err)
+		}
+	}
+	if c.CloudInstanceMetadataClient == nil {
+		c.CloudInstanceMetadataClient, err = c.CloudClients.GetInstanceMetadataClient(ctx)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		if trace.IsNotFound(err) || c.CloudInstanceMetadataClient == nil {
+			// There's no Cloud Client for the current host.
+			// This can happen when imds.DiscoverInstanceMetadata does not find a suitable client.
+			c.CloudInstanceMetadataClient = &clients.DisabledIMDSClient{}
 		}
 	}
 	if c.Limiter == nil {
@@ -663,7 +678,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
 	// Start hearbeating the Database Service itself.
-	if err := s.startServiceHeartbeat(); err != nil {
+	if err := s.startServiceHeartbeat(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -698,9 +713,8 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	return nil
 }
 
-// startServiceHeartbeat sends the current DatabaseService server info.
-func (s *Server) startServiceHeartbeat() error {
-	getDatabaseServiceServerInfo := func() (types.Resource, error) {
+func (s *Server) getDatabaseServiceInfoFn(ctx context.Context) func() (types.Resource, error) {
+	return func() (types.Resource, error) {
 		expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 		resource, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name:      s.cfg.HostID,
@@ -713,15 +727,25 @@ func (s *Server) startServiceHeartbeat() error {
 			return nil, trace.Wrap(err)
 		}
 
+		instanceMD, err := s.cfg.CloudInstanceMetadataClient.GetInstanceMetadata(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resource.Spec.InstanceMetadata = instanceMD
+
 		return resource, nil
 	}
+}
 
+// startServiceHeartbeat sends the current DatabaseService server info.
+func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         s.closeContext,
 		Component:       teleport.ComponentDatabase,
 		Mode:            srv.HeartbeatModeDatabaseService,
 		Announcer:       s.cfg.AccessPoint,
-		GetServerInfo:   getDatabaseServiceServerInfo,
+		GetServerInfo:   s.getDatabaseServiceInfoFn(ctx),
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,

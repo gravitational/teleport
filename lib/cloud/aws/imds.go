@@ -21,9 +21,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -32,7 +35,8 @@ import (
 
 // InstanceMetadataClient is a wrapper for an imds.Client.
 type InstanceMetadataClient struct {
-	c *imds.Client
+	c         *imds.Client
+	stsClient STSV2Client
 }
 
 // InstanceMetadataClientOption allows setting options as functional arguments to an InstanceMetadataClient.
@@ -46,7 +50,34 @@ func WithIMDSClient(client *imds.Client) InstanceMetadataClientOption {
 	}
 }
 
+// WithSTSClient adds a custom internal sts.Client to an InstanceMetadataClient.
+func WithSTSClient(stsClient STSV2Client) InstanceMetadataClientOption {
+	return func(clt *InstanceMetadataClient) error {
+		clt.stsClient = stsClient
+		return nil
+	}
+}
+
+func currentRegion(ctx context.Context, cfg aws.Config, clt *imds.Client) (string, error) {
+	// Use the region loaded on default config.
+	if cfg.Region != "" {
+		return cfg.Region, nil
+	}
+
+	// Fetch the region using the IMDS client.
+	awsRegion, err := clt.GetRegion(ctx, &imds.GetRegionInput{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return awsRegion.Region, nil
+}
+
 // NewInstanceMetadataClient creates a new instance metadata client.
+//
+// GetInstanceMetadata may return an empty InstanceMetadata if the STSV2Client is not available.
+// NewInstanceMetadataClient tries to create one, but it might fail when the AWS Region is not defined.
+// A STSV2Client can be provided using the WithSTSClient function.
 func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClientOption) (*InstanceMetadataClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -60,6 +91,15 @@ func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClie
 	for _, opt := range opts {
 		if err := opt(clt); err != nil {
 			return nil, trace.Wrap(err)
+		}
+	}
+
+	if clt.stsClient == nil {
+		cfg.Region, err = currentRegion(ctx, cfg, clt.c)
+		if err != nil {
+			log.Debug("InstanceMetadata is not available because the AWS region is unknown")
+		} else {
+			clt.stsClient = sts.NewFromConfig(cfg)
 		}
 	}
 
@@ -158,4 +198,32 @@ func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error)
 	}
 
 	return id, nil
+}
+
+// GetInstanceMetadata gets the EC2 instance's identity.
+func (client *InstanceMetadataClient) GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error) {
+	if client.stsClient == nil {
+		return &types.InstanceMetadata{
+			AWSIdentity: &types.AWSInstanceIdentity{},
+		}, nil
+	}
+
+	awsIdentity, err := GetIdentityWithClientV2(ctx, client.stsClient)
+	if trace.IsNotFound(err) {
+		return &types.InstanceMetadata{
+			AWSIdentity: &types.AWSInstanceIdentity{},
+		}, nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.InstanceMetadata{
+		AWSIdentity: &types.AWSInstanceIdentity{
+			AccountID:    awsIdentity.GetAccountID(),
+			ARN:          awsIdentity.String(),
+			ResourceType: awsIdentity.GetType(),
+			ResourceName: awsIdentity.GetName(),
+		},
+	}, nil
 }

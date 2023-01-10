@@ -4608,6 +4608,33 @@ message DatabaseServiceV1 {
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // InstanceMetadata contains metadata from the host that is running the service.
+  InstanceMetadata InstanceMetadata = 2 [(gogoproto.jsontag) = "instance_metadata"];
+}
+
+// InstanceMetadata is a set of properties that Services report back
+message InstanceMetadata {
+  // AWS from the instance.
+  AWSInstanceIdentity AWSIdentity = 1 [(gogoproto.jsontag) = "aws_identity"];
+}
+
+// AWSInstanceIdentity contains an AWS IAM Identity.
+// It contains the AccountID, the full ARN string, the ResourceType and its Name.
+// This information comes from calling STS.GetCallerIdentity using the Instance Metadata and User Service (IMDS).
+message AWSInstanceIdentity {
+  // AccountID of the AWS account (12 digit).
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+
+  // ARN contains the ARN of the instance as received by the STS.GetCallerIdentity.
+  string ARN = 2 [(gogoproto.jsontag) = "arn"];
+
+  // ResourceType is the resource type extracted from the ARN.
+  // Example: "assumed-role"
+  string ResourceType = 3 [(gogoproto.jsontag) = "resource_type"];
+
+  // ResourceName is the resource name extracted from the ARN.
+  // Example: "MyInstanceRole"
+  string ResourceName = 4 [(gogoproto.jsontag) = "resource_name"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.

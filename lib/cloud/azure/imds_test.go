@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestAzureIsInstanceMetadataAvailable(t *testing.T) {
@@ -206,6 +208,36 @@ func TestGetInstanceID(t *testing.T) {
 			resourceID, err := client.GetID(context.Background())
 			tc.errAssertion(t, err)
 			require.Equal(t, tc.expectedResourceID, resourceID)
+		})
+	}
+}
+
+func TestGetInstanceMetadata(t *testing.T) {
+	for _, tc := range []struct {
+		name                     string
+		expectedInstanceMetadata *types.InstanceMetadata
+		errAssertion             require.ErrorAssertionFunc
+	}{
+		{
+			name:                     "not implemented should return empty struct",
+			expectedInstanceMetadata: &types.InstanceMetadata{},
+			errAssertion:             require.NoError,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+
+			client := NewInstanceMetadataClient(WithBaseURL(server.URL))
+
+			instanceMetadata, err := client.GetInstanceMetadata(context.Background())
+			tc.errAssertion(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Equal(t, tc.expectedInstanceMetadata, instanceMetadata)
 		})
 	}
 }

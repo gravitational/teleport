@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	stsv2 "github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -100,6 +101,34 @@ func (i identityBase) String() string {
 func GetIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (Identity, error) {
 	out, err := stsClient.GetCallerIdentityWithContext(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return IdentityFromArn(aws.StringValue(out.Arn))
+}
+
+// STSV2Client contains the required stsv2.Client methods to get the EC2 Identity
+type STSV2Client interface {
+	// Returns the caller identity.
+	// If no identity is available, a trace.NotFound is returned instead.
+	GetCallerIdentity(ctx context.Context, params *stsv2.GetCallerIdentityInput, optFns ...func(*stsv2.Options)) (*stsv2.GetCallerIdentityOutput, error)
+}
+
+// GetIdentityWithClientV2 determines AWS identity of this Teleport process
+// using the provided STS API client.
+func GetIdentityWithClientV2(ctx context.Context, stsClient STSV2Client) (Identity, error) {
+	out, err := stsClient.GetCallerIdentity(ctx, &stsv2.GetCallerIdentityInput{})
+	if err != nil {
+		// When the instance doesn't have a role, the following error is returned:
+		//
+		// operation error STS: GetCallerIdentity, failed to sign request: failed to retrieve credentials: \
+		// failed to refresh cached credentials, no EC2 IMDS role found, operation error ec2imds: \
+		// GetMetadata, http response error StatusCode: 404, request to EC2 IMDS failed
+		//
+		if strings.Contains(err.Error(), "no EC2 IMDS role found") {
+			return nil, trace.NotFound("identity not found: %v", err)
+		}
+
 		return nil, trace.Wrap(err)
 	}
 

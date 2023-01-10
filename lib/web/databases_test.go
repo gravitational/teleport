@@ -309,6 +309,14 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 				Labels: &types.Labels{"env": []string{"prod"}},
 			},
 		},
+		InstanceMetadata: &types.InstanceMetadata{
+			AWSIdentity: &types.AWSInstanceIdentity{
+				AccountID:    "123456789012",
+				ARN:          "arn:aws:sts::123456789012:assumed-role/DatabaseAccess/i-1234567890",
+				ResourceType: "assumed-role",
+				ResourceName: "DatabaseAccess",
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -331,6 +339,9 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	respResourceMatcher := respDBService.ResourceMatchers[0]
 
 	require.Equal(t, respResourceMatcher.Labels, &types.Labels{"env": []string{"prod"}})
+	require.Equal(t, respDBService.InstanceMetadata.AWSIdentity.ARN, "arn:aws:sts::123456789012:assumed-role/DatabaseAccess/i-1234567890")
+	require.Equal(t, respDBService.InstanceMetadata.AWSIdentity.AccountID, "123456789012")
+	require.Equal(t, respDBService.InstanceMetadata.AWSIdentity.ResourceName, "DatabaseAccess")
 }
 
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {

@@ -217,6 +217,12 @@ func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error)
 	return compute.ResourceID, nil
 }
 
+// GetInstanceMetadata returns an empty InstanceMetadata.
+// Azure InstanceMetadata lookup is not yet implemented.
+func (client *InstanceMetadataClient) GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error) {
+	return &types.InstanceMetadata{}, nil
+}
+
 // selectVersion selects the most recent API version greater than or equal to
 // a minimum version. Versions are represented as dates of the form YYYY-MM-DD.
 func selectVersion(versions []string, minimumVersion string) (string, error) {

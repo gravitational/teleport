@@ -17,13 +17,17 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestEC2IsInstanceMetadataAvailable(t *testing.T) {
@@ -163,6 +167,104 @@ func TestGetInstanceID(t *testing.T) {
 			id, err := client.GetID(context.Background())
 			tc.errAssertion(t, err)
 			require.Equal(t, tc.expectedID, id)
+		})
+	}
+}
+
+func TestGetInstanceMetadata(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name                    string
+		stsClient               STSV2Client
+		imdsGetRegionResp       []byte
+		imdsGetRegionRespStatus int
+		expectedMD              *types.InstanceMetadata
+		errAssertion            require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid",
+			stsClient: mockSTSV2Client{
+				arn: "arn:aws:sts::123456789012:assumed-role/DatabaseAccess/i-1234567890",
+			},
+			imdsGetRegionResp: []byte("us-east-1"),
+			expectedMD: &types.InstanceMetadata{
+				AWSIdentity: &types.AWSInstanceIdentity{
+					AccountID:    "123456789012",
+					ARN:          "arn:aws:sts::123456789012:assumed-role/DatabaseAccess/i-1234567890",
+					ResourceType: "assumed-role",
+					ResourceName: "DatabaseAccess",
+				},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "identity not found returns empty metadata",
+			stsClient: mockSTSV2Client{
+				err: trace.NotFound("identity not found"),
+			},
+			expectedMD: &types.InstanceMetadata{
+				AWSIdentity: &types.AWSInstanceIdentity{},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "unknown error returns error",
+			stsClient: mockSTSV2Client{
+				err: errors.New("unknown error"),
+			},
+			errAssertion: require.Error,
+		},
+		{
+			name:                    "STSClient is created by requesting the Region to the imds.Client",
+			imdsGetRegionResp:       []byte("us-east-1"),
+			imdsGetRegionRespStatus: http.StatusOK,
+			expectedMD: &types.InstanceMetadata{
+				AWSIdentity: &types.AWSInstanceIdentity{},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:                    "when imds.Client fails to return the region, an empty instance metadata is returned",
+			imdsGetRegionResp:       []byte("request to EC2 IMDS failed"),
+			imdsGetRegionRespStatus: http.StatusNotFound,
+			expectedMD: &types.InstanceMetadata{
+				AWSIdentity: &types.AWSInstanceIdentity{},
+			},
+			errAssertion: require.NoError,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.imdsGetRegionRespStatus)
+				w.Write(tc.imdsGetRegionResp)
+			}))
+			defer server.Close()
+
+			var client *InstanceMetadataClient
+			var err error
+
+			if tc.stsClient != nil {
+				client, err = NewInstanceMetadataClient(ctx,
+					WithIMDSClient(imds.New(imds.Options{Endpoint: server.URL})),
+					WithSTSClient(tc.stsClient),
+				)
+				require.NoError(t, err)
+
+			} else {
+				client, err = NewInstanceMetadataClient(ctx,
+					WithIMDSClient(imds.New(imds.Options{Endpoint: server.URL})),
+				)
+				require.NoError(t, err)
+			}
+
+			gotInstanceMD, err := client.GetInstanceMetadata(ctx)
+			tc.errAssertion(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Equal(t, tc.expectedMD, gotInstanceMD)
 		})
 	}
 }

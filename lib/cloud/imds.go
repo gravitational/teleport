@@ -48,6 +48,8 @@ type InstanceMetadata interface {
 	GetType() types.InstanceMetadataType
 	// GetID gets the cloud instance ID.
 	GetID(ctx context.Context) (string, error)
+	// GetMetadata gets the cloud instance's metadata.
+	GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error)
 }
 
 type imConstructor func(ctx context.Context) (InstanceMetadata, error)
@@ -126,4 +128,45 @@ func (d *DisabledIMDSClient) GetType() types.InstanceMetadataType {
 
 func (d *DisabledIMDSClient) GetID(ctx context.Context) (string, error) {
 	return "", nil
+}
+
+// GetInstanceMetadata returns an empty InstanceMetadata.
+func (d *DisabledIMDSClient) GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error) {
+	return &types.InstanceMetadata{}, nil
+}
+
+// TestIMDSClient is a mocked IMDS Client.
+// It returns the values defined when creating the instance.
+type TestIMDSClient struct {
+	InstanceMetadata *types.InstanceMetadata
+}
+
+// NewTestIMDSClient creates a new TestIMDSClient.
+func NewTestIMDSClient() InstanceMetadata {
+	return &TestIMDSClient{}
+}
+
+func (t *TestIMDSClient) IsAvailable(ctx context.Context) bool {
+	return false
+}
+
+func (t *TestIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
+	return nil, nil
+}
+
+func (t *TestIMDSClient) GetHostname(ctx context.Context) (string, error) {
+	return "", nil
+}
+
+func (t *TestIMDSClient) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeDisabled
+}
+
+func (t *TestIMDSClient) GetID(ctx context.Context) (string, error) {
+	return "", nil
+}
+
+// GetInstanceMetadata returns an empty InstanceMetadata.
+func (t *TestIMDSClient) GetInstanceMetadata(ctx context.Context) (*types.InstanceMetadata, error) {
+	return t.InstanceMetadata, nil
 }
