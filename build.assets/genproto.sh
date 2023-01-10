@@ -11,7 +11,7 @@ main() {
   # <teleport-root>/github.com/gravitational/teleport/..., so we copy them to
   # the correct relative path.
   trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
-  rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
+  rm -fr api/gen/proto gen/proto lib/teleterm/api/protogen  # cleanup gen/proto folders
 
   # Generate Gogo protos.
   buf generate --template=buf-gogo.gen.yaml api/proto
@@ -25,6 +25,12 @@ main() {
     --path=api/proto/teleport/proxy/ \
     --path=proto/teleport/lib/multiplexer/
   buf generate --template=lib/prehog/buf.gen.yaml lib/prehog/proto
+
+  # Generate lib/teleterm protos.
+  # TODO(ravicious): Refactor generating JS protos to follow the approach from above, that is have a
+  # separate call to generate Go protos and another for JS protos.
+  # https://github.com/gravitational/teleport/pull/19774#discussion_r1061524458
+	buf generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
 
   cp -r github.com/gravitational/teleport/* .
 }
