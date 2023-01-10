@@ -108,13 +108,13 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	azureFechters, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers)
+	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
-		Fetchers: append(awsFetchers, azureFechters...),
+		Fetchers: append(awsFetchers, azureFetchers...),
 		Log:      logrus.WithField(trace.Component, "watcher:cloud"),
 	})
 	if err != nil {
