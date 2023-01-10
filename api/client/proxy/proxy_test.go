@@ -206,17 +206,17 @@ func TestProxyAwareRoundTripper(t *testing.T) {
 func TestHttpRoundTripperDowngrade(t *testing.T) {
 	testCases := []struct {
 		desc           string
-		setHttpProxy   bool
+		setHTTPProxy   bool
 		shouldHitProxy bool
 	}{
 		{
 			desc:           "hits http proxy if insecure and localhost http proxy is set",
-			setHttpProxy:   true,
+			setHTTPProxy:   true,
 			shouldHitProxy: true,
 		},
 		{
 			desc:           "does not hit http proxy if insecure and localhost http proxy is not set",
-			setHttpProxy:   false,
+			setHTTPProxy:   false,
 			shouldHitProxy: false,
 		},
 	}
@@ -255,7 +255,7 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 			require.NoError(t, err)
 			defer httpsSrv.Close()
 
-			if tc.setHttpProxy {
+			if tc.setHTTPProxy {
 				// url.Parse won't correctly parse an absolute URL without a scheme.
 				u, err := url.Parse("http://" + httpProxy.Listener.Addr().String())
 				require.NoError(t, err)
@@ -272,9 +272,7 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 			// Set addr to the https server. If HTTP_PROXY was set above,
 			// the http proxy should be hit regardless.
 			addr := httpsSrv.Listener.Addr().String()
-			url := "https://" + addr + "/v1/content"
-			_, err = clt.Post(url, "application/json", nil)
-			require.NoError(t, err)
+			request(t, clt, addr)
 
 			// Validate that the correct server was hit.
 			require.Equal(t, tc.shouldHitProxy, httpProxyWasHit)
@@ -333,9 +331,7 @@ func TestHttpRoundTripperExtraHeaders(t *testing.T) {
 			// Perform any request.
 			// Set the address to the localhost https server.
 			addr := httpsSrv.Listener.Addr().String()
-			url := "https://" + addr + "/v1/content"
-			_, err = clt.Post(url, "application/json", nil)
-			require.NoError(t, err)
+			request(t, clt, addr)
 		})
 	}
 }
@@ -379,6 +375,14 @@ func newClient(t *testing.T, extraHeaders map[string]string) *http.Client {
 	return &http.Client{
 		Transport: NewHTTPRoundTripper(transport, extraHeaders),
 	}
+}
+
+// request perform a POST request.
+func request(t *testing.T, clt *http.Client, addr string) {
+	url := "https://" + addr + "/v1/content"
+	resp, err := clt.Post(url, "application/json", nil)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 }
 
 func TestParse(t *testing.T) {
