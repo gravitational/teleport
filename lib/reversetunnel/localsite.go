@@ -573,7 +573,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 	for {
 		select {
 		case <-s.srv.ctx.Done():
-			logger.Info("closing")
+			logger.Info("Closing")
 			return
 		case <-proxyResyncTicker.Chan():
 			req := discoveryRequest{
