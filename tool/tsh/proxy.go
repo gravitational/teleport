@@ -948,7 +948,7 @@ var awsProxyAthenaODBCTemplate = template.Must(template.New("").Funcs(awsTemplat
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
 Set the following properties for the Athena ODBC data source:
-[Teleport Athena Access]
+[Teleport AWS Athena Access]
 AuthenticationType = IAM Credentials
 UID = {{.envVars.AWS_ACCESS_KEY_ID}}
 PWD = {{.envVars.AWS_SECRET_ACCESS_KEY}}
