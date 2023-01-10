@@ -131,7 +131,7 @@ func (e *Exec) TrimToMaxSize(maxSize int) AuditEvent {
 // craft a request that creates error messages too large to be handled by the
 // underlying storage and thus cause the events to be omitted entirely. See
 // teleport-private#172.
-func (e *UserLogin) TrimToMaxSize(maxSize int) AuditEvent {
+func (e *UserLogin) TrimToMaxSize(maxSize int) *UserLogin {
 	size := e.Size()
 	if size <= maxSize {
 		return e
