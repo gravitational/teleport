@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -997,9 +998,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 		// as the name is a randomly generated UUID
 		labels := getHostLabels(addr)
 		labels[types.OriginLabel] = types.OriginConfigFile
-		if nonAD {
-			labels[types.ADLabel] = "false"
-		}
+		labels[types.ADLabel] = strconv.FormatBool(!nonAD)
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
