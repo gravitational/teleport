@@ -96,6 +96,8 @@ const (
 
 	// AttrName is the name of an LDAP object
 	AttrName = "name"
+	// AttrSAMAccountName is the SAM Account name of an LDAP object
+	AttrSAMAccountName = "sAMAccountName"
 	// AttrCommonName is the common name of an LDAP object, or "CN"
 	AttrCommonName = "cn"
 	// AttrDistinguishedName is the distinguished name of an LDAP object, or "DN"
