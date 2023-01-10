@@ -252,7 +252,8 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 		log.Debugf("Forwarding system key agent.")
 		targetAgent = ns.nodeClient.TC.localAgent.sshAgent
 	case ForwardAgentLocal:
-		log.Warnf("Forwarding local agent. This operation is insecure as it can put your current Teleport credentials at risk. It should only be used on trusted hosts.")
+		log.Debugf("Forwarding local agent.")
+		fmt.Fprintln(ns.nodeClient.TC.Stdout, "WARNING: Local agent forwarding is insecure and can put your current Teleport credentials at risk. It should only be used on trusted hosts.")
 		targetAgent = ns.nodeClient.TC.localAgent.ExtendedAgent
 	default:
 		log.Debugf("No Key Agent selected.")
