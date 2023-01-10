@@ -35,11 +35,11 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
-import { ConfigService } from 'teleterm/services/config';
+import { UsageService } from 'teleterm/ui/services/usage';
+import { ResourcesService } from 'teleterm/ui/services/resources';
+import { IAppContext } from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
-import { IAppContext } from './types';
-import { ResourcesService } from './services/resources/resourcesService';
 
 export default class AppContext implements IAppContext {
   clustersService: ClustersService;
@@ -71,22 +71,34 @@ export default class AppContext implements IAppContext {
   subscribeToTshdEvent: SubscribeToTshdEvent;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
+  usageService: UsageService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.subscribeToTshdEvent = config.subscribeToTshdEvent;
     this.mainProcessClient = mainProcessClient;
-    this.fileTransferService = new FileTransferService(tshClient);
+    this.notificationsService = new NotificationsService();
+    this.usageService = new UsageService(
+      tshClient,
+      this.mainProcessClient.configService,
+      this.notificationsService,
+      clusterUri => this.clustersService.findCluster(clusterUri),
+      mainProcessClient.getRuntimeSettings()
+    );
+    this.fileTransferService = new FileTransferService(
+      tshClient,
+      this.usageService
+    );
     this.resourcesService = new ResourcesService(tshClient);
     this.statePersistenceService = new StatePersistenceService(
       this.mainProcessClient.fileStorage
     );
     this.modalsService = new ModalsService();
-    this.notificationsService = new NotificationsService();
     this.clustersService = new ClustersService(
       tshClient,
       this.mainProcessClient,
-      this.notificationsService
+      this.notificationsService,
+      this.usageService
     );
     this.workspacesService = new WorkspacesService(
       this.modalsService,
@@ -130,8 +142,6 @@ export default class AppContext implements IAppContext {
   async init(): Promise<void> {
     this.setUpTshdEventSubscriptions();
     await this.clustersService.syncRootClusters();
-    this.workspacesService.restorePersistedState();
-    this.notifyAboutStoredConfigErrors();
   }
 
   private setUpTshdEventSubscriptions() {
@@ -148,26 +158,5 @@ export default class AppContext implements IAppContext {
         request as SendNotificationRequest
       );
     });
-  }
-
-  private notifyAboutStoredConfigErrors(): void {
-    const errors = this.mainProcessClient.configService.getStoredConfigErrors();
-    if (errors) {
-      this.notificationsService.notifyError({
-        title: 'Encountered errors in config file',
-        description: errors
-          .map(error => `${error.path[0]}: ${error.message}`)
-          .join('\n'),
-      });
-    }
-  }
-}
-
-//example, remove
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function askForUsageMetrics(configService: ConfigService) {
-  // only if we didn't ask
-  if (!configService.get('usageMetrics.enabled').metadata.isStored) {
-    configService.set('usageMetrics.enabled', true);
   }
 }

@@ -1,9 +1,12 @@
 import { tsh, SyncStatus } from 'teleterm/ui/services/clusters/types';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { UsageService } from 'teleterm/ui/services/usage';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { ClustersService } from './clustersService';
+
+jest.mock('teleterm/ui/services/usage');
 
 const clusterUri: RootClusterUri = '/clusters/test';
 
@@ -77,6 +80,9 @@ const kubeMock: tsh.Kube = {
 const NotificationsServiceMock = NotificationsService as jest.MockedClass<
   typeof NotificationsService
 >;
+const UsageEventServiceMock = UsageService as jest.MockedClass<
+  typeof UsageService
+>;
 
 function createService(
   client: Partial<tsh.TshClient>,
@@ -87,7 +93,8 @@ function createService(
     {
       removeKubeConfig: jest.fn().mockResolvedValueOnce(undefined),
     } as unknown as MainProcessClient,
-    notificationsService
+    notificationsService,
+    new UsageService(undefined, undefined, undefined, undefined, undefined)
   );
 }
 
@@ -119,6 +126,11 @@ function testIfClusterResourcesHaveBeenCleared(service: ClustersService): void {
     kubes: { status: '' },
   });
 }
+
+beforeEach(() => {
+  // Clear all instances and calls to constructor and all methods:
+  UsageEventServiceMock.mockClear();
+});
 
 test('add cluster', async () => {
   const { addRootCluster } = getClientMocks();

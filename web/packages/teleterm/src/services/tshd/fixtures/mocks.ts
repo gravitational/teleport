@@ -89,6 +89,7 @@ export class MockTshClient implements TshClient {
   ) => Promise<undefined>;
   logout: (clusterUri: string) => Promise<undefined>;
   transferFile: () => undefined;
+  reportUsageEvent: () => undefined;
 }
 
 export const gateway: Gateway = {

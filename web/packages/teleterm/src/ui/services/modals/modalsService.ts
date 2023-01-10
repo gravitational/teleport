@@ -174,6 +174,7 @@ export interface DialogUsageData {
   kind: 'usage-data';
   onAllow(): void;
   onDecline(): void;
+  onCancel(): void;
 }
 
 export type Dialog =

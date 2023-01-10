@@ -14,6 +14,7 @@ export class MockMainProcessClient implements MainProcessClient {
       this.getRuntimeSettings().platform
     );
   }
+
   getRuntimeSettings(): RuntimeSettings {
     return { ...defaultRuntimeSettings, ...this.runtimeSettings };
   }
@@ -22,7 +23,9 @@ export class MockMainProcessClient implements MainProcessClient {
     Promise.resolve({ tsh: '', shared: '' });
 
   openTerminalContextMenu() {}
+
   openClusterContextMenu() {}
+
   openTabContextMenu() {}
 
   showFileSaveDialog() {
@@ -40,6 +43,7 @@ export class MockMainProcessClient implements MainProcessClient {
   async symlinkTshMacOs() {
     return true;
   }
+
   async removeTshSymlinkMacOs() {
     return true;
   }
@@ -67,4 +71,7 @@ const defaultRuntimeSettings = {
     requestedNetworkAddress: '',
   },
   installationId: '123e4567-e89b-12d3-a456-426614174000',
+  arch: 'arm64',
+  osVersion: '22.2.0',
+  appVersion: '11.1.0',
 };

@@ -28,6 +28,8 @@ const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 // Allows running tsh in insecure mode (development)
 const isInsecure = dev || argv.includes('--insecure');
 
+const PREHOG_ADDR = 'https://reporting-staging.teleportinfra.dev'; // TODO(gzdunek): change to prod before going live
+
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
   const {
@@ -49,6 +51,7 @@ function getRuntimeSettings(): RuntimeSettings {
       // for tshd we have to specify the protocol as well.
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
+      `--prehog-addr=${PREHOG_ADDR}`,
     ],
   };
   const sharedProcess = {
@@ -77,6 +80,16 @@ function getRuntimeSettings(): RuntimeSettings {
     installationId: loadInstallationId(
       path.resolve(app.getPath('userData'), 'installation_id')
     ),
+    arch: os.arch(),
+    osVersion: os.release(),
+    // To start the app in dev mode we run `electron path_to_main.js`. It means
+    // that app is run without package.json context, so it can not read the version
+    // from it.
+    // The way we run Electron can be changed (`electron .`), but it has one major
+    // drawback - dev app and bundled app will use the same app data directory.
+    //
+    // A workaround is to read the version from `process.env.npm_package_version`.
+    appVersion: dev ? process.env.npm_package_version : app.getVersion(),
   };
 }
 

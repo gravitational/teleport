@@ -10,6 +10,8 @@ import middleware, { withLogging } from './middleware';
 import * as types from './types';
 import createAbortController from './createAbortController';
 import { AccessRequest, ResourceID } from './v1/access_request_pb';
+import { mapUsageEvent } from './mapUsageEvent';
+import { ReportUsageEventRequest } from './types';
 
 export default function createClient(
   addr: string,
@@ -647,6 +649,19 @@ export default function createClient(
       );
       return new Promise<void>((resolve, reject) => {
         tshd.updateTshdEventsServerAddress(req, err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    },
+
+    reportUsageEvent(event: ReportUsageEventRequest) {
+      const req = mapUsageEvent(event);
+      return new Promise<void>((resolve, reject) => {
+        tshd.reportUsageEvent(req, err => {
           if (err) {
             reject(err);
           } else {

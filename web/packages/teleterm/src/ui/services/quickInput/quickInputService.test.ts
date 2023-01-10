@@ -40,6 +40,15 @@ const onlyTshSshCommand = [
   },
 ];
 
+function createQuickInputService() {
+  return new QuickInputService(
+    new CommandLauncherMock(undefined),
+    new ClustersServiceMock(undefined, undefined, undefined, undefined),
+    new ResourcesServiceMock(undefined),
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
+  );
+}
+
 function mockCommandLauncherAutocompleteCommands(
   commandLauncherMock: jest.MockedClass<typeof CommandLauncher>,
   commands: {
@@ -61,12 +70,7 @@ test('parse returns correct result for a command suggestion with empty input', a
     CommandLauncherMock,
     onlyTshSshCommand
   );
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } = quickInputService.parse('');
   const suggestions = await getSuggestions();
@@ -84,12 +88,7 @@ test('parse returns correct result for a command suggestion', async () => {
     CommandLauncherMock,
     onlyTshSshCommand
   );
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } =
     quickInputService.parse('ts');
@@ -120,12 +119,7 @@ test('parse returns correct result for an SSH login suggestion', async () => {
         },
       ];
     });
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } =
     quickInputService.parse('tsh ssh roo');
@@ -159,12 +153,7 @@ test('parse returns correct result for an SSH login suggestion with spaces betwe
         },
       ];
     });
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } =
     quickInputService.parse('   tsh ssh    bar');
@@ -222,12 +211,7 @@ test('parse returns correct result for a database name suggestion', async () => 
         totalCount: 1,
       });
     });
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } =
     quickInputService.parse('tsh proxy db foo');
@@ -266,12 +250,7 @@ test("parse doesn't return any suggestions if the only suggestion completely mat
         command: { kind: 'command.unknown' },
       };
     });
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, command } = quickInputService.parse('foobar');
   const suggestions = await getSuggestions();
@@ -297,12 +276,7 @@ test('parse returns no suggestions if any of the parsers returns empty suggestio
         command: { kind: 'command.unknown' },
       };
     });
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { command, getSuggestions } = quickInputService.parse('');
   const suggestions = await getSuggestions();
@@ -316,12 +290,7 @@ test("the SSH login autocomplete isn't shown if there's no space after `tsh ssh`
     CommandLauncherMock,
     onlyTshSshCommand
   );
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { command, getSuggestions } = quickInputService.parse('tsh ssh');
   const suggestions = await getSuggestions();
@@ -347,12 +316,7 @@ test("the SSH login autocomplete is shown only if there's at least one space aft
         },
       ];
     });
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { command, targetToken, getSuggestions } =
     quickInputService.parse('tsh ssh ');
@@ -401,12 +365,7 @@ test('parse returns correct result for an SSH host suggestion right after user@'
       documents: [],
       location: '/docs/1',
     }));
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } =
     quickInputService.parse('tsh ssh user@');
@@ -458,12 +417,7 @@ test('parse returns correct result for a partial match on an SSH host suggestion
       documents: [],
       location: '/docs/1',
     }));
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } = quickInputService.parse(
     '   tsh ssh    foo@baz'
@@ -498,12 +452,7 @@ test("parse returns the first argument as loginHost when there's no @ sign", asy
         },
       ];
     });
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
 
   const { getSuggestions, targetToken, command } =
     quickInputService.parse('tsh ssh bar');
@@ -521,12 +470,7 @@ test("parse returns the first argument as loginHost when there's no @ sign", asy
 });
 
 test('picking a command suggestion in an empty input autocompletes the command', () => {
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
   quickInputService.setState({ inputValue: '' });
 
   const targetToken = {
@@ -547,12 +491,7 @@ test('picking a command suggestion in an empty input autocompletes the command',
 });
 
 test('picking a command suggestion in an input with a single space preserves the space', () => {
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
   quickInputService.setState({ inputValue: ' ' });
 
   const targetToken = {
@@ -573,12 +512,7 @@ test('picking a command suggestion in an input with a single space preserves the
 });
 
 test('picking an SSH login suggestion replaces target token in input value', () => {
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
   quickInputService.setState({ inputValue: 'tsh ssh roo --foo' });
 
   const targetToken = {
@@ -597,12 +531,7 @@ test('picking an SSH login suggestion replaces target token in input value', () 
 });
 
 test('pickSuggestion appends the appendToToken field to the token', () => {
-  const quickInputService = new QuickInputService(
-    new CommandLauncherMock(undefined),
-    new ClustersServiceMock(undefined, undefined, undefined),
-    new ResourcesServiceMock(undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
-  );
+  const quickInputService = createQuickInputService();
   quickInputService.setState({ inputValue: 'tsh ssh foo' });
 
   const targetToken = {

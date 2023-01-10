@@ -32,7 +32,7 @@ function getTestSetup({ connections }: { connections: TrackedConnection[] }) {
   return new ConnectionTrackerService(
     new StatePersistenceService(undefined),
     new WorkspacesService(undefined, undefined, undefined, undefined),
-    new ClustersService(undefined, undefined, undefined)
+    new ClustersService(undefined, undefined, undefined, undefined)
   );
 }
 
@@ -115,7 +115,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
   const connectionTrackerService = new ConnectionTrackerService(
     mockedStatePersistenceService,
     workspacesService,
-    new ClustersServiceMock(undefined, undefined, undefined)
+    new ClustersServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const document: DocumentGateway = {
