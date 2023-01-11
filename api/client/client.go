@@ -1257,11 +1257,12 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:      req.Username,
-		PublicAddr:    req.PublicAddr,
-		ClusterName:   req.ClusterName,
-		AWSRoleARN:    req.AWSRoleARN,
-		AzureIdentity: req.AzureIdentity,
+		Username:          req.Username,
+		PublicAddr:        req.PublicAddr,
+		ClusterName:       req.ClusterName,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
