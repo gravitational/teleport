@@ -100,14 +100,9 @@ func getGCPSecret() (string, error) {
 //
 // At minimum clients should work with these variables set:
 // - HTTPS_PROXY, for routing the traffic through the proxy
-// - MSI_ENDPOINT, for informing the client about credential provider endpoint
 //
 // The request flow to remote server (i.e. GCP APIs) looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
-//
-// However, with MSI_ENDPOINT variable set, clients will reach out to this address for tokens.
-// We intercept calls to https://gcp-msi.teleport.dev using alpnproxy.GCPMSIMiddleware.
-// These calls are served entirely locally, which helps the overall performance experienced by the user.
 func (a *gcpApp) StartLocalProxies() error {
 	// HTTPS proxy mode
 	if err := a.startLocalALPNProxy(""); err != nil {
