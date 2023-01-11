@@ -2433,6 +2433,9 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_resources,omitempty"
   ];
+
+  // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
+  repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
