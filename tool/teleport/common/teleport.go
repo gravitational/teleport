@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -555,6 +556,22 @@ func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy u
 	return c, trace.Wrap(err)
 }
 
+func getAWSInstanceHostname(ctx context.Context) (string, error) {
+	imds, err := aws.NewInstanceMetadataClient(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	hostname, err := imds.GetHostname(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	hostname = strings.ReplaceAll(hostname, " ", "_")
+	if utils.IsValidHostname(hostname) {
+		return hostname, nil
+	}
+	return "", trace.NotFound("failed to get a valid hostname from IMDS")
+}
+
 func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	if err := checkSSHDConfigAlreadyUpdated(clf.OpenSSHConfigPath); err != nil {
 		return trace.Wrap(err)
@@ -569,9 +586,14 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		return trace.Wrap(err, "unable to generate new keypairs")
 	}
 
+	ctx := context.Background()
 	hostname, err := os.Hostname()
 	if err != nil {
-		return trace.Wrap(err)
+		var imdsErr error
+		hostname, imdsErr = getAWSInstanceHostname(ctx)
+		if imdsErr != nil {
+			return trace.NewAggregate(err, imdsErr)
+		}
 	}
 
 	// TODO(amk) get uuid from a cli argument once agentless inventory management is implemented to allow tsh ssh access via uuid
@@ -611,7 +633,6 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		return trace.Wrap(err)
 	}
 
-	ctx := context.Background()
 	client, err := authenticatedUserClientFromIdentity(ctx, clf.FIPS, *addr, identity)
 	if err != nil {
 		return trace.Wrap(err)
