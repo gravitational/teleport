@@ -129,29 +129,53 @@ Open your Git repository and create a directory called `.circleci`. Then open
 a file called `config.yml` and insert the following configuration. Replace
 `tele.example.com:443` with the public-facing address of your Teleport Proxy.
 Replace `my-node` with the name of the Teleport node that you wish to connect
-to and replace `ci-user` with the
+to and replace `ci-user` with the login you configured in step 3.
 
 ```yaml
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 jobs:
-  teleport:
+  write-run-log:
     docker:
       - image: cimg/base:stable
     steps:
       - checkout
       - run:
-          name: "teleport"
+          name: "Install Teleport"
           command: |
-            ./tbot start --auth-server=tele.example.com:443 --join-method=circleci --token=circleci-token --oneshot --destination-dir=./certs --data-dir=./data
-            ./tsh -i ./certs/identity --proxy tele.example.com:443 ssh ci-user@my-node "echo $CIRCLE_BUILD_URL >> ~/circle_run_log"
+            cd /tmp
+            curl -O https://cdn.teleport.dev/teleport-(=teleport.version=)-linux-amd64-bin.tar.gz
+            tar -xvf teleport-(=teleport.version=)-linux-amd64-bin.tar.gz
+            sudo ./teleport/install
+      - run:
+          name: "Use Machine ID to access Teleport Node"
+          command: |
+            tbot start \
+              --auth-server=tele.example.com:443 \
+              --join-method=circleci --token=circleci-token \
+              --oneshot \
+              --destination-dir=./certs \
+              --data-dir=./data
+            tsh \
+              -i ./certs/identity \
+              --proxy tele.example.com:443 \
+              ssh ci-user@my-node \
+              "echo $CIRCLE_BUILD_URL >> ~/circle_run_log_demo"
 workflows:
-  teleport-workflow:
+  write-run-log:
     jobs:
-      - teleport
+      - write-run-log:
+          context:
+            - teleport-access
 ```
 
 Add, commit, and push this new configuration file to your repository.
+
+Open CircleCI and check the status of the job, wait for it to complete and
+ensure that no errors are emitted.
+
+SSH into `my-node` and confirm that a file has been created in ci-user's home
+directory named `circle_run_log` with a link to the build in CircleCI.
 
 ## Further steps
 
