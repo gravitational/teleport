@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/url"
@@ -535,7 +536,13 @@ func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
 }
 
 func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy utils.NetAddr, id *auth.Identity) (auth.ClientI, error) {
-	tlsConfig, err := id.TLSConfig(nil /* cipherSuites */)
+	var tlsConfig *tls.Config
+	var err error
+	if fips {
+		tlsConfig, err = id.TLSConfig(defaults.FIPSCipherSuites)
+	} else {
+		tlsConfig, err = id.TLSConfig(nil /* cipherSuites */)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -608,22 +615,27 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		principals = append(principals, principal)
 	}
 
-	certs, err := auth.Register(
-		auth.RegisterParams{
-			Token:                clf.AuthToken,
-			AdditionalPrincipals: principals,
-			JoinMethod:           types.JoinMethod(clf.JoinMethod),
-			ID: auth.IdentityID{
-				Role:     types.RoleNode,
-				NodeName: hostname,
-				HostUUID: uuid,
-			},
-			ProxyServer:        *addr,
-			PublicTLSKey:       tlsPublicKey,
-			PublicSSHKey:       sshPublicKey,
-			GetHostCredentials: client.HostCredentials,
+	registerParams := auth.RegisterParams{
+		Token:                clf.AuthToken,
+		AdditionalPrincipals: principals,
+		JoinMethod:           types.JoinMethod(clf.JoinMethod),
+		ID: auth.IdentityID{
+			Role:     types.RoleNode,
+			NodeName: hostname,
+			HostUUID: uuid,
 		},
-	)
+		ProxyServer:        *addr,
+		PublicTLSKey:       tlsPublicKey,
+		PublicSSHKey:       sshPublicKey,
+		GetHostCredentials: client.HostCredentials,
+		FIPS:               clf.FIPS,
+	}
+
+	if clf.FIPS {
+		registerParams.CipherSuites = defaults.FIPSCipherSuites
+	}
+
+	certs, err := auth.Register(registerParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
