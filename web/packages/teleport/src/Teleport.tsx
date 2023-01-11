@@ -32,7 +32,6 @@ import Welcome from './Welcome';
 import Login, { LoginSuccess, LoginFailed } from './Login';
 import AppLauncher from './AppLauncher';
 import Console from './Console';
-import DesktopSession from './DesktopSession';
 import { Discover } from './Discover';
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -116,6 +115,10 @@ export function renderPublicRoutes(children = []) {
 
 const Player = React.lazy(
   () => import(/* webpackChunkName: "player" */ './Player')
+);
+
+const DesktopSession = React.lazy(
+  () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
 );
 
 // TODO: make it lazy loadable
