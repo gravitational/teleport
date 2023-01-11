@@ -65,7 +65,7 @@ func TestSAML(t *testing.T) {
 			connector, err := services.UnmarshalSAMLConnector(raw.Raw)
 			require.NoError(t, err)
 
-			role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV6{
+			role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 				},
