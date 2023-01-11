@@ -39,7 +39,16 @@ set -o nounset
   fi
 
   IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-  PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4)
+  LOCAL_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/local-ipv4)
+  PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4 || echo "")
+
+  PRINCIPALS=""
+  if [ ! "$LOCAL_IP" = "" ]; then
+    PRINCIPALS="$LOCAL_IP,$PRINCIPALS"
+  fi
+  if [ ! "$PUBLIC_IP" = "" ]; then
+    PRINCIPALS="$PUBLIC_IP,$PRINCIPALS"
+  fi
 
   sudo /usr/bin/teleport join openssh \
     --openssh-config="${SSHD_CONFIG}" \

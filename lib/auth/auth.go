@@ -2790,15 +2790,6 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", clusterName.GetClusterName(), err)
 	}
 
-	userCA, err := client.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: clusterName.GetClusterName(),
-	}, true)
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// could be a couple of scenarios, either client data is out of sync,
 	// or auth server is out of sync, either way, for now check that
 	// cache is out of sync, this will result in higher read rate
@@ -2906,11 +2897,10 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	return &proto.Certs{
-		SSH:            hostSSHCert,
-		TLS:            hostTLSCert,
-		TLSCACerts:     services.GetTLSCerts(ca),
-		SSHCACerts:     services.GetSSHCheckingKeys(ca),
-		SSHUserCACerts: services.GetSSHCheckingKeys(userCA),
+		SSH:        hostSSHCert,
+		TLS:        hostTLSCert,
+		TLSCACerts: services.GetTLSCerts(ca),
+		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
 }
 

@@ -33,6 +33,4 @@ message Certs {
   repeated bytes TLSCACerts = 3 [(gogoproto.jsontag) = "tls_ca_certs,omitempty"];
   // SSHCACerts is a list of SSH certificate authorities.
   repeated bytes SSHCACerts = 4 [(gogoproto.jsontag) = "ssh_ca_certs,omitempty"];
-  // SSHUserCACerts is a list of SSH user certificate authorities.
-  repeated bytes SSHUserCACerts = 5 [(gogoproto.jsontag) = "ssh_user_ca_certs,omitempty"];
 }

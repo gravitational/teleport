@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -532,6 +533,28 @@ func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
 	return privateKey, publicKey, tlsPublicKey, nil
 }
 
+func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy utils.NetAddr, id *auth.Identity) (auth.ClientI, error) {
+	tlsConfig, err := id.TLSConfig(nil /* cipherSuites */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig, err := id.SSHClientConfig(fips)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClientConfig := &authclient.Config{
+		TLS:         tlsConfig,
+		SSH:         sshConfig,
+		AuthServers: []utils.NetAddr{proxy},
+		Log:         log.StandardLogger(),
+	}
+
+	c, err := authclient.Connect(ctx, authClientConfig)
+	return c, trace.Wrap(err)
+}
+
 func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	if err := checkSSHDConfigAlreadyUpdated(clf.OpenSSHConfigPath); err != nil {
 		return trace.Wrap(err)
@@ -554,7 +577,14 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	// TODO(amk) get uuid from a cli argument once agentless inventory management is implemented to allow tsh ssh access via uuid
 	uuid, err := uuid.GenerateUUID()
 	_ = err
-	principals := append(strings.Split(clf.AdditionalPrincipals, ","), uuid)
+
+	principals := []string{uuid}
+	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
+		if principal == "" {
+			continue
+		}
+		principals = append(principals, principal)
+	}
 
 	certs, err := auth.Register(
 		auth.RegisterParams{
@@ -576,8 +606,32 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		return trace.Wrap(err)
 	}
 
+	identity, err := auth.ReadIdentityFromKeyPair(privateKey, certs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx := context.Background()
+	client, err := authenticatedUserClientFromIdentity(ctx, clf.FIPS, *addr, identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cas, err := client.GetCertAuthorities(ctx, types.UserCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var userCA []byte
+	for _, ca := range cas {
+		for _, key := range ca.GetActiveKeys().SSH {
+			userCA = append(userCA, key.PublicKey...)
+			userCA = append(userCA, byte('\n'))
+		}
+	}
+
 	fmt.Printf("Writing Teleport keys to %s\n", clf.OpenSSHKeysPath)
-	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs); err != nil {
+	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs, userCA); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -600,7 +654,7 @@ const (
 	teleportUserCA = "teleport_user_ca.pub"
 )
 
-func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs) error {
+func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs, userCA []byte) error {
 	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportKey), private, 0600); err != nil {
 		return trace.Wrap(err)
 	}
@@ -609,21 +663,7 @@ func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs) error {
 		return trace.Wrap(err)
 	}
 
-	certsFile, err := os.Create(filepath.Join(sshdConfigDir, teleportUserCA))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer certsFile.Close()
-	for _, cert := range certs.SSHUserCACerts {
-		if _, err := certsFile.Write(cert); err != nil {
-			return trace.Wrap(err)
-		}
-		if _, err := certsFile.WriteString("\n"); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := certsFile.Sync(); err != nil {
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportUserCA), userCA, 0600); err != nil {
 		return trace.Wrap(err)
 	}
 
