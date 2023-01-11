@@ -91,8 +91,6 @@ export default function useLogin() {
 }
 
 function onSuccess() {
-  localStorage.clear();
-  sessionStorage.clear();
   const redirect = getEntryRoute();
   const withPageRefresh = true;
   history.push(redirect, withPageRefresh);

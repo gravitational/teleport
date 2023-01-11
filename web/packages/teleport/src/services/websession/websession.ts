@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,7 @@ import Logger from 'shared/libs/logger';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import api from 'teleport/services/api';
-
-import { StoreWebSession, getBearerToken } from './storeWebSession';
+import localStorage, { KeysEnum } from 'teleport/services/localStorage';
 
 import makeBearerToken from './makeBearerToken';
 import { RenewSessionRequest } from './types';
@@ -31,28 +30,28 @@ const RENEW_TOKEN_TIME = 180 * 1000;
 const TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
 const logger = Logger.create('services/session');
 
-let sessionCheckerTimerId = null;
+let sesstionCheckerTimerId = null;
 
-export class WebSession extends StoreWebSession {
-  _isRenewing = false;
-
+const session = {
   logout() {
     api.delete(cfg.api.webSessionPath).finally(() => {
       history.goToLogin();
     });
 
     this.clear();
-  }
+  },
 
   clear() {
     this._stopTokenChecker();
-    super.clear();
-  }
+    localStorage.unsubscribe(receiveMessage);
+    localStorage.clear();
+  },
 
   // ensureSession verifies that token is valid and starts
   // periodically checking and refreshing the token.
   ensureSession() {
     this._stopTokenChecker();
+    this._ensureLocalStorageSubscription();
 
     if (!this.isValid()) {
       this.logout();
@@ -68,39 +67,39 @@ export class WebSession extends StoreWebSession {
     } else {
       this._startTokenChecker();
     }
-  }
+  },
 
   // renewSession renews session and returns the
   // absolute time the new session expires.
   renewSession(req: RenewSessionRequest): Promise<Date> {
     return this._renewToken(req).then(token => token.sessionExpires);
-  }
+  },
 
   isValid() {
     return this._timeLeft() > 0;
-  }
+  },
 
   getInactivityTimeout() {
     const bearerToken = this._getBearerToken();
     const time = Number(bearerToken.sessionInactiveTimeout);
     return time ? time : 0;
-  }
+  },
 
   _getBearerToken() {
     let token = null;
     try {
       token = this._extractBearerTokenFromHtml();
       if (token) {
-        super.setBearerToken(token);
+        localStorage.setBearerToken(token);
       } else {
-        token = getBearerToken();
+        token = localStorage.getBearerToken();
       }
     } catch (err) {
       logger.error('Cannot find bearer token', err);
     }
 
     return token;
-  }
+  },
 
   _extractBearerTokenFromHtml() {
     const el = document.querySelector<HTMLMetaElement>(
@@ -110,12 +109,12 @@ export class WebSession extends StoreWebSession {
       return null;
     }
     // remove token from HTML as it will be renewed with a time
-    // and stored in the sessionStorage
+    // and stored in the localStorage
     el.parentNode.removeChild(el);
     const decoded = window.atob(el.content);
     const json = JSON.parse(decoded);
     return makeBearerToken(json);
-  }
+  },
 
   _shouldRenewToken() {
     if (this._getIsRenewing()) {
@@ -127,7 +126,7 @@ export class WebSession extends StoreWebSession {
     // up to 100s between timer calls from testing. 3 minutes seems to be a safe number
     // with extra padding.
     return this._timeLeft() < RENEW_TOKEN_TIME;
-  }
+  },
 
   _renewToken(req: RenewSessionRequest = {}) {
     this._setAndBroadcastIsRenewing(true);
@@ -135,26 +134,26 @@ export class WebSession extends StoreWebSession {
       .post(cfg.getRenewTokenUrl(), req)
       .then(json => {
         const token = makeBearerToken(json);
-        super.setBearerToken(token);
+        localStorage.setBearerToken(token);
         return token;
       })
       .finally(() => {
         this._setAndBroadcastIsRenewing(false);
       });
-  }
+  },
 
-  _setAndBroadcastIsRenewing(value: boolean) {
+  _setAndBroadcastIsRenewing(value) {
     this._setIsRenewing(value);
-    super.setIsRenewing(value);
-  }
+    localStorage.broadcast(KeysEnum.TOKEN_RENEW, value);
+  },
 
   _setIsRenewing(value) {
     this._isRenewing = value;
-  }
+  },
 
   _getIsRenewing() {
     return !!this._isRenewing;
-  }
+  },
 
   _timeLeft() {
     const token = this._getBearerToken();
@@ -170,7 +169,7 @@ export class WebSession extends StoreWebSession {
     expiresIn = expiresIn * 1000;
     const delta = created + expiresIn - new Date().getTime();
     return delta;
-  }
+  },
 
   _shouldCheckStatus() {
     if (this._getIsRenewing()) {
@@ -183,7 +182,12 @@ export class WebSession extends StoreWebSession {
      * made from other tab
      */
     return this._timeLeft() > TOKEN_CHECKER_INTERVAL * 2;
-  }
+  },
+
+  // subsribes to localStorage changes (triggered from other browser tabs)
+  _ensureLocalStorageSubscription() {
+    localStorage.subscribe(receiveMessage);
+  },
 
   _fetchStatus() {
     api.get(cfg.api.userStatusPath).catch(err => {
@@ -192,12 +196,12 @@ export class WebSession extends StoreWebSession {
         this.logout();
       }
     });
-  }
+  },
 
   _startTokenChecker() {
     this._stopTokenChecker();
 
-    sessionCheckerTimerId = setInterval(() => {
+    sesstionCheckerTimerId = setInterval(() => {
       // calling ensureSession() will again invoke _startTokenChecker
       this.ensureSession();
 
@@ -206,10 +210,26 @@ export class WebSession extends StoreWebSession {
         this._fetchStatus();
       }
     }, TOKEN_CHECKER_INTERVAL);
-  }
+  },
 
   _stopTokenChecker() {
-    clearInterval(sessionCheckerTimerId);
-    sessionCheckerTimerId = null;
+    clearInterval(sesstionCheckerTimerId);
+    sesstionCheckerTimerId = null;
+  },
+};
+
+function receiveMessage(event) {
+  const { key, newValue } = event;
+
+  // check if logout was triggered from other tabs
+  if (localStorage.getBearerToken() === null) {
+    session.logout();
+  }
+
+  // check if token is being renewed from another tab
+  if (key === KeysEnum.TOKEN_RENEW && !!newValue) {
+    session._setIsRenewing(JSON.parse(newValue));
   }
 }
+
+export default session;
