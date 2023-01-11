@@ -10,6 +10,7 @@ import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/t
 
 interface ITeleportReportingServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
     submitEvent: ITeleportReportingServiceService_ISubmitEvent;
+    helloTeleport: ITeleportReportingServiceService_IHelloTeleport;
 }
 
 interface ITeleportReportingServiceService_ISubmitEvent extends grpc.MethodDefinition<prehog_v1alpha_teleport_pb.SubmitEventRequest, prehog_v1alpha_teleport_pb.SubmitEventResponse> {
@@ -21,17 +22,30 @@ interface ITeleportReportingServiceService_ISubmitEvent extends grpc.MethodDefin
     responseSerialize: grpc.serialize<prehog_v1alpha_teleport_pb.SubmitEventResponse>;
     responseDeserialize: grpc.deserialize<prehog_v1alpha_teleport_pb.SubmitEventResponse>;
 }
+interface ITeleportReportingServiceService_IHelloTeleport extends grpc.MethodDefinition<prehog_v1alpha_teleport_pb.HelloTeleportRequest, prehog_v1alpha_teleport_pb.HelloTeleportResponse> {
+    path: "/prehog.v1alpha.TeleportReportingService/HelloTeleport";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<prehog_v1alpha_teleport_pb.HelloTeleportRequest>;
+    requestDeserialize: grpc.deserialize<prehog_v1alpha_teleport_pb.HelloTeleportRequest>;
+    responseSerialize: grpc.serialize<prehog_v1alpha_teleport_pb.HelloTeleportResponse>;
+    responseDeserialize: grpc.deserialize<prehog_v1alpha_teleport_pb.HelloTeleportResponse>;
+}
 
 export const TeleportReportingServiceService: ITeleportReportingServiceService;
 
 export interface ITeleportReportingServiceServer {
     submitEvent: grpc.handleUnaryCall<prehog_v1alpha_teleport_pb.SubmitEventRequest, prehog_v1alpha_teleport_pb.SubmitEventResponse>;
+    helloTeleport: grpc.handleUnaryCall<prehog_v1alpha_teleport_pb.HelloTeleportRequest, prehog_v1alpha_teleport_pb.HelloTeleportResponse>;
 }
 
 export interface ITeleportReportingServiceClient {
     submitEvent(request: prehog_v1alpha_teleport_pb.SubmitEventRequest, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.SubmitEventResponse) => void): grpc.ClientUnaryCall;
     submitEvent(request: prehog_v1alpha_teleport_pb.SubmitEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.SubmitEventResponse) => void): grpc.ClientUnaryCall;
     submitEvent(request: prehog_v1alpha_teleport_pb.SubmitEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.SubmitEventResponse) => void): grpc.ClientUnaryCall;
+    helloTeleport(request: prehog_v1alpha_teleport_pb.HelloTeleportRequest, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.HelloTeleportResponse) => void): grpc.ClientUnaryCall;
+    helloTeleport(request: prehog_v1alpha_teleport_pb.HelloTeleportRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.HelloTeleportResponse) => void): grpc.ClientUnaryCall;
+    helloTeleport(request: prehog_v1alpha_teleport_pb.HelloTeleportRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.HelloTeleportResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TeleportReportingServiceClient extends grpc.Client implements ITeleportReportingServiceClient {
@@ -39,4 +53,7 @@ export class TeleportReportingServiceClient extends grpc.Client implements ITele
     public submitEvent(request: prehog_v1alpha_teleport_pb.SubmitEventRequest, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.SubmitEventResponse) => void): grpc.ClientUnaryCall;
     public submitEvent(request: prehog_v1alpha_teleport_pb.SubmitEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.SubmitEventResponse) => void): grpc.ClientUnaryCall;
     public submitEvent(request: prehog_v1alpha_teleport_pb.SubmitEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.SubmitEventResponse) => void): grpc.ClientUnaryCall;
+    public helloTeleport(request: prehog_v1alpha_teleport_pb.HelloTeleportRequest, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.HelloTeleportResponse) => void): grpc.ClientUnaryCall;
+    public helloTeleport(request: prehog_v1alpha_teleport_pb.HelloTeleportRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.HelloTeleportResponse) => void): grpc.ClientUnaryCall;
+    public helloTeleport(request: prehog_v1alpha_teleport_pb.HelloTeleportRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: prehog_v1alpha_teleport_pb.HelloTeleportResponse) => void): grpc.ClientUnaryCall;
 }
