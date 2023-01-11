@@ -44,6 +44,7 @@ func onDaemonStart(cf *CLIConf) error {
 		CertsDir:           cf.DaemonCertsDir,
 		Addr:               cf.DaemonAddr,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
+		PrehogAddr:         cf.DaemonPrehogAddr,
 	})
 	if err != nil {
 		return trace.Wrap(err)

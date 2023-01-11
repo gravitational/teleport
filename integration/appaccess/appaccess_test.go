@@ -61,7 +61,6 @@ func TestAppAccess(t *testing.T) {
 	t.Run("JWT", bind(pack, testJWT))
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
-	t.Run("TestAppInvalidateAppSessionsOnLogout", bind(pack, testInvalidateAppSessionsOnLogout))
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
@@ -552,12 +551,8 @@ func testAuditEvents(p *Pack, t *testing.T) {
 	})
 }
 
-func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
-	t.Cleanup(func() {
-		// This test will invalidate the web session so init it again after the
-		// test, otherwise tests that run after this one will be getting 403's.
-		p.initWebSession(t)
-	})
+func TestInvalidateAppSessionsOnLogout(t *testing.T) {
+	p := Setup(t)
 
 	// Create an application session.
 	appCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
