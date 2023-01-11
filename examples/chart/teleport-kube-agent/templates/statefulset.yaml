@@ -33,6 +33,9 @@ spec:
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
     spec:
+      {{- if .Values.dnsConfig }}
+      dnsConfig: {{- toYaml .Values.dnsConfig | nindent 8 }}
+      {{- end }}
       securityContext:
         fsGroup: 9807
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
