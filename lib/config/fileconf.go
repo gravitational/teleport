@@ -1963,7 +1963,7 @@ func (wds *WindowsDesktopService) Check() error {
 
 	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
 		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
-			"the ldap configuration for the Active Directory domain controller must also be specified")
+			"ldap configuration must also be specified")
 	}
 
 	return nil
