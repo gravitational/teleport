@@ -587,12 +587,12 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	}
 
 	ctx := context.Background()
-	hostname, err := os.Hostname()
+	hostname, err := getAWSInstanceHostname(ctx)
 	if err != nil {
-		var imdsErr error
-		hostname, imdsErr = getAWSInstanceHostname(ctx)
-		if imdsErr != nil {
-			return trace.NewAggregate(err, imdsErr)
+		var hostErr error
+		hostname, hostErr = os.Hostname()
+		if hostErr != nil {
+			return trace.NewAggregate(err, hostErr)
 		}
 	}
 
