@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import 'whatwg-fetch';
-
-import { getBearerToken } from '../websession/storeWebSession';
-
+import localStorage from './../localStorage';
 import parseError, { ApiError } from './parseError';
 
 const api = {
@@ -122,7 +120,7 @@ export const getXCSRFToken = () => {
 };
 
 export function getAccessToken() {
-  const bearerToken = getBearerToken() || {};
+  const bearerToken = localStorage.getBearerToken() || {};
   return bearerToken.accessToken;
 }
 

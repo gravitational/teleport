@@ -21,12 +21,10 @@ import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
 import { Access, Acl, makeUserContext } from 'teleport/services/user';
-import { getMockWebSession } from 'teleport/services/websession/test-utils';
 import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { SessionContextProvider } from 'teleport/WebSessionContext';
 
 const fullAccess: Access = {
   list: true,
@@ -80,7 +78,6 @@ const userContextJson = {
 describe('discover', () => {
   function create(initialEntry: string, userAcl: Acl) {
     const ctx = new TeleportContext();
-    const mockWebSession = getMockWebSession();
 
     ctx.storeUser.state = makeUserContext({
       ...userContextJson,
@@ -89,13 +86,11 @@ describe('discover', () => {
 
     return render(
       <MemoryRouter initialEntries={[{ state: { entity: initialEntry } }]}>
-        <SessionContextProvider session={mockWebSession}>
-          <TeleportContextProvider ctx={ctx}>
-            <FeaturesContextProvider>
-              <Discover />
-            </FeaturesContextProvider>
-          </TeleportContextProvider>
-        </SessionContextProvider>
+        <TeleportContextProvider ctx={ctx}>
+          <FeaturesContextProvider>
+            <Discover />
+          </FeaturesContextProvider>
+        </TeleportContextProvider>
       </MemoryRouter>
     );
   }

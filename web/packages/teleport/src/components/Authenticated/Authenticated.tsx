@@ -18,10 +18,9 @@ import React from 'react';
 import { throttle } from 'lodash';
 import Logger from 'shared/libs/logger';
 
-import { WebSession } from 'teleport/services/websession';
+import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
-
-import { SessionContextProvider } from 'teleport/WebSessionContext';
+import localStorage from 'teleport/services/localStorage';
 
 const logger = Logger.create('/components/Authenticated');
 const ACTIVITY_CHECKER_INTERVAL_MS = 30 * 1000;
@@ -39,18 +38,7 @@ const events = [
   'pointerdown',
 ];
 
-const Container: React.FC<React.PropsWithChildren<unknown>> = ({
-  children,
-}) => {
-  const session = new WebSession();
-
-  return <Authenticated session={session}>{children}</Authenticated>;
-};
-
-const Authenticated: React.FC<{
-  session: WebSession;
-  children: React.ReactNode;
-}> = ({ session, children }) => {
+const Authenticated: React.FC = ({ children }) => {
   React.useEffect(() => {
     if (!session.isValid()) {
       logger.warn('invalid session');
@@ -66,23 +54,19 @@ const Authenticated: React.FC<{
       return;
     }
 
-    return startActivityChecker(inactivityTtl, session);
+    return startActivityChecker(inactivityTtl);
   }, []);
 
   if (!session.isValid()) {
     return null;
   }
 
-  return (
-    <SessionContextProvider session={session}>
-      {children}
-    </SessionContextProvider>
-  );
+  return <>{children}</>;
 };
 
-export default Container;
+export default Authenticated;
 
-function startActivityChecker(ttl = 0, session: WebSession) {
+function startActivityChecker(ttl = 0) {
   // adjustedTtl slightly improves accuracy of inactivity time.
   // This will at most cause user to log out ACTIVITY_CHECKER_INTERVAL_MS early.
   // NOTE: Because of browser js throttling on inactive tabs, expiry timeout may
@@ -92,24 +76,24 @@ function startActivityChecker(ttl = 0, session: WebSession) {
   // See if there is inactive date already set in local storage.
   // This is to check for idle timeout reached while app was closed
   // ie. browser still openend but all app tabs closed.
-  if (isInactive(adjustedTtl, session.getLastActive())) {
+  if (isInactive(adjustedTtl)) {
     logger.warn('inactive session');
     session.logout();
     return;
   }
 
   // Initialize or renew the storage before starting interval.
-  session.setLastActive(Date.now());
+  localStorage.setLastActive(Date.now());
 
   const intervalId = setInterval(() => {
-    if (isInactive(adjustedTtl, session.getLastActive())) {
+    if (isInactive(adjustedTtl)) {
       logger.warn('inactive session');
       session.logout();
     }
   }, ACTIVITY_CHECKER_INTERVAL_MS);
 
   const throttled = throttle(() => {
-    session.setLastActive(Date.now());
+    localStorage.setLastActive(Date.now());
   }, ACTIVITY_EVENT_DELAY_MS);
 
   events.forEach(event => window.addEventListener(event, throttled));
@@ -123,6 +107,7 @@ function startActivityChecker(ttl = 0, session: WebSession) {
   return stop;
 }
 
-function isInactive(ttl = 0, lastActive: number) {
+function isInactive(ttl = 0) {
+  const lastActive = localStorage.getLastActive();
   return lastActive > 0 && Date.now() - lastActive > ttl;
 }

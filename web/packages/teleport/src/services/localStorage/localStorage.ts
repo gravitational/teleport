@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import { KeysEnum } from './types';
@@ -21,6 +22,47 @@ import { KeysEnum } from './types';
 const storage = {
   clear() {
     window.localStorage.clear();
+  },
+
+  subscribe(fn) {
+    window.addEventListener('storage', fn);
+  },
+
+  unsubscribe(fn) {
+    window.removeEventListener('storage', fn);
+  },
+
+  setBearerToken(token: BearerToken) {
+    window.localStorage.setItem(KeysEnum.TOKEN, JSON.stringify(token));
+  },
+
+  getBearerToken(): BearerToken {
+    const item = window.localStorage.getItem(KeysEnum.TOKEN);
+    if (item) {
+      return JSON.parse(item);
+    }
+
+    return null;
+  },
+
+  getAccessToken() {
+    const bearerToken = this.getBearerToken();
+    return bearerToken ? bearerToken.accessToken : null;
+  },
+
+  getSessionInactivityTimeout() {
+    const bearerToken = this.getBearerToken();
+    const time = Number(bearerToken.sessionInactiveTimeout);
+    return time ? time : 0;
+  },
+
+  setLastActive(expiry: number) {
+    window.localStorage.setItem(KeysEnum.LAST_ACTIVE, `${expiry}`);
+  },
+
+  getLastActive() {
+    const time = Number(window.localStorage.getItem(KeysEnum.LAST_ACTIVE));
+    return time ? time : 0;
   },
 
   // setOnboardDiscover persists states used to determine if a user should
@@ -36,6 +78,11 @@ const storage = {
       return JSON.parse(item);
     }
     return null;
+  },
+
+  broadcast(messageType, messageBody) {
+    window.localStorage.setItem(messageType, messageBody);
+    window.localStorage.removeItem(messageType);
   },
 };
 
