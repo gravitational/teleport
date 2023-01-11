@@ -1,6 +1,6 @@
 {{- $auth := mustMergeOverwrite .Values .Values.auth -}}
 {{- if $auth.persistence.enabled }}
-  {{/* Disable persistence for aws and gpc modes */}}
+  {{/* Disable persistence for aws and gcp modes */}}
   {{- if and (not (eq $auth.chartMode "aws")) (not (eq $auth.chartMode "gcp")) }}
     {{/* No need to create a PVC if we reuse an existing claim */}}
     {{- if not $auth.persistence.existingClaimName }}

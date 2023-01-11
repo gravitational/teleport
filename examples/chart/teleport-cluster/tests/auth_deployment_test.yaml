@@ -662,7 +662,7 @@ tests:
     asserts:
       - equal:
           path: spec.strategy.type
-          value: null
+          value: RollingUpdate
 
   - it: should not perform surge rolling updates when replicaCount > 1
     template: auth/deployment.yaml

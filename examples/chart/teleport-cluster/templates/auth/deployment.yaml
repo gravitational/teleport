@@ -20,6 +20,7 @@ spec:
 {{- if $replicated }}
     # some backends support a maximum amount of auth pods (e.g. DynamoDB),
     # we don't want to exceed this during a rollout.
+    type: RollingUpdate
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
