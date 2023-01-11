@@ -25,11 +25,9 @@ const _ = grpc.SupportPackageIsVersion7
 type LoginRuleServiceClient interface {
 	// CreateLoginRule creates a login rule if one with the same name does not
 	// already exist, else it returns an error.
-	// Used by `tctl create rule.yaml`.
 	CreateLoginRule(ctx context.Context, in *CreateLoginRuleRequest, opts ...grpc.CallOption) (*LoginRule, error)
 	// UpsertLoginRule creates a login rule if one with the same name does not
 	// already exist, else it replaces the existing login rule.
-	// Used by `tctl create -f rule.yaml`.
 	UpsertLoginRule(ctx context.Context, in *UpsertLoginRuleRequest, opts ...grpc.CallOption) (*LoginRule, error)
 	// GetLoginRule retrieves a login rule described by the given request.
 	GetLoginRule(ctx context.Context, in *GetLoginRuleRequest, opts ...grpc.CallOption) (*LoginRule, error)
@@ -98,11 +96,9 @@ func (c *loginRuleServiceClient) DeleteLoginRule(ctx context.Context, in *Delete
 type LoginRuleServiceServer interface {
 	// CreateLoginRule creates a login rule if one with the same name does not
 	// already exist, else it returns an error.
-	// Used by `tctl create rule.yaml`.
 	CreateLoginRule(context.Context, *CreateLoginRuleRequest) (*LoginRule, error)
 	// UpsertLoginRule creates a login rule if one with the same name does not
 	// already exist, else it replaces the existing login rule.
-	// Used by `tctl create -f rule.yaml`.
 	UpsertLoginRule(context.Context, *UpsertLoginRuleRequest) (*LoginRule, error)
 	// GetLoginRule retrieves a login rule described by the given request.
 	GetLoginRule(context.Context, *GetLoginRuleRequest) (*LoginRule, error)
