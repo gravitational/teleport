@@ -116,7 +116,6 @@ func (s *Server) onDatabaseUpdate(ctx context.Context, resource types.ResourceWi
 }
 
 func (s *Server) onDatabaseDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-
 	database, ok := resource.(types.Database)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.Database, received %T", database)

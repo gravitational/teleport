@@ -210,18 +210,22 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
 }
 
+// discoveryResourceChecker defines an interface for checking database
+// resources created by the discovery service.
 type discoveryResourceChecker interface {
 	check(ctx context.Context, database types.Database)
 }
 
-type discoveryResourceCheckerImpl struct {
+// cloudCredentialsChecker is a discoveryResourceChecker for validating cloud
+// credentials against the incoming discovery resources.
+type cloudCredentialsChecker struct {
 	cloudClients     clients.Clients
 	resourceMatchers []services.ResourceMatcher
 	log              *logrus.Entry
 	cache            *utils.FnCache
 }
 
-func newDiscoveryResourceChecker(ctx context.Context, cloudClients clients.Clients, resourceMatchers []services.ResourceMatcher) (discoveryResourceChecker, error) {
+func newCloudCrednentialsChecker(ctx context.Context, cloudClients clients.Clients, resourceMatchers []services.ResourceMatcher) (discoveryResourceChecker, error) {
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:     10 * time.Minute,
 		Context: ctx,
@@ -230,7 +234,7 @@ func newDiscoveryResourceChecker(ctx context.Context, cloudClients clients.Clien
 		return nil, trace.Wrap(err)
 	}
 
-	return &discoveryResourceCheckerImpl{
+	return &cloudCredentialsChecker{
 		cloudClients:     cloudClients,
 		resourceMatchers: resourceMatchers,
 		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
@@ -241,7 +245,7 @@ func newDiscoveryResourceChecker(ctx context.Context, cloudClients clients.Clien
 // check performs some quick checks to see whether this database agent can handle
 // the incoming database (likely created by discovery service), and logs a
 // warning with suggestions for this situation.
-func (c *discoveryResourceCheckerImpl) check(ctx context.Context, database types.Database) {
+func (c *cloudCredentialsChecker) check(ctx context.Context, database types.Database) {
 	if database.Origin() != types.OriginCloud {
 		return
 	}
@@ -256,7 +260,7 @@ func (c *discoveryResourceCheckerImpl) check(ctx context.Context, database types
 	}
 }
 
-func (c *discoveryResourceCheckerImpl) checkAWS(ctx context.Context, database types.Database) {
+func (c *cloudCredentialsChecker) checkAWS(ctx context.Context, database types.Database) {
 	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
 		client, err := c.cloudClients.GetAWSSTSClient("")
 		if err != nil {
@@ -280,7 +284,7 @@ func (c *discoveryResourceCheckerImpl) checkAWS(ctx context.Context, database ty
 	}
 }
 
-func (c *discoveryResourceCheckerImpl) checkAzure(ctx context.Context, database types.Database) {
+func (c *cloudCredentialsChecker) checkAzure(ctx context.Context, database types.Database) {
 	allSubIDs, err := utils.FnCacheGet(ctx, c.cache, types.CloudAzure, func(ctx context.Context) ([]string, error) {
 		client, err := c.cloudClients.GetAzureSubscriptionClient()
 		if err != nil {
@@ -304,7 +308,7 @@ func (c *discoveryResourceCheckerImpl) checkAzure(ctx context.Context, database 
 	}
 }
 
-func (c *discoveryResourceCheckerImpl) warn(err error, database types.Database, msg string) {
+func (c *cloudCredentialsChecker) warn(err error, database types.Database, msg string) {
 	log := c.log.WithField("database", database)
 	if err != nil {
 		log = log.WithField("error", err.Error())
@@ -317,7 +321,7 @@ func (c *discoveryResourceCheckerImpl) warn(err error, database types.Database, 
 	log.Logf(logLevel, "%s You can update \"db_service.resources\" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/database-access/reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.", msg)
 }
 
-func (c *discoveryResourceCheckerImpl) isWildcardMatcher() bool {
+func (c *cloudCredentialsChecker) isWildcardMatcher() bool {
 	if len(c.resourceMatchers) != 1 {
 		return false
 	}

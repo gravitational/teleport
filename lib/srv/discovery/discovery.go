@@ -489,8 +489,8 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 // splitSlice splits a slice into two, by putting all elements that satisfy the
 // provided check function in the first slice, while putting all other elements
 // in the second slice.
-func splitSlice(s []string, check func(string) bool) (split, other []string) {
-	for _, e := range s {
+func splitSlice(ss []string, check func(string) bool) (split, other []string) {
+	for _, e := range ss {
 		if check(e) {
 			split = append(split, e)
 		} else {
