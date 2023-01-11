@@ -17,7 +17,7 @@ images we use to deliver Teleport to our customers.
 
 ## Why
 
-One of our shipping atrifacts is are a collection of OCI images. As the
+One of our shipping artifacts is are a collection of OCI images. As the
 provider of those OCI images we are (at least partialy) responsible for
 everything in it, not just Teleport. 
 
@@ -30,7 +30,7 @@ vulnerabilities are not directly in our software.
 
 For the sake of this RFD, I will define _delivering a secure image_ as
 
-> Reliably producing an OCI image that is _a priori_ is unlikely to contain 
+> Reliably producing an OCI image that _a priori_ is unlikely to contain 
 > vulnerabilities in and of itself, in that it:
 >
 >  1. has the smallest footprint reasonably possible,
@@ -42,14 +42,14 @@ For the sake of this RFD, I will define _delivering a secure image_ as
 >  5. is updated to resolve any discovered vulnerabilities in a timely fashion.
 
 For the purposes of this discussion, a "timely fashion" for updates is as the
-Teleport Vulberability policy:
+Teleport Vulnerability Management Policy:
 
-   | Level    | Response time |
+   | Severity | Resolution time |
    |----------|---------------|
    | Critical | 7 days        |
    | High     | 30 days       |
    | Moderate | 90 days       |
-   | Low:     | ~180 days     |
+   | Low      | ~180 days     |
 
 ### Non-goals
 
@@ -229,7 +229,7 @@ The `cosign` tool [integrates well with GHA](https://github.blog/2021-12-06-safe
 and is even included in the template "how to publish a docker image" example workflow. 
 
 We will need to either publish a public key somewhere, or use ["keyless" signing](https://docs.sigstore.dev/cosign/sign/#keyless-signing), 
-which requires the signer authenticating against OICD.
+which requires the signer authenticating against OIDC.
 
 More information keyless signing:
  * https://docs.sigstore.dev/cosign/sign/#keyless-signing
