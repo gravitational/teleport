@@ -138,7 +138,7 @@ While we _could_ verify that the validated base image appears in the parent
 chain of the final image, this is still no protection against the malicious 
 image being based on the same parent. We could _also_ assert that the final 
 image's parent chain has an expeceted number of steps (inferred from the number
-of steps in the Docker file), but this is erorr-prone and would drastically 
+of steps in the Docker file), but this is error-prone and would drastically 
 reduce the flexibility of the build system.
 
 For the above reasons, Teleport images for public consumption must not be 
