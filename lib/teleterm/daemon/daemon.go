@@ -575,6 +575,15 @@ func (s *Service) Stop() {
 		gateway.Close()
 	}
 
+	s.usageReporter.GracefulStop()
+
+	select {
+	case <-s.usageReporter.Closer.C:
+		s.cfg.Log.Info("Gracefully stopped usage reporter.")
+	case <-time.After(time.Second * 5):
+		s.cfg.Log.Info("Gracefully stopping usage reporter timed out.")
+	}
+
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
 	// the resources managed by daemon.Service are up and running. So let's cancel the context only
 	// after closing those resources.
