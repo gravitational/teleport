@@ -1507,8 +1507,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
-
-	cfg.CachePolicy.Enabled = true
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
