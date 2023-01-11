@@ -1938,9 +1938,9 @@ type WindowsDesktopService struct {
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool `yaml:"show_desktop_wallpaper,omitempty"`
 	// LDAP is the LDAP connection parameters.
-	LDAP LDAPConfig `yaml:"ldap"`
+	LDAP *LDAPConfig `yaml:"ldap,omitempty"`
 	// Discovery configures desktop discovery via LDAP.
-	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
+	Discovery *LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -1956,16 +1956,37 @@ type WindowsDesktopService struct {
 
 // Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
-	if len(wds.Hosts) > 0 && wds.LDAP.Addr == "" {
-		return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
-			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
+	// Check that there's some way to connect to hosts
+	if len(wds.Hosts) == 0 && len(wds.NonADHosts) == 0 && wds.Discovery == nil {
+		return trace.BadParameter("windows_desktop_service requires at least one of hosts, non_ad_hosts, or discovery to be specified")
 	}
 
-	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
-		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
-			"ldap configuration must also be specified")
+	// If LDAP config exists, check that it's valid and that something is using it
+	if wds.LDAP != nil {
+		if err := wds.LDAP.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		if len(wds.Hosts) == 0 && wds.Discovery == nil {
+			return trace.BadParameter("LDAP configuration is specified but is not being used because both hosts and discovery are unspecified")
+		}
+	} else {
+		// If no LDAP config exists, check that other fields which require it aren't specified
+		if len(wds.Hosts) > 0 {
+			return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
+				"the LDAP configuration for their corresponding Active Directory domain controller must also be specified")
+		}
+		if wds.Discovery != nil {
+			return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
+				"LDAP configuration must also be specified")
+		}
 	}
 
+	// If discovery exists, check that it's valid
+	if wds.Discovery != nil {
+		if err := wds.Discovery.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -1999,6 +2020,20 @@ type LDAPConfig struct {
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
 }
 
+func (ldc *LDAPConfig) Check() error {
+	if ldc.Addr == "" {
+		return trace.BadParameter("ldap config missing addr")
+	}
+	if ldc.Domain == "" {
+		return trace.BadParameter("ldap config missing domain")
+	}
+	if ldc.Username == "" {
+		return trace.BadParameter("ldap config missing username")
+	}
+
+	return nil
+}
+
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
 type LDAPDiscoveryConfig struct {
 	// BaseDN is the base DN to search for desktops.
@@ -2014,6 +2049,14 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
+}
+
+func (ldc *LDAPDiscoveryConfig) Check() error {
+	if ldc.BaseDN == "" {
+		return trace.BadParameter("discovery config missing base_dn")
+	}
+
+	return nil
 }
 
 // TracingService contains configuration for the tracing_service.

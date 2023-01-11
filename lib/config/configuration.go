@@ -1557,22 +1557,24 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
 
-	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
-			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+	if fc.WindowsDesktop.Discovery != nil {
+		for _, filter := range fc.WindowsDesktop.Discovery.Filters {
+			if _, err := ldap.CompileFilter(filter); err != nil {
+				return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+			}
 		}
-	}
 
-	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
-		if !types.IsValidLabelKey(attributeName) {
-			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+			if !types.IsValidLabelKey(attributeName) {
+				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+			}
 		}
-	}
 
-	cfg.WindowsDesktop.Discovery = service.LDAPDiscoveryConfig{
-		BaseDN:          fc.WindowsDesktop.Discovery.BaseDN,
-		Filters:         fc.WindowsDesktop.Discovery.Filters,
-		LabelAttributes: fc.WindowsDesktop.Discovery.LabelAttributes,
+		cfg.WindowsDesktop.Discovery = service.LDAPDiscoveryConfig{
+			BaseDN:          fc.WindowsDesktop.Discovery.BaseDN,
+			Filters:         fc.WindowsDesktop.Discovery.Filters,
+			LabelAttributes: fc.WindowsDesktop.Discovery.LabelAttributes,
+		}
 	}
 
 	var err error
@@ -1589,38 +1591,40 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
-	}
-
-	var cert *x509.Certificate
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
-		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DEREncodedCAFile)
-		if err != nil {
-			return trace.WrapWithMessage(err, "loading the LDAP CA from file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
+	if fc.WindowsDesktop.LDAP != nil {
+		if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+			return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 		}
 
-		cert, err = x509.ParseCertificate(rawCert)
-		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
-		}
-	}
+		var cert *x509.Certificate
+		if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
+			rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DEREncodedCAFile)
+			if err != nil {
+				return trace.WrapWithMessage(err, "loading the LDAP CA from file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
+			}
 
-	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
-		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			cert, err = x509.ParseCertificate(rawCert)
+			if err != nil {
+				return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
+			}
 		}
-	}
 
-	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
-		Addr:               fc.WindowsDesktop.LDAP.Addr,
-		Username:           fc.WindowsDesktop.LDAP.Username,
-		SID:                fc.WindowsDesktop.LDAP.SID,
-		Domain:             fc.WindowsDesktop.LDAP.Domain,
-		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
-		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
-		CA:                 cert,
+		if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+			cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+			if err != nil {
+				return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			}
+		}
+
+		cfg.WindowsDesktop.LDAP = service.LDAPConfig{
+			Addr:               fc.WindowsDesktop.LDAP.Addr,
+			Username:           fc.WindowsDesktop.LDAP.Username,
+			SID:                fc.WindowsDesktop.LDAP.SID,
+			Domain:             fc.WindowsDesktop.LDAP.Domain,
+			InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
+			ServerName:         fc.WindowsDesktop.LDAP.ServerName,
+			CA:                 cert,
+		}
 	}
 
 	var hlrs []service.HostLabelRule

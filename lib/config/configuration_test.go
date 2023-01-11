@@ -2103,15 +2103,102 @@ func TestProxyConfigurationVersion(t *testing.T) {
 func TestWindowsDesktopService(t *testing.T) {
 	t.Parallel()
 
+	// ensureValid ensures the fc is valid
+	ensureValid := func(fc *FileConfig) {
+		// Ensure spec itself is valid
+		fc.WindowsDesktop.LDAP = &LDAPConfig{
+			Addr:     "example.com:636",
+			Domain:   "example.com",
+			Username: `EXAMPLE\svc-teleport`,
+		}
+		fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+		fc.WindowsDesktop.NonADHosts = []string{"127.0.0.1:3389"}
+	}
+
 	for _, test := range []struct {
 		desc        string
 		mutate      func(fc *FileConfig)
 		expectError require.ErrorAssertionFunc
 	}{
 		{
+			desc:        "OK - hosts specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = &LDAPConfig{
+					Addr:     "example.com:636",
+					Domain:   "example.com",
+					Username: `EXAMPLE\svc-teleport`,
+				}
+			},
+		},
+		{
+			desc:        "NOK - hosts specified but ldap not specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = nil
+			},
+		},
+		{
+			desc:        "OK - discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = &LDAPDiscoveryConfig{
+					BaseDN: "*",
+				}
+				fc.WindowsDesktop.LDAP = &LDAPConfig{
+					Addr:     "example.com:636",
+					Domain:   "example.com",
+					Username: `EXAMPLE\svc-teleport`,
+				}
+			},
+		},
+		{
+			desc:        "NOK - discovery specified but ldap not specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = &LDAPDiscoveryConfig{
+					BaseDN: "*",
+				}
+				fc.WindowsDesktop.LDAP = nil
+			},
+		},
+		{
+			desc:        "NOK - ldap specified but neither hosts nor discovery specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = &LDAPConfig{
+					Addr:     "example.com:636",
+					Domain:   "example.com",
+					Username: `EXAMPLE\svc-teleport`,
+				}
+				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.Discovery = nil
+			},
+		},
+		{
+			desc:        "NOK - none of hosts, discovery, or non_ad_hosts specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.Discovery = nil
+				fc.WindowsDesktop.NonADHosts = []string{}
+			},
+		},
+		{
+			desc:        "OK - only non_ad_hosts specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.NonADHosts = []string{"127.0.0.1:3389"}
+			},
+		},
+
+		{
 			desc:        "NOK - invalid static host addr",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				ensureValid(fc)
 				fc.WindowsDesktop.Hosts = []string{"badscheme://foo:1:2"}
 			},
 		},
@@ -2119,6 +2206,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - invalid host label key",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				ensureValid(fc)
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: ".*", Labels: map[string]string{"invalid label key": "value"}},
 				}
@@ -2128,6 +2216,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - invalid host label regexp",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				ensureValid(fc)
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
 				}
@@ -2137,97 +2226,14 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - invalid label key for LDAP attribute",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
-			},
-		},
-		{
-			desc:        "NOK - hosts specified but ldap not specified",
-			expectError: require.Error,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "",
+				ensureValid(fc)
+				fc.WindowsDesktop.Discovery = &LDAPDiscoveryConfig{
+					BaseDN:          "*",
+					LabelAttributes: []string{"this?is not* a valid key 🚨"},
 				}
 			},
 		},
-		{
-			desc:        "OK - hosts specified and ldap specified",
-			expectError: require.NoError,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
-				}
-			},
-		},
-		{
-			desc:        "OK - no hosts specified and ldap not specified",
-			expectError: require.NoError,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "",
-				}
-			},
-		},
-		{
-			desc:        "OK - no hosts specified and ldap specified",
-			expectError: require.NoError,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
-				}
-			},
-		},
-		{
-			desc:        "NOK - discovery specified but ldap not specified",
-			expectError: require.Error,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
-					BaseDN: "something",
-				}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "",
-				}
-			},
-		},
-		{
-			desc:        "OK - discovery specified and ldap specified",
-			expectError: require.NoError,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
-					BaseDN: "something",
-				}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
-				}
-			},
-		},
-		{
-			desc:        "OK - discovery not specified and ldap not specified",
-			expectError: require.NoError,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
-					BaseDN: "",
-				}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "",
-				}
-			},
-		},
-		{
-			desc:        "OK - discovery not specified and ldap specified",
-			expectError: require.NoError,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
-					BaseDN: "",
-				}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
-				}
-			},
-		},
+
 		{
 			desc:        "OK - valid config",
 			expectError: require.NoError,
@@ -2235,8 +2241,10 @@ func TestWindowsDesktopService(t *testing.T) {
 				fc.WindowsDesktop.EnabledFlag = "yes"
 				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
 				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
+				fc.WindowsDesktop.LDAP = &LDAPConfig{
+					Addr:     "example.com:636",
+					Domain:   "example.com",
+					Username: `EXAMPLE\svc-teleport`,
 				}
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: ".*", Labels: map[string]string{"key": "value"}},
