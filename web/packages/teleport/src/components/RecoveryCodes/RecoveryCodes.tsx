@@ -32,6 +32,15 @@ export default function RecoveryCodesDialog({
 }: Props) {
   const codesRef = useRef();
 
+  const captureRecoveryCodeEvent = (event: CaptureEvent) => {
+    if (username) {
+      userEventService.capturePreUserEvent({
+        event: event,
+        username: username,
+      });
+    }
+  };
+
   const onCopyClick = () => {
     copyToClipboard(
       `${recoveryCodes?.codes.join('\n')} \n\nCreated: ${
@@ -40,16 +49,18 @@ export default function RecoveryCodesDialog({
     ).then(() => {
       selectElementContent(codesRef.current);
     });
+    captureRecoveryCodeEvent(CaptureEvent.PreUserRecoveryCodesCopyClickEvent);
+  };
+
+  const onPrintClick = () => {
+    window.print();
+    captureRecoveryCodeEvent(CaptureEvent.PreUserRecoveryCodesPrintClickEvent);
   };
 
   const handleContinue = () => {
-    if (username) {
-      userEventService.capturePreUserEvent({
-        event: CaptureEvent.PreUserRecoveryCodesContinueClickEvent,
-        username: username,
-      });
-    }
-
+    captureRecoveryCodeEvent(
+      CaptureEvent.PreUserRecoveryCodesContinueClickEvent
+    );
     onContinue();
   };
 
@@ -114,7 +125,7 @@ export default function RecoveryCodesDialog({
               </Text>
               <Flex flexDirection="column" className="no-print" ml={2}>
                 <MiniActionButton onClick={onCopyClick}>COPY</MiniActionButton>
-                <MiniActionButton onClick={window.print} mt={2}>
+                <MiniActionButton onClick={onPrintClick} mt={2}>
                   PRINT
                 </MiniActionButton>
               </Flex>

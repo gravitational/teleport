@@ -25,8 +25,6 @@ import {
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 
 export function NewPassword(props: Props) {
@@ -52,11 +50,6 @@ export function NewPassword(props: Props) {
     validator: Validator
   ) {
     e.preventDefault(); // prevent form submit default
-
-    userEventService.capturePreUserEvent({
-      event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
-      username: resetToken.user,
-    });
 
     if (!validator.validate()) {
       return;

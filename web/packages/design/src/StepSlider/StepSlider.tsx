@@ -111,6 +111,7 @@ export function StepSlider<T>(props: Props<T>) {
     return (
       <View
         key={step}
+        currFlow={currFlow}
         refCallback={requirePreMount ? setHeightOnPreMount : null}
         next={() => {
           preMountState.current.step = step + 1;

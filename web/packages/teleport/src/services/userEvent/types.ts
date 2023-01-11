@@ -8,9 +8,11 @@ export enum CaptureEvent {
   //   these events are unauthenticated,
   //   and require username in the request
 
-  PreUserOnboardGetStartedClickEvent = 'tp.ui.onboard.getStarted.click', // not yet implemented
   PreUserOnboardSetCredentialSubmitEvent = 'tp.ui.onboard.setCredential.submit',
   PreUserOnboardRegisterChallengeSubmitEvent = 'tp.ui.onboard.registerChallenge.submit',
+  PreUserCompleteGoToDashboardClickEvent = 'tp.ui.onboard.completeGoToDashboard.click',
 
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
+  PreUserRecoveryCodesCopyClickEvent = 'tp.ui.recoveryCodesCopy.click',
+  PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
 }

@@ -15,18 +15,34 @@
  */
 
 import React from 'react';
-import { Card, Text, ButtonPrimary, Flex, Image } from 'design';
+import { ButtonPrimary, Card, Flex, Image, Text } from 'design';
+
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import shieldCheck from './shield-check.png';
 
 export function RegisterSuccess({
   redirect,
   resetMode = false,
+  username = '',
 }: {
   redirect(): void;
   resetMode: boolean;
+  username?: string;
 }) {
   const actionTxt = resetMode ? 'reset' : 'registration';
+
+  const handleRedirect = () => {
+    if (username) {
+      userEventService.capturePreUserEvent({
+        event: CaptureEvent.PreUserCompleteGoToDashboardClickEvent,
+        username: username,
+      });
+    }
+
+    redirect();
+  };
+
   return (
     <Card
       width="540px"
@@ -52,7 +68,7 @@ export function RegisterSuccess({
         <br />
         Proceed to access your account.
       </Text>
-      <ButtonPrimary width="100%" size="large" onClick={redirect}>
+      <ButtonPrimary width="100%" size="large" onClick={handleRedirect}>
         Go to Dashboard
       </ButtonPrimary>
     </Card>

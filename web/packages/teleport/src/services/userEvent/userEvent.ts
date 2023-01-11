@@ -10,6 +10,8 @@ export type UserEvent = {
 
 export type PreUserEvent = UserEvent & {
   username: string;
+  mfaType?: string;
+  loginFlow?: string;
 };
 
 export const userEventService = {

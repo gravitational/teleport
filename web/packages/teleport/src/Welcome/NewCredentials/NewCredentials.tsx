@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 import { Card } from 'design';
 import { PrimaryAuthType } from 'shared/services';
 
-import { StepSlider, NewFlow, StepComponentProps } from 'design/StepSlider';
+import { NewFlow, StepComponentProps, StepSlider } from 'design/StepSlider';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
@@ -76,7 +76,13 @@ export function NewCredentials(props: State & Props) {
   }
 
   if (success) {
-    return <RegisterSuccess redirect={redirect} resetMode={resetMode} />;
+    return (
+      <RegisterSuccess
+        redirect={redirect}
+        resetMode={resetMode}
+        username={resetToken.user}
+      />
+    );
   }
 
   if (recoveryCodes) {
@@ -130,4 +136,5 @@ export function NewCredentials(props: State & Props) {
 
 export type Props = State & {
   resetMode?: boolean;
+  currFlow?: LoginFlow;
 };
