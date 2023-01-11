@@ -255,6 +255,10 @@ dnsConfig: {}
 #    - name: ndots
 #      value: "2"
 
+# Pod's DNS Policy
+# https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy
+dnsPolicy: ""
+
 # nodeSelector to apply for pod assignment
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
 nodeSelector: {}
