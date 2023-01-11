@@ -697,9 +697,21 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"randomPort":  cf.LocalProxyPort == "",
 	}
 
-	template := awsHTTPSProxyTemplate
-	if cf.AWSEndpointURLMode {
+	var template *template.Template
+	switch {
+	case cf.Format == awsProxyFormatAthenaODBC:
+		if cf.AWSEndpointURLMode {
+			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
+		}
+
+		templateData["proxyHost"], templateData["proxyPort"], _ = net.SplitHostPort(awsApp.GetForwardProxyAddr())
+		templateData["proxyScheme"] = "http"
+		template = awsProxyAthenaODBCTemplate
+
+	case cf.AWSEndpointURLMode:
 		template = awsEndpointURLProxyTemplate
+	default:
+		template = awsHTTPSProxyTemplate
 	}
 
 	if err = template.Execute(os.Stdout, templateData); err != nil {
@@ -821,19 +833,36 @@ const (
 	envVarFormatUnix                 = "unix"
 	envVarFormatWindowsCommandPrompt = "command-prompt"
 	envVarFormatWindowsPowershell    = "powershell"
+
+	awsProxyFormatAthenaODBC = "athena-odbc"
 )
 
-var envVarFormats = []string{
-	envVarFormatUnix,
-	envVarFormatWindowsCommandPrompt,
-	envVarFormatWindowsPowershell,
-	envVarFormatText,
-}
+var (
+	envVarFormats = []string{
+		envVarFormatUnix,
+		envVarFormatWindowsCommandPrompt,
+		envVarFormatWindowsPowershell,
+		envVarFormatText,
+	}
+
+	awsProxyServiceFormats = []string{awsProxyFormatAthenaODBC}
+
+	awsProxyFormats = append(envVarFormats, awsProxyServiceFormats...)
+)
 
 func envVarFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"Optional format to print the commands for setting environment variables, one of: %s.",
+		"Optional format to print the commands for setting environment variables, one of: %s. Default is %s.",
 		strings.Join(envVarFormats, ", "),
+		envVarDefaultFormat(),
+	)
+}
+
+func awsProxyFormatFlagDescription() string {
+	return fmt.Sprintf(
+		"%s Or specify a service format, one of: %s",
+		envVarFormatFlagDescription(),
+		strings.Join(awsProxyServiceFormats, ", "),
 	)
 }
 
@@ -923,4 +952,25 @@ In addition to the endpoint URL, use the following credentials to connect to the
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+`))
+
+// awsProxyAthenaODBCTemplate is the message that gets printed to a user when an
+// AWS proxy is used for Athena ODBC driver.
+var awsProxyAthenaODBCTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
+	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Set the following properties for the Athena ODBC data source:
+[Teleport AWS Athena Access]
+AuthenticationType = IAM Credentials
+UID = {{.envVars.AWS_ACCESS_KEY_ID}}
+PWD = {{.envVars.AWS_SECRET_ACCESS_KEY}}
+UseProxy = 1;
+ProxyScheme = {{.proxyScheme}};
+ProxyHost = {{.proxyHost}};
+ProxyPort = {{.proxyPort}};
+TrustedCerts = {{.envVars.AWS_CA_BUNDLE}}
+
+Here is a sample connection string using the above credentials and proxy settings:
+DRIVER=Simba Amazon Athena ODBC Connector;AwsRegion=us-east-1;S3OutputLocation=s3://example-bucket/athena/output/;Workgroup=example-workgroup;AuthenticationType=IAM Credentials;UID={{.envVars.AWS_ACCESS_KEY_ID}};PWD={{.envVars.AWS_SECRET_ACCESS_KEY}};UseProxy=1;ProxyScheme={{.proxyScheme}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};TrustedCerts={{.envVars.AWS_CA_BUNDLE}}
 `))
