@@ -2,6 +2,7 @@ authToken: auth-token
 proxyAddr: proxy.example.com:3080
 roles: kube
 kubeClusterName: test-kube-cluster
+dnsPolicy: ClusterFirstWithHostNet
 dnsConfig:
   nameservers:
     - 1.2.3.4
