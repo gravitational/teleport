@@ -67,7 +67,7 @@ type resourceKind struct {
 // If the access request is created, tsh waits for the approval and runs the expected
 // command again.
 func onKubectlCommand(cf *CLIConf, args []string) error {
-	if len(os.Getenv(tshKubectlRexec)) > 0 {
+	if len(os.Getenv(tshKubectlReexec)) > 0 {
 		runKubectlCode(args)
 		return nil
 	}
@@ -79,7 +79,7 @@ func onKubectlCommand(cf *CLIConf, args []string) error {
 const (
 	// tshKubectlReexec is used to control if tsh should re-exec or execute a kubectl
 	// command.
-	tshKubectlRexec = "tsh_kube_reexec"
+	tshKubectlReexec = "tsh_kube_reexec"
 )
 
 // runKubectlReexec reexecs itself and copies the `stderr` output into
@@ -91,7 +91,7 @@ func runKubectlReexec(selfExec string, args []string, collector io.Writer) error
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, collector)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlRexec))
+	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexec))
 	return trace.Wrap(cmd.Run())
 }
 
