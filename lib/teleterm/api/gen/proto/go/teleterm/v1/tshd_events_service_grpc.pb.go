@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: v1/tshd_events_service.proto
+// source: teleterm/v1/tshd_events_service.proto
 
 package v1
 
@@ -41,7 +41,7 @@ func NewTshdEventsServiceClient(cc grpc.ClientConnInterface) TshdEventsServiceCl
 
 func (c *tshdEventsServiceClient) Relogin(ctx context.Context, in *ReloginRequest, opts ...grpc.CallOption) (*ReloginResponse, error) {
 	out := new(ReloginResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/Relogin", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TshdEventsService/Relogin", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (c *tshdEventsServiceClient) Relogin(ctx context.Context, in *ReloginReques
 
 func (c *tshdEventsServiceClient) SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error) {
 	out := new(SendNotificationResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/SendNotification", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TshdEventsService/SendNotification", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func _TshdEventsService_Relogin_Handler(srv interface{}, ctx context.Context, de
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TshdEventsService/Relogin",
+		FullMethod: "/teleterm.v1.TshdEventsService/Relogin",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TshdEventsServiceServer).Relogin(ctx, req.(*ReloginRequest))
@@ -122,7 +122,7 @@ func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Co
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TshdEventsService/SendNotification",
+		FullMethod: "/teleterm.v1.TshdEventsService/SendNotification",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TshdEventsServiceServer).SendNotification(ctx, req.(*SendNotificationRequest))
@@ -134,7 +134,7 @@ func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Co
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "teleport.terminal.v1.TshdEventsService",
+	ServiceName: "teleterm.v1.TshdEventsService",
 	HandlerType: (*TshdEventsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -147,5 +147,5 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "v1/tshd_events_service.proto",
+	Metadata: "teleterm/v1/tshd_events_service.proto",
 }

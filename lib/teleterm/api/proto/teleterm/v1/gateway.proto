@@ -1,0 +1,54 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleterm.v1;
+
+option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
+
+// Gateway is Teleterm's name for a connection to a resource like a database or a web app
+// established through our ALPN proxy.
+//
+// The term "gateway" is used to avoid using the term "proxy" itself which could be confusing as
+// "proxy" means a couple of different things depending on the context. But for Teleterm, a gateway
+// is always an ALPN proxy connection.
+//
+// See RFD 39 for more info on ALPN.
+message Gateway {
+  // uri is the gateway uri
+  string uri = 1;
+  // target_name is the target resource name
+  string target_name = 2;
+  // target_uri is the target uri
+  string target_uri = 3;
+  // target_user is the target user
+  string target_user = 4;
+  // local_address is the gateway address on localhost
+  string local_address = 5;
+  // local_port is the gateway address on localhost
+  string local_port = 6;
+  // protocol is the gateway protocol
+  string protocol = 7;
+  // cli_command is a command that the user can execute to connect to the resource within a CLI,
+  // if the given resource has a CLI client.
+  //
+  // Instead of generating those commands in in the frontend code, the tsh daemon returns them.
+  // This means that the Database Access team can add support for a new protocol and Teleterm will
+  // support it right away without any changes to Teleterm's code.
+  string cli_command = 8;
+  // target_subresource_name points at a subresource of the remote resource, for example a
+  // database name on a database server.
+  string target_subresource_name = 9;
+}

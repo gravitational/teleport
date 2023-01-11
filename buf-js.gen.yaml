@@ -1,0 +1,27 @@
+version: v1
+plugins:
+  # https://github.com/protocolbuffers/protobuf/tree/v3.20.1/js
+  - name: js
+    # There's no equivalent of go_package we could use in protos to control the output location of
+    # JS protobufs. On top of that, the generated JS imports assume that all files are compiled to
+    # the same directory. That is, it expects both JS protos from lib/prehog and lib/teleterm to be
+    # on the same level.
+    #
+    # Instead of fighting that, let's output them to gen-proto-js.
+    #
+    # See the feature request for go_package equivalent in JS:
+    # https://github.com/protocolbuffers/protobuf-javascript/issues/47
+    out: gen-proto-js
+    opt:
+      - import_style=commonjs,binary
+
+  # https://github.com/grpc/grpc-node/tree/grpc-tools%401.11.2/packages/grpc-tools/
+  - name: grpc
+    out: gen-proto-js
+    opt: grpc_js
+    path: grpc_tools_node_protoc_plugin
+
+  # https://github.com/agreatfool/grpc_tools_node_protoc_ts/tree/v5.0.1
+  - name: ts
+    out: gen-proto-js
+    opt: "service=grpc-node"

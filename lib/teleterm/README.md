@@ -113,7 +113,7 @@ obtains from the root cluster.
 ## gRPC server
 
 The proto files live in `lib/teleterm/api/proto`. `make grpc` generates protobufs in
-`lib/teleterm/api/protogen`. The protobuf files [need to be copied to the webapps
+`lib/teleterm/api/gen` and `gen-proto-js`. The protobuf files [need to be copied to the webapps
 repo](../../web/packages/teleterm#generating-tshd-grpc-protobuf-files).
 
 ## Refactoring efforts

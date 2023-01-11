@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: v1/service.proto
+// source: teleterm/v1/service.proto
 
 package v1
 
@@ -128,7 +128,7 @@ func NewTerminalServiceClient(cc grpc.ClientConnInterface) TerminalServiceClient
 
 func (c *terminalServiceClient) UpdateTshdEventsServerAddress(ctx context.Context, in *UpdateTshdEventsServerAddressRequest, opts ...grpc.CallOption) (*UpdateTshdEventsServerAddressResponse, error) {
 	out := new(UpdateTshdEventsServerAddressResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/UpdateTshdEventsServerAddress", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/UpdateTshdEventsServerAddress", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (c *terminalServiceClient) UpdateTshdEventsServerAddress(ctx context.Contex
 
 func (c *terminalServiceClient) ListRootClusters(ctx context.Context, in *ListClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error) {
 	out := new(ListClustersResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ListRootClusters", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/ListRootClusters", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (c *terminalServiceClient) ListRootClusters(ctx context.Context, in *ListCl
 
 func (c *terminalServiceClient) ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error) {
 	out := new(ListClustersResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ListLeafClusters", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/ListLeafClusters", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (c *terminalServiceClient) ListLeafClusters(ctx context.Context, in *ListLe
 
 func (c *terminalServiceClient) GetAllDatabases(ctx context.Context, in *GetAllDatabasesRequest, opts ...grpc.CallOption) (*GetAllDatabasesResponse, error) {
 	out := new(GetAllDatabasesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetAllDatabases", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetAllDatabases", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (c *terminalServiceClient) GetAllDatabases(ctx context.Context, in *GetAllD
 
 func (c *terminalServiceClient) GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error) {
 	out := new(GetDatabasesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetDatabases", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetDatabases", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (c *terminalServiceClient) GetDatabases(ctx context.Context, in *GetDatabas
 
 func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error) {
 	out := new(ListDatabaseUsersResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ListDatabaseUsers", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/ListDatabaseUsers", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListD
 
 func (c *terminalServiceClient) GetAllServers(ctx context.Context, in *GetAllServersRequest, opts ...grpc.CallOption) (*GetAllServersResponse, error) {
 	out := new(GetAllServersResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetAllServers", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetAllServers", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (c *terminalServiceClient) GetAllServers(ctx context.Context, in *GetAllSer
 
 func (c *terminalServiceClient) GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error) {
 	out := new(GetServersResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetServers", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetServers", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (c *terminalServiceClient) GetServers(ctx context.Context, in *GetServersRe
 
 func (c *terminalServiceClient) GetAccessRequests(ctx context.Context, in *GetAccessRequestsRequest, opts ...grpc.CallOption) (*GetAccessRequestsResponse, error) {
 	out := new(GetAccessRequestsResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetAccessRequests", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetAccessRequests", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +209,7 @@ func (c *terminalServiceClient) GetAccessRequests(ctx context.Context, in *GetAc
 
 func (c *terminalServiceClient) GetAccessRequest(ctx context.Context, in *GetAccessRequestRequest, opts ...grpc.CallOption) (*GetAccessRequestResponse, error) {
 	out := new(GetAccessRequestResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetAccessRequest", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (c *terminalServiceClient) GetAccessRequest(ctx context.Context, in *GetAcc
 
 func (c *terminalServiceClient) DeleteAccessRequest(ctx context.Context, in *DeleteAccessRequestRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/DeleteAccessRequest", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/DeleteAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (c *terminalServiceClient) DeleteAccessRequest(ctx context.Context, in *Del
 
 func (c *terminalServiceClient) CreateAccessRequest(ctx context.Context, in *CreateAccessRequestRequest, opts ...grpc.CallOption) (*CreateAccessRequestResponse, error) {
 	out := new(CreateAccessRequestResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/CreateAccessRequest", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/CreateAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (c *terminalServiceClient) CreateAccessRequest(ctx context.Context, in *Cre
 
 func (c *terminalServiceClient) ReviewAccessRequest(ctx context.Context, in *ReviewAccessRequestRequest, opts ...grpc.CallOption) (*ReviewAccessRequestResponse, error) {
 	out := new(ReviewAccessRequestResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ReviewAccessRequest", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/ReviewAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +245,7 @@ func (c *terminalServiceClient) ReviewAccessRequest(ctx context.Context, in *Rev
 
 func (c *terminalServiceClient) GetRequestableRoles(ctx context.Context, in *GetRequestableRolesRequest, opts ...grpc.CallOption) (*GetRequestableRolesResponse, error) {
 	out := new(GetRequestableRolesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetRequestableRoles", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetRequestableRoles", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (c *terminalServiceClient) GetRequestableRoles(ctx context.Context, in *Get
 
 func (c *terminalServiceClient) AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/AssumeRole", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/AssumeRole", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func (c *terminalServiceClient) AssumeRole(ctx context.Context, in *AssumeRoleRe
 
 func (c *terminalServiceClient) GetAllKubes(ctx context.Context, in *GetAllKubesRequest, opts ...grpc.CallOption) (*GetAllKubesResponse, error) {
 	out := new(GetAllKubesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetAllKubes", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetAllKubes", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (c *terminalServiceClient) GetAllKubes(ctx context.Context, in *GetAllKubes
 
 func (c *terminalServiceClient) GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error) {
 	out := new(GetKubesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetKubes", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetKubes", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +281,7 @@ func (c *terminalServiceClient) GetKubes(ctx context.Context, in *GetKubesReques
 
 func (c *terminalServiceClient) ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error) {
 	out := new(ListAppsResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ListApps", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/ListApps", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +290,7 @@ func (c *terminalServiceClient) ListApps(ctx context.Context, in *ListAppsReques
 
 func (c *terminalServiceClient) AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error) {
 	out := new(Cluster)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/AddCluster", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/AddCluster", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +299,7 @@ func (c *terminalServiceClient) AddCluster(ctx context.Context, in *AddClusterRe
 
 func (c *terminalServiceClient) RemoveCluster(ctx context.Context, in *RemoveClusterRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/RemoveCluster", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/RemoveCluster", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,7 @@ func (c *terminalServiceClient) RemoveCluster(ctx context.Context, in *RemoveClu
 
 func (c *terminalServiceClient) ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysResponse, error) {
 	out := new(ListGatewaysResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ListGateways", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/ListGateways", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +317,7 @@ func (c *terminalServiceClient) ListGateways(ctx context.Context, in *ListGatewa
 
 func (c *terminalServiceClient) CreateGateway(ctx context.Context, in *CreateGatewayRequest, opts ...grpc.CallOption) (*Gateway, error) {
 	out := new(Gateway)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/CreateGateway", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/CreateGateway", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (c *terminalServiceClient) CreateGateway(ctx context.Context, in *CreateGat
 
 func (c *terminalServiceClient) RemoveGateway(ctx context.Context, in *RemoveGatewayRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/RemoveGateway", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/RemoveGateway", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +335,7 @@ func (c *terminalServiceClient) RemoveGateway(ctx context.Context, in *RemoveGat
 
 func (c *terminalServiceClient) RestartGateway(ctx context.Context, in *RestartGatewayRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/RestartGateway", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/RestartGateway", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +344,7 @@ func (c *terminalServiceClient) RestartGateway(ctx context.Context, in *RestartG
 
 func (c *terminalServiceClient) SetGatewayTargetSubresourceName(ctx context.Context, in *SetGatewayTargetSubresourceNameRequest, opts ...grpc.CallOption) (*Gateway, error) {
 	out := new(Gateway)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/SetGatewayTargetSubresourceName", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/SetGatewayTargetSubresourceName", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +353,7 @@ func (c *terminalServiceClient) SetGatewayTargetSubresourceName(ctx context.Cont
 
 func (c *terminalServiceClient) SetGatewayLocalPort(ctx context.Context, in *SetGatewayLocalPortRequest, opts ...grpc.CallOption) (*Gateway, error) {
 	out := new(Gateway)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/SetGatewayLocalPort", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/SetGatewayLocalPort", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -362,7 +362,7 @@ func (c *terminalServiceClient) SetGatewayLocalPort(ctx context.Context, in *Set
 
 func (c *terminalServiceClient) GetAuthSettings(ctx context.Context, in *GetAuthSettingsRequest, opts ...grpc.CallOption) (*AuthSettings, error) {
 	out := new(AuthSettings)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetAuthSettings", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetAuthSettings", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +371,7 @@ func (c *terminalServiceClient) GetAuthSettings(ctx context.Context, in *GetAuth
 
 func (c *terminalServiceClient) GetCluster(ctx context.Context, in *GetClusterRequest, opts ...grpc.CallOption) (*Cluster, error) {
 	out := new(Cluster)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/GetCluster", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/GetCluster", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +380,7 @@ func (c *terminalServiceClient) GetCluster(ctx context.Context, in *GetClusterRe
 
 func (c *terminalServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/Login", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/Login", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +388,7 @@ func (c *terminalServiceClient) Login(ctx context.Context, in *LoginRequest, opt
 }
 
 func (c *terminalServiceClient) LoginPasswordless(ctx context.Context, opts ...grpc.CallOption) (TerminalService_LoginPasswordlessClient, error) {
-	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[0], "/teleport.terminal.v1.TerminalService/LoginPasswordless", opts...)
+	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[0], "/teleterm.v1.TerminalService/LoginPasswordless", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +420,7 @@ func (x *terminalServiceLoginPasswordlessClient) Recv() (*LoginPasswordlessRespo
 
 func (c *terminalServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/Logout", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/Logout", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +428,7 @@ func (c *terminalServiceClient) Logout(ctx context.Context, in *LogoutRequest, o
 }
 
 func (c *terminalServiceClient) TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (TerminalService_TransferFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[1], "/teleport.terminal.v1.TerminalService/TransferFile", opts...)
+	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[1], "/teleterm.v1.TerminalService/TransferFile", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -461,7 +461,7 @@ func (x *terminalServiceTransferFileClient) Recv() (*FileTransferProgress, error
 
 func (c *terminalServiceClient) ReportUsageEvent(ctx context.Context, in *ReportUsageEventRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/ReportUsageEvent", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/teleterm.v1.TerminalService/ReportUsageEvent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -695,7 +695,7 @@ func _TerminalService_UpdateTshdEventsServerAddress_Handler(srv interface{}, ctx
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/UpdateTshdEventsServerAddress",
+		FullMethod: "/teleterm.v1.TerminalService/UpdateTshdEventsServerAddress",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).UpdateTshdEventsServerAddress(ctx, req.(*UpdateTshdEventsServerAddressRequest))
@@ -713,7 +713,7 @@ func _TerminalService_ListRootClusters_Handler(srv interface{}, ctx context.Cont
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ListRootClusters",
+		FullMethod: "/teleterm.v1.TerminalService/ListRootClusters",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListRootClusters(ctx, req.(*ListClustersRequest))
@@ -731,7 +731,7 @@ func _TerminalService_ListLeafClusters_Handler(srv interface{}, ctx context.Cont
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ListLeafClusters",
+		FullMethod: "/teleterm.v1.TerminalService/ListLeafClusters",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListLeafClusters(ctx, req.(*ListLeafClustersRequest))
@@ -749,7 +749,7 @@ func _TerminalService_GetAllDatabases_Handler(srv interface{}, ctx context.Conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetAllDatabases",
+		FullMethod: "/teleterm.v1.TerminalService/GetAllDatabases",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetAllDatabases(ctx, req.(*GetAllDatabasesRequest))
@@ -767,7 +767,7 @@ func _TerminalService_GetDatabases_Handler(srv interface{}, ctx context.Context,
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetDatabases",
+		FullMethod: "/teleterm.v1.TerminalService/GetDatabases",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetDatabases(ctx, req.(*GetDatabasesRequest))
@@ -785,7 +785,7 @@ func _TerminalService_ListDatabaseUsers_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ListDatabaseUsers",
+		FullMethod: "/teleterm.v1.TerminalService/ListDatabaseUsers",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListDatabaseUsers(ctx, req.(*ListDatabaseUsersRequest))
@@ -803,7 +803,7 @@ func _TerminalService_GetAllServers_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetAllServers",
+		FullMethod: "/teleterm.v1.TerminalService/GetAllServers",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetAllServers(ctx, req.(*GetAllServersRequest))
@@ -821,7 +821,7 @@ func _TerminalService_GetServers_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetServers",
+		FullMethod: "/teleterm.v1.TerminalService/GetServers",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetServers(ctx, req.(*GetServersRequest))
@@ -839,7 +839,7 @@ func _TerminalService_GetAccessRequests_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetAccessRequests",
+		FullMethod: "/teleterm.v1.TerminalService/GetAccessRequests",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetAccessRequests(ctx, req.(*GetAccessRequestsRequest))
@@ -857,7 +857,7 @@ func _TerminalService_GetAccessRequest_Handler(srv interface{}, ctx context.Cont
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetAccessRequest",
+		FullMethod: "/teleterm.v1.TerminalService/GetAccessRequest",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetAccessRequest(ctx, req.(*GetAccessRequestRequest))
@@ -875,7 +875,7 @@ func _TerminalService_DeleteAccessRequest_Handler(srv interface{}, ctx context.C
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/DeleteAccessRequest",
+		FullMethod: "/teleterm.v1.TerminalService/DeleteAccessRequest",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).DeleteAccessRequest(ctx, req.(*DeleteAccessRequestRequest))
@@ -893,7 +893,7 @@ func _TerminalService_CreateAccessRequest_Handler(srv interface{}, ctx context.C
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/CreateAccessRequest",
+		FullMethod: "/teleterm.v1.TerminalService/CreateAccessRequest",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).CreateAccessRequest(ctx, req.(*CreateAccessRequestRequest))
@@ -911,7 +911,7 @@ func _TerminalService_ReviewAccessRequest_Handler(srv interface{}, ctx context.C
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ReviewAccessRequest",
+		FullMethod: "/teleterm.v1.TerminalService/ReviewAccessRequest",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ReviewAccessRequest(ctx, req.(*ReviewAccessRequestRequest))
@@ -929,7 +929,7 @@ func _TerminalService_GetRequestableRoles_Handler(srv interface{}, ctx context.C
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetRequestableRoles",
+		FullMethod: "/teleterm.v1.TerminalService/GetRequestableRoles",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetRequestableRoles(ctx, req.(*GetRequestableRolesRequest))
@@ -947,7 +947,7 @@ func _TerminalService_AssumeRole_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/AssumeRole",
+		FullMethod: "/teleterm.v1.TerminalService/AssumeRole",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).AssumeRole(ctx, req.(*AssumeRoleRequest))
@@ -965,7 +965,7 @@ func _TerminalService_GetAllKubes_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetAllKubes",
+		FullMethod: "/teleterm.v1.TerminalService/GetAllKubes",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetAllKubes(ctx, req.(*GetAllKubesRequest))
@@ -983,7 +983,7 @@ func _TerminalService_GetKubes_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetKubes",
+		FullMethod: "/teleterm.v1.TerminalService/GetKubes",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetKubes(ctx, req.(*GetKubesRequest))
@@ -1001,7 +1001,7 @@ func _TerminalService_ListApps_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ListApps",
+		FullMethod: "/teleterm.v1.TerminalService/ListApps",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListApps(ctx, req.(*ListAppsRequest))
@@ -1019,7 +1019,7 @@ func _TerminalService_AddCluster_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/AddCluster",
+		FullMethod: "/teleterm.v1.TerminalService/AddCluster",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).AddCluster(ctx, req.(*AddClusterRequest))
@@ -1037,7 +1037,7 @@ func _TerminalService_RemoveCluster_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/RemoveCluster",
+		FullMethod: "/teleterm.v1.TerminalService/RemoveCluster",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).RemoveCluster(ctx, req.(*RemoveClusterRequest))
@@ -1055,7 +1055,7 @@ func _TerminalService_ListGateways_Handler(srv interface{}, ctx context.Context,
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ListGateways",
+		FullMethod: "/teleterm.v1.TerminalService/ListGateways",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListGateways(ctx, req.(*ListGatewaysRequest))
@@ -1073,7 +1073,7 @@ func _TerminalService_CreateGateway_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/CreateGateway",
+		FullMethod: "/teleterm.v1.TerminalService/CreateGateway",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).CreateGateway(ctx, req.(*CreateGatewayRequest))
@@ -1091,7 +1091,7 @@ func _TerminalService_RemoveGateway_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/RemoveGateway",
+		FullMethod: "/teleterm.v1.TerminalService/RemoveGateway",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).RemoveGateway(ctx, req.(*RemoveGatewayRequest))
@@ -1109,7 +1109,7 @@ func _TerminalService_RestartGateway_Handler(srv interface{}, ctx context.Contex
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/RestartGateway",
+		FullMethod: "/teleterm.v1.TerminalService/RestartGateway",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).RestartGateway(ctx, req.(*RestartGatewayRequest))
@@ -1127,7 +1127,7 @@ func _TerminalService_SetGatewayTargetSubresourceName_Handler(srv interface{}, c
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/SetGatewayTargetSubresourceName",
+		FullMethod: "/teleterm.v1.TerminalService/SetGatewayTargetSubresourceName",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).SetGatewayTargetSubresourceName(ctx, req.(*SetGatewayTargetSubresourceNameRequest))
@@ -1145,7 +1145,7 @@ func _TerminalService_SetGatewayLocalPort_Handler(srv interface{}, ctx context.C
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/SetGatewayLocalPort",
+		FullMethod: "/teleterm.v1.TerminalService/SetGatewayLocalPort",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).SetGatewayLocalPort(ctx, req.(*SetGatewayLocalPortRequest))
@@ -1163,7 +1163,7 @@ func _TerminalService_GetAuthSettings_Handler(srv interface{}, ctx context.Conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetAuthSettings",
+		FullMethod: "/teleterm.v1.TerminalService/GetAuthSettings",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetAuthSettings(ctx, req.(*GetAuthSettingsRequest))
@@ -1181,7 +1181,7 @@ func _TerminalService_GetCluster_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/GetCluster",
+		FullMethod: "/teleterm.v1.TerminalService/GetCluster",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetCluster(ctx, req.(*GetClusterRequest))
@@ -1199,7 +1199,7 @@ func _TerminalService_Login_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/Login",
+		FullMethod: "/teleterm.v1.TerminalService/Login",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).Login(ctx, req.(*LoginRequest))
@@ -1243,7 +1243,7 @@ func _TerminalService_Logout_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/Logout",
+		FullMethod: "/teleterm.v1.TerminalService/Logout",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).Logout(ctx, req.(*LogoutRequest))
@@ -1282,7 +1282,7 @@ func _TerminalService_ReportUsageEvent_Handler(srv interface{}, ctx context.Cont
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TerminalService/ReportUsageEvent",
+		FullMethod: "/teleterm.v1.TerminalService/ReportUsageEvent",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ReportUsageEvent(ctx, req.(*ReportUsageEventRequest))
@@ -1294,7 +1294,7 @@ func _TerminalService_ReportUsageEvent_Handler(srv interface{}, ctx context.Cont
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TerminalService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "teleport.terminal.v1.TerminalService",
+	ServiceName: "teleterm.v1.TerminalService",
 	HandlerType: (*TerminalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -1435,5 +1435,5 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "v1/service.proto",
+	Metadata: "teleterm/v1/service.proto",
 }
