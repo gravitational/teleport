@@ -152,7 +152,7 @@ jobs:
               --join-method=circleci --token=circleci-token \
               --oneshot \
               --destination-dir=./certs \
-              --data-dir=./data
+              --data-dir=/tmp/tbot-data
             tsh \
               -i ./certs/identity \
               --proxy tele.example.com:443 \
