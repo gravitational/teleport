@@ -11,6 +11,7 @@ import {
   MenuItemConstructorOptions,
   shell,
 } from 'electron';
+import { wait } from 'shared/utils/wait';
 
 import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
@@ -63,6 +64,14 @@ export default class MainProcess {
   dispose() {
     this.sharedProcess.kill('SIGTERM');
     this.tshdProcess.kill('SIGTERM');
+    const processesExit = Promise.all([
+      promisifyProcessExit(this.tshdProcess),
+      promisifyProcessExit(this.sharedProcess),
+    ]);
+    const timeout = wait(5_000).then(() =>
+      this.logger.error('Child process(es) did not exit within 5 seconds')
+    );
+    return Promise.race([processesExit, timeout]);
   }
 
   private _init() {
@@ -314,4 +323,8 @@ const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
+}
+
+function promisifyProcessExit(childProcess: ChildProcess) {
+  return new Promise(resolve => childProcess.once('exit', resolve));
 }
