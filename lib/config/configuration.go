@@ -901,6 +901,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			Certificate: p.Certificate,
 		})
 	}
+	cfg.Proxy.KeyPairsReloadInterval = fc.Proxy.KeyPairsReloadInterval
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
 	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
@@ -1352,7 +1353,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				SPN:        database.AD.SPN,
 			},
 			Azure: service.DatabaseAzure{
-				ResourceID: database.Azure.ResourceID,
+				ResourceID:    database.Azure.ResourceID,
+				IsFlexiServer: database.Azure.IsFlexiServer,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {

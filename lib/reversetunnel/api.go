@@ -138,7 +138,7 @@ type Server interface {
 	// Shutdown performs graceful server shutdown closing open connections.
 	Shutdown(context.Context) error
 	// Wait waits for server to close all outstanding operations
-	Wait()
+	Wait(ctx context.Context)
 	// GetProxyPeerClient returns the proxy peer client
 	GetProxyPeerClient() *peer.Client
 }
