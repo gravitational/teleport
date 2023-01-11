@@ -2275,6 +2275,12 @@ message RoleOptions {
 
   // RequireMFAType is the type of MFA requirement enforced for this user.
   RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+
+  // DeviceTrustMode is the device authorization mode used for the resources
+  // associated with the role.
+  // See DeviceTrust.Mode.
+  // Reserved for future use, not yet used by Teleport.
+  string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
 }
 
 message RecordSession {
