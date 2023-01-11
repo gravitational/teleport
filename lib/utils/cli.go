@@ -398,7 +398,8 @@ func AllowWhitespace(s string) string {
 	// 3. part: "def" sep: "\t"
 	// 4. part: ""    sep: "\n"
 	var sb strings.Builder
-        // note that increment also happens at bottom of loop because we can safely jump to place where allowedWhitespace was found.
+	// note that increment also happens at bottom of loop because we can
+	// safely jump to place where allowedWhitespace was found.
 	for i := 0; i < len(s); i++ {
 		sepIdx := strings.IndexFunc(s[i:], isAllowedWhitespace)
 		if sepIdx == -1 {
@@ -409,7 +410,8 @@ func AllowWhitespace(s string) string {
 		}
 		part := EscapeControl(s[i : i+sepIdx])
 		_, _ = sb.WriteString(part)
-		_ = sb.WriteByte(s[i+sepIdx)
+		sep := s[i+sepIdx]
+		_ = sb.WriteByte(sep)
 		i += sepIdx
 	}
 	return sb.String()
