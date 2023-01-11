@@ -64,6 +64,13 @@ spec:
     metadata:
       name: {{ .Release.Name }}-hook
     spec:
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+      {{- end }}
       serviceAccountName: {{ .Release.Name }}-hook
       restartPolicy: OnFailure
       containers:

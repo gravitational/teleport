@@ -54,8 +54,19 @@ spec:
     metadata:
       name: {{ .Release.Name }}-delete-hook
     spec:
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml .Values.imagePullSecrets | nindent 6 }}
+{{- end }}
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
       serviceAccountName: {{ .Release.Name }}-delete-hook
       restartPolicy: OnFailure
+{{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+{{- end }}
       containers:
       - name: post-delete-job
         env:
