@@ -12,37 +12,56 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package azure
+package gcp
 
 import (
 	"bytes"
 	"context"
-	"crypto"
-	"crypto/x509"
+	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
+	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
+	"github.com/googleapis/gax-go/v2"
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/api/utils/gcp"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// HandlerConfig is the configuration for an Azure app-access handler.
+// iamCredentialsClient is an interface that defines the methods which we use from IAM Service Account Credentials API.
+// It is implemented by *gcpcredentials.IamCredentialsClient and can be mocked in tests unlike the concrete struct.
+type iamCredentialsClient interface {
+	GenerateAccessToken(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error)
+}
+
+// cloudClientGCP is an interface that defines the GetGCPIAMClient method we use in this module.
+type cloudClientGCP interface {
+	GetGCPIAMClient(context.Context) (iamCredentialsClient, error)
+}
+
+// cloudClientGCPImpl is a wrapper around callback function implementing cloudClientGCP interface.
+type cloudClientGCPImpl[T iamCredentialsClient] struct {
+	getGCPIAMClient func(ctx context.Context) (T, error)
+}
+
+func (t *cloudClientGCPImpl[T]) GetGCPIAMClient(ctx context.Context) (iamCredentialsClient, error) {
+	return t.getGCPIAMClient(ctx)
+}
+
+var _ cloudClientGCP = (*cloudClientGCPImpl[iamCredentialsClient])(nil)
+
+// HandlerConfig is the configuration for an GCP app-access handler.
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
@@ -50,9 +69,8 @@ type HandlerConfig struct {
 	Log logrus.FieldLogger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
-
-	// getAccessToken is a function for getting access token, pluggable for the sake of testing.
-	getAccessToken getAccessTokenFunc
+	// cloudClientGCP holds a reference to GCP IAM client. Normally set in CheckAndSetDefaults, it is overridden in tests.
+	cloudClientGCP cloudClientGCP
 }
 
 // CheckAndSetDefaults validates the HandlerConfig.
@@ -68,34 +86,35 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = logrus.WithField(trace.Component, "azure:fwd")
+		s.Log = logrus.WithField(trace.Component, "gcp:fwd")
 	}
-	if s.getAccessToken == nil {
-		s.getAccessToken = getAccessTokenManagedIdentity
+	if s.cloudClientGCP == nil {
+		clients := cloud.NewClients()
+		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil
 }
 
-// handler is an Azure CLI proxy service handler that forwards the requests to Azure API, but updates the authorization headers
+// Forwarder is an GCP CLI proxy service that forwards the requests to GCP API, but updates the authorization headers
 // based on user identity.
 type handler struct {
 	// config is the handler configuration.
 	HandlerConfig
 
-	// fwd is used to forward requests to Azure API after the handler has rewritten them.
+	// fwd is used to forward requests to GCP API after the handler has rewritten them.
 	fwd *forward.Forwarder
 
 	// tokenCache caches access tokens.
 	tokenCache *utils.FnCache
 }
 
-// NewAzureHandler creates a new instance of a http.Handler for Azure requests.
-func NewAzureHandler(ctx context.Context, config HandlerConfig) (http.Handler, error) {
-	return newAzureHandler(ctx, config)
+// NewGCPHandler creates a new instance of a http.Handler for GCP requests.
+func NewGCPHandler(ctx context.Context, config HandlerConfig) (http.Handler, error) {
+	return newGCPHandler(ctx, config)
 }
 
-// newAzureHandler creates a new instance of a handler for Azure requests. Used by NewAzureHandler and in tests.
-func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error) {
+// newGCPHandler creates a new instance of a handler for GCP requests. Used by NewGCPHandler and in tests.
+func newGCPHandler(ctx context.Context, config HandlerConfig) (*handler, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -142,6 +161,8 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.Log.Debugf("Processing request, sessionId = %q, gcpServiceAccount = %q", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.GCPServiceAccount)
+
 	fwdRequest, err := s.prepareForwardRequest(req, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -169,8 +190,8 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 // prepareForwardRequest prepares a request for forwarding, updating headers and target host. Several checks are made along the way.
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost := r.Header.Get("X-Forwarded-Host")
-	if !azure.IsAzureEndpoint(forwardedHost) {
-		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
+	if !gcp.IsGCPEndpoint(forwardedHost) {
+		return nil, trace.AccessDenied("%q is not a GCP endpoint", forwardedHost)
 	}
 
 	payload, err := awsutils.GetAndReplaceReqBody(r)
@@ -195,22 +216,6 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 	return reqCopy, trace.Wrap(err)
 }
 
-func getPeerKey(certs []*x509.Certificate) (crypto.PublicKey, error) {
-	if len(certs) != 1 {
-		return nil, trace.BadParameter("unexpected number of peer certificates: %v", len(certs))
-	}
-
-	cert := certs[0]
-
-	pk, ok := cert.PublicKey.(crypto.PublicKey)
-	if !ok {
-		return nil, trace.BadParameter("peer cert public key not a crypto.Signer")
-	}
-
-	return pk, nil
-
-}
-
 func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
 	auth := reqCopy.Header.Get("Authorization")
 	if auth == "" {
@@ -218,84 +223,47 @@ func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.Session
 		return nil
 	}
 
-	pubKey, err := getPeerKey(r.TLS.PeerCertificates)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	claims, err := s.parseAuthHeader(auth, pubKey)
-	if err != nil {
-		return trace.Wrap(err, "failed to parse Authorization header")
-	}
-
-	s.Log.Debugf("Processing request, sessionId = %q, azureIdentity = %q, claims = %v", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.AzureIdentity, claims)
-	token, err := s.getToken(r.Context(), sessionCtx.Identity.RouteToApp.AzureIdentity, claims.Resource)
+	token, err := s.getToken(r.Context(), sessionCtx.Identity.RouteToApp.GCPServiceAccount)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Set new authorization
-	reqCopy.Header.Set("Authorization", "Bearer "+token.Token)
+	reqCopy.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	return nil
 }
 
-func (s *handler) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.AzureTokenClaims, error) {
-	before, after, found := strings.Cut(token, " ")
-	if !found {
-		return nil, trace.BadParameter("Unable to parse auth header")
-	}
-	if before != "Bearer" {
-		return nil, trace.BadParameter("Unable to parse auth header")
-	}
-
-	// Create a new key that can sign and verify tokens.
-	key, err := jwt.New(&jwt.Config{
-		Clock:       s.Clock,
-		PublicKey:   pubKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: types.TeleportAzureMSIEndpoint,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key.VerifyAzureToken(after)
-}
-
-type getAccessTokenFunc func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error)
-
-func getAccessTokenManagedIdentity(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-	identityCredential, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ResourceID(managedIdentity)})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	opts := policy.TokenRequestOptions{Scopes: []string{scope}}
-	token, err := identityCredential.GetToken(ctx, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &token, nil
-}
-
 type cacheKey struct {
-	managedIdentity string
-	scope           string
+	serviceAccount string
 }
 
 const getTokenTimeout = time.Second * 5
 
-func (s *handler) getToken(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-	key := cacheKey{managedIdentity, scope}
+// defaultScopeList is a fixed list of scopes requested for a token.
+// If needed we can extend it or make it configurable.
+// For scope documentation see: https://developers.google.com/identity/protocols/oauth2/scopes
+var defaultScopeList = []string{
+	"https://www.googleapis.com/auth/cloud-platform",
+
+	"openid",
+	"https://www.googleapis.com/auth/userinfo.email",
+	"https://www.googleapis.com/auth/appengine.admin",
+	"https://www.googleapis.com/auth/sqlservice.login",
+	"https://www.googleapis.com/auth/compute",
+}
+
+func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credentialspb.GenerateAccessTokenResponse, error) {
+	key := cacheKey{serviceAccount}
 
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var tokenResult *azcore.AccessToken
+	var tokenResult *credentialspb.GenerateAccessTokenResponse
 	var errorResult error
 
 	go func() {
-		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
-			return s.getAccessToken(ctx, managedIdentity, scope)
+		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
+			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
 		})
 		cancel()
 	}()
@@ -306,4 +274,23 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	case <-cancelCtx.Done():
 		return tokenResult, errorResult
 	}
+}
+
+func (s *handler) generateAccessToken(ctx context.Context, serviceAccount string, scopes []string) (*credentialspb.GenerateAccessTokenResponse, error) {
+	client, err := s.cloudClientGCP.GetGCPIAMClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	request := &credentialspb.GenerateAccessTokenRequest{
+		// expected format: projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}
+		Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
+		Scope: scopes,
+	}
+	accessToken, err := client.GenerateAccessToken(ctx, request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessToken, nil
 }
