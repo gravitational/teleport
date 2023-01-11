@@ -179,6 +179,8 @@ type CLIConf struct {
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
 	DaemonCertsDir string
+	// DaemonPrehogAddr is the URL where prehog events should be submitted.
+	DaemonPrehogAddr string
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -345,6 +347,11 @@ type CLIConf struct {
 	// AzureCommandArgs contains arguments that will be forwarded to Azure CLI binary.
 	AzureCommandArgs []string
 
+	// GCPServiceAccount is GCP service account name that will be used for GCP CLI access.
+	GCPServiceAccount string
+	// GCPCommandArgs contains arguments that will be forwarded to GCP CLI binary.
+	GCPCommandArgs []string
+
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
 
@@ -490,6 +497,7 @@ const (
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar     = "TELEPORT_GCLOUD_SECRET"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -621,6 +629,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
+	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
 
 	// AWS.
 	// Use Interspersed(false) to forward all flags to AWS CLI.
@@ -633,6 +642,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+
+	gcloud := app.Command("gcloud", "Access GCP API.").Interspersed(false)
+	gcloud.Arg("command", "`gcloud` command and subcommands arguments that are going to be forwarded to GCP CLI.").StringsVar(&cf.GCPCommandArgs)
+	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Alias("gcp")
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -648,6 +662,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
+	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
@@ -688,13 +703,19 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
-	proxyAWS.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
 	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
+
+	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
+	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyGcloud.Alias("gcp")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1086,6 +1107,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAWS(&cf)
 	case proxyAzure.FullCommand():
 		err = onProxyCommandAzure(&cf)
+	case proxyGcloud.FullCommand():
+		err = onProxyCommandGCloud(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1125,6 +1148,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onAWS(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
+	case gcloud.FullCommand():
+		err = onGcloud(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():
