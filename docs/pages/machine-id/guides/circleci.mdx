@@ -24,26 +24,23 @@ user you want to grant access to. In this guide, we will use `my-node` and
 - A local workstation with `tsh` access to the cluster.
 - A CircleCI project connected to a Git repository you can push to.
 
-## Step 1/4. Determine CircleCI IDs
+## Step 1/4. Configure CircleCI
 
-In order to configure the rules for which CircleCI projects will be allowed to
+In order to configure the rules for which CircleCI workflows will be allowed to
 connect to your Teleport cluster, you must determine the ID of your CircleCI
-organization and project.
+organization and create a CircleCI context.
 
-### Organization ID
+### Find your Organization ID
 
 Open CircleCI and navigate to "Organization settings" from the navbar.
 You should be presented with an interface titled "Overview" with a section
 called "Organization ID". Note this value down and substitute `$ORGANIZATION_ID`
 in configuration examples provided in this guide with that value.
 
-### Project ID
+### Create a Context
 
-Open CircleCI and select the project you wish to allow access to your Teleport
-cluster. In the top right corner click "Project settings". You should be
-presented with an interface titled "Overview" with a section called
-"Project ID". Note this value down and substitute `$PROJECT_ID` in configuration
-examples provided in this guide with that value.
+// TODO: Explain what a CircleCI context is and how to make one, named
+`teleport-access`.
 
 ## Step 2/4. Create the join token for CircleCI
 
@@ -55,7 +52,7 @@ To create a token, we can write the resource's YAML to a file on disk, and then
 use `tctl` to apply it.
 
 Create a file named `tokenconfig.yaml` and insert the following contents,
-ensuring that you replace `$ORGANIZATION_ID` and `$PROJECT_ID` with the values
+ensuring that you replace `$ORGANIZATION_ID` and `$CONTEXT_ID` with the values
 from step 1.
 
 ```yaml
@@ -71,7 +68,7 @@ spec:
   circleci:
     organization_id: $ORGANIZATION_ID
     allow:
-      - project_id: $PROJECT_ID
+      - context: $CONTEXT_ID
 ```
 
 Let's go over the token resource's fields in more detail:
@@ -181,28 +178,3 @@ directory named `circle_run_log` with a link to the build in CircleCI.
 
 For more informatiom about CircleCI itself, read
 [their documentation](https://circleci.com/docs/).
-
-### Using CircleCI contexts
-
-You can further limit which jobs within a project workflow are able to access
-your Teleport cluster using CircleCI contexts. This provides more granularity
-than granting access to an entire project which may also run third-party code as
-part of one of the jobs in a workflow.
-
-```yaml
-kind: token
-version: v2
-metadata:
-  name: circleci-token
-  expires: "2100-01-01T00:00:00Z"
-spec:
-  roles: [Bot]
-  join_method: circleci
-  bot_name: circleci-demo
-  circleci:
-    organization_id: $ORGANIZATION_ID
-    allow:
-      - context_id: $CONTEXT_ID
-```
-
-TODO: Explain this.
