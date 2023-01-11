@@ -63,7 +63,7 @@ type RotateRequest struct {
 // Types returns cert authority types requested to be rotated.
 func (r *RotateRequest) Types() []types.CertAuthType {
 	switch r.Type {
-	case "all":
+	case types.AllCAsType:
 		return types.CertAuthTypes[:]
 	case types.HostCA:
 		return []types.CertAuthType{types.HostCA}

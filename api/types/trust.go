@@ -38,10 +38,14 @@ const (
 	// certificates but rather is an authority that signs tokens, however it behaves
 	// much like a CA in terms of rotation and storage.
 	JWTSigner CertAuthType = "jwt"
+	// AllCAsType is a special type that represents all CertAuthTypes.
+	// DEPRECATED, DELETE IN 14.0.0. For more information see:
+	// https://github.com/gravitational/teleport/issues/17493
+	AllCAsType CertAuthType = "all"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner, AllCAsType}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
