@@ -409,8 +409,7 @@ func AllowWhitespace(s string) string {
 		}
 		part := EscapeControl(s[i : i+sepIdx])
 		_, _ = sb.WriteString(part)
-		sep := s[i+sepIdx : i+sepIdx+1]
-		_, _ = sb.WriteString(sep)
+		_ = sb.WriteByte(s[i+sepIdx)
 		i += sepIdx
 	}
 	return sb.String()
