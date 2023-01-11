@@ -96,11 +96,15 @@ label recommendations](https://helm.sh/docs/chart_best_practices/labels/):
 | app.kubernetes.io/managed-by | `{{ .Release.Service }}`              | It is for finding all things managed by Helm. |
 | app.kubernetes.io/instance   | `{{ .Release.Name }}`                 | It aids in differentiating between different instances of the same application. |
 | app.kubernetes.io/version    | `{{ .Chart.AppVersion }}`             | The version of the app. |
-| app.kubernetes.io/component  | `auth` or `proxy`                     | This is a common label for marking the different roles that pieces may play in an application. |
+| app.kubernetes.io/component  | Name of the main Teleport service: `auth`, `proxy`, `kube` | This describes which Teleport component is deployed. |
 
 Those labels should be applied to all deployed resources when applicable.
 This includes but does not limit to Pods, Deployments, ConfigMaps,
 Secrets and Services.
+
+Note: if multiple components are deployed in the same pod (e.g. auth and kube),
+only the main component should appear in the `app.kubernetes.io/component`.
+This avoids the label selectors to change when services are added or removed.
 
 The `app: {{.Release.Name}}` label should stay on the auth pods for
 compatibility reasons.
@@ -108,8 +112,8 @@ compatibility reasons.
 #### Monitoring
 
 A single optional
-[`ServiceMonitor`](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#servicemonitor)
-should be deployed per Helm release, selecting all release services based
+[`PodMonitor`](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#podmonitor)
+should be deployed per Helm release, selecting all pods based
 on `app.kubernetes.io/name`.
 
 #### Custom Resources
