@@ -94,7 +94,7 @@ func (c *TemplateSSHHostCert) Describe(destination bot.Destination) []FileDescri
 
 // exportSSHUserCAs generates SSH CAs.
 func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, error) {
-	var exported []string
+	var exported string
 
 	for _, ca := range cas {
 		// Don't export trusted CAs.
@@ -111,11 +111,11 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 			// remove "cert-authority "
 			s = strings.TrimPrefix(s, sshHostTrimPrefix)
 
-			exported = append(exported, s)
+			exported += s
 		}
 	}
 
-	return strings.Join(exported, "\n") + "\n", nil
+	return exported, nil
 }
 
 // Render generates SSH host cert files.

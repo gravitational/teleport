@@ -93,7 +93,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 
 	// Make and join a new bot instance.
 	const roleName = "dummy-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	role, err := types.NewRole(roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
 

@@ -123,7 +123,16 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */), nil
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDatabase(database, dbUsers, dbNames), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
