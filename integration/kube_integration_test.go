@@ -179,6 +179,11 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -348,6 +353,11 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 		Deny: types.RoleConditions{
 			KubeGroups: kubeGroups,
@@ -398,6 +408,11 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -494,6 +509,11 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -532,6 +552,11 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -745,6 +770,11 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -787,6 +817,11 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1020,6 +1055,11 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1105,6 +1145,11 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1416,6 +1461,11 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 			Logins:     []string{hostUsername},
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)

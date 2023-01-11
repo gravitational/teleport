@@ -311,6 +311,11 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubeGroups:       []string{kube.TestImpersonationGroup},
 			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	}
 	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
@@ -364,6 +369,11 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubeGroups:       []string{kube.TestImpersonationGroup},
 			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	}
 	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
