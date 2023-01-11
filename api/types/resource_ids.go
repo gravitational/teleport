@@ -51,15 +51,15 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 
 	split := strings.Split(id.SubResourceName, "/")
 	if len(split) != 2 {
-		return trace.BadParameter("resource of kind %q must follow the following format: <namespace>/<name>", id.Kind)
+		return trace.BadParameter("subresource must follow the following format: <namespace>/<name>")
 	}
 
 	if len(split[0]) == 0 {
-		return trace.BadParameter("sub_resource must include a non-empty namespace: <namespace>/<name>")
+		return trace.BadParameter("subresource must include a non-empty namespace: <namespace>/<name>")
 	}
 
 	if len(split[1]) == 0 {
-		return trace.BadParameter("sub_resource must include a non-empty name: <namespace>/<name>")
+		return trace.BadParameter("subresource must include a non-empty name: <namespace>/<name>")
 	}
 
 	return nil
@@ -79,11 +79,11 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	if len(raw) < 1 || raw[0] != '/' {
 		return ResourceID{}, trace.BadParameter("%s is not a valid ResourceID string", raw)
 	}
-	raw = strings.TrimRight(raw[1:], "/")
-	// Should be safe for any Name as long as the ClusterName, Kind and ResourceName
-	// don't contain slashes, which should never happen.
-	parts := strings.SplitN(raw, "/", 4)
-	if len(parts) < 3 {
+	raw = raw[1:]
+	// Should be safe for any Name as long as the ClusterName and Kind don't
+	// contain slashes, which should never happen.
+	parts := strings.SplitN(raw, "/", 3)
+	if len(parts) != 3 {
 		return ResourceID{}, trace.BadParameter("/%s is not a valid ResourceID string", raw)
 	}
 	resourceID := ResourceID{
@@ -91,8 +91,21 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 		Kind:        parts[1],
 		Name:        parts[2],
 	}
-	if len(parts) == 4 {
-		resourceID.SubResourceName = parts[3]
+	if !slices.Contains(KubernetesResourcesKinds, resourceID.Kind) {
+		return resourceID, trace.Wrap(resourceID.CheckAndSetDefaults())
+	}
+	// Kubernetes forbids slashes "/" in Namespaces and Pod names, so it's safe to
+	// explode the resourceID.Name and extract the last two entries as namespace
+	// and name.
+	// Teleport allows the resource names to contain slashes, so we need to join
+	// splits[:len(splits)-2] to reconstruct the resource name that contains slashes.
+	// If splits slice does not have the correct size, resourceID.CheckAndSetDefaults()
+	// will fail because, for kind=pod, it's mandatory to present a non-empty
+	// namespace and name.
+	splits := strings.Split(resourceID.Name, "/")
+	if len(splits) >= 3 {
+		resourceID.Name = strings.Join(splits[:len(splits)-2], "/")
+		resourceID.SubResourceName = strings.Join(splits[len(splits)-2:], "/")
 	}
 	return resourceID, trace.Wrap(resourceID.CheckAndSetDefaults())
 }
