@@ -682,10 +682,13 @@ func ReadNoSecrets() []string {
 	return []string{types.VerbList, types.VerbReadNoSecrets}
 }
 
-// RoleGetter is an interface that defines GetRole method
+// RoleGetter is an interface that defines the GetRole and GetAccessPolicy methods.
 type RoleGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
 }
 
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.

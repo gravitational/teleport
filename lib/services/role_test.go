@@ -4979,6 +4979,10 @@ func (m mockCurrentUserRoleGetter) GetRole(ctx context.Context, name string) (ty
 	return nil, trace.NotFound("role not found: %v", name)
 }
 
+func (m mockCurrentUserRoleGetter) GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error) {
+	return nil, trace.NotFound("policy not found: %v", name)
+}
+
 type mockCurrentUser struct {
 	types.User
 	roles  []string

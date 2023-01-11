@@ -133,6 +133,9 @@ type ReadNodeAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
 
@@ -190,6 +193,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
@@ -432,6 +438,9 @@ type ReadKubernetesAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
 
@@ -502,6 +511,9 @@ type ReadAppsAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
+
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
@@ -569,6 +581,9 @@ type ReadDatabaseAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
+
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
@@ -635,6 +650,9 @@ type ReadWindowsDesktopAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)

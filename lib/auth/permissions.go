@@ -76,6 +76,9 @@ type AuthorizerAccessPoint interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
+
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
 
