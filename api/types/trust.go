@@ -45,7 +45,7 @@ const (
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner, AllCAsType}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {

@@ -853,7 +853,7 @@ func getDatabaseServer(ctx context.Context, clientAPI auth.ClientI, dbName strin
 }
 
 func getCertAuthTypes() []string {
-	var t []string
+	t := []string{string(types.AllCAsType)}
 	for _, at := range types.CertAuthTypes {
 		t = append(t, string(at))
 	}
