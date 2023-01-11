@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "teleport/legacy/types/events/device_metadata.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -83,6 +84,10 @@ message UserMetadata {
 
   // GCPServiceAccount is the GCP service account user assumes when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+
+  // TrustedDevice contains information about the users' trusted device.
+  // Requires a registered and enrolled device to be used during authentication.
+  DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
 }
 
 // Server is a server metadata
