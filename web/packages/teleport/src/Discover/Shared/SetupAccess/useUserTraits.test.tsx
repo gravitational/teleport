@@ -17,11 +17,9 @@ limitations under the License.
 import React from 'react';
 import { renderHook, act } from '@testing-library/react-hooks';
 
-import { ContextProvider, Context as TeleportContext } from 'teleport';
 import { baseContext } from 'teleport/mocks/contexts';
-import { SessionContextProvider } from 'teleport/WebSessionContext';
 import makeUserContext from 'teleport/services/user/makeUserContext';
-import { getMockWebSession } from 'teleport/services/websession/test-utils';
+import { ContextProvider, Context as TeleportContext } from 'teleport';
 
 import { ResourceKind } from '../ResourceKind';
 
@@ -40,15 +38,11 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
   jest.spyOn(ctx.userService, 'updateUser').mockResolvedValue(null);
   jest.spyOn(ctx.userService, 'applyUserTraits').mockResolvedValue(null);
 
-  const mockWebSession = getMockWebSession();
-
   let wrapper;
 
   beforeEach(() => {
     wrapper = ({ children }) => (
-      <SessionContextProvider session={mockWebSession}>
-        <ContextProvider ctx={ctx}>{children}</ContextProvider>
-      </SessionContextProvider>
+      <ContextProvider ctx={ctx}>{children}</ContextProvider>
     );
   });
 
@@ -294,8 +288,6 @@ describe('static and dynamic traits are correctly separated and correctly create
     const ctx = createTeleportContext();
     jest.spyOn(ctx.userService, 'fetchUser').mockResolvedValue(getMockUser());
 
-    const mockWebSession = getMockWebSession();
-
     const props = {
       agentMeta: getMeta(resourceKind) as AgentMeta,
       updateAgentMeta: () => null,
@@ -304,9 +296,7 @@ describe('static and dynamic traits are correctly separated and correctly create
     };
 
     const wrapper = ({ children }) => (
-      <SessionContextProvider session={mockWebSession}>
-        <ContextProvider ctx={ctx}>{children}</ContextProvider>
-      </SessionContextProvider>
+      <ContextProvider ctx={ctx}>{children}</ContextProvider>
     );
 
     const { result, waitForNextUpdate } = renderHook(

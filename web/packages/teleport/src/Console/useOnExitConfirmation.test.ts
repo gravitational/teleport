@@ -16,18 +16,14 @@
 
 import renderHook from 'design/utils/renderHook';
 
-import { getMockWebSession } from 'teleport/services/websession/test-utils';
+import session from 'teleport/services/websession';
 
 import ConsoleContext from './consoleContext';
 import useOnExitConfirmation from './useOnExitConfirmation';
 
 test('confirmation dialog before terminating an active ssh session', () => {
   const ctx = new ConsoleContext();
-
-  const mockWebSession = getMockWebSession();
-  const { current } = renderHook(() =>
-    useOnExitConfirmation(ctx, mockWebSession)
-  );
+  const { current } = renderHook(() => useOnExitConfirmation(ctx));
   const event = new Event('beforeunload');
 
   // two prompts that can be called before closing session/window
@@ -83,7 +79,7 @@ test('confirmation dialog before terminating an active ssh session', () => {
   docTerminal.created = new Date('2019-04-01');
 
   // test that expired session does not prompt
-  jest.spyOn(mockWebSession, '_timeLeft').mockReturnValue(0);
+  jest.spyOn(session, '_timeLeft').mockReturnValue(0);
   window.dispatchEvent(event);
   expect(event.preventDefault).not.toHaveBeenCalled();
 
@@ -94,7 +90,7 @@ test('confirmation dialog before terminating an active ssh session', () => {
   expect(window.confirm).toHaveReturnedWith(false);
 
   // test aged terminal doc triggers prompt
-  jest.spyOn(mockWebSession, '_timeLeft').mockReturnValue(5);
+  jest.spyOn(session, '_timeLeft').mockReturnValue(5);
   window.dispatchEvent(event);
   expect(event.preventDefault).toHaveBeenCalledTimes(1);
 });

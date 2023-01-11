@@ -23,7 +23,7 @@ import { Danger } from 'design/Alert';
 
 import { useParams, useLocation } from 'teleport/components/Router';
 
-import useWebSession from 'teleport/useWebSession';
+import session from 'teleport/services/websession';
 import { colors } from 'teleport/Console/colors';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
@@ -38,7 +38,6 @@ import Tabs, { TabItem } from './PlayerTabs';
 export default function Player() {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
-  const webSession = useWebSession();
 
   const recordingType = getUrlParameter(
     'recordingType',
@@ -55,7 +54,7 @@ export default function Player() {
   document.title = `${clusterId} • Play ${sid}`;
 
   function onLogout() {
-    webSession.logout();
+    session.logout();
   }
 
   if (!validRecordingType) {

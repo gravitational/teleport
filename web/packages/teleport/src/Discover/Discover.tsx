@@ -27,7 +27,6 @@ import { TopBarContainer } from 'teleport/TopBar';
 import { FeatureBox } from 'teleport/components/Layout';
 import { BannerList } from 'teleport/components/BannerList';
 import cfg from 'teleport/config';
-import useWebSession from 'teleport/useWebSession';
 
 import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
 import { Sidebar } from 'teleport/Discover/Sidebar/Sidebar';
@@ -54,11 +53,10 @@ function DiscoverContent() {
     currentStep,
     selectedResource,
     onSelectResource,
+    logout,
     views,
     ...agentProps
   } = useDiscover();
-
-  const webSession = useWebSession();
 
   let content;
   // we reserve step 0 for "Select Resource Type", that is present in all resource configs
@@ -137,7 +135,7 @@ function DiscoverContent() {
                   <Text typography="h5" bold>
                     Manage Access
                   </Text>
-                  <DiscoverUserMenuNav logout={webSession.logout} />
+                  <DiscoverUserMenuNav logout={logout} />
                 </TopBarContainer>
                 <FeatureBox pt={4} maxWidth="1450px">
                   {content}

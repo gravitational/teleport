@@ -21,6 +21,7 @@ import { useLocation } from 'react-router';
 import useMain from 'teleport/Main/useMain';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
+import session from 'teleport/services/websession';
 
 import { addIndexToViews, findViewAtIndex, Resource, View } from './flow';
 
@@ -55,6 +56,7 @@ interface DiscoverContextState<T = any> {
   customBanners: React.ReactNode[];
   dismissAlert: (name: string) => void;
   initAttempt: any;
+  logout: () => void;
   nextStep: (count?: number) => void;
   prevStep: () => void;
   onSelectResource: (kind: ResourceKind) => void;
@@ -134,6 +136,10 @@ export function DiscoverProvider<T = any>(
     setAgentMeta(meta);
   }
 
+  function logout() {
+    session.logout();
+  }
+
   const value: DiscoverContextState<T> = {
     agentMeta,
     alerts: initState.alerts,
@@ -141,6 +147,7 @@ export function DiscoverProvider<T = any>(
     customBanners: initState.customBanners,
     dismissAlert: initState.dismissAlert,
     initAttempt: { status: initState.status, statusText: initState.statusText },
+    logout,
     nextStep,
     prevStep,
     onSelectResource,
