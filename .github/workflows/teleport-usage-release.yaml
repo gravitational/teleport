@@ -1,0 +1,20 @@
+name: teleport-usage-release
+on: 
+  release:
+    types: ["published"]
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/setup-buildx-action@v2
+      - uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
+          aws-region: us-west-2
+      - uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registry-type: public
