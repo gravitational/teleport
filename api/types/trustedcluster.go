@@ -22,7 +22,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -36,17 +35,10 @@ type TrustedCluster interface {
 	GetEnabled() bool
 	// SetEnabled enables (handshake and add ca+reverse tunnel) or disables TrustedCluster.
 	SetEnabled(bool)
-	// CombinedMapping is used to specify combined mapping from legacy property Roles
-	// and new property RoleMap
-	CombinedMapping() RoleMap
 	// GetRoleMap returns role map property
 	GetRoleMap() RoleMap
 	// SetRoleMap sets role map
 	SetRoleMap(m RoleMap)
-	// GetRoles returns the roles for the certificate authority.
-	GetRoles() []string
-	// SetRoles sets the roles for the certificate authority.
-	SetRoles([]string)
 	// GetToken returns the authorization and authentication token.
 	GetToken() string
 	// SetToken sets the authorization and authentication.
@@ -63,7 +55,7 @@ type TrustedCluster interface {
 	CanChangeStateTo(TrustedCluster) error
 }
 
-// NewTrustedCluster is a convenience way to create a TrustedCluster resource.
+// NewTrustedCluster is a convenient way to create a TrustedCluster resource.
 func NewTrustedCluster(name string, spec TrustedClusterSpecV2) (TrustedCluster, error) {
 	c := &TrustedClusterV2{
 		Metadata: Metadata{
@@ -90,10 +82,10 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// This is to force users to migrate
-	if len(c.Spec.Roles) != 0 && len(c.Spec.RoleMap) != 0 {
-		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	if len(c.Spec.RoleMap) == 0 {
+		return trace.BadParameter("missing 'role_map' parameter")
 	}
+
 	// Imply that by default proxy listens on the same port for
 	// web and reverse tunnel connections
 	if c.Spec.ReverseTunnelAddress == "" {
@@ -130,15 +122,6 @@ func (c *TrustedClusterV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (c *TrustedClusterV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
-}
-
-// CombinedMapping is used to specify combined mapping from legacy property Roles
-// and new property RoleMap
-func (c *TrustedClusterV2) CombinedMapping() RoleMap {
-	if len(c.Spec.Roles) != 0 {
-		return []RoleMapping{{Remote: Wildcard, Local: c.Spec.Roles}}
-	}
-	return c.Spec.RoleMap
 }
 
 // GetRoleMap returns role map property
@@ -191,16 +174,6 @@ func (c *TrustedClusterV2) SetEnabled(e bool) {
 	c.Spec.Enabled = e
 }
 
-// GetRoles returns the roles for the certificate authority.
-func (c *TrustedClusterV2) GetRoles() []string {
-	return c.Spec.Roles
-}
-
-// SetRoles sets the roles for the certificate authority.
-func (c *TrustedClusterV2) SetRoles(e []string) {
-	c.Spec.Roles = e
-}
-
 // GetToken returns the authorization and authentication token.
 func (c *TrustedClusterV2) GetToken() string {
 	return c.Spec.Token
@@ -246,9 +219,6 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if c.GetReverseTunnelAddress() != t.GetReverseTunnelAddress() {
 		return immutableFieldErr("tunnel_addr")
 	}
-	if !slices.Equal(c.GetRoles(), t.GetRoles()) {
-		return immutableFieldErr("roles")
-	}
 	if !cmp.Equal(c.GetRoleMap(), t.GetRoleMap()) {
 		return immutableFieldErr("role_map")
 	}
@@ -265,8 +235,8 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 
 // String represents a human readable version of trusted cluster settings.
 func (c *TrustedClusterV2) String() string {
-	return fmt.Sprintf("TrustedCluster(Enabled=%v,Roles=%v,Token=%v,ProxyAddress=%v,ReverseTunnelAddress=%v)",
-		c.Spec.Enabled, c.Spec.Roles, c.Spec.Token, c.Spec.ProxyAddress, c.Spec.ReverseTunnelAddress)
+	return fmt.Sprintf("TrustedCluster(Enabled=%v,ProxyAddress=%v,ReverseTunnelAddress=%v)",
+		c.Spec.Enabled, c.Spec.ProxyAddress, c.Spec.ReverseTunnelAddress)
 }
 
 // RoleMap is a list of mappings

@@ -138,7 +138,7 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 
 	// CAs with same name but different details are different
 	ca1mod := ca1.Clone()
-	ca1mod.AddRole("some-new-role")
+	ca1mod.SetRoleMap(types.RoleMap{{Local: []string{"foo"}, Remote: "bar"}})
 	require.False(t, CertAuthoritiesEquivalent(ca1, ca1mod))
 
 	// CAs that differ *only* by resource ID are equivalent

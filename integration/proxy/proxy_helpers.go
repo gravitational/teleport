@@ -365,7 +365,6 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 				DomainName: rc.Secrets.SiteName,
 			}, false)
 			require.NoError(t, err)
-			ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
 			ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
 			err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
 			require.NoError(t, err)

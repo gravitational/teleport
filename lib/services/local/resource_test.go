@@ -107,19 +107,29 @@ func TestTrustedClusterResource(t *testing.T) {
 
 	foo, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
 		Enabled:              true,
-		Roles:                []string{"bar", "baz"},
 		Token:                "qux",
 		ProxyAddress:         "quux",
 		ReverseTunnelAddress: "quuz",
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: types.Wildcard,
+				Local:  []string{"admin"},
+			},
+		},
 	})
 	require.NoError(t, err)
 
 	bar, err := types.NewTrustedCluster("bar", types.TrustedClusterSpecV2{
 		Enabled:              false,
-		Roles:                []string{"baz", "aux"},
 		Token:                "quux",
 		ProxyAddress:         "quuz",
 		ReverseTunnelAddress: "corge",
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: types.Wildcard,
+				Local:  []string{"admin"},
+			},
+		},
 	})
 	require.NoError(t, err)
 

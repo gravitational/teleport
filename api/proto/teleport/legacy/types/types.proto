@@ -951,7 +951,9 @@ message CertAuthorityV2 {
 // CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 message CertAuthoritySpecV2 {
-  reserved 3, 4, 7, 10;
+  reserved 3, 4, 5, 7, 10;
+  reserved "Roles";
+
   // Type is either user or host certificate authority
   string Type = 1 [
     (gogoproto.jsontag) = "type",
@@ -964,8 +966,6 @@ message CertAuthoritySpecV2 {
   // for host authorities that means base hostname of all servers,
   // for user authorities that means organization name
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // Roles is a list of roles assumed by users signed by this CA
-  repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
   // RoleMap specifies role mappings to remote roles
   repeated RoleMapping RoleMap = 6 [
     (gogoproto.nullable) = false,
@@ -4011,8 +4011,10 @@ message TrustedClusterSpecV2 {
   // Setting Enabled to false has a side effect of deleting the user and host certificate
   // authority (CA).
   bool Enabled = 1 [(gogoproto.jsontag) = "enabled"];
-  // Roles is a list of roles that users will be assuming when connecting to this cluster.
-  repeated string Roles = 2 [(gogoproto.jsontag) = "roles,omitempty"];
+
+  reserved 2; // repeated string Roles - deprecated in favor of RoleMap
+  reserved "Roles";
+
   // Token is the authorization token provided by another cluster needed by this cluster to join.
   string Token = 3 [(gogoproto.jsontag) = "token"];
   // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,

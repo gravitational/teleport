@@ -115,7 +115,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roleNames, err = services.MapRoles(ca.CombinedMapping(), id.Groups)
+		roleNames, err = services.MapRoles(ca.GetRoleMap(), id.Groups)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", id.Username, id.TeleportCluster, id.Groups)
 		}

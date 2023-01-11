@@ -50,20 +50,30 @@ func TestTrustedClusterCRUD(t *testing.T) {
 
 	tc, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
 		Enabled:              true,
-		Roles:                []string{"bar", "baz"},
 		Token:                "qux",
 		ProxyAddress:         "quux",
 		ReverseTunnelAddress: "quuz",
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: types.Wildcard,
+				Local:  []string{"admin"},
+			},
+		},
 	})
 	require.NoError(t, err)
 
 	// we just insert this one for get all
 	stc, err := types.NewTrustedCluster("bar", types.TrustedClusterSpecV2{
 		Enabled:              false,
-		Roles:                []string{"baz", "aux"},
 		Token:                "quux",
 		ProxyAddress:         "quuz",
 		ReverseTunnelAddress: "corge",
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: types.Wildcard,
+				Local:  []string{"admin"},
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -78,7 +88,6 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "foo", gotTC.GetName())
 	require.True(t, gotTC.GetEnabled())
-	require.EqualValues(t, []string{"bar", "baz"}, gotTC.GetRoles())
 	require.Equal(t, "qux", gotTC.GetToken())
 	require.Equal(t, "quux", gotTC.GetProxyAddress())
 	require.Equal(t, "quuz", gotTC.GetReverseTunnelAddress())

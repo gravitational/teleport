@@ -20,14 +20,11 @@ import (
 	"context"
 	"encoding/pem"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
@@ -283,16 +280,8 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
-	roles, err := services.FetchRoles(ca.GetRoles(), client, nil /* traits */)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	allowedLogins, _ := roles.GetLoginsForTTL(apidefaults.MinCertDuration + time.Second)
 	return sshutils.MarshalKnownHost(sshutils.KnownHost{
 		Hostname:      ca.GetClusterName(),
 		AuthorizedKey: keyBytes,
-		Comment: map[string][]string{
-			"logins": allowedLogins,
-		},
 	})
 }

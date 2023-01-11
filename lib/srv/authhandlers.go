@@ -593,7 +593,7 @@ func (h *AuthHandlers) fetchAccessInfo(cert *ssh.Certificate, ca types.CertAutho
 	if clusterName == ca.GetClusterName() {
 		accessInfo, err = services.AccessInfoFromLocalCertificate(cert)
 	} else {
-		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, ca.CombinedMapping())
+		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, ca.GetRoleMap())
 	}
 	return accessInfo, trace.Wrap(err)
 }

@@ -94,10 +94,7 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	if err := sshutils.ValidateSigners(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	// This is to force users to migrate
-	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
-		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
-	}
+
 	_, err := parseRoleMap(ca.GetRoleMap())
 	return trace.Wrap(err)
 }
