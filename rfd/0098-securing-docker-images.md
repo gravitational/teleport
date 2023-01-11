@@ -169,6 +169,9 @@ ENTRYPOINT ["/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport
 ```
 > **NOTE:** This unpack-and-copy installation method is only appropriate for
 > packages with no complex installation requirements, like post-inbstall hooks. 
+>
+> Also note that for the sake of clarity I'm only including one dependency package. 
+> In the real distribution there would be multiple packages required.
 
 ### Alternative builders
 
