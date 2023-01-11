@@ -280,8 +280,9 @@ func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.Clien
 		return trace.BadParameter("required flag --type not provided; previous versions defaulted to --type=all which is deprecated and will be removed in a future version")
 	}
 	if a.rotateType == "all" {
-		log.Warningln("--type=all will be deprecated in a future version")
+		fmt.Println("\033[0;31mNOTICE:\033[0m --type=all will be deprecated in a future version")
 	}
+
 	req := auth.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
