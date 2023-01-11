@@ -50,7 +50,7 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -60,10 +60,10 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var arn string
+	var awsRoleARN string
 	if app.IsAWSConsole() {
 		var err error
-		arn, err = getARNFromFlags(cf, profile, app)
+		awsRoleARN, err = getARNFromFlags(cf, profile, app)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -83,7 +83,7 @@ func onAppLogin(cf *CLIConf) error {
 		Username:      tc.Username,
 		PublicAddr:    app.GetPublicAddr(),
 		ClusterName:   tc.SiteName,
-		AWSRoleARN:    arn,
+		AWSRoleARN:    awsRoleARN,
 		AzureIdentity: azureIdentity,
 	}
 
@@ -99,7 +99,7 @@ func onAppLogin(cf *CLIConf) error {
 			SessionID:     ws.GetName(),
 			PublicAddr:    app.GetPublicAddr(),
 			ClusterName:   tc.SiteName,
-			AWSRoleARN:    arn,
+			AWSRoleARN:    awsRoleARN,
 			AzureIdentity: azureIdentity,
 		},
 		AccessRequests: profile.ActiveRequests.AccessRequests,
@@ -110,13 +110,14 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
 	if app.IsAWSConsole() {
 		return awsCliTpl.Execute(os.Stdout, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
+			"awsRoleARN": awsRoleARN,
 		})
 	}
 	if app.IsAzureCloud() {
@@ -152,7 +153,7 @@ func onAppLogin(cf *CLIConf) error {
 			"appName": app.GetName(),
 		})
 	}
-	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, arn, azureIdentity)
+	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, awsRoleARN, azureIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -187,9 +188,16 @@ Then connect to the application through this proxy.
 // awsCliTpl is the message that gets printed to a user upon successful login
 // into an AWS Console application.
 var awsCliTpl = template.Must(template.New("").Parse(
-	`Logged into AWS app {{.awsAppName}}. Example AWS CLI command:
+	`Logged into AWS app "{{.awsAppName}}".
 
+Your IAM role:
+  {{.awsRoleARN}}
+
+Example AWS CLI command:
   tsh aws {{.awsCmd}}
+
+Or start a local proxy:
+  tsh proxy aws --app {{.awsAppName}}
 `))
 
 // azureCliTpl is the message that gets printed to a user upon successful login
@@ -225,7 +233,7 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -270,7 +278,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -393,7 +401,7 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 // If logged into multiple apps, returns an error unless one was specified
 // explicitly on CLI.
 func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

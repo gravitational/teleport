@@ -492,6 +492,8 @@ message Azure {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redis,omitempty"
   ];
+  // IsFlexiServer is true if the database is an Azure Flexible server.
+  bool IsFlexiServer = 4 [(gogoproto.jsontag) = "is_flexi_server,omitempty"];
 }
 
 // AzureRedis contains Azure Cache for Redis specific database metadata.

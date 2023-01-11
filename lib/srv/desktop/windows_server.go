@@ -163,6 +163,9 @@ type WindowsServiceConfig struct {
 	Heartbeat HeartbeatConfig
 	// HostLabelsFn gets labels that should be applied to a Windows host.
 	HostLabelsFn func(host string) map[string]string
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	// LDAP functionality is disabled if Addr is empty.
 	windows.LDAPConfig
@@ -849,6 +852,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
+		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 	})
 	if err != nil {
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
@@ -1082,7 +1086,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	filters := []string{
 		fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
 		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
-		fmt.Sprintf("(%s=%s)", windows.AttrName, username),
+		fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
 	}
 
 	var activeDirectorySID string
