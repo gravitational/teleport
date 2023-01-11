@@ -125,10 +125,20 @@ sourcing them elsewhere.
 The distroless base image will be pulled and verified prior to constructing the
 Teleport image, using the `cosign` tool as described [here](https://github.com/GoogleContainerTools/distroless#how-do-i-verify-distroless-images).
 
-This will allow us to specify a floating tag for the base image (and thus
-automatically include the latest version of the base image, with any security
-fixes, etc. included) while still validating the provenance of the base image
-itself.
+Verifying the image signature will allow us to specify a floating tag for the
+base image (and thus automatically include the latest version of every package 
+in the base image, with any security fixes, etc. included) while still 
+validating the provenance of the base image itself.
+
+> **NOTE:** This approach sacrifices repeatability for convenience. That is, by
+> always grabbing the latest revision of the image we are at the mercy of the 
+> the `distroless` team regarding changes to our base layer.
+>
+> Why choose this over a stable repeatable build? Because the `distroless` build
+> system automatically follows updates to the underlying debian packages and 
+> automatically rebuilds the base image every time a PR is merged on a package 
+> in Debian. Following the floating tag means we automatically get upstream 
+> security updates. 
 
 It is technically possible for the image to be poisoned post-validation (e.g.
 in a shared build environment, where a malicious peer could re-tag a malicious
