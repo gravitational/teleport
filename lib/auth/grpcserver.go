@@ -4528,6 +4528,51 @@ func (g *GRPCServer) ListReleases(ctx context.Context, req *proto.ListReleasesRe
 	}, nil
 }
 
+func (g *GRPCServer) ListOktaGroups(ctx context.Context, req *proto.ListOktaGroupsRequest) (*proto.ListOktaGroupsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.ListOktaGroups(ctx, req)
+}
+
+func (g *GRPCServer) ListOktaApplications(ctx context.Context, req *proto.ListOktaApplicationsRequest) (*proto.ListOktaApplicationsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.ListOktaApplications(ctx, req)
+}
+
+func (g *GRPCServer) PutOktaLabelRule(ctx context.Context, req *proto.PutOktaLabelRuleRequest) (*proto.PutOktaLabelRuleResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.PutOktaLabelRule(ctx, req)
+}
+
+func (g *GRPCServer) ListOktaLabelRules(ctx context.Context, req *proto.ListOktaLabelRulesRequest) (*proto.ListOktaLabelRulesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.ListOktaLabelRules(ctx, req)
+}
+
+func (g *GRPCServer) DeleteOktaLabelRule(ctx context.Context, req *proto.DeleteOktaLabelRuleRequest) (*proto.DeleteOktaLabelRuleResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.DeleteOktaLabelRule(ctx, req)
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
@@ -4596,6 +4641,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server: server,
 	}
 	proto.RegisterAuthServiceServer(server, authServer)
+	proto.RegisterOktaIntegrationServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 
 	// create server with no-op role to pass to JoinService server

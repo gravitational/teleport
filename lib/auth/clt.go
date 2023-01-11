@@ -1349,6 +1349,26 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
 }
 
+func (c *Client) ListOktaApplications(ctx context.Context, req *proto.ListOktaApplicationsRequest) (*proto.ListOktaApplicationsResponse, error) {
+	return c.APIClient.ListOktaApplications(ctx, req)
+}
+
+func (c *Client) ListOktaGroups(ctx context.Context, req *proto.ListOktaGroupsRequest) (*proto.ListOktaGroupsResponse, error) {
+	return c.APIClient.ListOktaGroups(ctx, req)
+}
+
+func (c *Client) PutOktaLabelRule(ctx context.Context, req *proto.PutOktaLabelRuleRequest) (*proto.PutOktaLabelRuleResponse, error) {
+	return c.APIClient.PutOktaLabelRule(ctx, req)
+}
+
+func (c *Client) ListOktaLabelRules(ctx context.Context, req *proto.ListOktaLabelRulesRequest) (*proto.ListOktaLabelRulesResponse, error) {
+	return c.APIClient.ListOktaLabelRules(ctx, req)
+}
+
+func (c *Client) DeleteOktaLabelRule(ctx context.Context, req *proto.DeleteOktaLabelRuleRequest) (*proto.DeleteOktaLabelRuleResponse, error) {
+	return c.APIClient.DeleteOktaLabelRule(ctx, req)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -1691,4 +1711,10 @@ type ClientI interface {
 
 	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
+
+	ListOktaApplications(ctx context.Context, req *proto.ListOktaApplicationsRequest) (*proto.ListOktaApplicationsResponse, error)
+	ListOktaGroups(ctx context.Context, req *proto.ListOktaGroupsRequest) (*proto.ListOktaGroupsResponse, error)
+	PutOktaLabelRule(ctx context.Context, req *proto.PutOktaLabelRuleRequest) (*proto.PutOktaLabelRuleResponse, error)
+	ListOktaLabelRules(ctx context.Context, req *proto.ListOktaLabelRulesRequest) (*proto.ListOktaLabelRulesResponse, error)
+	DeleteOktaLabelRule(ctx context.Context, req *proto.DeleteOktaLabelRuleRequest) (*proto.DeleteOktaLabelRuleResponse, error)
 }

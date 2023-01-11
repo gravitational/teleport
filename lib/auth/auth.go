@@ -430,6 +430,7 @@ type Server struct {
 	oidcAuthService OIDCService
 
 	releaseService release.Client
+	oktaService    proto.OktaIntegrationServiceClient
 
 	sshca.Authority
 
@@ -534,6 +535,12 @@ func (a *Server) SetLicense(license *liblicense.License) {
 // SetReleaseService sets the release service
 func (a *Server) SetReleaseService(svc release.Client) {
 	a.releaseService = svc
+}
+
+// SetOktaService sets the Okta service
+func (a *Server) SetOktaService(svc proto.OktaIntegrationServiceClient) {
+	log.Infof("Okta service enabled")
+	a.oktaService = svc
 }
 
 // CloseContext returns the close context

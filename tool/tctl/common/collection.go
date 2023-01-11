@@ -972,3 +972,75 @@ func (c *databaseServiceCollection) WriteText(w io.Writer) error {
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
+
+type oktaAppCollection struct {
+	apps []types.OktaApplication
+}
+
+func (c *oktaAppCollection) Resources() []types.Resource {
+	var r []types.Resource
+	for _, app := range c.apps {
+		r = append(r, app)
+	}
+	return r
+}
+
+func (c *oktaAppCollection) WriteText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+
+	for _, app := range c.apps {
+		t.AddRow([]string{
+			app.GetName(),
+		})
+	}
+
+	return nil
+}
+
+type oktaGroupCollection struct {
+	groups []types.OktaGroup
+}
+
+func (c *oktaGroupCollection) Resources() []types.Resource {
+	var r []types.Resource
+	for _, group := range c.groups {
+		r = append(r, group)
+	}
+	return r
+}
+
+func (c *oktaGroupCollection) WriteText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+
+	for _, group := range c.groups {
+		t.AddRow([]string{
+			group.GetName(),
+		})
+	}
+
+	return nil
+}
+
+type oktaLabelRuleCollection struct {
+	labelRules []types.OktaLabelRule
+}
+
+func (c *oktaLabelRuleCollection) Resources() []types.Resource {
+	var r []types.Resource
+	for _, labelRule := range c.labelRules {
+		r = append(r, labelRule)
+	}
+	return r
+}
+
+func (c *oktaLabelRuleCollection) WriteText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+
+	for _, labelRule := range c.labelRules {
+		t.AddRow([]string{
+			labelRule.GetName(),
+		})
+	}
+
+	return nil
+}

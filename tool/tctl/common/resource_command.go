@@ -116,6 +116,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindNode:                    rc.createNode,
 		types.KindOIDCConnector:           rc.createOIDCConnector,
 		types.KindSAMLConnector:           rc.createSAMLConnector,
+		types.KindOktaLabelRules:          rc.createOktaLabelRules,
 	}
 	rc.config = config
 
@@ -708,6 +709,43 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	return nil
 }
 
+func (rc *ResourceCommand) createOktaLabelRules(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	// Create services.SAMLConnector from raw YAML to extract the connector name.
+	newRule, err := services.UnmarshalOktaLabelRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newRuleName := newRule.GetName()
+	resp, err := client.ListOktaLabelRules(ctx, &proto.ListOktaLabelRulesRequest{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	foundRule := false
+	for _, rule := range resp.Rules {
+		if rule.GetName() == newRuleName {
+			foundRule = true
+			break
+		}
+	}
+	if !rc.IsForced() && foundRule {
+		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", newRuleName)
+	}
+
+	if err := newRule.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.PutOktaLabelRule(ctx, &proto.PutOktaLabelRuleRequest{
+		Rule: newRule.(*types.OktaLabelRuleV1),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("okta label rule '%s' has been %s\n", newRuleName, UpsertVerb(foundRule, rc.IsForced()))
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -932,6 +970,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		} else {
 			fmt.Printf("%s has been deleted\n", rc.ref.Name)
 		}
+
+	case types.KindOktaLabelRules:
+		_, err := client.DeleteOktaLabelRule(ctx, &proto.DeleteOktaLabelRuleRequest{Name: rc.ref.Name})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s has been deleted\n", rc.ref.Name)
 
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
@@ -1470,6 +1515,89 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 
 		return &databaseServiceCollection{databaseServices: databaseServices}, nil
+	case types.KindOktaApps:
+		resourceName := rc.ref.Name
+
+		resp, err := client.ListOktaApplications(ctx, &proto.ListOktaApplicationsRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if resourceName != "" {
+			for _, app := range resp.Applications {
+				if app.GetName() == resourceName {
+					return &oktaAppCollection{
+						apps: []types.OktaApplication{app},
+					}, nil
+				}
+			}
+		}
+
+		collection := &oktaAppCollection{
+			apps: make([]types.OktaApplication, len(resp.Applications)),
+		}
+
+		for i, v := range resp.Applications {
+			collection.apps[i] = v
+		}
+
+		return collection, nil
+
+	case types.KindOktaGroups:
+		resourceName := rc.ref.Name
+
+		resp, err := client.ListOktaGroups(ctx, &proto.ListOktaGroupsRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if resourceName != "" {
+			for _, group := range resp.Groups {
+				if group.GetName() == resourceName {
+					return &oktaGroupCollection{
+						groups: []types.OktaGroup{group},
+					}, nil
+				}
+			}
+		}
+
+		collection := &oktaGroupCollection{
+			groups: make([]types.OktaGroup, len(resp.Groups)),
+		}
+
+		for i, v := range resp.Groups {
+			collection.groups[i] = v
+		}
+
+		return collection, nil
+
+	case types.KindOktaLabelRules:
+		resourceName := rc.ref.Name
+
+		resp, err := client.ListOktaLabelRules(ctx, &proto.ListOktaLabelRulesRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if resourceName != "" {
+			for _, rule := range resp.Rules {
+				if rule.GetName() == resourceName {
+					return &oktaLabelRuleCollection{
+						labelRules: []types.OktaLabelRule{rule},
+					}, nil
+				}
+			}
+		}
+
+		collection := &oktaLabelRuleCollection{
+			labelRules: make([]types.OktaLabelRule, len(resp.Rules)),
+		}
+
+		for i, v := range resp.Rules {
+			collection.labelRules[i] = v
+		}
+
+		return collection, nil
 	default:
 		// locate a getter function if it's available
 		getter, found := rc.GetHandlers[ResourceKind(rc.ref.Kind)]

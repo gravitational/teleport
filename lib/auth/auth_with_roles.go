@@ -5310,6 +5310,71 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
+func (a *ServerWithRoles) ListOktaGroups(ctx context.Context, req *proto.ListOktaGroupsRequest) (*proto.ListOktaGroupsResponse, error) {
+	if a.authServer.oktaService == nil {
+		return nil, trace.AccessDenied("okta service is not enabled")
+	}
+
+	err := a.action(apidefaults.Namespace, types.KindOktaGroups, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.oktaService.ListOktaGroups(ctx, req)
+}
+
+func (a *ServerWithRoles) ListOktaApplications(ctx context.Context, req *proto.ListOktaApplicationsRequest) (*proto.ListOktaApplicationsResponse, error) {
+	if a.authServer.oktaService == nil {
+		return nil, trace.AccessDenied("okta service is not enabled")
+	}
+
+	err := a.action(apidefaults.Namespace, types.KindOktaApps, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.oktaService.ListOktaApplications(ctx, req)
+}
+
+func (a *ServerWithRoles) PutOktaLabelRule(ctx context.Context, req *proto.PutOktaLabelRuleRequest) (*proto.PutOktaLabelRuleResponse, error) {
+	if a.authServer.oktaService == nil {
+		return nil, trace.AccessDenied("okta service is not enabled")
+	}
+
+	err := a.action(apidefaults.Namespace, types.KindOktaLabelRules, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.oktaService.PutOktaLabelRule(ctx, req)
+}
+
+func (a *ServerWithRoles) ListOktaLabelRules(ctx context.Context, req *proto.ListOktaLabelRulesRequest) (*proto.ListOktaLabelRulesResponse, error) {
+	if a.authServer.oktaService == nil {
+		return nil, trace.AccessDenied("okta service is not enabled")
+	}
+
+	err := a.action(apidefaults.Namespace, types.KindOktaLabelRules, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.oktaService.ListOktaLabelRules(ctx, req)
+}
+
+func (a *ServerWithRoles) DeleteOktaLabelRule(ctx context.Context, req *proto.DeleteOktaLabelRuleRequest) (*proto.DeleteOktaLabelRuleResponse, error) {
+	if a.authServer.oktaService == nil {
+		return nil, trace.AccessDenied("okta service is not enabled")
+	}
+
+	err := a.action(apidefaults.Namespace, types.KindOktaLabelRules, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.oktaService.DeleteOktaLabelRule(ctx, req)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {

@@ -79,6 +79,8 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
+	// oktaGrpc is the gRPC client specification for the Okta server.
+	oktaGrpc proto.OktaIntegrationServiceClient
 	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
@@ -417,6 +419,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	c.conn = conn
 	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.oktaGrpc = proto.NewOktaIntegrationServiceClient(c.conn)
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
@@ -3002,4 +3005,49 @@ func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesReques
 	}
 
 	return resp.Releases, nil
+}
+
+func (c *Client) ListOktaApplications(ctx context.Context, req *proto.ListOktaApplicationsRequest) (*proto.ListOktaApplicationsResponse, error) {
+	resp, err := c.oktaGrpc.ListOktaApplications(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) ListOktaGroups(ctx context.Context, req *proto.ListOktaGroupsRequest) (*proto.ListOktaGroupsResponse, error) {
+	resp, err := c.oktaGrpc.ListOktaGroups(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) PutOktaLabelRule(ctx context.Context, req *proto.PutOktaLabelRuleRequest) (*proto.PutOktaLabelRuleResponse, error) {
+	resp, err := c.oktaGrpc.PutOktaLabelRule(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) ListOktaLabelRules(ctx context.Context, req *proto.ListOktaLabelRulesRequest) (*proto.ListOktaLabelRulesResponse, error) {
+	resp, err := c.oktaGrpc.ListOktaLabelRules(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) DeleteOktaLabelRule(ctx context.Context, req *proto.DeleteOktaLabelRuleRequest) (*proto.DeleteOktaLabelRuleResponse, error) {
+	resp, err := c.oktaGrpc.DeleteOktaLabelRule(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
 }
