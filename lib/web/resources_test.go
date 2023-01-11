@@ -155,6 +155,11 @@ version: v6
 			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
