@@ -18,7 +18,7 @@ images we use to deliver Teleport to our customers.
 ## Why
 
 One of our shipping artifacts is are a collection of OCI images. As the
-provider of those OCI images we are (at least partialy) responsible for
+provider of those OCI images we are (at least partially) responsible for
 everything in it, not just Teleport. 
 
 We should not ship vulnerabilities to our clients, even if those 
