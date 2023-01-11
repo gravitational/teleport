@@ -164,6 +164,7 @@ type WindowsServiceConfig struct {
 	// HostLabelsFn gets labels that should be applied to a Windows host.
 	HostLabelsFn func(host string) map[string]string
 	// LDAPConfig contains parameters for connecting to an LDAP server.
+	// LDAP functionality is disabled if Addr is empty.
 	windows.LDAPConfig
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
@@ -247,7 +248,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(cfg.Heartbeat.StaticHosts) > 0 || len(cfg.DiscoveryBaseDN) > 0 {
+	if cfg.LDAPConfig.Addr != "" {
 		if err := cfg.LDAPConfig.Check(); err != nil {
 			return trace.Wrap(err)
 		}

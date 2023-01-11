@@ -1929,7 +1929,7 @@ type WindowsDesktopService struct {
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
-	LDAP LDAPConfig `yaml:"ldap,omitempty"`
+	LDAP LDAPConfig `yaml:"ldap"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static, AD-connected Windows hosts. This gives users
@@ -1945,6 +1945,7 @@ type WindowsDesktopService struct {
 	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
 }
 
+// Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
 	if len(wds.Hosts) > 0 && wds.LDAP.Addr == "" {
 		return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
