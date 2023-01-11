@@ -4252,6 +4252,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	clusterMain := "rotate-main"
 	clusterAux := "rotate-aux"
 
+	allTypes := types.CertAuthType("all")
+
 	tconf := suite.rotationConfig(false)
 	main := suite.newNamedTeleportInstance(t, clusterMain)
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
@@ -4348,7 +4350,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.CertAuthType("all"),
+		Type:        allTypes,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4383,6 +4385,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        allTypes,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4428,6 +4431,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        allTypes,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
