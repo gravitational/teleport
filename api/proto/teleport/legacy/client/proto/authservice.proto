@@ -324,6 +324,8 @@ message RouteToApp {
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
   // AzureIdentity is the Azure identity to assume when accessing Azure API.
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+  // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -706,6 +708,8 @@ message CreateAppSessionRequest {
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn"];
   // AzureIdentity is Azure identity the user wants to assume.
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity"];
+  // GCPServiceAccount is the GCP service account the user wants to assume.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.

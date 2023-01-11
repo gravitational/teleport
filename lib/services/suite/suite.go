@@ -690,7 +690,7 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 
 	role := types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:      "role1",
 			Namespace: apidefaults.Namespace,

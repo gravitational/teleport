@@ -1,0 +1,20 @@
+suite: Auth ClusterRoleBinding
+templates:
+  - auth/clusterrolebinding.yaml
+tests:
+  - it: creates a ClusterRoleBinding
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ClusterRoleBinding
+  - it: uses the provided serviceAccount name
+    values:
+      - ../.lint/service-account.yaml
+    asserts:
+      - contains:
+          path: subjects
+          any: true
+          content:
+            kind: ServiceAccount
+            name: "helm-lint"

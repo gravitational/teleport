@@ -31,12 +31,14 @@ import (
 // packages/teleport/src/services/userEvent/UserEvents/userEvents.ts
 const (
 	bannerClickEvent                = "tp.ui.banner.click"
-	getStartedClickEvent            = "tp.ui.onboard.getStarted.click"
 	setCredentialSubmitEvent        = "tp.ui.onboard.setCredential.submit"
 	registerChallengeSubmitEvent    = "tp.ui.onboard.registerChallenge.submit"
 	addFirstResourceClickEvent      = "tp.ui.onboard.addFirstResource.click"
 	addFirstResourceLaterClickEvent = "tp.ui.onboard.addFirstResourceLater.click"
 	recoveryCodesContinueClickEvent = "tp.ui.recoveryCodesContinue.click"
+	recoveryCodesCopyClickEvent     = "tp.ui.recoveryCodesCopy.click"
+	recoveryCodesPrintClickEvent    = "tp.ui.recoveryCodesPrint.click"
+	completeGoToDashboardClickEvent = "tp.ui.onboard.completeGoToDashboard.click"
 )
 
 // createPreUserEventRequest contains the event and properties associated with a user event
@@ -46,10 +48,18 @@ const (
 type createPreUserEventRequest struct {
 	// Event describes the event being capture
 	Event string `json:"event"`
-	// Alert is a banner click event property
-	Alert string `json:"alert"`
 	// Username token is set for unauthenticated event requests
 	Username string `json:"username"`
+
+	// Alert is the alert clicked via the UI banner
+	// Alert is only set for bannerClick events
+	Alert string `json:"alert"`
+	// MfaType is the type of MFA used
+	// MfaType is only set for registerChallenge events
+	MfaType string `json:"mfa_type"`
+	// LoginFlow is the login flow used
+	// LoginFlow is only set for registerChallenge events
+	LoginFlow string `json:"login_flow"`
 }
 
 // createUserEventRequest contains the event and properties associated with a user event
@@ -100,12 +110,6 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 
 	typedEvent := v1.UsageEventOneOf{}
 	switch req.Event {
-	case getStartedClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardGetStartedClick{
-			UiOnboardGetStartedClick: &v1.UIOnboardGetStartedClickEvent{
-				Username: req.Username,
-			},
-		}
 	case setCredentialSubmitEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardSetCredentialSubmit{
 			UiOnboardSetCredentialSubmit: &v1.UIOnboardSetCredentialSubmitEvent{
@@ -115,12 +119,32 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 	case registerChallengeSubmitEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardRegisterChallengeSubmit{
 			UiOnboardRegisterChallengeSubmit: &v1.UIOnboardRegisterChallengeSubmitEvent{
-				Username: req.Username,
+				Username:  req.Username,
+				MfaType:   req.MfaType,
+				LoginFlow: req.LoginFlow,
 			},
 		}
 	case recoveryCodesContinueClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
 			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
+				Username: req.Username,
+			},
+		}
+	case recoveryCodesCopyClickEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesCopyClick{
+			UiRecoveryCodesCopyClick: &v1.UIRecoveryCodesCopyClickEvent{
+				Username: req.Username,
+			},
+		}
+	case recoveryCodesPrintClickEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesPrintClick{
+			UiRecoveryCodesPrintClick: &v1.UIRecoveryCodesPrintClickEvent{
+				Username: req.Username,
+			},
+		}
+	case completeGoToDashboardClickEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick{
+			UiOnboardCompleteGoToDashboardClick: &v1.UIOnboardCompleteGoToDashboardClickEvent{
 				Username: req.Username,
 			},
 		}
