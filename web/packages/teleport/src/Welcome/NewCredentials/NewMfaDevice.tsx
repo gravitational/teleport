@@ -47,6 +47,7 @@ export function NewMfaDevice(props: Props) {
     prev,
     refCallback,
     hasTransitionEnded,
+    currFlow,
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
@@ -71,6 +72,8 @@ export function NewMfaDevice(props: Props) {
     userEventService.capturePreUserEvent({
       event: CaptureEvent.PreUserOnboardRegisterChallengeSubmitEvent,
       username: resetToken.user,
+      mfaType: mfaType.value,
+      loginFlow: currFlow,
     });
 
     if (!validator.validate()) {
@@ -270,4 +273,5 @@ type Props = CredentialsProps &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;
+    currFlow?: string;
   };

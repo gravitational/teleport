@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
@@ -24,6 +24,7 @@ import auth, {
   RecoveryCodes,
   ResetToken,
 } from 'teleport/services/auth';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 export default function useToken(tokenId: string) {
   const [resetToken, setResetToken] = useState<ResetToken>();
@@ -44,6 +45,11 @@ export default function useToken(tokenId: string) {
   }, []);
 
   function handleResponse(res: ChangedUserAuthn) {
+    userEventService.capturePreUserEvent({
+      event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
+      username: resetToken.user,
+    });
+
     if (res.privateKeyPolicyEnabled) {
       setPrivateKeyPolicyEnabled(true);
     }
