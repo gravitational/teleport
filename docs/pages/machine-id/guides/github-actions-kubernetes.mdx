@@ -182,7 +182,7 @@ jobs:
         run: kubectl get pods -A
 ```
 
-The `auth-k8s` action sets the `KUBE_CONFIG` for future steps to the credentials
+The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
 it has fetched from Teleport and this means that most existing tooling for
 Kubernetes (e.g `kubectl` and `helm`) will be configured to use your cluster
 with no additional configuration.
