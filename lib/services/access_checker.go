@@ -197,7 +197,7 @@ type AccessChecker interface {
 
 	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
 	// for a user.
-	GetKubeResources(cluster types.KubeCluster) (allowed []types.KubernetesResource, denied []types.KubernetesResource)
+	GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource)
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -312,16 +312,17 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
 // for a user.
-func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) ([]types.KubernetesResource, []types.KubernetesResource) {
-	var (
-		allowedResources []types.KubernetesResource
-		deniedResources  []types.KubernetesResource
-	)
+func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
 	if len(a.info.AllowedResourceIDs) > 0 {
 		for _, r := range a.info.AllowedResourceIDs {
 			if r.Kind == types.KindKubePod && r.Name == cluster.GetName() && r.ClusterName == a.localCluster {
 				splitted := strings.SplitN(r.SubResourceName, "/", 2)
-				allowedResources = append(allowedResources,
+				// This condition should never happen since SubResourceName is validated
+				// but it's better to validate it anw.
+				if len(splitted) != 2 {
+					continue
+				}
+				allowed = append(allowed,
 					types.KubernetesResource{
 						Kind:      r.Kind,
 						Namespace: splitted[0],
@@ -330,7 +331,9 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) ([]types.Kub
 				)
 			}
 		}
-		return allowedResources, deniedResources
+		// When the user is granted access through a resource access request,
+		// he has no denied resources, which results in the denied being an empty slice.
+		return
 	}
 
 	return a.RoleSet.GetKubeResources(cluster)

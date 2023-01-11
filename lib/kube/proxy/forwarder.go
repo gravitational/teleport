@@ -731,16 +731,10 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 // e.g. discovery methods required for initial client usage, without it,
 // restricted user's kubectl clients will not work.
 func fillDefaultKubePrincipalDetails(kubeUsers []string, kubeGroups []string, username string) ([]string, []string) {
-	// By default, if no kubernetes_users are set (which will be a majority), a
-	// user will impersonate himself, which is the backwards-compatible behavior.
 	if len(kubeUsers) == 0 {
 		kubeUsers = append(kubeUsers, username)
 	}
 
-	// KubeSystemAuthenticated is a builtin group that allows
-	// any user to access common API methods, e.g. discovery methods
-	// required for initial client usage, without it, restricted user's
-	// kubectl clients will not work
 	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
@@ -779,10 +773,12 @@ func (f *Forwarder) getKubeAccessDetails(
 		// Get list of allowed kube user/groups based on kubernetes service labels.
 		labels := types.CombineLabels(c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
 
-		matchers := make([]services.RoleMatcher, 1, 2)
+		matchers := make([]services.RoleMatcher, 0, 2)
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 		// defined for each user's role.
-		matchers[0] = services.NewKubernetesClusterLabelMatcher(labels)
+		matchers = append(matchers,
+			services.NewKubernetesClusterLabelMatcher(labels),
+		)
 
 		// If the kubeResource is available, append an extra matcher that validates
 		// if the kubernetes resource is allowed by the user roles that satisfy the
@@ -806,7 +802,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// whose role satisfy the the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
-		groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false, matchers...)
+		groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
 		if err != nil {
 			return kubeAccessDetails{}, trace.Wrap(err)
 		}
@@ -825,17 +821,17 @@ func (f *Forwarder) getKubeAccessDetails(
 	}, nil
 }
 
-// podRegex is the Pods endpoint API url.
-var podRegex = regexp.MustCompile(`(?m)/api/v1/namespaces/([^/]+)/pods/([^/]+)`)
+// podNameRegex is the Pods endpoint API url.
+var podNameRegex = regexp.MustCompile(`(?m)/api/v1/namespaces/([^/]+)/pods/([^/]+)`)
 
 // getPodResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific Pod endpoint. Otherwise, returns nil.
 // TODO(tigrato): extend it to support other resources.
 func getPodResourceFromRequest(requestURI string) *types.KubernetesResource {
-	if !podRegex.MatchString(requestURI) {
+	matches := podNameRegex.FindStringSubmatch(requestURI)
+	if matches == nil {
 		return nil
 	}
-	matches := podRegex.FindStringSubmatch(requestURI)
 	return &types.KubernetesResource{
 		Kind:      types.KindKubePod,
 		Namespace: matches[1],
@@ -867,10 +863,10 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 
 	mfaParams := actx.MFAParams(ap.GetRequireMFAType())
 
-	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
+	clusterNotFound := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeCluster)
 	var roleMatchers services.RoleMatchers
 	if actx.kubeResource != nil {
-		clusterNotFound = trace.AccessDenied("%s %q from Kubernetes cluster %q not found", actx.kubeResource.Kind, actx.kubeResource.ClusterResource(), actx.kubeCluster)
+		clusterNotFound = fmt.Sprintf("%s %q from Kubernetes cluster %q not found", actx.kubeResource.Kind, actx.kubeResource.ClusterResource(), actx.kubeCluster)
 		roleMatchers = services.RoleMatchers{
 			// Append a matcher that validates if the Kubernetes resource is allowed
 			// by the roles that satisfy the Kubernetes Cluster.
@@ -889,7 +885,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 
 		if err := actx.Checker.CheckAccess(ks, mfaParams, roleMatchers...); err != nil {
-			return clusterNotFound
+			return trace.AccessDenied(clusterNotFound)
 		}
 		// If the user has active Access requests we need to validate that they allow
 		// the kubeResource.
@@ -897,7 +893,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		if actx.kubeResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
 			kubeResources := getKubeResourcesFromAllowedRequestIds(ks, actx.Checker.GetAllowedResourceIDs())
 			if err := matchKubernetesResource(*actx.kubeResource, kubeResources, nil /*denied branch is empty*/); err != nil {
-				return clusterNotFound
+				return trace.AccessDenied(clusterNotFound)
 			}
 		}
 		// store a copy of the Kubernetes Cluster.
@@ -908,7 +904,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster,")
 		return nil
 	}
-	return clusterNotFound
+	return trace.AccessDenied(clusterNotFound)
 }
 
 func getKubeResourcesFromAllowedRequestIds(ks types.KubeCluster, resourceIDs []types.ResourceID) []types.KubernetesResource {
@@ -936,7 +932,7 @@ func getKubeResourcesFromAllowedRequestIds(ks types.KubeCluster, resourceIDs []t
 // entry from the deny list and matches at least of entry from the allowed list.
 func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
-	//  to each entry and validates if the Name and Namespace fields matches the
+	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
 	result, err := utils.KubeResourceMatchesRegex(resource, denied)
 	if err != nil {
@@ -1617,26 +1613,30 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
 func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers http.Header) error {
+	if ctx.teleportCluster.isRemote {
+		return nil
+	}
+
 	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(log, ctx.kubeUsers, ctx.kubeGroups, headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !ctx.teleportCluster.isRemote {
-		headers.Set(ImpersonateUserHeader, impersonateUser)
 
-		// Make sure to overwrite the exiting headers, instead of appending to
-		// them.
-		headers[ImpersonateGroupHeader] = nil
-		for _, group := range impersonateGroups {
-			headers.Add(ImpersonateGroupHeader, group)
-		}
+	headers.Set(ImpersonateUserHeader, impersonateUser)
+
+	// Make sure to overwrite the exiting headers, instead of appending to
+	// them.
+	headers[ImpersonateGroupHeader] = nil
+	for _, group := range impersonateGroups {
+		headers.Add(ImpersonateGroupHeader, group)
 	}
+
 	return nil
 }
 
 // computeImpersonatedPrincipals computes the intersection between the information
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
-// allowed values. If the user didn't specify any user and groups to impersoante,
+// allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
 func computeImpersonatedPrincipals(log logrus.FieldLogger, kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
 	var impersonateUser string
@@ -2434,9 +2434,9 @@ func (f *Forwarder) listPodsList(req *http.Request, w http.ResponseWriter, sess 
 
 // listPodsWatcher handles a long lived connection to the upstream server where
 // the Kubernetes API returns frames with events.
-// This handler creates a WatcherResponseWriter that spins a new go routine once
+// This handler creates a WatcherResponseWriter that spins a new goroutine once
 // the API server writes the status code and headers.
-// The go routine waits for new events written into the response body and
+// The goroutine waits for new events written into the response body and
 // decodes each event. Once decoded, we validate if the Pod name matches
 // any Pod specified in `kubernetes_resources` and if included, the event is
 // forwarded to the user's response writer.

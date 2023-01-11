@@ -145,7 +145,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			matches: true,
 		},
 		{
-			name: "input matches regex expression",
+			name: "input has no matchers",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "default",

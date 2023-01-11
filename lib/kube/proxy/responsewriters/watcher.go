@@ -16,7 +16,6 @@ package responsewriters
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -36,7 +35,7 @@ const (
 )
 
 // WatcherResponseWriter satisfies the http.ResponseWriter interface and
-// once the server writes the headers and response code spins a go routine
+// once the server writes the headers and response code spins a goroutine
 // that parses each event frame, decodes it and analyzes if the user
 // is allowed to receive the events for that pod.
 // If the user is not allowed, the event is ignored.
@@ -61,9 +60,9 @@ type WatcherResponseWriter struct {
 	filter FilterWrapper
 }
 
-// NewWatcherResponseWriter creates aWatcherResponseWriter that satisfies the
+// NewWatcherResponseWriter creates a WatcherResponseWriter that satisfies the
 // http.ResponseWriter interface and once the server writes the headers and
-// response code spins a go routine that parses each event frame, decodes it
+// response code spins a goroutine that parses each event frame, decodes it
 // and analyzes if the user is allowed to receive the events for that pod.
 // If the user is not allowed, the event is ignored.
 // If allowed, the event is encoded into the user's response.
@@ -109,7 +108,7 @@ func (w *WatcherResponseWriter) WriteHeader(code int) {
 				_, err := io.Copy(w.target, w.pipeReader)
 				return trace.Wrap(err)
 			default:
-				err := w.watchDecoder(contentType, w.pipeReader, w.target)
+				err := w.watchDecoder(contentType, w.target, w.pipeReader)
 				return trace.Wrap(err)
 			}
 		},
@@ -151,7 +150,7 @@ func (w *WatcherResponseWriter) Flush() {
 // watchDecoder waits for events written into w.pipeWriter and decodes them.
 // Once decoded, it checks if the user is allowed to watch the events for that pod
 // and ignores or forwards them downstream depending on the result.
-func (w *WatcherResponseWriter) watchDecoder(contentType string, reader io.ReadCloser, writer io.Writer) error {
+func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Writer, reader io.ReadCloser) error {
 	// parse mime type.
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -230,12 +229,14 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, reader io.ReadC
 
 // Decode blocks until it can return the next object in the reader. Returns an error
 // if the reader is closed or an object can't be decoded.
+// decodeStreamingMessage blocks until it can return the next object in the reader.
+// Returns an error if the reader is closed or an object can't be decoded.
 func (w *WatcherResponseWriter) decodeStreamingMessage(
 	streamDecoder streaming.Decoder,
-	embeededEncoder runtime.Decoder,
+	embeddedEncoder runtime.Decoder,
 ) (watch.EventType, runtime.Object, error) {
-	var got metav1.WatchEvent
-	res, gvk, err := streamDecoder.Decode(nil, &got)
+	var event metav1.WatchEvent
+	res, gvk, err := streamDecoder.Decode(nil, &event)
 	if err != nil {
 		return "", nil, err
 	}
@@ -246,18 +247,18 @@ func (w *WatcherResponseWriter) decodeStreamingMessage(
 	case *metav1.Status:
 		return "", res, nil
 	default:
-		switch watch.EventType(got.Type) {
+		switch watch.EventType(event.Type) {
 		case watch.Added, watch.Modified, watch.Deleted, watch.Error, watch.Bookmark:
 		default:
-			return "", nil, fmt.Errorf("got invalid watch event type: %v", got.Type)
+			return "", nil, trace.BadParameter("got invalid watch event type: %v", event.Type)
 		}
-		obj, gvk, err := embeededEncoder.Decode(got.Object.Raw, nil, nil)
+		obj, gvk, err := embeddedEncoder.Decode(event.Object.Raw, nil /* defaults */, nil /* into */)
 		if err != nil {
 			return "", nil, trace.Wrap(err)
 		}
 		if gvk != nil {
 			obj.GetObjectKind().SetGroupVersionKind(*gvk)
 		}
-		return watch.EventType(got.Type), obj, nil
+		return watch.EventType(event.Type), obj, nil
 	}
 }

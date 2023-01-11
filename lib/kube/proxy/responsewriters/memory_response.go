@@ -82,11 +82,11 @@ func (f *MemoryResponseWriter) FilterInto(w http.ResponseWriter) error {
 	b := f.buf.Bytes()
 
 	if f.filter != nil {
-		// create the
 		filter, err := f.filter(GetContentHeader(f.header), f.Status())
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		w.WriteHeader(f.Status())
 		err = filter.FilterBuffer(b, w)
 		if err != nil {
 			return trace.Wrap(err)
@@ -94,16 +94,14 @@ func (f *MemoryResponseWriter) FilterInto(w http.ResponseWriter) error {
 		if flusher, ok := w.(http.Flusher); ok {
 			flusher.Flush()
 		}
-		w.WriteHeader(f.Status())
+
 		return nil
 	}
-
+	w.WriteHeader(f.Status())
 	_, err := w.Write(b)
 	if flusher, ok := w.(http.Flusher); ok {
 		flusher.Flush()
 	}
-
-	w.WriteHeader(f.Status())
 
 	return trace.Wrap(err)
 }
