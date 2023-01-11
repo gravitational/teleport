@@ -158,8 +158,17 @@ spec:
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
           timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
-{{- if .Values.postStart.command }}
         lifecycle:
+          # waiting during preStop ensures no new request will hit the Terminating pod
+          # on clusters using kube-proxy (kube-proxy syncs the node iptables rules every 30s)
+          preStop:
+            exec:
+              command:
+                - teleport
+                - wait
+                - duration
+                - 30s
+{{- if .Values.postStart.command }}
           postStart:
             exec:
               command: {{ toYaml .Values.postStart.command | nindent 14 }}
@@ -264,3 +273,4 @@ spec:
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}

@@ -1,5 +1,12 @@
 should provision initContainer correctly when set in values:
   1: |
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v11.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      name: wait-auth-update
     - args:
       - echo test
       image: alpine
@@ -68,6 +75,14 @@ should set resources when set in values:
       - --diag-addr=0.0.0.0:3000
       image: public.ecr.aws/gravitational/teleport:12.0.0-dev
       imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - teleport
+            - wait
+            - duration
+            - 30s
       livenessProbe:
         failureThreshold: 6
         httpGet:
@@ -102,7 +117,16 @@ should set resources when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    initContainers:
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v11.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      name: wait-auth-update
     serviceAccountName: RELEASE-NAME-proxy
+    terminationGracePeriodSeconds: 60
     volumes:
     - configMap:
         name: RELEASE-NAME-proxy
@@ -118,6 +142,14 @@ should set securityContext when set in values:
       - --diag-addr=0.0.0.0:3000
       image: public.ecr.aws/gravitational/teleport:12.0.0-dev
       imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - teleport
+            - wait
+            - duration
+            - 30s
       livenessProbe:
         failureThreshold: 6
         httpGet:
@@ -152,7 +184,16 @@ should set securityContext when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    initContainers:
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v11.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      name: wait-auth-update
     serviceAccountName: RELEASE-NAME-proxy
+    terminationGracePeriodSeconds: 60
     volumes:
     - configMap:
         name: RELEASE-NAME-proxy
