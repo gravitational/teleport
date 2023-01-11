@@ -43,7 +43,7 @@ const (
 
 	// maxBatchAge is the maximum age a batch may reach before
 	// being flushed, regardless of the batch size
-	maxBatchAge = time.Minute * 30
+	maxBatchAge = time.Hour
 
 	// maxBufferSize is the maximum size to which the event buffer
 	// may grow. Events submitted once this limit is reached will be discarded.
