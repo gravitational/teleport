@@ -545,11 +545,7 @@ func (s *session) launch() error {
 			SessionID: s.id.String(),
 			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         s.ctx.User.GetName(),
-			Login:        s.ctx.User.GetName(),
-			Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-		},
+		UserMetadata: s.ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
@@ -653,11 +649,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 					SessionID: s.id.String(),
 					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         s.ctx.User.GetName(),
-					Login:        s.ctx.User.GetName(),
-					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
@@ -883,11 +875,7 @@ func (s *session) join(p *party) error {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: s.id.String(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         p.Ctx.User.GetName(),
-			Login:        "root",
-			Impersonator: p.Ctx.Identity.GetIdentity().Impersonator,
-		},
+		UserMetadata: p.Ctx.eventUserMetaWithLogin("root"),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
@@ -1011,11 +999,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: s.id.String(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         party.Ctx.User.GetName(),
-			Login:        "root",
-			Impersonator: party.Ctx.Identity.GetIdentity().Impersonator,
-		},
+		UserMetadata: party.Ctx.eventUserMetaWithLogin("root"),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
