@@ -137,10 +137,9 @@ func TestResourceIDs(t *testing.T) {
 		{
 			desc: "pod resource name with missing namespace and pod name",
 			in: []ResourceID{{
-				ClusterName:     "one",
-				Kind:            KindKubePod,
-				Name:            "cluster",
-				SubResourceName: "",
+				ClusterName: "one",
+				Kind:        KindKubePod,
+				Name:        "cluster",
 			}},
 			expected:         `["/one/pod/cluster"]`,
 			expectParseError: true,

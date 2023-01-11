@@ -2032,7 +2032,7 @@ message ResourceID {
   // When granting access to a subresource, access to other resources is limited.
   // Currently it just supports resources of Kind=pod and the format is the following
   // "<kube_namespace>/<kube_pod>".
-  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource"];
+  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // PluginData stores a collection of values associated with a specific resource.

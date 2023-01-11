@@ -86,8 +86,13 @@ type RegexpConfig struct {
 	IgnoreCase bool
 }
 
-// KubeResourceMatchesRegex checks if input matches any of the expressions. The
-// match is always evaluated as a regex either an exact match or regexp.
+// KubeResourceMatchesRegex checks whether the input matches any of the given
+// expressions.
+// This function returns as soon as it finds the first match or when matchString
+// returns an error.
+// This function supports regex expressions in the Name and Namespace fields,
+// but not for the Kind field.
+// The wildcard (*) expansion is also supported.
 func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
 	for _, resource := range resources {
 		// TODO(tigrato): evaluate if we should support wildcards as well
@@ -95,16 +100,14 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 		if input.Kind != resource.Kind {
 			continue
 		}
-		resultName, err := matchString(input.Name, resource.Name)
-		if err != nil {
+		switch ok, err := matchString(input.Name, resource.Name); {
+		case err != nil:
 			return false, trace.Wrap(err)
+		case !ok:
+			continue
 		}
-		resultNamespace, err := matchString(input.Namespace, resource.Namespace)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		if resultNamespace && resultName {
-			return true, nil
+		if ok, err := matchString(input.Namespace, resource.Namespace); err != nil || ok {
+			return ok, trace.Wrap(err)
 		}
 	}
 
@@ -140,10 +143,7 @@ func matchString(input, expression string) (bool, error) {
 	// Since the expression is always surrounded by ^ and $ this is an exact
 	// match for either a a plain string (for example ^hello$) or for a regexp
 	// (for example ^hel*o$).
-	if expr.MatchString(input) {
-		return true, nil
-	}
-	return false, nil
+	return expr.MatchString(input), nil
 }
 
 var (
