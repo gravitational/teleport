@@ -1,4 +1,5 @@
 import React from 'react';
+import session from 'teleport/services/websession';
 import {
   ButtonPrimary,
   ButtonSecondary,
@@ -7,13 +8,13 @@ import {
   Alert,
   Box,
 } from 'design';
+
 import Dialog, {
   DialogHeader,
   DialogTitle,
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
-import useWebSession from 'teleport/useWebSession';
 
 import useRequestReason, { Props } from './useRequestReason';
 
@@ -24,7 +25,6 @@ export default function Container({ onCreateRequest, prompt }: Props) {
 }
 
 export function RequestReason(props: ReturnType<typeof useRequestReason>) {
-  const webSession = useWebSession();
   const { attempt, reason, setReason, createRequest, prompt } = props;
   const requestPrompt = prompt
     ? prompt
@@ -62,7 +62,7 @@ export function RequestReason(props: ReturnType<typeof useRequestReason>) {
         >
           Send Request
         </ButtonPrimary>
-        <ButtonSecondary onClick={() => webSession.logout()}>
+        <ButtonSecondary onClick={() => session.logout()}>
           Cancel & Logout
         </ButtonSecondary>
       </DialogFooter>

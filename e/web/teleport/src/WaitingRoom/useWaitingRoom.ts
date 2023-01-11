@@ -3,14 +3,12 @@ import useAttempt from 'shared/hooks/useAttempt';
 import historyService from 'teleport/services/history';
 import { UserContext } from 'teleport/services/user';
 import cfg from 'teleport/config';
-import useWebSession from 'teleport/useWebSession';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
 
 export default function useWaitingRoom(ctx: TeleportContextE) {
-  const webSession = useWebSession();
   const workflowService = ctx.workflowService;
   const userService = ctx.userService;
   const accessRequest = ctx.storeAccessRequests.getWaitingRoom();
@@ -72,7 +70,7 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
   function updateState(result: AccessRequest) {
     if (result.state === 'APPROVED') {
       return workflowService
-        .applyPermission({ requestId: result.id }, webSession)
+        .applyPermission({ requestId: result.id })
         .then(expires => {
           ctx.storeAccessRequests.setApprovedWaitingRoom(result, expires);
           historyService.reload();

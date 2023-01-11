@@ -5,8 +5,6 @@ import { ContextProvider } from 'teleport';
 import { makeUserContext } from 'teleport/services/user';
 import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import historyService from 'teleport/services/history';
-import { SessionContextProvider } from 'teleport/WebSessionContext';
-import { getMockWebSession } from 'teleport/services/websession/test-utils';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { makeAccessRequest } from 'e-teleport/services/workflow';
@@ -29,15 +27,11 @@ describe('access strategy behavioral testing', () => {
   const storeAccessRequests = ctx.storeAccessRequests;
   let Component;
 
-  const mockWebSession = getMockWebSession();
-
   beforeEach(() => {
     Component = (
-      <SessionContextProvider session={mockWebSession}>
-        <ContextProvider ctx={ctx}>
-          <WaitingRoom checkerInterval={0} children={<>hello</>} />
-        </ContextProvider>
-      </SessionContextProvider>
+      <ContextProvider ctx={ctx}>
+        <WaitingRoom checkerInterval={0} children={<>hello</>} />
+      </ContextProvider>
     );
     jest.resetAllMocks();
     jest.spyOn(console, 'error').mockImplementation();

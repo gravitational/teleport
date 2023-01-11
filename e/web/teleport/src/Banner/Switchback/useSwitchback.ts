@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { intervalToDuration, differenceInMilliseconds } from 'date-fns';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import useWebSession from 'teleport/useWebSession';
+import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
 
 import TeleportContext from 'e-teleport/teleportContextE';
 
 export default function useSwitchback(ctx: TeleportContext) {
-  const webSession = useWebSession();
   const { attempt, setAttempt } = useAttempt();
   const [time, setTime] = useState<Time>({ hours: 0, minutes: 0, seconds: 0 });
   const [btnSetting, setBtnSetting] = useState<BtnSetting>({
@@ -28,7 +27,7 @@ export default function useSwitchback(ctx: TeleportContext) {
     if (ctx.storeAccessRequests.getWaitingRoom().state === 'APPLIED') {
       setBtnSetting({
         text: 'Logout',
-        func: () => webSession.logout(),
+        func: () => session.logout(),
       });
     }
 
@@ -56,7 +55,7 @@ export default function useSwitchback(ctx: TeleportContext) {
     const duration = intervalToDuration({ start, end });
 
     if (differenceInMilliseconds(end, start) <= 0) {
-      webSession.logout();
+      session.logout();
     }
 
     setTime({
@@ -69,7 +68,7 @@ export default function useSwitchback(ctx: TeleportContext) {
   function onSwitchBack() {
     setAttempt({ status: 'processing' });
     ctx.workflowService
-      .applyPermission({ switchback: true }, webSession)
+      .applyPermission({ switchback: true })
       .then(() => {
         ctx.storeAccessRequests.clearAssumes();
         history.reload();

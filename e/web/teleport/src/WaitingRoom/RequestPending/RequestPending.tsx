@@ -1,13 +1,11 @@
 import React from 'react';
 import styled from 'styled-components';
+import session from 'teleport/services/websession';
 import { Text, ButtonLink, Flex } from 'design';
 import { ShieldCheck } from 'design/Icon';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
-import useWebSession from 'teleport/useWebSession';
 
 export default function RequestPending() {
-  const webSession = useWebSession();
-
   return (
     <Dialog
       dialogCss={() => ({
@@ -31,7 +29,7 @@ export default function RequestPending() {
         <Text>One moment...</Text>
       </DialogContent>
       <DialogFooter>
-        <ButtonLink onClick={() => webSession.logout()}>
+        <ButtonLink onClick={() => session.logout()}>
           Logout of Account
         </ButtonLink>
       </DialogFooter>

@@ -1,7 +1,5 @@
 import React from 'react';
 
-import { SessionWrapper } from '../WaitingRoom.story';
-
 import RequestDenied from './RequestDenied';
 
 export default {
@@ -9,19 +7,11 @@ export default {
 };
 
 export const WithReason = () => {
-  return (
-    <SessionWrapper>
-      <RequestDenied {...sample} />
-    </SessionWrapper>
-  );
+  return <RequestDenied {...sample} />;
 };
 
 export const WithoutReason = () => {
-  return (
-    <SessionWrapper>
-      <RequestDenied {...sample} reason={''} />
-    </SessionWrapper>
-  );
+  return <RequestDenied {...sample} reason={''} />;
 };
 
 const sample = {

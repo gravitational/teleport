@@ -1,7 +1,5 @@
 import React from 'react';
 
-import { SessionWrapper } from '../WaitingRoom.story';
-
 import { RequestReason } from './RequestReason';
 
 export default {
@@ -9,11 +7,7 @@ export default {
 };
 
 export const Loaded = () => {
-  return (
-    <SessionWrapper>
-      <RequestReason {...sample} />
-    </SessionWrapper>
-  );
+  return <RequestReason {...sample} />;
 };
 
 export const Processing = () => {
@@ -23,11 +17,7 @@ export const Processing = () => {
     isSuccess: false,
     message: '',
   };
-  return (
-    <SessionWrapper>
-      <RequestReason {...sample} attempt={attempt} />
-    </SessionWrapper>
-  );
+  return <RequestReason {...sample} attempt={attempt} />;
 };
 
 export const Failed = () => {
@@ -38,21 +28,15 @@ export const Failed = () => {
     message: 'some error message',
   };
 
-  return (
-    <SessionWrapper>
-      <RequestReason {...sample} attempt={attempt} />
-    </SessionWrapper>
-  );
+  return <RequestReason {...sample} attempt={attempt} />;
 };
 
 export const LoadedWithPrompt = () => {
   return (
-    <SessionWrapper>
-      <RequestReason
-        {...sample}
-        prompt={'Some custom prompt set by administrator'}
-      />
-    </SessionWrapper>
+    <RequestReason
+      {...sample}
+      prompt={'Some custom prompt set by administrator'}
+    />
   );
 };
 

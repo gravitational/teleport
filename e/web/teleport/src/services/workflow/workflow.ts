@@ -1,5 +1,5 @@
 import api from 'teleport/services/api';
-import { WebSession, RenewSessionRequest } from 'teleport/services/websession';
+import session, { RenewSessionRequest } from 'teleport/services/websession';
 
 import cfg from 'e-teleport/config';
 
@@ -44,7 +44,7 @@ class WorkflowService {
     return api.delete(cfg.getAccessRequestUrl(requestId));
   }
 
-  applyPermission(req: RenewSessionRequest, session: WebSession) {
+  applyPermission(req: RenewSessionRequest) {
     return session.renewSession(req);
   }
 }

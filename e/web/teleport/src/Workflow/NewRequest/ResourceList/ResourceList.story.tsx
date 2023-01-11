@@ -97,10 +97,10 @@ const dbs: Database[] = [
   {
     name: 'aurora',
     description: 'PostgreSQL 11.6: AWS Aurora ',
+    hostname: 'aurora-hostname',
     type: 'RDS PostgreSQL',
     protocol: 'postgres',
     labels: [{ name: 'cluster', value: 'root' }],
-    hostname: 'aurora-hostname',
   },
 ];
 

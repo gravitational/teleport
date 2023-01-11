@@ -1,4 +1,5 @@
 import React from 'react';
+import session from 'teleport/services/websession';
 import { ButtonSecondary, Text, Alert } from 'design';
 import Dialog, {
   DialogHeader,
@@ -6,11 +7,8 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
-import useWebSession from 'teleport/useWebSession';
 
 export default function RequestError({ err }: Props) {
-  const webSession = useWebSession();
-
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -24,7 +22,7 @@ export default function RequestError({ err }: Props) {
         <Text mb={3}>Please try again by refreshing page.</Text>
       </DialogContent>
       <DialogFooter>
-        <ButtonSecondary onClick={() => webSession.logout()}>
+        <ButtonSecondary onClick={() => session.logout()}>
           {`Cancel & Logout`}
         </ButtonSecondary>
       </DialogFooter>
