@@ -204,8 +204,8 @@ the Teleport image.
 
    Using `bazel` does not resolve a major limitation of using a basic 
    `Dockerfile` (i.e. the `xcopy` style install) and introduces more complexity, in 
-   terms of both build process tooling and  process, so was rejected in favour of 
-   the `Dockerfile` approach.
+   terms of both build process and tooling, so was rejected in favour of the 
+   `Dockerfile` approach.
 
  * **[apko](https://github.com/chainguard-dev/apko)**: Apko is a tool for quickly 
    building minimalist, reproducible Alpine linux images, using a declarative 
