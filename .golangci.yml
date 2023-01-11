@@ -14,7 +14,6 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - deadcode
     - depguard
     - goimports
     - gosimple
@@ -23,10 +22,8 @@ linters:
     - misspell
     - revive
     - staticcheck
-    - structcheck
     - unused
     - unconvert
-    - varcheck
 
 linters-settings:
   depguard:
