@@ -171,6 +171,13 @@ type Role interface {
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
 
+	// GetOktaabels gets the Okta labels this role
+	// is allowed or denied access to.
+	GetOktaLabels(RoleConditionType) Labels
+	// SetOktaLabels sets the Okta labels this role
+	// is allowed or denied access to.
+	SetOktaLabels(RoleConditionType, Labels)
+
 	// GetSearchAsRoles returns the list of extra roles which should apply to a
 	// user while they are searching for resources as part of a Resource Access
 	// Request, and defines the underlying roles which will be requested as part
@@ -904,6 +911,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.KubernetesLabels,
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
+		r.Spec.Allow.OktaLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -1316,6 +1324,25 @@ func (r *RoleV6) GetSessionPolicySet() SessionTrackerPolicySet {
 		Name:               r.Metadata.Name,
 		Version:            r.Version,
 		RequireSessionJoin: r.Spec.Allow.RequireSessionJoin,
+	}
+}
+
+// GetOktaabels gets the Okta labels this role
+// is allowed or denied access to.
+func (r *RoleV6) GetOktaLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.OktaLabels
+	}
+	return r.Spec.Deny.OktaLabels
+}
+
+// SetOktaLabels sets the Okta labels this role
+// is allowed or denied access to.
+func (r *RoleV6) SetOktaLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.OktaLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.OktaLabels = labels.Clone()
 	}
 }
 

@@ -601,6 +601,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
+					OktaLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindAppServer, services.RW()),
@@ -683,6 +684,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					OktaLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 					},

@@ -2444,6 +2444,13 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_resources,omitempty"
   ];
+
+  // OktaLabels are used in the RBAC system to allow/deny access to Okta resources.
+  wrappers.LabelValues OktaLabels = 25 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "okta_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.

@@ -390,6 +390,15 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetWindowsDesktopLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		// apply templates to Okta labels
+		inLabels = r.GetOktaLabels(condition)
+		if inLabels != nil {
+			log.Infof("In labels: %v", inLabels)
+			applyLabels := applyLabelsTraits(inLabels, traits)
+			log.Infof("Apply labels: %v", inLabels)
+			r.SetOktaLabels(condition, applyLabels)
+		}
+
 		r.SetHostGroups(condition,
 			applyValueTraitsSlice(r.GetHostGroups(condition), traits, "host_groups"))
 
@@ -2124,6 +2133,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		additionalDeniedMessage = "Confirm Windows user."
 	case types.KindWindowsDesktopService:
 		getRoleLabels = types.Role.GetWindowsDesktopLabels
+	case types.KindOktaApps:
+		getRoleLabels = types.Role.GetOktaLabels
+		additionalDeniedMessage = "Confirm Okta app labels."
+	case types.KindOktaGroups:
+		getRoleLabels = types.Role.GetOktaLabels
+		additionalDeniedMessage = "Confirm Okta group labels."
 	default:
 		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}
@@ -2160,6 +2175,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		}
 	}
 
+	log := log.WithField(trace.Component, teleport.ComponentRBAC)
+
 	var errs []error
 	allowed := false
 	// Check allow rules.
@@ -2173,7 +2190,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			continue
 		}
 
-		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Allow), allLabels)
+		log.Infof("Match namespace is fine")
+		roleLabels := getRoleLabels(role, types.Allow)
+
+		log.Infof("Found role %s role labels: %v", role.GetName(), roleLabels)
+
+		matchLabels, labelsMessage, err := MatchLabels(roleLabels, allLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2186,6 +2208,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			}
 			continue
 		}
+
+		log.Infof("Match labels is fine")
 
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
@@ -2201,17 +2225,23 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			continue
 		}
 
+		log.Infof("Match matchers is fine")
+
 		// if we've reached this point, namespace, labels, and matchers all match.
 		// if MFA is verified or never required, we're done.
 		if mfa.Verified || mfa.Required == MFARequiredNever {
+			log.Infof("MFA already verified or not required")
 			return nil
 		}
+
 		// if MFA is not verified and we require session MFA, deny access
 		if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
 		}
+
+		log.Infof("MFA checked fine")
 
 		// Check all remaining roles, even if we found a match.
 		// RequireSessionMFA should be enforced when at least one role has
@@ -2226,7 +2256,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+	log.Infof("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
+	return trace.AccessDenied("access to %v denied, none matched. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
 }
 
