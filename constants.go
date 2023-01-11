@@ -575,6 +575,10 @@ const (
 	// Azure identities for local accounts.
 	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
 
+	// TraitInternalGCPServiceAccounts is the variable used to store allowed
+	// GCP service accounts for local accounts.
+	TraitInternalGCPServiceAccounts = "{{internal.gcp_service_accounts}}"
+
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
