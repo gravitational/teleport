@@ -72,13 +72,19 @@ $ teleport db start \
 <TabItem label="Configuration file">
 
 On the node where you will run the Teleport Database Service, run
-`teleport db start` with the following in `/etc/teleport.yaml`:
+`teleport start` with the following in `/etc/teleport.yaml`:
 
 ```yaml
 teleport:
   auth_token: "/tmp/token"
   auth_servers:
   - "teleport.example.com:443"
+
+# disable services that are on by default
+ssh_service: { enabled: no }
+proxy_service: { enabled: no }
+auth_service: { enabled: no }
+
 db_service:
   enabled: "yes"
   databases:
