@@ -716,6 +716,12 @@ proxy_service:
     - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
       cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
+    # Interval between attempts to reload the certificate key pairs.
+    # If one of the key pairs fails to load, then no key pair is reloaded.
+    # If set to 0 (the default), then periodic reloading is disabled.
+    # To use this feature correctly, certificate files should be updated atomically.
+    https_keypairs_reload_interval: 1h
+
     # Kubernetes proxy listen address.
     #
     # If not set, behavior depends on the config file version:

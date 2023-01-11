@@ -149,6 +149,11 @@ type Role interface {
 	// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
 	SetAzureIdentities(RoleConditionType, []string)
 
+	// GetGCPServiceAccounts returns a list of GCP service accounts this role is allowed to assume.
+	GetGCPServiceAccounts(RoleConditionType) []string
+	// SetGCPServiceAccounts sets a list of GCP service accounts this role is allowed to assume.
+	SetGCPServiceAccounts(RoleConditionType, []string)
+
 	// GetWindowsDesktopLabels gets the Windows desktop labels this role
 	// is allowed or denied access to.
 	GetWindowsDesktopLabels(RoleConditionType) Labels
@@ -629,6 +634,23 @@ func (r *RoleV6) SetAzureIdentities(rct RoleConditionType, identities []string) 
 	}
 }
 
+// GetGCPServiceAccounts returns a list of GCP service accounts this role is allowed to assume.
+func (r *RoleV6) GetGCPServiceAccounts(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.GCPServiceAccounts
+	}
+	return r.Spec.Deny.GCPServiceAccounts
+}
+
+// SetGCPServiceAccounts sets a list of GCP service accounts this role is allowed to assume.
+func (r *RoleV6) SetGCPServiceAccounts(rct RoleConditionType, accounts []string) {
+	if rct == Allow {
+		r.Spec.Allow.GCPServiceAccounts = accounts
+	} else {
+		r.Spec.Deny.GCPServiceAccounts = accounts
+	}
+}
+
 // GetWindowsDesktopLabels gets the desktop labels this role is allowed or denied access to.
 func (r *RoleV6) GetWindowsDesktopLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
@@ -888,6 +910,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	for _, identity := range r.Spec.Allow.AzureIdentities {
 		if identity == Wildcard {
 			return trace.BadParameter("wildcard matcher is not allowed in allow.azure_identities")
+		}
+	}
+	for _, identity := range r.Spec.Allow.GCPServiceAccounts {
+		if identity == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in allow.gcp_service_accounts")
 		}
 	}
 	checkWildcardSelector := func(labels Labels) error {

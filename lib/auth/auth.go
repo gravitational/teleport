@@ -1060,6 +1060,8 @@ type certRequest struct {
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
 	azureIdentity string
+	// gcpServiceAccount is the GCP service account to generate certificate for.
+	gcpServiceAccount string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -1196,6 +1198,8 @@ type AppTestCertRequest struct {
 	AWSRoleARN string
 	// AzureIdentity is the optional Azure identity a user wants to assume to encode.
 	AzureIdentity string
+	// GCPServiceAccount is optional GCP service account a user wants to assume to encode.
+	GCPServiceAccount string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1232,11 +1236,12 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   sessionID,
-		appPublicAddr:  req.PublicAddr,
-		appClusterName: req.ClusterName,
-		awsRoleARN:     req.AWSRoleARN,
-		azureIdentity:  req.AzureIdentity,
+		appSessionID:      sessionID,
+		appPublicAddr:     req.PublicAddr,
+		appClusterName:    req.ClusterName,
+		awsRoleARN:        req.AWSRoleARN,
+		azureIdentity:     req.AzureIdentity,
+		gcpServiceAccount: req.GCPServiceAccount,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1719,6 +1724,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Enumerate allowed GCP service accounts.
+	gcpAccounts, err := req.checker.CheckGCPServiceAccounts(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
@@ -1732,12 +1743,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:     req.appSessionID,
-			PublicAddr:    req.appPublicAddr,
-			ClusterName:   req.appClusterName,
-			Name:          req.appName,
-			AWSRoleARN:    req.awsRoleARN,
-			AzureIdentity: req.azureIdentity,
+			SessionID:         req.appSessionID,
+			PublicAddr:        req.appPublicAddr,
+			ClusterName:       req.appClusterName,
+			Name:              req.appName,
+			AWSRoleARN:        req.awsRoleARN,
+			AzureIdentity:     req.azureIdentity,
+			GCPServiceAccount: req.gcpServiceAccount,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -1753,6 +1765,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ClientIP:                req.clientIP,
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
+		GCPServiceAccounts:      gcpAccounts,
 		ActiveRequests:          req.activeRequests.AccessRequests,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
