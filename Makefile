@@ -471,8 +471,7 @@ release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	cd ./build.assets/tooling/ && \
 	go run ./cmd/notarize-apple-binaries/*.go \
-		-apple-username "$$APPLE_USERNAME" -apple-password "$$APPLE_PASSWORD" \
-		-log-level 6 $(ABSOLUTE_BINARY_PATHS)
+		--log-level=debug $(ABSOLUTE_BINARY_PATHS)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 

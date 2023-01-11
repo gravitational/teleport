@@ -25,6 +25,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const binaryArgName string = "binaries"
+
 type Args struct {
 	logLevel      *string
 	logJSON       *bool
@@ -44,7 +46,7 @@ func NewArgs() *Args {
 		logJSON:       kingpin.Flag("log-json", "Enable JSON logging").Default(fmt.Sprintf("%v", false)).Bool(),
 		AppleUsername: kingpin.Flag("apple-username", "Apple Connect username used for notarization").Required().Envar("APPLE_USERNAME").String(),
 		ApplePassword: kingpin.Flag("apple-password", "Apple Connect password used for notarization").Required().Envar("APPLE_PASSWORD").String(),
-		BinaryPaths:   kingpin.Arg("binaries", "Path to Apple binaries for signing and notarization").Required().Action(binaryArgValidatiorAction).ExistingFiles(),
+		BinaryPaths:   kingpin.Arg(binaryArgName, "Path to Apple binaries for signing and notarization").Required().Action(binaryArgValidatiorAction).ExistingFiles(),
 	}
 
 	return args
@@ -52,6 +54,10 @@ func NewArgs() *Args {
 
 func binaryArgValidatiorAction(pc *kingpin.ParseContext) error {
 	for _, element := range pc.Elements {
+		if clause, ok := element.Clause.(*kingpin.ArgClause); !ok || clause.Model().Name != binaryArgName {
+			continue
+		}
+
 		binaryPath := *element.Value
 		err := verifyFileIsAppleBinary(binaryPath)
 		if err != nil {
