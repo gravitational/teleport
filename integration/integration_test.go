@@ -3946,6 +3946,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 		teleport.AddUser(login, []string{login})
 	}
 
+	allTypes := types.CertAuthType("all")
 	tconf := suite.rotationConfig(true)
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
@@ -4112,6 +4113,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	allTypes := types.CertAuthType("all")
 	tconf := s.rotationConfig(true)
 	teleport := s.NewTeleportInstance(t)
 	defer teleport.StopAll()
