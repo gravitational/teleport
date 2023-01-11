@@ -64,7 +64,7 @@ const (
 type databaseActions struct {
 	// discovery is a list of actions used for database discovery.
 	discovery []string
-	// iamAuth is a list of actions used for enableing IAM auth.
+	// iamAuth is a list of actions used for enabling IAM auth.
 	iamAuth []string
 	// metadata is a list of actions used for fetching database metadata
 	// (excluding the ones already in "discovery").
