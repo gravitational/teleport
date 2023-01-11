@@ -132,7 +132,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
 		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
-	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, must be one of: %s", strings.Join(getCertAuthTypes(), ", "))).StringVar(&a.rotateType)
+	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).EnumVar(&a.rotateType, getCertAuthTypes()...)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 
 	a.authLS = auth.Command("ls", "List connected auth servers")
