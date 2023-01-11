@@ -17,26 +17,39 @@ images we use to deliver Teleport to our customers.
 
 ## Why
 
-One of our shipping channels is a Docker image. As the provider of that docker
-image we are (at least partialy) responsible for everything in it, not just
-Teleport. We should not ship vulnerabilities to our clients, even if those 
+One of our shipping atrifacts is are a collection of OCI images. As the
+provider of those OCI images we are (at least partialy) responsible for
+everything in it, not just Teleport. 
+
+We should not ship vulnerabilities to our clients, even if those 
 vulnerabilities are not directly in our software.
 
 ## Details
 
 ### Goals
 
-For the sake of this RFD, I will define _delivering a secure image_ as 
+For the sake of this RFD, I will define _delivering a secure image_ as
 
-> Reliably producing an OCI image that:
+> Reliably producing an OCI image that is _a priori_ is unlikely to contain 
+> vulnerabilities in and of itself, in that it:
 >
->
->  1. a priori is unlikely to contain vulnerabilities in and of itself, 
+>  1. has the smallest footprint reasonably possible,
 >  2. contains software of known provenance,
 >  3. has no warnings or vulnerabilities flagged when run through a reputable 
->     scanner at the time of creation, and
+>     scanner at the time of creation,
 >  4. flags vulnerabilities even after creation, either in Teleport itself or 
->     a dependency.
+>     a dependency, and
+>  5. is updated to resolve any discovered vulnerabilities in a timely fashion.
+
+For the purposes of this discussion, a "timely fashion" for updates is as the
+Teleport Vulberability policy:
+
+   | Level    | Response time |
+   |----------|---------------|
+   | Critical | 7 days        |
+   | High     | 30 days       |
+   | Moderate | 90 days       |
+   | Low:     | ~180 days     |
 
 ### Non-goals
 
@@ -72,8 +85,10 @@ tooling](https://security.googleblog.com/2021/09/distroless-builds-are-now-slsa-
 ### 2. Ongoing scanning
 
 Using an _ongoing_ automated scanner means that we do not just check for 
-vulnerabilities at image creation time, instead we _continually_ scan for any vulnerabilities 
-that may be discovered during the image's lifetime.
+vulnerabilities at image creation time, instead we proactively & _continually_ scan
+for any vulnerabilities  that may be discovered until the image is either replaced 
+with a newer verion of the image, or the support lifetime for the verion of Teleport 
+on that image expires (i.e. falls out of our 3-version support window)
 
 ## Implementation Details
 
@@ -83,21 +98,27 @@ that may be discovered during the image's lifetime.
 
 What is the minimal set of requirements to run Teleport on Linux in a container?
 
+Most Teleport dependencies are statically compiled into the `teleport` binary, giving us a 
+smaller set of runtime dependencies than you might imagine:
+
    1. Teleport
    2. `GLIBC` >= 2.17
    3. `dumb-init` is required for correct signal and child processes handling
       inside a container.
-   4. CA certificates
+   4. `libpam` (and its transitve dependencies) for PAM support 
+   5. CA certificates
 
 Requirement (1) (i.e. Teleport itself) is provided by our CI process. 
 
-Requirements (2) and (4) are satisfied automatically by using the the google-
-provided base image [`gcr.io/distroless/cc-debian11`](https://github.com/GoogleContainerTools/distroless#what-images-are-available), which is configured for "mostly statically compiled" languages that require libc.
+Requirements (2) and (5) are satisfied automatically by using the the google-
+provided base image [`gcr.io/distroless/cc-debian11`](https://github.com/GoogleContainerTools/distroless#what-images-are-available),
+which is configured for "mostly statically compiled" languages that require libc.
 
-Requirement (3) (`dumb-init`) can be sourced either from the upstream Debian repository, or
-downloaded directly from the project's GitHub release page. Sourcing `dumb-init` from the 
-Ubuntu or Debian package repositories implies some minimal provenance checking by the debian
-packaging tools, so we will prefer that to sourcing it from GitHub.
+Requirements (3) and (4) can be sourced either from the upstream Debian repository, or
+downloaded directly from their project's souce reposiotory. Sourcing `dumb-init`, 
+`libpam` and so on from the Ubuntu or Debian package repositories implies some minimal 
+curation and provenance checking by the debian packaging tools, so we will prefer that to
+sourcing them elsewhere.
 
 ### Base image verification
 
@@ -140,29 +161,89 @@ FROM debian:11 as teleport
 COPY teleport*.deb
 RUN dpkg-deb -R teleport*.deb /opt/teleport
 
+# NOTE: the CC image supplies libc, libgcc and a few basic runtime libraries for us
 FROM gcr.io/distroless/cc-debian11
 COPY --from=dumb-init /opt/dumb-init/bin/dumb-init /bin
 COPY --from=teleport /opt/teleport/bin/* /bin
 ENTRYPOINT ["/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
 ```
 > **NOTE:** This unpack-and-copy installation method is only appropriate for
-> packages with no complex installation requirements. It won't work for 
-> packages that have post-install scripts, for example.
->
->
-> Both of the packages we are considering here (`dumb-init` and `teleport`) 
-> have simple `xcopy` installs, and so will work with this method.
+> packages with no complex installation requirements, like post-inbstall hooks. 
 
-### Troubleshooting Images
+### Alternative builders
+
+As part of researching this RFD, I examined a couple of alternative ways to construct 
+the Teleport image. 
+
+ * **bazel, [distroless](https://github.com/GoogleContainerTools/distroless) and [rules_docker](https://github.com/bazelbuild/rules_docker)**: 
+   Given that the underlying distroless images are built using `bazel`, it should be 
+   possible to construct a custom image for Teleport in the same way. After some 
+   experimentation, I found that
+
+   1. the Debian package installation technique used by `rules_docker` is essentially 
+      a tweaked version of the extract-and-copy approach used by the `Dockerfile` 
+      above, and
+
+   2. There is a major [chicken-or-egg problem](https://github.com/GoogleContainerTools/distroless/issues/542)
+      in the build process when `distroless` is used as an external dependency in 
+      an enclosing `bazel` workspace, requiring manual intervention in the build to
+      solve.
+
+   Using `bazel` does not resolve a major limitation of using a basic 
+   `Dockerfile` (i.e. the `xcopy` style install) and introduces more complexity, in 
+   terms of both build process tooling and  process, so was rejected in favour of 
+   the `Dockerfile` approach.
+
+ * **[apko](https://github.com/chainguard-dev/apko)**: Apko is a tool for quickly 
+   building minimalist, reproducible Alpine linux images, using a declarative 
+   format. While I found the tool verly neat, the images it generates are still closer 
+   to a "debug" Distroless image. 
+
+   Using `apko` would also require us to build an Alpine linux package for Teleport 
+   to integrate it nto the build.
+
+   I seriously considered recommending `apko`, as it has some neat features (e.g.
+   automatically producting a SBOM as part of the construction process), but in the 
+   end I rejected it because of the extra software included in the resulting images.
+
+### Image signing
+
+In order to allow our customers to validate our published Teleport images, 
+our images will be signed using the `cosign` tool, similarly to the Distroless 
+base images.
+
+The `cosign` tool [integrates well with GHA](https://github.blog/2021-12-06-safeguard-container-signing-capability-actions/), 
+and is even included in the template "how to publish a docker image" example workflow. 
+
+We will need to either publish a public key somewhere, or use ["keyless" signing](https://docs.sigstore.dev/cosign/sign/#keyless-signing), 
+which requires the signer authenticating against OICD.
+
+More information keyless signing:
+ * https://docs.sigstore.dev/cosign/sign/#keyless-signing
+ * https://docs.google.com/document/d/1461lQUoVqbhCve7PuKNf-2_NfpjrzBG5tFohuMVTuK4/edit
+ * https://www.appvia.io/blog/tutorial-keyless-sign-and-verify-your-container-images/#oidc-flow-with-interaction-free-with-github-actions
+
+> **AUTHOR'S NOTE:** _I'm a bit torn here. Using a simple keypair is pretty
+> straightforward, and the only real decision is how to distribute the public 
+> key. On the other hand, the keyless signing feels more like the "right way" to do
+> it, and it looks like it should be pretty straightforward to do from GHA (see 3rd 
+> link above) - but all the `COSIGN_EXPERIMENTAL=1` in the examples is making me 
+> nervous. Thoughts greatly appreciated._
+
+### Debug Images
 
 Troubleshooting a distroless image is hard, as there are no tools baked into
 the image to aid in debugging a deployment.
 
-If we need to add tooling in order to aid troubleshooting, I propose that we
-add a `teleport-debug` image, that builds on the distroless image to include
-things like a shell, tools from `busybox`, and so on. I would also suggest 
-that, while we should take as much care as possible when constructing and 
-monitoring this image, use of the debug image is considered "at your own risk".
+The `distroless` team also supplies a `debug`-tagged image that includes `busybox`. 
+
+If we need to add tooling in order to aid troubleshooting a Teleport installation,
+it is possible co construct a parallel `teleport-debug` image, based on a 
+distroless `debug` image (to supply a shell, etc)
+
+While we should take as much care as possible when constructing and 
+monitoring this image, use of the debug image should probably be
+considered "at your own risk".
 
 ### Compatibility Guarantees
 
@@ -174,15 +255,9 @@ our customers aware of our intentions well in advance so that they can prepare.
 
 There are many options for scanning and monitoring, but given we are already using the
 Amazon ECR, it seems most logical to use the built-in ECR scanning tools to detect
-known vulnerabilities in the final images.
+known vulnerabilities in the final images. 
 
-We are, in fact, already doing this on image upload, although I don't know if
-the signal from the scan is monitored in any way.
+Indeed we are already doing this, with results of the scan being injected into our 
+Panther SIEM instance.
 
-I propose that we use ECR enhanced scanning, which can be set to run at
-intervals. It is also possible to attach actions to the result of these scans.
-Initially, I suggest a simple Slack channel notification on any detected
-vulnerability, as shown (here)[https://www.kostavro.eu/posts/2021-05-26-ecr-scan-on-push-slack-notification/]. 
 
-(The example is for scan-on-push, but it should be amenable to extension to 
-intermittent, ongoing scans.)
