@@ -400,7 +400,8 @@ func setSelectedExtension(contexts map[string]*clientcmdapi.Context, prevCluster
 
 // searchForSelectedCluster looks for contexts that were previously selected
 // in order to restore the the CurrentContext value.
-// If no such key is found, it returns an empty selected cluster.
+// If no such key is found or multiple keys exist, it returns an empty selected
+// cluster.
 func searchForSelectedCluster(contexts map[string]*clientcmdapi.Context) string {
 	count := 0
 	selected := ""
