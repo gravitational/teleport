@@ -590,7 +590,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 	}
 	for _, host := range s.cfg.Heartbeat.NonADHosts {
 		if err := s.startStaticHostHeartbeat(host, true); err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 	return nil
