@@ -194,6 +194,13 @@ func GetStringMapValue(mapVal, keyVal interface{}) (interface{}, error) {
 			return n, nil
 		}
 		return m[key], nil
+	case map[string]wrappers.StringValues:
+		if len(m) == 0 {
+			// to return nil with a proper type
+			var n []string
+			return n, nil
+		}
+		return m[key].Values, nil
 	case wrappers.Traits:
 		if len(m) == 0 {
 			// to return nil with a proper type

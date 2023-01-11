@@ -580,6 +580,11 @@ func (s RequestState) IsApproved() bool {
 	return s == RequestState_APPROVED
 }
 
+// IsProcessed request state
+func (s RequestState) IsProcessed() bool {
+	return s == RequestState_PROCESSED
+}
+
 // IsDenied request state
 func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED

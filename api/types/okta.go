@@ -410,3 +410,184 @@ func (o *OktaAppLinkV1) GetName() string {
 func (o *OktaAppLinkV1) GetUri() string {
 	return o.Uri
 }
+
+type OktaLabelMapping interface {
+	GetLabel() string
+	GetValue() string
+	GetMatches() []string
+}
+
+func (o *OktaLabelMappingV1) GetLabel() string {
+	return o.Label
+}
+
+func (o *OktaLabelMappingV1) GetValue() string {
+	return o.Value
+}
+
+func (o *OktaLabelMappingV1) GetMatches() []string {
+	matches := make([]string, len(o.Matches))
+	copy(matches, o.Matches)
+	return matches
+}
+
+// OktaLabelRule represents an Okta labeling rule.
+type OktaLabelRule interface {
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
+	// GetLabelMap returns the label mapping of labels to apps/groups.
+	GetLabelMappings() []OktaLabelMapping
+}
+
+// NewOktaLabelRule creates a new Okta label rule
+func NewOktaLabelRuleV1(meta Metadata, priority int32, spec *OktaLabelRuleSpecV1) (*OktaLabelRuleV1, error) {
+	oktaLabelRule := &OktaLabelRuleV1{
+		Metadata: meta,
+		Spec:     spec,
+	}
+	if err := oktaLabelRule.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return oktaLabelRule, nil
+}
+
+// CheckAndSetDefaults checks and sets default values for any missing fields.
+func (o *OktaLabelRuleV1) CheckAndSetDefaults() error {
+	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if o.Kind == "" {
+		o.Kind = "okta_label_rule"
+	}
+	if o.Version == "" {
+		o.Version = "v1"
+	}
+	if o.Spec == nil {
+		return trace.BadParameter("spec is empty")
+	}
+
+	for _, mapping := range o.Spec.Mappings {
+		for _, match := range mapping.Matches {
+			if !strings.HasPrefix(match, "application.") && !strings.HasPrefix(match, "group.") {
+				return trace.BadParameter("label %s has a mapping %s that does not start with 'application.' or 'group.'", mapping.Label, match)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (o *OktaLabelRuleV1) GetLabelMappings() []OktaLabelMapping {
+	mappings := make([]OktaLabelMapping, len(o.Spec.Mappings))
+	for i, mapping := range o.Spec.Mappings {
+		mappings[i] = mapping
+	}
+	return mappings
+}
+
+// GetVersion returns the label rule resource version.
+func (o *OktaLabelRuleV1) GetVersion() string {
+	return o.Version
+}
+
+// GetKind returns the label rule resource kind.
+func (o *OktaLabelRuleV1) GetKind() string {
+	return o.Kind
+}
+
+// GetSubKind returns the label rule resource subkind.
+func (o *OktaLabelRuleV1) GetSubKind() string {
+	return o.SubKind
+}
+
+// SetSubKind sets the label rule resource subkind.
+func (o *OktaLabelRuleV1) SetSubKind(sk string) {
+	o.SubKind = sk
+}
+
+// GetResourceID returns the label rule resource ID.
+func (o *OktaLabelRuleV1) GetResourceID() int64 {
+	return o.Metadata.ID
+}
+
+// SetResourceID sets the label rule resource ID.
+func (o *OktaLabelRuleV1) SetResourceID(id int64) {
+	o.Metadata.ID = id
+}
+
+// GetMetadata returns the label rule resource metadata.
+func (o *OktaLabelRuleV1) GetMetadata() Metadata {
+	return o.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (o *OktaLabelRuleV1) Origin() string {
+	return o.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (o *OktaLabelRuleV1) SetOrigin(origin string) {
+	o.Metadata.SetOrigin(origin)
+}
+
+// GetNamespace returns the label rule resource namespace.
+func (o *OktaLabelRuleV1) GetNamespace() string {
+	return o.Metadata.Namespace
+}
+
+// SetExpiry sets the label rule resource expiration time.
+func (o *OktaLabelRuleV1) SetExpiry(expiry time.Time) {
+	o.Metadata.SetExpiry(expiry)
+}
+
+// Expiry returns the label rule resource expiration time.
+func (o *OktaLabelRuleV1) Expiry() time.Time {
+	return o.Metadata.Expiry()
+}
+
+// GetName returns the label rule resource name.
+func (o *OktaLabelRuleV1) GetName() string {
+	return o.Metadata.Name
+}
+
+// SetName sets the label rule resource name.
+func (o *OktaLabelRuleV1) SetName(name string) {
+	o.Metadata.Name = name
+}
+
+// GetAllLabels returns the label rule combined static and dynamic labels.
+func (o *OktaLabelRuleV1) GetAllLabels() map[string]string {
+	return o.Metadata.Labels
+}
+
+func (o *OktaLabelRuleV1) GetStaticLabels() map[string]string {
+	return o.Metadata.Labels
+}
+
+func (o *OktaLabelRuleV1) SetStaticLabels(sl map[string]string) {
+	o.Metadata.Labels = sl
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (o *OktaLabelRuleV1) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(o.GetAllLabels()), o.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+func (o *OktaLabelRuleV1) String() string {
+	builder := strings.Builder{}
+	builder.WriteString("OktaLabeLRuleV1 {\n")
+	builder.WriteString(o.Metadata.String() + "\n")
+
+	if len(o.Spec.Mappings) > 0 {
+		builder.WriteString("  mappings: {\n")
+		for _, v := range o.Spec.Mappings {
+			builder.WriteString(fmt.Sprintf("  %s: %s - %v\n", v.Label, v.Value, v.Matches))
+		}
+		builder.WriteString("  }\n")
+	}
+
+	return builder.String()
+}

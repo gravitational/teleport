@@ -205,11 +205,281 @@ func (m *ListOktaApplicationsResponse) GetApplications() []*types.OktaApplicatio
 	return nil
 }
 
+// PutOktaLabelRule is a request for updating or creating an okta label rule.
+type PutOktaLabelRuleRequest struct {
+	Rule                 *types.OktaLabelRuleV1 `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
+	XXX_unrecognized     []byte                 `json:"-"`
+	XXX_sizecache        int32                  `json:"-"`
+}
+
+func (m *PutOktaLabelRuleRequest) Reset()         { *m = PutOktaLabelRuleRequest{} }
+func (m *PutOktaLabelRuleRequest) String() string { return proto.CompactTextString(m) }
+func (*PutOktaLabelRuleRequest) ProtoMessage()    {}
+func (*PutOktaLabelRuleRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3524976505a33edb, []int{4}
+}
+func (m *PutOktaLabelRuleRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PutOktaLabelRuleRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PutOktaLabelRuleRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PutOktaLabelRuleRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PutOktaLabelRuleRequest.Merge(m, src)
+}
+func (m *PutOktaLabelRuleRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *PutOktaLabelRuleRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_PutOktaLabelRuleRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PutOktaLabelRuleRequest proto.InternalMessageInfo
+
+func (m *PutOktaLabelRuleRequest) GetRule() *types.OktaLabelRuleV1 {
+	if m != nil {
+		return m.Rule
+	}
+	return nil
+}
+
+// PutOktaLabelRuleResponse is the response for updating or creating an Okta label rule.
+type PutOktaLabelRuleResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *PutOktaLabelRuleResponse) Reset()         { *m = PutOktaLabelRuleResponse{} }
+func (m *PutOktaLabelRuleResponse) String() string { return proto.CompactTextString(m) }
+func (*PutOktaLabelRuleResponse) ProtoMessage()    {}
+func (*PutOktaLabelRuleResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3524976505a33edb, []int{5}
+}
+func (m *PutOktaLabelRuleResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PutOktaLabelRuleResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PutOktaLabelRuleResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PutOktaLabelRuleResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PutOktaLabelRuleResponse.Merge(m, src)
+}
+func (m *PutOktaLabelRuleResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *PutOktaLabelRuleResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_PutOktaLabelRuleResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PutOktaLabelRuleResponse proto.InternalMessageInfo
+
+// ListOktaLabelRulesRequest is the request for listing Okta label rules.
+type ListOktaLabelRulesRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListOktaLabelRulesRequest) Reset()         { *m = ListOktaLabelRulesRequest{} }
+func (m *ListOktaLabelRulesRequest) String() string { return proto.CompactTextString(m) }
+func (*ListOktaLabelRulesRequest) ProtoMessage()    {}
+func (*ListOktaLabelRulesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3524976505a33edb, []int{6}
+}
+func (m *ListOktaLabelRulesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListOktaLabelRulesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListOktaLabelRulesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListOktaLabelRulesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListOktaLabelRulesRequest.Merge(m, src)
+}
+func (m *ListOktaLabelRulesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListOktaLabelRulesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListOktaLabelRulesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListOktaLabelRulesRequest proto.InternalMessageInfo
+
+// ListOktaLabelRulesResponse is the response for listing Okta label rules.
+type ListOktaLabelRulesResponse struct {
+	Rules                []*types.OktaLabelRuleV1 `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
+}
+
+func (m *ListOktaLabelRulesResponse) Reset()         { *m = ListOktaLabelRulesResponse{} }
+func (m *ListOktaLabelRulesResponse) String() string { return proto.CompactTextString(m) }
+func (*ListOktaLabelRulesResponse) ProtoMessage()    {}
+func (*ListOktaLabelRulesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3524976505a33edb, []int{7}
+}
+func (m *ListOktaLabelRulesResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListOktaLabelRulesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListOktaLabelRulesResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListOktaLabelRulesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListOktaLabelRulesResponse.Merge(m, src)
+}
+func (m *ListOktaLabelRulesResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListOktaLabelRulesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListOktaLabelRulesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListOktaLabelRulesResponse proto.InternalMessageInfo
+
+func (m *ListOktaLabelRulesResponse) GetRules() []*types.OktaLabelRuleV1 {
+	if m != nil {
+		return m.Rules
+	}
+	return nil
+}
+
+// DeleteOktaLabelRule is a request for deleting an Okta label rule.
+type DeleteOktaLabelRuleRequest struct {
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteOktaLabelRuleRequest) Reset()         { *m = DeleteOktaLabelRuleRequest{} }
+func (m *DeleteOktaLabelRuleRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteOktaLabelRuleRequest) ProtoMessage()    {}
+func (*DeleteOktaLabelRuleRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3524976505a33edb, []int{8}
+}
+func (m *DeleteOktaLabelRuleRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DeleteOktaLabelRuleRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DeleteOktaLabelRuleRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DeleteOktaLabelRuleRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteOktaLabelRuleRequest.Merge(m, src)
+}
+func (m *DeleteOktaLabelRuleRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *DeleteOktaLabelRuleRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteOktaLabelRuleRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteOktaLabelRuleRequest proto.InternalMessageInfo
+
+func (m *DeleteOktaLabelRuleRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+// DeleteOktaLabelRuleResponse is the response for deleting an Okta label rule.
+type DeleteOktaLabelRuleResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteOktaLabelRuleResponse) Reset()         { *m = DeleteOktaLabelRuleResponse{} }
+func (m *DeleteOktaLabelRuleResponse) String() string { return proto.CompactTextString(m) }
+func (*DeleteOktaLabelRuleResponse) ProtoMessage()    {}
+func (*DeleteOktaLabelRuleResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3524976505a33edb, []int{9}
+}
+func (m *DeleteOktaLabelRuleResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DeleteOktaLabelRuleResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DeleteOktaLabelRuleResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DeleteOktaLabelRuleResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteOktaLabelRuleResponse.Merge(m, src)
+}
+func (m *DeleteOktaLabelRuleResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *DeleteOktaLabelRuleResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteOktaLabelRuleResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteOktaLabelRuleResponse proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterType((*ListOktaGroupsRequest)(nil), "proto.ListOktaGroupsRequest")
 	proto.RegisterType((*ListOktaGroupsResponse)(nil), "proto.ListOktaGroupsResponse")
 	proto.RegisterType((*ListOktaApplicationsRequest)(nil), "proto.ListOktaApplicationsRequest")
 	proto.RegisterType((*ListOktaApplicationsResponse)(nil), "proto.ListOktaApplicationsResponse")
+	proto.RegisterType((*PutOktaLabelRuleRequest)(nil), "proto.PutOktaLabelRuleRequest")
+	proto.RegisterType((*PutOktaLabelRuleResponse)(nil), "proto.PutOktaLabelRuleResponse")
+	proto.RegisterType((*ListOktaLabelRulesRequest)(nil), "proto.ListOktaLabelRulesRequest")
+	proto.RegisterType((*ListOktaLabelRulesResponse)(nil), "proto.ListOktaLabelRulesResponse")
+	proto.RegisterType((*DeleteOktaLabelRuleRequest)(nil), "proto.DeleteOktaLabelRuleRequest")
+	proto.RegisterType((*DeleteOktaLabelRuleResponse)(nil), "proto.DeleteOktaLabelRuleResponse")
 }
 
 func init() {
@@ -217,26 +487,36 @@ func init() {
 }
 
 var fileDescriptor_3524976505a33edb = []byte{
-	// 302 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2b, 0x49, 0xcd, 0x49,
-	0x2d, 0xc8, 0x2f, 0x2a, 0xd1, 0xcf, 0x49, 0x4d, 0x4f, 0x4c, 0xae, 0xd4, 0x4f, 0xce, 0xc9, 0x4c,
-	0xcd, 0x2b, 0xd1, 0x2f, 0x28, 0xca, 0x2f, 0xc9, 0xd7, 0xcf, 0xcf, 0x2e, 0x49, 0x2c, 0x4e, 0x2d,
-	0x2a, 0xcb, 0x4c, 0x4e, 0xd5, 0x03, 0x8b, 0x08, 0xb1, 0x82, 0x29, 0x29, 0x45, 0x74, 0x6d, 0x25,
-	0x95, 0x05, 0xa9, 0xc5, 0x10, 0x12, 0xa2, 0x52, 0x49, 0x9c, 0x4b, 0xd4, 0x27, 0xb3, 0xb8, 0xc4,
-	0x3f, 0xbb, 0x24, 0xd1, 0xbd, 0x28, 0xbf, 0xb4, 0xa0, 0x38, 0x28, 0xb5, 0xb0, 0x34, 0xb5, 0xb8,
-	0x44, 0xc9, 0x85, 0x4b, 0x0c, 0x5d, 0xa2, 0xb8, 0x20, 0x3f, 0xaf, 0x38, 0x55, 0x48, 0x8b, 0x8b,
-	0x2d, 0x1d, 0x2c, 0x22, 0xc1, 0xa8, 0xc0, 0xac, 0xc1, 0x6d, 0x24, 0xa4, 0x07, 0x31, 0x10, 0xae,
-	0x34, 0xcc, 0x30, 0x08, 0xaa, 0x42, 0x49, 0x96, 0x4b, 0x1a, 0x66, 0x8a, 0x63, 0x41, 0x41, 0x4e,
-	0x66, 0x72, 0x62, 0x49, 0x66, 0x7e, 0x1e, 0xdc, 0x92, 0x18, 0x2e, 0x19, 0xec, 0xd2, 0x50, 0xab,
-	0x6c, 0xb8, 0x78, 0x12, 0x91, 0xc4, 0xa1, 0x16, 0x4a, 0x20, 0x59, 0x88, 0xa4, 0x2d, 0xcc, 0x30,
-	0x08, 0x45, 0xb5, 0xd1, 0x09, 0x46, 0x2e, 0x31, 0x90, 0x1a, 0xcf, 0xbc, 0x92, 0xd4, 0xf4, 0x22,
-	0xb0, 0x60, 0x30, 0x24, 0x98, 0x84, 0x7c, 0xb9, 0xf8, 0x50, 0x7d, 0x27, 0x24, 0x03, 0x09, 0x10,
-	0x3d, 0xac, 0xa1, 0x21, 0x25, 0x8b, 0x43, 0x16, 0xea, 0xce, 0x78, 0x2e, 0x11, 0x6c, 0xfe, 0x10,
-	0x52, 0x42, 0xd3, 0x86, 0x25, 0x0c, 0xa4, 0x94, 0xf1, 0xaa, 0x81, 0x58, 0xe0, 0xe4, 0x70, 0xe2,
-	0x91, 0x1c, 0xe3, 0x85, 0x47, 0x72, 0x8c, 0x0f, 0x1e, 0xc9, 0x31, 0x46, 0x19, 0xa5, 0x67, 0x96,
-	0x64, 0x94, 0x26, 0xe9, 0x25, 0xe7, 0xe7, 0xea, 0xa7, 0x17, 0x25, 0x96, 0x65, 0x96, 0x80, 0x95,
-	0x27, 0xe6, 0xe8, 0xc3, 0x23, 0x3c, 0xb1, 0x20, 0x13, 0x25, 0x91, 0x24, 0xb1, 0x81, 0x29, 0x63,
-	0x40, 0x00, 0x00, 0x00, 0xff, 0xff, 0xac, 0xab, 0x9d, 0x25, 0x4b, 0x02, 0x00, 0x00,
+	// 452 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x54, 0x5d, 0x6b, 0x14, 0x31,
+	0x14, 0x65, 0xe8, 0x07, 0x78, 0x2b, 0x22, 0x51, 0xb7, 0x6b, 0xda, 0xae, 0xdb, 0xf8, 0x52, 0x8a,
+	0xcc, 0xb8, 0xeb, 0xab, 0x0f, 0x2a, 0x15, 0x51, 0x2a, 0xca, 0x14, 0x16, 0x94, 0x82, 0x64, 0x87,
+	0xcb, 0x18, 0x9a, 0x4e, 0xe2, 0x4c, 0xa6, 0xb0, 0xff, 0xd0, 0x47, 0x9f, 0x7c, 0x96, 0xfd, 0x25,
+	0xb2, 0x49, 0x76, 0xd8, 0x9d, 0xcd, 0xec, 0xcb, 0x64, 0xc8, 0x3d, 0xf7, 0x9c, 0x9c, 0x9c, 0x4b,
+	0x20, 0x36, 0x28, 0x51, 0xab, 0xd2, 0x24, 0x12, 0x73, 0x9e, 0xcd, 0x92, 0x4c, 0x0a, 0x2c, 0x4c,
+	0xa2, 0x4b, 0x65, 0x54, 0xa2, 0x6e, 0x0c, 0xaf, 0xb0, 0xbc, 0x13, 0x19, 0xc6, 0x76, 0x87, 0xec,
+	0xd9, 0x85, 0x9e, 0xb6, 0xdb, 0xcc, 0x4c, 0x63, 0xe5, 0xbe, 0x0e, 0xc9, 0x0e, 0xe1, 0xc9, 0xa5,
+	0xa8, 0xcc, 0x97, 0x1b, 0xc3, 0x3f, 0x94, 0xaa, 0xd6, 0x55, 0x8a, 0xbf, 0x6a, 0xac, 0x0c, 0xbb,
+	0x80, 0x5e, 0xbb, 0x50, 0x69, 0x55, 0x54, 0x48, 0xce, 0x61, 0x3f, 0xb7, 0x3b, 0xfd, 0x68, 0xb8,
+	0x73, 0x76, 0x30, 0x26, 0xb1, 0x23, 0x6c, 0xa0, 0x93, 0x51, 0xea, 0x11, 0xec, 0x04, 0x8e, 0x96,
+	0x2c, 0x6f, 0xb5, 0x96, 0x22, 0xe3, 0x46, 0xa8, 0xa2, 0x11, 0xb9, 0x86, 0xe3, 0x70, 0xd9, 0x4b,
+	0xbd, 0x86, 0xfb, 0x7c, 0x65, 0xdf, 0x0b, 0xf6, 0x57, 0x04, 0x57, 0xda, 0x26, 0xa3, 0x74, 0x0d,
+	0xcd, 0xde, 0xc3, 0xe1, 0xd7, 0xda, 0x92, 0x5f, 0xf2, 0x29, 0xca, 0xb4, 0x96, 0xe8, 0x85, 0xc9,
+	0x39, 0xec, 0x96, 0xb5, 0xc4, 0x7e, 0x34, 0x8c, 0xce, 0x0e, 0xc6, 0xbd, 0x15, 0xc2, 0x06, 0x3a,
+	0x19, 0xa5, 0x16, 0xc3, 0x28, 0xf4, 0x37, 0x69, 0xdc, 0x01, 0xd9, 0x11, 0x3c, 0x5d, 0x1a, 0x68,
+	0x8a, 0x8d, 0xbb, 0x4f, 0x40, 0x43, 0x45, 0xef, 0xed, 0x05, 0xec, 0x2d, 0xe8, 0x97, 0xa6, 0xba,
+	0xce, 0xe0, 0x40, 0xec, 0x25, 0xd0, 0x0b, 0x94, 0x68, 0x30, 0x68, 0x87, 0xc0, 0x6e, 0xc1, 0x6f,
+	0x9d, 0x9d, 0x7b, 0xa9, 0xfd, 0x5f, 0x5c, 0x7d, 0xb0, 0xc3, 0xc9, 0x8f, 0xff, 0xee, 0x40, 0x6f,
+	0x51, 0xf9, 0x58, 0x18, 0xcc, 0x4b, 0x7b, 0x63, 0x57, 0x6e, 0x86, 0xc8, 0x67, 0x78, 0xb0, 0x1e,
+	0x3d, 0x39, 0x76, 0xd3, 0x12, 0x07, 0x47, 0x85, 0x9e, 0x74, 0x54, 0xbd, 0xd1, 0x1f, 0xf0, 0x38,
+	0x14, 0x32, 0x61, 0xad, 0xb6, 0xc0, 0x80, 0xd0, 0xe7, 0x5b, 0x31, 0x5e, 0xe0, 0x0a, 0x1e, 0xb6,
+	0x03, 0x22, 0x03, 0xdf, 0xd8, 0x31, 0x00, 0xf4, 0x59, 0x67, 0xdd, 0x93, 0x7e, 0x03, 0xb2, 0x19,
+	0x1e, 0x19, 0xb6, 0xce, 0xb3, 0x11, 0x3a, 0x3d, 0xdd, 0x82, 0xf0, 0xd4, 0xd7, 0xf0, 0x28, 0x90,
+	0x0c, 0x59, 0x76, 0x76, 0xe7, 0x4c, 0xd9, 0x36, 0x88, 0x63, 0x7f, 0xf7, 0xe6, 0xf7, 0x7c, 0x10,
+	0xfd, 0x99, 0x0f, 0xa2, 0x7f, 0xf3, 0x41, 0xf4, 0x7d, 0x9c, 0x0b, 0xf3, 0xb3, 0x9e, 0xc6, 0x99,
+	0xba, 0x4d, 0xf2, 0x92, 0xdf, 0x09, 0x63, 0x2f, 0x8f, 0xcb, 0xa4, 0x79, 0x1b, 0xb8, 0x16, 0x6b,
+	0xef, 0xc9, 0x74, 0xdf, 0x2e, 0xaf, 0xfe, 0x07, 0x00, 0x00, 0xff, 0xff, 0xc6, 0x31, 0xef, 0x16,
+	0x76, 0x04, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -255,6 +535,12 @@ type OktaIntegrationServiceClient interface {
 	ListOktaGroups(ctx context.Context, in *ListOktaGroupsRequest, opts ...grpc.CallOption) (*ListOktaGroupsResponse, error)
 	// ListApplications will return a list of applications from the Okta integration service.
 	ListOktaApplications(ctx context.Context, in *ListOktaApplicationsRequest, opts ...grpc.CallOption) (*ListOktaApplicationsResponse, error)
+	// PutOktaLabelRule creates or updates and Okta label rule.
+	PutOktaLabelRule(ctx context.Context, in *PutOktaLabelRuleRequest, opts ...grpc.CallOption) (*PutOktaLabelRuleResponse, error)
+	// ListOktaLabelRules lists Okta label rules.
+	ListOktaLabelRules(ctx context.Context, in *ListOktaLabelRulesRequest, opts ...grpc.CallOption) (*ListOktaLabelRulesResponse, error)
+	// DeleteOktaLabelRule delets an Okta label rule.
+	DeleteOktaLabelRule(ctx context.Context, in *DeleteOktaLabelRuleRequest, opts ...grpc.CallOption) (*DeleteOktaLabelRuleResponse, error)
 }
 
 type oktaIntegrationServiceClient struct {
@@ -283,12 +569,45 @@ func (c *oktaIntegrationServiceClient) ListOktaApplications(ctx context.Context,
 	return out, nil
 }
 
+func (c *oktaIntegrationServiceClient) PutOktaLabelRule(ctx context.Context, in *PutOktaLabelRuleRequest, opts ...grpc.CallOption) (*PutOktaLabelRuleResponse, error) {
+	out := new(PutOktaLabelRuleResponse)
+	err := c.cc.Invoke(ctx, "/proto.OktaIntegrationService/PutOktaLabelRule", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oktaIntegrationServiceClient) ListOktaLabelRules(ctx context.Context, in *ListOktaLabelRulesRequest, opts ...grpc.CallOption) (*ListOktaLabelRulesResponse, error) {
+	out := new(ListOktaLabelRulesResponse)
+	err := c.cc.Invoke(ctx, "/proto.OktaIntegrationService/ListOktaLabelRules", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oktaIntegrationServiceClient) DeleteOktaLabelRule(ctx context.Context, in *DeleteOktaLabelRuleRequest, opts ...grpc.CallOption) (*DeleteOktaLabelRuleResponse, error) {
+	out := new(DeleteOktaLabelRuleResponse)
+	err := c.cc.Invoke(ctx, "/proto.OktaIntegrationService/DeleteOktaLabelRule", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OktaIntegrationServiceServer is the server API for OktaIntegrationService service.
 type OktaIntegrationServiceServer interface {
 	// ListOktaGroups will return a list of groups from the Okta integration service.
 	ListOktaGroups(context.Context, *ListOktaGroupsRequest) (*ListOktaGroupsResponse, error)
 	// ListApplications will return a list of applications from the Okta integration service.
 	ListOktaApplications(context.Context, *ListOktaApplicationsRequest) (*ListOktaApplicationsResponse, error)
+	// PutOktaLabelRule creates or updates and Okta label rule.
+	PutOktaLabelRule(context.Context, *PutOktaLabelRuleRequest) (*PutOktaLabelRuleResponse, error)
+	// ListOktaLabelRules lists Okta label rules.
+	ListOktaLabelRules(context.Context, *ListOktaLabelRulesRequest) (*ListOktaLabelRulesResponse, error)
+	// DeleteOktaLabelRule delets an Okta label rule.
+	DeleteOktaLabelRule(context.Context, *DeleteOktaLabelRuleRequest) (*DeleteOktaLabelRuleResponse, error)
 }
 
 // UnimplementedOktaIntegrationServiceServer can be embedded to have forward compatible implementations.
@@ -300,6 +619,15 @@ func (*UnimplementedOktaIntegrationServiceServer) ListOktaGroups(ctx context.Con
 }
 func (*UnimplementedOktaIntegrationServiceServer) ListOktaApplications(ctx context.Context, req *ListOktaApplicationsRequest) (*ListOktaApplicationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListOktaApplications not implemented")
+}
+func (*UnimplementedOktaIntegrationServiceServer) PutOktaLabelRule(ctx context.Context, req *PutOktaLabelRuleRequest) (*PutOktaLabelRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutOktaLabelRule not implemented")
+}
+func (*UnimplementedOktaIntegrationServiceServer) ListOktaLabelRules(ctx context.Context, req *ListOktaLabelRulesRequest) (*ListOktaLabelRulesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListOktaLabelRules not implemented")
+}
+func (*UnimplementedOktaIntegrationServiceServer) DeleteOktaLabelRule(ctx context.Context, req *DeleteOktaLabelRuleRequest) (*DeleteOktaLabelRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteOktaLabelRule not implemented")
 }
 
 func RegisterOktaIntegrationServiceServer(s *grpc.Server, srv OktaIntegrationServiceServer) {
@@ -342,6 +670,60 @@ func _OktaIntegrationService_ListOktaApplications_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OktaIntegrationService_PutOktaLabelRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutOktaLabelRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaIntegrationServiceServer).PutOktaLabelRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.OktaIntegrationService/PutOktaLabelRule",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaIntegrationServiceServer).PutOktaLabelRule(ctx, req.(*PutOktaLabelRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OktaIntegrationService_ListOktaLabelRules_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOktaLabelRulesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaIntegrationServiceServer).ListOktaLabelRules(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.OktaIntegrationService/ListOktaLabelRules",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaIntegrationServiceServer).ListOktaLabelRules(ctx, req.(*ListOktaLabelRulesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OktaIntegrationService_DeleteOktaLabelRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteOktaLabelRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaIntegrationServiceServer).DeleteOktaLabelRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.OktaIntegrationService/DeleteOktaLabelRule",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaIntegrationServiceServer).DeleteOktaLabelRule(ctx, req.(*DeleteOktaLabelRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _OktaIntegrationService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.OktaIntegrationService",
 	HandlerType: (*OktaIntegrationServiceServer)(nil),
@@ -353,6 +735,18 @@ var _OktaIntegrationService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListOktaApplications",
 			Handler:    _OktaIntegrationService_ListOktaApplications_Handler,
+		},
+		{
+			MethodName: "PutOktaLabelRule",
+			Handler:    _OktaIntegrationService_PutOktaLabelRule_Handler,
+		},
+		{
+			MethodName: "ListOktaLabelRules",
+			Handler:    _OktaIntegrationService_ListOktaLabelRules_Handler,
+		},
+		{
+			MethodName: "DeleteOktaLabelRule",
+			Handler:    _OktaIntegrationService_DeleteOktaLabelRule_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -495,6 +889,201 @@ func (m *ListOktaApplicationsResponse) MarshalToSizedBuffer(dAtA []byte) (int, e
 	return len(dAtA) - i, nil
 }
 
+func (m *PutOktaLabelRuleRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PutOktaLabelRuleRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutOktaLabelRuleRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Rule != nil {
+		{
+			size, err := m.Rule.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintOktaservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PutOktaLabelRuleResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PutOktaLabelRuleResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutOktaLabelRuleResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListOktaLabelRulesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListOktaLabelRulesRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListOktaLabelRulesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListOktaLabelRulesResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListOktaLabelRulesResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListOktaLabelRulesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Rules) > 0 {
+		for iNdEx := len(m.Rules) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Rules[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintOktaservice(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DeleteOktaLabelRuleRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DeleteOktaLabelRuleRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteOktaLabelRuleRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintOktaservice(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DeleteOktaLabelRuleResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DeleteOktaLabelRuleResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteOktaLabelRuleResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintOktaservice(dAtA []byte, offset int, v uint64) int {
 	offset -= sovOktaservice(v)
 	base := offset
@@ -560,6 +1149,92 @@ func (m *ListOktaApplicationsResponse) Size() (n int) {
 			n += 1 + l + sovOktaservice(uint64(l))
 		}
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PutOktaLabelRuleRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Rule != nil {
+		l = m.Rule.Size()
+		n += 1 + l + sovOktaservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PutOktaLabelRuleResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListOktaLabelRulesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListOktaLabelRulesResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Rules) > 0 {
+		for _, e := range m.Rules {
+			l = e.Size()
+			n += 1 + l + sovOktaservice(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DeleteOktaLabelRuleRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovOktaservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DeleteOktaLabelRuleResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -822,6 +1497,414 @@ func (m *ListOktaApplicationsResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOktaservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PutOktaLabelRuleRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOktaservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PutOktaLabelRuleRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PutOktaLabelRuleRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Rule", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOktaservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Rule == nil {
+				m.Rule = &types.OktaLabelRuleV1{}
+			}
+			if err := m.Rule.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOktaservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PutOktaLabelRuleResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOktaservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PutOktaLabelRuleResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PutOktaLabelRuleResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOktaservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListOktaLabelRulesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOktaservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListOktaLabelRulesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListOktaLabelRulesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOktaservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListOktaLabelRulesResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOktaservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListOktaLabelRulesResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListOktaLabelRulesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Rules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOktaservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Rules = append(m.Rules, &types.OktaLabelRuleV1{})
+			if err := m.Rules[len(m.Rules)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOktaservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DeleteOktaLabelRuleRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOktaservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeleteOktaLabelRuleRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeleteOktaLabelRuleRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOktaservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOktaservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOktaservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DeleteOktaLabelRuleResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOktaservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeleteOktaLabelRuleResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeleteOktaLabelRuleResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipOktaservice(dAtA[iNdEx:])

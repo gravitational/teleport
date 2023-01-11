@@ -114,3 +114,49 @@ func UnmarshalOktaGroup(data []byte, opts ...MarshalOption) (types.OktaGroup, er
 	}
 	return nil, trace.BadParameter("unsupported Okta app resource version %q", h.Version)
 }
+
+// MarshalOktaLabelRule marshals Okta label rule resource to JSON.
+func MarshalOktaLabelRule(oktaLabelRule types.OktaLabelRule, opts ...MarshalOption) ([]byte, error) {
+	if err := oktaLabelRule.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch oktaLabelRule := oktaLabelRule.(type) {
+	case *types.OktaLabelRuleV1:
+		return utils.FastMarshal(oktaLabelRule)
+	default:
+		return nil, trace.BadParameter("unsupported app resource %T", oktaLabelRule)
+	}
+}
+
+// UnmarshalOktaLabelRule unmarshals Okta label rule resource from JSON.
+func UnmarshalOktaLabelRule(data []byte, opts ...MarshalOption) (types.OktaLabelRule, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing label rule resource data")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var h types.ResourceHeader
+	if err := utils.FastUnmarshal(data, &h); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case types.V1:
+		var oktaLabelRule types.OktaLabelRuleV1
+		if err := utils.FastUnmarshal(data, &oktaLabelRule); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		if err := oktaLabelRule.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			oktaLabelRule.SetResourceID(cfg.ID)
+		}
+		if !cfg.Expires.IsZero() {
+			oktaLabelRule.SetExpiry(cfg.Expires)
+		}
+		return &oktaLabelRule, nil
+	}
+	return nil, trace.BadParameter("unsupported Okta okta label rule resource version %q", h.Version)
+}

@@ -299,6 +299,9 @@ const (
 	// KindOktaApps represents Okta applications.
 	KindOktaApps = "oktaapps"
 
+	// KindOktaLabelRules represents Okta label rules.
+	KindOktaLabelRules = "okta_label_rules"
+
 	// KindDownload represents Teleport binaries downloads.
 	KindDownload = "download"
 

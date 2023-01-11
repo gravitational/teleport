@@ -38,6 +38,30 @@ message ListOktaApplicationsResponse {
   repeated types.OktaApplicationV1 applications = 1;
 }
 
+// PutOktaLabelRule is a request for updating or creating an okta label rule.
+message PutOktaLabelRuleRequest {
+  types.OktaLabelRuleV1 rule = 1;
+}
+
+// PutOktaLabelRuleResponse is the response for updating or creating an Okta label rule.
+message PutOktaLabelRuleResponse {}
+
+// ListOktaLabelRulesRequest is the request for listing Okta label rules.
+message ListOktaLabelRulesRequest {}
+
+// ListOktaLabelRulesResponse is the response for listing Okta label rules.
+message ListOktaLabelRulesResponse {
+  repeated types.OktaLabelRuleV1 rules = 1;
+}
+
+// DeleteOktaLabelRule is a request for deleting an Okta label rule.
+message DeleteOktaLabelRuleRequest {
+  string name = 1;
+}
+
+// DeleteOktaLabelRuleResponse is the response for deleting an Okta label rule.
+message DeleteOktaLabelRuleResponse {}
+
 // OktaIntegrationService allows users to query the Okta integration service.
 service OktaIntegrationService {
   // ListOktaGroups will return a list of groups from the Okta integration service.
@@ -45,4 +69,13 @@ service OktaIntegrationService {
 
   // ListApplications will return a list of applications from the Okta integration service.
   rpc ListOktaApplications(ListOktaApplicationsRequest) returns (ListOktaApplicationsResponse);
+
+  // PutOktaLabelRule creates or updates and Okta label rule.
+  rpc PutOktaLabelRule(PutOktaLabelRuleRequest) returns (PutOktaLabelRuleResponse);
+
+  // ListOktaLabelRules lists Okta label rules.
+  rpc ListOktaLabelRules(ListOktaLabelRulesRequest) returns (ListOktaLabelRulesResponse);
+
+  // DeleteOktaLabelRule delets an Okta label rule.
+  rpc DeleteOktaLabelRule(DeleteOktaLabelRuleRequest) returns (DeleteOktaLabelRuleResponse);
 }

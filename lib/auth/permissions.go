@@ -598,7 +598,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleOkta:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -725,7 +725,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleSAMLIdp:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{

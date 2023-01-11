@@ -4793,7 +4793,7 @@ message OktaAppLinkV1 {
   string uri = 2 [(gogoproto.jsontag) = "uri"];
 }
 
-message OktaLabelRule {
+message OktaLabelRuleV1 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
 
@@ -4809,7 +4809,16 @@ message OktaLabelRule {
     (gogoproto.jsontag) = "metadata"
   ];
 
-  int32 priority = 5;
+  OktaLabelRuleSpecV1 spec = 5;
+}
 
-  map<string, wrappers.StringValues> traits_map = 6;
+message OktaLabelRuleSpecV1 {
+  // Mappings assigns the given label and value to anything that matches.
+  repeated OktaLabelMappingV1 mappings = 1;
+}
+
+message OktaLabelMappingV1 {
+  string label = 1;
+  string value = 2;
+  repeated string matches = 3;
 }
