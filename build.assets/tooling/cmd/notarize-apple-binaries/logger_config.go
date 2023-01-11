@@ -23,11 +23,11 @@ import (
 )
 
 type LoggerConfig struct {
-	logLevel uint
+	logLevel logrus.Level
 	logJSON  bool
 }
 
-func NewLoggerConfig(logLevel uint, logJSON bool) *LoggerConfig {
+func NewLoggerConfig(logLevel logrus.Level, logJSON bool) *LoggerConfig {
 	return &LoggerConfig{
 		logLevel: logLevel,
 		logJSON:  logJSON,
@@ -41,6 +41,6 @@ func (lc *LoggerConfig) setupLogger() {
 		logrus.SetFormatter(&logrus.TextFormatter{})
 	}
 	logrus.SetOutput(os.Stdout)
-	logrus.SetLevel(logrus.Level(lc.logLevel))
+	logrus.SetLevel(lc.logLevel)
 	logrus.Debugf("Setup logger with config: %+v", lc)
 }

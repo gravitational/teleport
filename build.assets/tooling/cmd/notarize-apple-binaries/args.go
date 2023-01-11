@@ -18,150 +18,52 @@ package main
 
 import (
 	"debug/macho"
-	"flag"
 	"fmt"
-	"os"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
 type Args struct {
-	logLevel      uint
-	logJSON       bool
-	AppleUsername string
-	ApplePassword string
-	BinaryPaths   []string
+	logLevel      *string
+	logJSON       *bool
+	AppleUsername *string
+	ApplePassword *string
+	BinaryPaths   *[]string
 }
 
 func NewArgs() *Args {
-	args := &Args{}
-	flag.UintVar(&args.logLevel, "log-level", uint(logrus.InfoLevel), "Log level from 0 to 6, 6 being the most verbose")
-	flag.BoolVar(&args.logJSON, "log-json", false, "True if the log entries should use JSON format, false for text logging")
-	flag.StringVar(&args.AppleUsername, "apple-username", "", "Apple Connect username used for notarization")
-	flag.StringVar(&args.ApplePassword, "apple-password", "", "Apple Connect password used for notarization")
+	logLevelStrings := make([]string, 0, len(logrus.AllLevels))
+	for _, level := range logrus.AllLevels {
+		logLevelStrings = append(logLevelStrings, level.String())
+	}
+
+	args := &Args{
+		logLevel:      kingpin.Flag("log-level", "Output logging level").Default(logrus.InfoLevel.String()).Enum(logLevelStrings...),
+		logJSON:       kingpin.Flag("log-json", "Enable JSON logging").Default(fmt.Sprintf("%v", false)).Bool(),
+		AppleUsername: kingpin.Flag("apple-username", "Apple Connect username used for notarization").Required().Envar("APPLE_USERNAME").String(),
+		ApplePassword: kingpin.Flag("apple-password", "Apple Connect password used for notarization").Required().Envar("APPLE_PASSWORD").String(),
+		BinaryPaths:   kingpin.Arg("binaries", "Path to Apple binaries for signing and notarization").Required().Action(binaryArgValidatiorAction).ExistingFiles(),
+	}
 
 	return args
 }
 
-func (a *Args) Check() error {
-	err := a.checkLoggerArguments()
-	if err != nil {
-		return trace.Wrap(err, "failed to validate the logger arguments")
-	}
-
-	err = a.checkGonArguments()
-	if err != nil {
-		return trace.Wrap(err, "failed to validate gon arguments")
-	}
-
-	return nil
-}
-
-func (a *Args) checkGonArguments() error {
-	err := a.validateAppleUsername()
-	if err != nil {
-		return trace.Wrap(err, "failed to validate the apple-username flag")
-	}
-
-	err = a.validateApplePassword()
-	if err != nil {
-		return trace.Wrap(err, "failed to validate the apple-password flag")
-	}
-
-	err = a.validateBinaryPaths()
-	if err != nil {
-		return trace.Wrap(err, "failed to validate binary path(s)")
-	}
-
-	// It might be worth adding an actual login check here in the future
-
-	return nil
-}
-
-func (a *Args) checkLoggerArguments() error {
-	if err := a.validateLogLevel(); err != nil {
-		return trace.Wrap(err, "failed to validate the log level flag")
-	}
-
-	return nil
-}
-
-func (a *Args) validateLogLevel() error {
-	if a.logLevel > 6 {
-		return trace.BadParameter("the log-level flag should be between 0 and 6")
-	}
-
-	return nil
-}
-
-func (a *Args) validateAppleUsername() error {
-	if a.AppleUsername == "" {
-		return trace.BadParameter("the apple-username flag should not be empty")
-	}
-
-	return nil
-}
-
-func (a *Args) validateApplePassword() error {
-	if a.ApplePassword == "" {
-		return trace.BadParameter("the apple-password flag should not be empty")
-	}
-
-	return nil
-}
-
-func (a *Args) validateBinaryPaths() error {
-	// Check for minimum arg count and load the parameters into the struct
-	if len(a.BinaryPaths) == 0 {
-		return trace.BadParameter("the path to at least one binary is required")
-	}
-
-	// Validate each path
-	binaryPaths := flag.Args()
-	for _, binaryPath := range binaryPaths {
-		logrus.Debugf("Validating binary path %q...", binaryPath)
-		err := a.verifyFileIsValidForSigning(binaryPath)
+func binaryArgValidatiorAction(pc *kingpin.ParseContext) error {
+	for _, element := range pc.Elements {
+		binaryPath := *element.Value
+		err := verifyFileIsAppleBinary(binaryPath)
 		if err != nil {
-			return trace.Wrap(err, "file %q failed binary validation", binaryPath)
+			return trace.Wrap(err, "failed to verify that %q is a valid Apple binary for signing", binaryPath)
 		}
 	}
-
-	return nil
-}
-
-// Returns an error if the file is not valid for signing
-func (a *Args) verifyFileIsValidForSigning(filePath string) error {
-	err := a.verifyPathIsNotDirectory(filePath)
-	if err != nil {
-		return trace.Wrap(err, "filesystem path %q is a directory")
-	}
-
-	err = a.verifyFileIsAppleBinary(filePath)
-	if err != nil {
-		return trace.Wrap(err, "file %q is not an Apple binary", filePath)
-	}
-
-	return nil
-}
-
-// Returns an error if the provided binary path is actually a directory
-func (a *Args) verifyPathIsNotDirectory(filePath string) error {
-	fileInfo, err := os.Stat(filePath)
-	if err != nil {
-		return trace.Wrap(err, "failed to stat file system information for path %q", filePath)
-	}
-
-	if fileInfo.IsDir() {
-		return trace.Errorf("filesystem path %q is a directory and does not point to a binary", filePath)
-	}
-
 	return nil
 }
 
 // Returns an error if the file is not a valid Apple binary
 // Effectively does `file $BINARY | grep -ic 'mach-o'`
-func (a *Args) verifyFileIsAppleBinary(filePath string) error {
+func verifyFileIsAppleBinary(filePath string) error {
 	// First check to see if the binary is a typical mach-o binary.
 	// If it's not, it could still be a multiarch "fat" mach-o binary,
 	// so we try that next. If both fail then the file is not an Apple
@@ -187,27 +89,18 @@ func (a *Args) verifyFileIsAppleBinary(filePath string) error {
 	return nil
 }
 
-func usage() {
-	fmt.Printf("Usage: %s [OPTIONS] BINARIES...\n", flag.CommandLine.Name())
-	fmt.Println()
-	flag.PrintDefaults()
-}
-
 func parseArgs() (*Args, error) {
-	flag.Usage = usage
-
 	args := NewArgs()
-	flag.Parse()
-	args.BinaryPaths = flag.Args()
+	kingpin.Parse()
 
 	// This needs to be called as soon as possible so that the logger can
 	// be used when checking args
-	NewLoggerConfig(args.logLevel, args.logJSON).setupLogger()
-
-	err := args.Check()
+	parsedLogLevel, err := logrus.ParseLevel(*args.logLevel)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse all arguments")
+		// This should never be hit if kingpin is configured correctly
+		return nil, trace.Wrap(err, "failed to parse logrus log level")
 	}
+	NewLoggerConfig(parsedLogLevel, *args.logJSON).setupLogger()
 
 	logrus.Debugf("Successfully parsed args: %v", args)
 	return args, nil
