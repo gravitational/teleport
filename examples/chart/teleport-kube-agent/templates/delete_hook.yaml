@@ -58,13 +58,16 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: post-delete-job
-        image: alpine/k8s:1.26.0
-        command:
-        - sh
-        - "-c"
-        - |
-            /bin/sh <<'EOF'
-              # list secrets with format {{ .Release.Name }}-.*-state and delete them.
-              kubectl get secrets --no-headers=true  | awk '{print $1}' | grep -E -i "{{ .Release.Name }}-.*-state" |  xargs -r kubectl delete secret
-              exit 0
-            EOF
+        env:
+          - name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: RELEASE_NAME
+            value: {{ .Release.Name }}
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        {{- if .Values.imagePullPolicy }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
+        {{- end }}
+        command: ["teleport"]
+        args: ["kube-state", "delete"]
