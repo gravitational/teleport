@@ -303,6 +303,9 @@ const (
 	// KindInstance represents a teleport instance independent of any specific service.
 	KindInstance = "instance"
 
+	// KindLoginRule is a login rule resource.
+	KindLoginRule = "login_rule"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
