@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.0.0-dev.hatchmerge.32
+VERSION=12.0.0-dev.hatchmerge.33
 
 DOCKER_IMAGE ?= teleport
 
@@ -228,8 +228,8 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 # Is this build targeting the same OS & architecture it is being compiled on, or
-# will it require cross-compilation? We need to know this (especially for ARM) so we 
-# can set the cross-compiler path (and possibly feature flags) correctly. 
+# will it require cross-compilation? We need to know this (especially for ARM) so we
+# can set the cross-compiler path (and possibly feature flags) correctly.
 IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
@@ -458,7 +458,7 @@ build-archive:
 	@echo "---> Created $(RELEASE).tar.gz."
 
 #
-# make release-unix - Produces binary release tarballs for both OSS and 
+# make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
@@ -1187,7 +1187,7 @@ backport:
 
 .PHONY: ensure-js-deps
 ensure-js-deps:
-	yarn
+	yarn install --ignore-scripts
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
