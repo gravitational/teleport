@@ -1132,7 +1132,9 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
   - [ ] AWS Redshift.
+  - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
@@ -1142,6 +1144,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
+  - [ ] Azure SQL Server.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -1153,7 +1156,9 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
   - [ ] AWS Redshift.
+  - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
@@ -1163,6 +1168,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
+  - [ ] Azure SQL Server.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1184,12 +1190,15 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
+      - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Redshift clusters.
+      - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
     - [ ] Azure
       - [ ] Can detect and register MySQL and Postgres instances.
       - [ ] Can detect and register Azure Cache for Redis servers.
+      - [ ] Can detect and register Azure SQL Servers and Azure SQL Managed Instances.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users 
