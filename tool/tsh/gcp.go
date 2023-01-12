@@ -136,18 +136,32 @@ func (a *gcpApp) getGcloudConfigPath() string {
 var projectIDRegexp = regexp.MustCompile(`.*@(?P<projectID>.*)\.iam\.gserviceaccount\.com`)
 
 func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
-	match := projectIDRegexp.FindStringSubmatch(serviceAccount)
-	if match == nil {
-		return "", trace.BadParameter("cannot extract project ID from service account %q", serviceAccount)
+	if serviceAccount == "" {
+		return "", trace.BadParameter("invalid service account format: empty string received")
 	}
 
-	for i, name := range projectIDRegexp.SubexpNames() {
-		if name == "projectID" {
-			return match[i], nil
-		}
+	user, domain, found := strings.Cut(serviceAccount, "@")
+	if !found {
+		return "", trace.BadParameter("invalid service account format: missing @")
+	}
+	if user == "" {
+		return "", trace.BadParameter("invalid service account format: empty user")
 	}
 
-	return "", trace.BadParameter("cannot extract project ID from service account %q", serviceAccount)
+	projectID, iamDomain, found := strings.Cut(domain, ".")
+	if !found {
+		return "", trace.BadParameter("invalid service account format: missing <project-id>.iam.gserviceaccount.com after @")
+	}
+
+	if projectID == "" {
+		return "", trace.BadParameter("invalid service account format: missing project ID")
+	}
+
+	if iamDomain != "iam.gserviceaccount.com" {
+		return "", trace.BadParameter("invalid service account format: expected suffix %q, got %q", "iam.gserviceaccount.com", iamDomain)
+	}
+
+	return projectID, nil
 }
 
 // GetEnvVars returns required environment variables to configure the
