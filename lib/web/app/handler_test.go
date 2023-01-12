@@ -103,7 +103,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc: "success",
 			headers: map[string]string{
-				"Origin":                 "https://proxy.teleport.com",
+				"Origin":                 "https://proxy.goteleport.com",
 				"X-Cookie-Value":         cookieValue,
 				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
 			},
@@ -118,14 +118,14 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc: "success - proxy addr with custom port",
 			headers: map[string]string{
-				"Origin":                 "https://proxy.teleport.com:3080",
+				"Origin":                 "https://proxy.goteleport.com:3080",
 				"X-Cookie-Value":         cookieValue,
 				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
 			},
 			outStatusCode: http.StatusOK,
 			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
 			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr("proxy.teleport.com:3080"),
+				*utils.MustParseAddr("proxy.goteleport.com:3080"),
 			},
 			cookieValue:        cookieValue,
 			subjectCookieValue: appSession.GetBearerToken(),
@@ -133,7 +133,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc: "missing subject session token in request",
 			headers: map[string]string{
-				"Origin":         "https://proxy.teleport.com",
+				"Origin":         "https://proxy.goteleport.com",
 				"X-Cookie-Value": cookieValue,
 			},
 			outStatusCode: http.StatusForbidden,
@@ -161,7 +161,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc: "subject session token in request does not match",
 			headers: map[string]string{
-				"Origin":                 "https://proxy.teleport.com",
+				"Origin":                 "https://proxy.goteleport.com",
 				"X-Cookie-Value":         cookieValue,
 				"X-Subject-Cookie-Value": "foobar",
 			},
@@ -190,7 +190,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc: "invalid session",
 			headers: map[string]string{
-				"Origin":                 "https://proxy.teleport.com",
+				"Origin":                 "https://proxy.goteleport.com",
 				"X-Cookie-Value":         "foobar",
 				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
 			},
@@ -217,7 +217,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc: "incorrect origin port",
 			headers: map[string]string{
-				"Origin":                 "https://proxy.teleport.com:3080",
+				"Origin":                 "https://proxy.goteleport.com:3080",
 				"X-Cookie-Value":         "foobar",
 				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
 			},
