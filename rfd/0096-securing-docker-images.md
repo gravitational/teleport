@@ -262,7 +262,7 @@ graph TD
     upload_results[Upload scan results<br/>to GitHub Code Scanning]
     bad_scan?{Does scan<br/>detect high-risk<br/>vulnerabilities?}
     fail_build[Fail the build]
-    sign_image[cosign ...]
+    sign_image[$ cosign ...]
     promote_build[/Release engineer<br/>promotes build/]
     promote_image[Candidate image<br/>becomes release image<br/>in Public ECR]
     build_ok?{Does all go well<br/>with the rest of<br/>the build?}
