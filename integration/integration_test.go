@@ -3996,7 +3996,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4012,7 +4012,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4040,7 +4040,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -4070,7 +4070,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
@@ -4164,7 +4164,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4177,7 +4177,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4205,7 +4205,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -4219,7 +4219,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseRollback,
 		Mode:        types.RotationModeManual,
 	})
@@ -4356,7 +4356,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4391,7 +4391,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4411,7 +4411,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -4438,7 +4438,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.AllCAsType,
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})

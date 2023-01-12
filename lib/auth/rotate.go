@@ -63,7 +63,7 @@ type RotateRequest struct {
 // Types returns cert authority types requested to be rotated.
 func (r *RotateRequest) Types() []types.CertAuthType {
 	switch r.Type {
-	case types.AllCAsType:
+	case types.CertAuthTypeAll:
 		return types.CertAuthTypes[:]
 	case types.HostCA:
 		return []types.CertAuthType{types.HostCA}
@@ -90,7 +90,7 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	}
 	// Type all is valid too but will be deprecated in a future release.
 	// See: https://github.com/gravitational/teleport/issues/17493
-	if err := r.Type.Check(); err != nil && r.Type != types.AllCAsType {
+	if err := r.Type.Check(); err != nil && r.Type != types.CertAuthTypeAll {
 		return trace.Wrap(err)
 	}
 	if r.GracePeriod == nil {
