@@ -16,16 +16,16 @@
 
 import React from 'react';
 
-import { AppLauncher } from './AppLauncher';
+import { AppLauncherAccessDenied, AppLauncherProcessing } from './AppLauncher';
 
 export default {
   title: 'Teleport/AppLauncher',
 };
 
 export const Processing = () => {
-  return <AppLauncher status="processing" statusText="" />;
+  return <AppLauncherProcessing />;
 };
 
 export const Failed = () => {
-  return <AppLauncher status="failed" statusText="" />;
+  return <AppLauncherAccessDenied statusText="" />;
 };
