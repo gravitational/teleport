@@ -24,8 +24,10 @@ import (
 // FilterObj is the interface a Kubernetes Resource Object filter must implement.
 type FilterObj interface {
 	// FilterObj receives a runtime.Object type and filters the resources on it
-	// based on allowed and denied rules resources.
+	// based on allowed and denied rules.
 	// After filtering them, the obj is manipulated to hold the filtered information.
+	// The boolean returned indicates if the client is allowed to receive the event
+	// with the object.
 	FilterObj(runtime.Object) (bool, error)
 }
 

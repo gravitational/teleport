@@ -101,14 +101,14 @@ func (d *podFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 		// pod was denied.
 		if err := filterPod(o, d.allowedResources, d.deniedResources); err != nil {
 			if !trace.IsAccessDenied(err) {
-				d.log.WithError(err).Warnf("Unable to compile role kubernetes_resources.")
+				d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 			}
 			return trace.Wrap(err)
 		}
 	case *corev1.PodList:
 		filtered = filterCoreV1PodList(o, d.allowedResources, d.deniedResources, d.log)
 	case *metav1.Table:
-		filtered, err = d.filterMetav1Table(o, d.allowedResources, d.deniedResources)
+		filtered, err = d.filterMetaV1Table(o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -120,14 +120,16 @@ func (d *podFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 }
 
 // FilterObj receives a runtime.Object type and filters the resources on it
-// based on allowed and denied rules resources.
+// based on allowed and denied rules.
 // After filtering them, the obj is manipulated to hold the filtered information.
+// The boolean returned indicates if the client is allowed to receive the event
+// that originated this check.
 func (d *podFilterer) FilterObj(obj runtime.Object) (bool, error) {
 	switch o := obj.(type) {
 	case *corev1.Pod:
 		err := filterPod(o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
-			d.log.WithError(err).Warnf("Unable to compile role kubernetes_resources.")
+			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
 		// if err is not nil we should not include it.
 		return err == nil, nil
@@ -135,7 +137,7 @@ func (d *podFilterer) FilterObj(obj runtime.Object) (bool, error) {
 		_ = filterCoreV1PodList(o, d.allowedResources, d.deniedResources, d.log)
 		return len(o.Items) > 0, nil
 	case *metav1.Table:
-		_, err := d.filterMetav1Table(o, d.allowedResources, d.deniedResources)
+		_, err := d.filterMetaV1Table(o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -145,8 +147,11 @@ func (d *podFilterer) FilterObj(obj runtime.Object) (bool, error) {
 	}
 }
 
-// decode decodes the buffer into the appropriate type if the responseCode is valid.
-// If not valid, returns the buffer unchanged.
+// decode decodes the buffer into the appropriate type if the responseCode
+// belongs to the range 200(OK)-206(PartialContent).
+// If it does not belong, it returns the buffer unchanged since it contains
+// an error message from the Kubernetes API server and it's safe to return
+// it back to the user.
 func (d *podFilterer) decode(buffer []byte) (runtime.Object, []byte, error) {
 	switch {
 	case d.responseCode == http.StatusSwitchingProtocols:
@@ -166,11 +171,11 @@ func (d *podFilterer) decode(buffer []byte) (runtime.Object, []byte, error) {
 // decodePartialObjectMetadata decodes the metav1.PartialObjectMetadata present
 // in the metav1.TableRow entry. This information comes from server side and
 // includes the resource name and namespace as a structured object.
-func (d *podFilterer) decodePartialObjectMetadata(row *metav1.TableRow) (err error) {
+func (d *podFilterer) decodePartialObjectMetadata(row *metav1.TableRow) error {
 	if row.Object.Object != nil {
 		return nil
 	}
-
+	var err error
 	// decode only if row.Object.Object was not decoded before.
 	row.Object.Object, err = decodeAndSetGVK(d.decoder, row.Object.Raw)
 	return trace.Wrap(err)
@@ -209,9 +214,9 @@ func filterPod(pod *corev1.Pod, allowed, denied []types.KubernetesResource) erro
 	return trace.Wrap(err)
 }
 
-// filterMetav1Table filters the serverside printed table to exclude pods
+// filterMetaV1Table filters the serverside printed table to exclude pods
 // that the user must not have access to.
-func (d *podFilterer) filterMetav1Table(table *metav1.Table, allowedPods, deniedPods []types.KubernetesResource) (*metav1.Table, error) {
+func (d *podFilterer) filterMetaV1Table(table *metav1.Table, allowedPods, deniedPods []types.KubernetesResource) (*metav1.Table, error) {
 	pods := make([]metav1.TableRow, 0, len(table.Rows))
 	for i := range table.Rows {
 		row := &(table.Rows[i])
@@ -225,7 +230,7 @@ func (d *podFilterer) filterMetav1Table(table *metav1.Table, allowedPods, denied
 		if err := matchKubernetesResource(resource, allowedPods, deniedPods); err == nil {
 			pods = append(pods, *row)
 		} else if !trace.IsAccessDenied(err) {
-			d.log.WithError(err).Warnf("Unable to compile regex expression.")
+			d.log.WithError(err).Warn("Unable to compile regex expression.")
 		}
 	}
 	table.Rows = pods
