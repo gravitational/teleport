@@ -883,6 +883,14 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] `desktop.directory.share` (`TDP04I`) emitted when Teleport starts sharing a directory
   - [ ] `desktop.directory.read` (`TDP05I`) emitted when a file is read over the shared directory
   - [ ] `desktop.directory.write` (`TDP06I`) emitted when a file is written to over the shared directory
+- Warnings/Errors
+  - [ ] Induce the backend to send a TDP Notification of severity warning (1), confirm that a warning is logged in the warning dropdown
+  - [ ] Induce the backend to send a TDP Notification of severity error (2), confirm that session is terminated and error popup is shown
+  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown (confirms backwards compatibility w/ older w_d_s starting in Teleport 12)
+- Trusted Cluster / Tunneling
+  - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
+    - [ ] Confirm that windows desktop sessions can be made on root cluster
+    - [ ] Confirm that windows desktop sessions can be made on leaf cluster
 
 ## Binaries compatibility
 
