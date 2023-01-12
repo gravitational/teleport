@@ -78,7 +78,7 @@ func TestAuthPOST(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
 	clusterName := "test-cluster"
-	publicAddr := "proxy.teleport.com:443"
+	publicAddr := "proxy.goteleport.com:443"
 
 	// Generate CA TLS key and cert with the cluster and application DNS.
 	key, cert, err := tlsca.GenerateSelfSignedCA(
