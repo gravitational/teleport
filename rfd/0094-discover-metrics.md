@@ -88,121 +88,131 @@ so below we only include event metadata.
 ```protobuf
 // Contains common metadata for Discover related events.
 message DiscoverMetadata {
-    // Uniquely identifies Discover wizard "session". Will allow to correlate
-    // events within the same Discover wizard run. Can be UUIDv4.
-    string id = 1;
+  // Uniquely identifies Discover wizard "session". Will allow to correlate
+  // events within the same Discover wizard run. Can be UUIDv4.
+  string id = 1;
 }
 
 // Represents a resource type that is being added.
 enum DiscoverResource {
-  RESOURCE_SERVER = 0;
-  RESOURCE_KUBERNETES = 1;
-  RESOURCE_DATABASE_POSTGRES_SELF_HOSTED = 2;
-  RESOURCE_DATABASE_MYSQL_SELF_HOSTED = 3;
-  RESOURCE_DATABASE_MONGODB_SELF_HOSTED = 4;
-  RESOURCE_DATABASE_POSTGRES_RDS = 5;
-  RESOURCE_DATABASE_MYSQL_RDS = 6;
-  RESOURCE_APPLICATION_HTTP = 7;
-  RESOURCE_APPLICATION_TCP = 8;
-  RESOURCE_WINDOWS_DESKTOP = 9;
+  DISCOVER_RESOURCE_UNSPECIFIED = 0;
+  DISCOVER_RESOURCE_SERVER = 1;
+  DISCOVER_RESOURCE_KUBERNETES = 2;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED = 3;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED = 4;
+  DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED = 5;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_RDS = 6;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_RDS = 7;
+  DISCOVER_RESOURCE_APPLICATION_HTTP = 8;
+  DISCOVER_RESOURCE_APPLICATION_TCP = 9;
+  DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
 }
 
 // Contains common metadata identifying resource type being added.
-message ResourceMetadata {
-    // Resource type that is being added.
-    DiscoverResource resource = 1;
+message DiscoverResourceMetadata {
+  // Resource type that is being added.
+  DiscoverResource resource = 1;
 }
 
 // Represents a Discover step outcome.
 enum DiscoverStatus {
-  STATUS_SUCCESS = 0;
-  STATUS_ERROR = 1;
-  STATUS_ABORTED = 2;
+  DISCOVER_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  DISCOVER_STATUS_SUCCESS = 1;
+  // The system skipped the step.
+  // For example:
+  // When setting up a Database and there's already a Database Service proxying the DB.
+  // In this case the Database Agent installation is skipped.
+  DISCOVER_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  DISCOVER_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  DISCOVER_STATUS_ABORTED = 4;
 }
 
 // Contains fields that track a particular step outcome, for example connection
 // test failed or succeeded, or user aborted the step.
-message Status {
-    // Indicates the step outcome. For example, "success" means user proceeded
-    // to the next step, "error" if something failed (e.g. connection test),
-    // "aborted" if user exited the wizard.
-    DiscoverStatus status = 1;
-    // Contains error details. We have to be careful to not include any
-    // identifyable infomation like server addresses here.
-    string error = 2 ;
+message DiscoverStepStatus {
+  // Indicates the step outcome.
+  DiscoverStatus status = 1;
+  // Contains error details in case of Error Status.
+  // We have to be careful to not include any identifyable infomation like server addresses here.
+  string error = 2;
+}
+
+// Emitted when the wizard opens.
+message UIDiscoverStartedEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverStepStatus status = 2;
 }
 
 // Emitted when user selected resource type to add and proceeded to the next
 // step.
-message DiscoverResourceSelectionEvent {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
+message UIDiscoverResourceSelectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
-// Emitted on the "Configure Resource" screen when user has connected an SSH
-// or Kubernetes agent and proceeded to the next step.
+
+// Emitted when user is offered to install a Teleport Agent.
+// For SSH this is the Teleport 'install-node' script.
 //
-// For Database Access this step has sub-steps so will have individual events
-// defined below, however this event will be emitted as well at the end of
-// the last sub-step to be able to track it on a more high-level.
-message DiscoverConfigureResourceEvent {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
+// For Kubernetes this is the teleport-agent helm chart installation.
+//
+// For Database Access this step is the installation of the teleport 'install-db' script.
+// It can be skipped if the cluster already has a Database Service capable of proxying the database.
+message UIDiscoverDeployServiceEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // Emitted when a user registered a database resource and proceeded to the next
 // step.
-message DiscoverRegisterDatabase {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
-}
-
-// Emitted when a user deployed a database agent and proceeded to the next step.
-message DiscoverDeployDatabaseAgent {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
+message UIDiscoverConfigureRegisterDatabaseEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // Emitted when a user configured mutual TLS for self-hosted database and
 // proceeded to the next step.
-message DiscoverConfigureMTLS {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
+message UIDiscoverConfigureDatabaseMTLSEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // Emitted when a user configured IAM for RDS database and proceeded to the
 // next step.
-message DiscoverConfigureIAM {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
+message UIDiscoverConfigureDatabaseIAMPolicyEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // Emitted on "Setup Access" screen when user has updated their principals
 // and proceeded to the next step.
-message DiscoverSetUpAccessEvent {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
+message UIDiscoverSetUpAccessEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // Emitted on the "Test Connection" screen when user clicked tested connection
 // to their resource.
-message DiscoverTestConnectionEvent {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
-    Status status = 3;
+message UIDiscoverTestConnectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // Emitted when user completes the Discover wizard.
-message DiscoverCompletedEvent {
-    DiscoverMetadata discover_metadata = 1;
-    ResourceMetadata resource_metadata = 2;
+message UIDiscoverCompletedEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 ```
 
