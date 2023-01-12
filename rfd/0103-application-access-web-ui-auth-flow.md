@@ -3,7 +3,7 @@ authors: Ryan Clark (ryan.clark@goteleport.com)
 state: draft
 ---
 
-# RFD 103 - Application Access Auth Flow
+# RFD 103 - Application Access Web UI Auth Flow
 
 ## What
 
