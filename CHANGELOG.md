@@ -1,5 +1,24 @@
 # Changelog
 
+## 9.3.26
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Updated the proxy to use the cache for periodic operations [#20152](https://github.com/gravitational/teleport/pull/20152)
+* Fixed an issue resulting in a certificate error after reconciling a dynamic RDS resource [#20101](https://github.com/gravitational/teleport/pull/20101)
+* Fixed an issue where Machine ID Certificates did not respect the provided TTL when using IAM joining [#20002](https://github.com/gravitational/teleport/pull/20002)
+* Fixed a bug preventing Teleport's ALPN Proxy from working with HTTP CONNECT proxies [#19898](https://github.com/gravitational/teleport/pull/19898)
+* Fixed an issue listing all nodes in tsh [#19823](https://github.com/gravitational/teleport/pull/19823)
+* Made `gcp.credentialSecretName` optional in the Teleport Cluster Helm chart [#19809](https://github.com/gravitational/teleport/pull/19809)
+* Added support for secure certificate mapping for Windows desktop certificates [#19808](https://github.com/gravitational/teleport/pull/19808)
+* Fixed an issue preventing `tsh proxy db` from running if database CLI tools are unavailable [#19773](https://github.com/gravitational/teleport/pull/19773)
+* Update Rust to 1.66.0 [#19770](https://github.com/gravitational/teleport/pull/19770)
+* Bump `gravitational/trace` package version [#19719](https://github.com/gravitational/teleport/pull/19719)
+* Support certificate expiry on bot join [#19717](https://github.com/gravitational/teleport/pull/19717)
+* Fixed an issue preventing some users from being able to play desktop recordings [#19711](https://github.com/gravitational/teleport/pull/19711)
+* Added the ability to export `tsh` traces even when the Auth Server is not configured for tracing [#19588](https://github.com/gravitational/teleport/pull/19588)
+* Fixed issue with noisy-square distortions in desktop access [#19546](https://github.com/gravitational/teleport/pull/19546)
+
 ## 9.3.25
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
