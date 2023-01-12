@@ -1487,7 +1487,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			env := getTshEnv()
@@ -1510,7 +1510,7 @@ func onLogin(cf *CLIConf) error {
 
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfig(cf, tc, ""); err == nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err == nil {
 				return trace.Wrap(onStatus(cf))
 			}
 
@@ -1533,7 +1533,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1549,7 +1549,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -1632,7 +1632,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfig(cf, tc, ""); err != nil {
+		if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3920,7 +3920,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfig(cf, tc, ""); err != nil {
+	if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4259,4 +4259,15 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	}
 
 	return trace.NewAggregate(errors...)
+}
+
+// updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to
+// tsh login call and updates the default kubeconfig with its value,
+// otherwise does nothing.
+func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string) error {
+	if len(cf.KubernetesCluster) == 0 {
+		return nil
+	}
+	err := updateKubeConfig(cf, tc, "")
+	return trace.Wrap(err)
 }
