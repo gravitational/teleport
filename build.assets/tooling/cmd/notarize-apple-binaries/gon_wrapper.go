@@ -66,6 +66,11 @@ func (gw *GonWrapper) SignAndNotarizeBinaries() error {
 	}
 	defer os.RemoveAll(path.Dir(zipPath))
 
+	err = gw.NotarizeBinaries(zipPath)
+	if err != nil {
+		return trace.Wrap(err, "failed to notarize binaries")
+	}
+
 	gw.logger.Info("Signing and notarization complete!")
 	return nil
 }
