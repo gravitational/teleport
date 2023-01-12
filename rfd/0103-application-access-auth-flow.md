@@ -8,7 +8,6 @@ state: draft
 ## What
 
 This is an overview of the flow used for setting the relevant cookies when a user logs in to an 
-
 application through Teleport.
 
 ## Why
@@ -43,7 +42,7 @@ sequenceDiagram
 
 ### CORS
 
-As we need to enable cross-origin requests from the proxy URL to the application URL, we add a middleware
+As we need to enable cross-origin requests from the proxy URL to the application URL, we add middleware
 before `/x-teleport-auth` to check the `Origin` header (this cannot be changed via a `fetch` request).
 
 We check the origin against the public addresses of the proxy, and if one is a match, we allow a cross-origin 
@@ -60,10 +59,9 @@ The rules around the cross-origin request are strict and the absolute minimum ne
 
 Teleport's default content security policy disallows cross-origin requests by setting `connect-src` to `'self' wss:`. 
 
-To allow 
-for the request to the application's domain, we modify the content security policy for `/web/launch` URLs only.
-This changes `connect-src` to `'self' https://applicationfqdn:*`, which allows requests to both proxy as normal,
-and the application's FQDN.
+To allow for the request to the application's domain, we modify the content security policy for `/web/launch` URLs
+only. This changes `connect-src` to `'self' https://applicationfqdn:*`, which allows requests to both proxy as 
+normal, and the application's FQDN.
 
 ### Cookie Validity Checking
 
