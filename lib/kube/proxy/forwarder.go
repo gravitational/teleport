@@ -363,6 +363,12 @@ func (c *authContext) eventUserMeta() apievents.UserMetadata {
 	return meta
 }
 
+func (c *authContext) eventUserMetaWithLogin(login string) apievents.UserMetadata {
+	meta := c.eventUserMeta()
+	meta.Login = login
+	return meta
+}
+
 type dialFunc func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error)
 
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
