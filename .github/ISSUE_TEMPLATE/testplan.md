@@ -810,7 +810,7 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
 - Directory Sharing
   - On supported, non-chromium based browsers (Firefox/Safari)
-    - [ ] Attempting to share directory shows a dismissible "Unsupported Action" dialog
+    - [ ] Attempting to share directory logs a sensible warning in the warning dropdown
   - On supported, chromium based browsers (Chrome/Edge)
     - Begin sharing works
       - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
