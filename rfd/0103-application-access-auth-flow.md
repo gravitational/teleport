@@ -7,7 +7,8 @@ state: draft
 
 ## What
 
-This is an overview of the flow used for setting the relevant cookies when a user logins into an 
+This is an overview of the flow used for setting the relevant cookies when a user logs in to an 
+
 application through Teleport.
 
 ## Why
