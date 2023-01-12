@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -590,4 +591,118 @@ func (o *OktaLabelRuleV1) String() string {
 	}
 
 	return builder.String()
+}
+
+// OktaApplications represents a list of Okta applications.
+type OktaApplications []OktaApplication
+
+// Len returns the slice length.
+func (o OktaApplications) Len() int { return len(o) }
+
+// Less compares applications by name.
+func (o OktaApplications) Less(i, j int) bool {
+	return o[i].GetName() < o[j].GetName()
+}
+
+// Swap swaps two Okta applications
+func (o OktaApplications) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (o OktaApplications) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(o, func(i, j int) bool {
+			return stringCompare(o[i].GetName(), o[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindOktaApps)
+	}
+
+	return nil
+}
+
+// AsResources returns Okta applications as type resources with labels.
+func (o OktaApplications) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(o))
+	for _, app := range o {
+		resources = append(resources, ResourceWithLabels(app))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (o OktaApplications) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(o))
+	switch field {
+	case ResourceMetadataName:
+		for _, app := range o {
+			vals = append(vals, app.GetName())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindOktaApps)
+	}
+
+	return vals, nil
+}
+
+// OktaGroups represents a list of Okta groups.
+type OktaGroups []OktaGroup
+
+// Len returns the slice length.
+func (o OktaGroups) Len() int { return len(o) }
+
+// Less compares groups by name.
+func (o OktaGroups) Less(i, j int) bool {
+	return o[i].GetName() < o[j].GetName()
+}
+
+// Swap swaps two Okta applications
+func (o OktaGroups) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (o OktaGroups) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(o, func(i, j int) bool {
+			return stringCompare(o[i].GetName(), o[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindOktaGroups)
+	}
+
+	return nil
+}
+
+// AsResources returns Okta applications as type resources with labels.
+func (o OktaGroups) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(o))
+	for _, group := range o {
+		resources = append(resources, ResourceWithLabels(group))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (o OktaGroups) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(o))
+	switch field {
+	case ResourceMetadataName:
+		for _, app := range o {
+			vals = append(vals, app.GetName())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindOktaGroups)
+	}
+
+	return vals, nil
 }

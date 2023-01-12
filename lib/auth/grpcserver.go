@@ -4055,6 +4055,20 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindOktaApps:
+			app, ok := resource.(*types.OktaApplicationV1)
+			if !ok {
+				return nil, trace.BadParameter("okta application has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_OktaApplication{OktaApplication: app}}
+		case types.KindOktaGroups:
+			app, ok := resource.(*types.OktaGroupV1)
+			if !ok {
+				return nil, trace.BadParameter("okta group has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_OktaGroup{OktaGroup: app}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}

@@ -1116,6 +1116,64 @@ func (s *PresenceService) DeleteAllKubernetesServers(ctx context.Context) error 
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
+// GetOktaApplications returns all registered Okta applications.
+func (s *PresenceService) GetOktaApplications(ctx context.Context) ([]types.OktaApplication, error) {
+	oktaApplications, err := s.getOktaApplications(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return oktaApplications, nil
+}
+
+func (s *PresenceService) getOktaApplications(ctx context.Context) ([]types.OktaApplication, error) {
+	startKey := backend.Key("oktaapps")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apps := make([]types.OktaApplication, len(result.Items))
+	for i, item := range result.Items {
+		app, err := services.UnmarshalOktaApp(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		apps[i] = app
+	}
+	return apps, nil
+}
+
+// GetOktaGroups returns all registered Okta groups.
+func (s *PresenceService) GetOktaGroups(ctx context.Context) ([]types.OktaGroup, error) {
+	oktaGroups, err := s.getOktaGroups(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return oktaGroups, nil
+}
+
+func (s *PresenceService) getOktaGroups(ctx context.Context) ([]types.OktaGroup, error) {
+	startKey := backend.Key("oktagroups")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groups := make([]types.OktaGroup, len(result.Items))
+	for i, item := range result.Items {
+		group, err := services.UnmarshalOktaGroup(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		groups[i] = group
+	}
+	return groups, nil
+}
+
 // GetKubernetesServers returns all registered kubernetes servers.
 func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
 	servers, err := s.getKubernetesServers(ctx)
@@ -1692,6 +1750,30 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = kubeServers.AsResources()
+
+	case types.KindOktaApps:
+		apps, err := s.getOktaApplications(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		oktaApps := types.OktaApplications(apps)
+		if err := oktaApps.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = oktaApps.AsResources()
+
+	case types.KindOktaGroups:
+		groups, err := s.getOktaGroups(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		oktaGroups := types.OktaGroups(groups)
+		if err := oktaGroups.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = oktaGroups.AsResources()
 
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)

@@ -179,7 +179,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster, types.KindDatabaseService:
+	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster, types.KindDatabaseService, types.KindOktaApps, types.KindOktaGroups:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 

@@ -1627,6 +1627,10 @@ message PaginatedResource {
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
     // DatabaseService represents a DatabaseService resource.
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // OktaApplication represents an OktaApplication resource.
+    types.OktaApplicationV1 OktaApplication = 10 [(gogoproto.jsontag) = "okta_application,omitempty"];
+    // OktaGroup represents an OktaGroup resource.
+    types.OktaGroupV1 OktaGroup = 11 [(gogoproto.jsontag) = "okta_group,omitempty"];
   }
 }
 

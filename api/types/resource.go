@@ -243,6 +243,32 @@ func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
 	return servers, nil
 }
 
+// AsOktaApplications converts each resource into type OktaApplication.
+func (r ResourcesWithLabels) AsOktaApplications() ([]OktaApplication, error) {
+	servers := make([]OktaApplication, 0, len(r))
+	for _, resource := range r {
+		server, ok := resource.(OktaApplication)
+		if !ok {
+			return nil, trace.BadParameter("expected types.OktaApplication, got: %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// ResourcesAsType will convert resources with labels to the given type.
+func ResourcesAsType[T any](r ResourcesWithLabels) ([]T, error) {
+	items := make([]T, 0, len(r))
+	for _, resource := range r {
+		item, ok := resource.(T)
+		if !ok {
+			return nil, trace.BadParameter("expected %T, got: %T", new(T), resource)
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version

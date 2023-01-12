@@ -17,11 +17,30 @@ limitations under the License.
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// Okta defines an interface for managing Okta resources.
+type Okta interface {
+	// CreateOktaApplication creates a new Okta application resource.
+	CreateOktaApplication(context.Context, types.OktaApplication) error
+	// UpdateOktaApplication updates an Okta application resource.
+	UpdateOktaApplication(context.Context, types.OktaApplication) error
+	// DeleteOktaApplication delete an Okta application resource.
+	DeleteOktaApplication(context.Context, types.OktaApplication) error
+
+	// CreateOktaGroup creates a new Okta group resource.
+	CreateOktaGroup(context.Context, types.OktaGroup) error
+	// UpdateOktaGroup updates an Okta group resource.
+	UpdateOktaGroup(context.Context, types.OktaGroup) error
+	// DeleteOktaGroup delete an Okta group resource.
+	DeleteOktaGroup(context.Context, types.OktaGroup) error
+}
 
 // MarshalOktaApplication marshals Okta Application resource to JSON.
 func MarshalOktaApp(oktaApp types.OktaApplication, opts ...MarshalOption) ([]byte, error) {

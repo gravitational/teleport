@@ -3768,6 +3768,59 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 			NextKey:   wResp.NextKey,
 		}, nil
 	}
+
+	if req.ResourceType == types.KindOktaApps {
+		resp, err := a.oktaService.ListOktaApplications(ctx, &proto.ListOktaApplicationsRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		oktaApps := make(types.OktaApplications, 0)
+		for _, oktaApp := range resp.Applications {
+			parser, err := services.NewResourceParser(oktaApp)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			ok, err := parser.EvalBoolPredicate(req.PredicateExpression)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if ok {
+				oktaApps = append(oktaApps, oktaApp)
+			}
+		}
+
+		return &types.ListResourcesResponse{
+			Resources: oktaApps.AsResources(),
+		}, nil
+	}
+
+	if req.ResourceType == types.KindOktaGroups {
+		resp, err := a.oktaService.ListOktaGroups(ctx, &proto.ListOktaGroupsRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		oktaGroups := make(types.OktaGroups, 0)
+		for _, oktaGroup := range resp.Groups {
+			parser, err := services.NewResourceParser(oktaGroup)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			ok, err := parser.EvalBoolPredicate(req.PredicateExpression)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if ok {
+				oktaGroups = append(oktaGroups, oktaGroup)
+			}
+		}
+		return &types.ListResourcesResponse{
+			Resources: oktaGroups.AsResources(),
+		}, nil
+	}
 	return a.Cache.ListResources(ctx, req)
 }
 

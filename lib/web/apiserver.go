@@ -563,6 +563,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Get applications.
 	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
 
+	// Get Okta applications.
+	h.GET("/webapi/sites/:site/oktaapps", h.WithClusterAuth(h.clusterOktaAppsGet))
+
+	// Get Okta groups.
+	h.GET("/webapi/sites/:site/oktagroups", h.WithClusterAuth(h.clusterOktaGroupsGet))
+
 	// get login alerts
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 

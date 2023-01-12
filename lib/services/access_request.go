@@ -25,8 +25,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/exp/slices"
 
@@ -1497,19 +1499,24 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
+	log.WithField(trace.Component, teleport.ComponentRBAC)
+	log.Infof("------ starting, roles: %v, resources: %v", allRoles, resources)
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
 		var rolesForResource []types.Role
 		for _, role := range allRoles {
 			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint)
 			if err != nil {
+				log.Infof("------ role %s, resource %s/%s err: %v", role.GetName(), resource.GetKind(), resource.GetName(), err)
 				return nil, trace.Wrap(err)
 			}
 			if !roleAllowsAccess {
+				log.Infof("------ role %s does not allow access to %s/%s", role.GetName(), resource.GetKind(), resource.GetName())
 				// Role does not allow access to this resource. We will prune it
 				// unless it allows access to another resource.
 				continue
 			}
+			log.Infof("------ role %s DOES allow access to %s/%s", role.GetName(), resource.GetKind(), resource.GetName())
 			rolesForResource = append(rolesForResource, role)
 		}
 		if len(loginHint) > 0 {
@@ -1648,6 +1655,9 @@ func GetNodeResourceIDsByCluster(r types.AccessRequest) map[string][]types.Resou
 }
 
 func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
+
+	log.WithField(trace.Component, teleport.ComponentRBAC)
+	log.Infof("------ resource IDs: %s", resourceIDs)
 	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
 		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
@@ -1666,6 +1676,7 @@ func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resou
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		log.Infof("------ list response: %v", resp)
 		for _, result := range resp.Resources {
 			leafResources, err := MapListResourcesResultToLeafResource(result, kind)
 			if err != nil {

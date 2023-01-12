@@ -868,6 +868,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	kube := newKubeCommand(app)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
+	// Okta commands
+	okta := newOktaCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details")
 
@@ -1107,6 +1109,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = mfa.add.run(&cf)
 	case mfa.rm.FullCommand():
 		err = mfa.rm.run(&cf)
+	case okta.apps.lsApps.FullCommand():
+		err = okta.apps.lsApps.run(&cf)
+	case okta.groups.lsGroups.FullCommand():
+		err = okta.groups.lsGroups.run(&cf)
 	case reqList.FullCommand():
 		err = onRequestList(&cf)
 	case reqShow.FullCommand():

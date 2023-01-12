@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -1205,6 +1206,8 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+
+	log.Infof("Stack: %s", string(debug.Stack()))
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -1234,7 +1237,6 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 			SearchKeywords:      req.SearchKeywords,
 		})
 	}
-
 	// ListResources request coming through this auth layer gets request filters
 	// stripped off and saved to be applied later after items go through rbac checks.
 	// The list that gets returned from the backend comes back unfiltered and as
@@ -1246,6 +1248,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// we will be making unnecessary trips and doing needless work of deserializing every
 	// item for every subset.
 	if req.RequiresFakePagination() {
+		log.Infof("Fake pagination dawg")
 		resp, err := a.listResourcesWithSort(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1270,7 +1273,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindOktaApps, types.KindOktaGroups:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1363,6 +1366,10 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, mfaParams)
+	case types.OktaApplication:
+		return r.CheckAccess(rr, mfaParams)
+	case types.OktaGroup:
+		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
@@ -1451,7 +1458,7 @@ func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindOktaApps, types.KindOktaGroups:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -1545,9 +1552,41 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = desktops.AsResources()
 
+	case types.KindOktaApps:
+		resp, err := a.ListOktaApplications(ctx, &proto.ListOktaApplicationsRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		oktaApps := make(types.OktaApplications, len(resp.Applications))
+		for i, oktaApp := range resp.Applications {
+			oktaApps[i] = oktaApp
+		}
+		if err := oktaApps.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = oktaApps.AsResources()
+
+	case types.KindOktaGroups:
+		resp, err := a.ListOktaGroups(ctx, &proto.ListOktaGroupsRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		oktaGroups := make(types.OktaGroups, len(resp.Groups))
+		for i, oktaGroup := range resp.Groups {
+			oktaGroups[i] = oktaGroup
+		}
+		if err := oktaGroups.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = oktaGroups.AsResources()
+
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
 	}
+
+	log.Infof("Fake paginate resources: %v", resources)
 
 	// Apply request filters and get pagination info.
 	resp, err := local.FakePaginate(resources, req)
@@ -1555,6 +1594,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		return nil, trace.Wrap(err)
 	}
 
+	log.Infof("Fake paginate response: %v", resp)
 	return resp, nil
 }
 
@@ -1960,12 +2000,14 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 }
 
 func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	log.Infof("Create access request: %v", req)
 	// An exception is made to allow users to create access *pending* requests for themselves.
 	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
 		if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+
 	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity())
 }
 

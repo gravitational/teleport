@@ -422,6 +422,7 @@ type Cache struct {
 	restrictionsCache     services.Restrictions
 	appsCache             services.Apps
 	kubernetesCache       services.Kubernetes
+	oktaCache             services.Okta
 	databaseServicesCache services.DatabaseServices
 	databasesCache        services.Databases
 	appSessionCache       services.AppSession

@@ -140,6 +140,7 @@ func RoleForUser(u types.User) types.Role {
 			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			OktaLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -393,9 +394,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		// apply templates to Okta labels
 		inLabels = r.GetOktaLabels(condition)
 		if inLabels != nil {
-			log.Infof("In labels: %v", inLabels)
 			applyLabels := applyLabelsTraits(inLabels, traits)
-			log.Infof("Apply labels: %v", inLabels)
 			r.SetOktaLabels(condition, applyLabels)
 		}
 
@@ -2190,10 +2189,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			continue
 		}
 
-		log.Infof("Match namespace is fine")
 		roleLabels := getRoleLabels(role, types.Allow)
-
-		log.Infof("Found role %s role labels: %v", role.GetName(), roleLabels)
 
 		matchLabels, labelsMessage, err := MatchLabels(roleLabels, allLabels)
 		if err != nil {
@@ -2209,8 +2205,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			continue
 		}
 
-		log.Infof("Match labels is fine")
-
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
@@ -2224,8 +2218,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			}
 			continue
 		}
-
-		log.Infof("Match matchers is fine")
 
 		// if we've reached this point, namespace, labels, and matchers all match.
 		// if MFA is verified or never required, we're done.
@@ -2241,8 +2233,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			return ErrSessionMFARequired
 		}
 
-		log.Infof("MFA checked fine")
-
 		// Check all remaining roles, even if we found a match.
 		// RequireSessionMFA should be enforced when at least one role has
 		// it.
@@ -2256,7 +2246,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	log.Infof("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
 	return trace.AccessDenied("access to %v denied, none matched. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
 }
