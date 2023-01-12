@@ -57,6 +57,12 @@ ENV LANGUAGE=en_US.UTF-8 \
 
 RUN yum update -y $YUM_UPDATE_FLAGS && \
     yum install -y     \
+        # required for node-pty
+        centos-release-scl-rh \
+        # required for node-pty
+        centos-release-scl \
+        # required for node-pty
+        devtoolset-11-* \
         git \
         gcc \
         gcc-c++ \
