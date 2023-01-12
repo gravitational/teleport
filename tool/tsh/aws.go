@@ -17,10 +17,10 @@ limitations under the License.
 package main
 
 import (
-	"crypto/sha256"
+	"bytes"
 	"crypto/tls"
-	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -29,6 +29,7 @@ import (
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -145,29 +146,12 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	// There is no specific format or value required for access key and secret,
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
-	// between 16 and 128. Here access key and secret are generated based on
-	// current profile and app name so the same values can be recreated.
+	// between 16 and 128. AWS access key and secret typically have size of 20
+	// and 40 respectively. New UUIDs are generated for each tsh command.
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		keyPem, err := utils.ReadPath(a.profile.KeyPath())
-		if err != nil {
-			log.WithError(err).Errorf("Failed to read key.")
-			return
-		}
-
-		hashData := append(
-			keyPem,
-			[]byte(a.profile.Name+a.profile.Username+a.appName)...,
-		)
-
-		// AWS access key and secret typically have size of 20 and 40
-		// respectively.
-		sum := sha256.Sum256(hashData)
-		sumEncoded := hex.EncodeToString(sum[:])
-		if len(sumEncoded) > 60 {
-			a.credentials = credentials.NewStaticCredentials(sumEncoded[:20], sumEncoded[20:60], "")
-		}
+		a.credentials = credentials.NewStaticCredentials(uuid.NewString(), uuid.NewString(), "")
 	})
 
 	if a.credentials == nil {
@@ -362,6 +346,71 @@ func (a *awsApp) startLocalForwardProxy(port string) error {
 		}
 	}()
 	return nil
+}
+
+// SetupKeyStore installs local CA to the specified Java KeyStore.
+func (a *awsApp) SetupKeyStore(keystore string) error {
+	aliasName := fmt.Sprintf("teleport-%v-%v", a.profile.Cluster, a.appName)
+
+	// Print info like alias name in case user wants to manually update the
+	// KeyStore. Use new lines between keytool commands as it may prompt user
+	// for password or print some outputs.
+	fmt.Fprintln(a.cf.Stdout(), "KeyStore path: ", keystore)
+	fmt.Fprintln(a.cf.Stdout(), "Local CA path: ", a.profile.AppLocalCAPath(a.appName))
+	fmt.Fprintln(a.cf.Stdout(), "Alias name   : ", aliasName)
+	fmt.Fprintln(a.cf.Stdout())
+
+	// Try a "delete" first, otherwise "import" will fail if alias already exists.
+	fmt.Fprintln(a.cf.Stdout(), "Deleting local CA from keystore.")
+	if err := a.deleteLocalCAFromKeyStore(keystore, aliasName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintln(a.cf.Stdout())
+	fmt.Fprintln(a.cf.Stdout(), "Installing local CA to keystore.")
+
+	if err := a.installLocalCAToKeyStore(keystore, aliasName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintln(a.cf.Stdout())
+	return nil
+}
+
+func (a *awsApp) deleteLocalCAFromKeyStore(keystore, aliasName string) error {
+	cmd := exec.Command(
+		"keytool", "-noprompt", "-delete",
+		"-alias", aliasName,
+		"-keystore", keystore,
+	)
+
+	// keytool writes error messages to stdout, but we capture both stdout and
+	// stderr just in case.
+	var capture bytes.Buffer
+	captureWriter := utils.NewSyncWriter(&capture)
+	cmd.Stdout = io.MultiWriter(a.cf.Stdout(), captureWriter)
+	cmd.Stderr = io.MultiWriter(a.cf.Stderr(), captureWriter)
+	cmd.Stdin = a.cf.Stdin()
+
+	err := a.cf.RunCommand(cmd)
+	if err != nil && !strings.Contains(capture.String(), fmt.Sprintf("Alias <%s> does not exist", aliasName)) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (a *awsApp) installLocalCAToKeyStore(keystore, aliasName string) error {
+	cmd := exec.Command(
+		"keytool", "-noprompt", "-import",
+		"-alias", aliasName,
+		"-keystore", keystore,
+		"-file", a.profile.AppLocalCAPath(a.appName),
+	)
+	cmd.Stdout = a.cf.Stdout()
+	cmd.Stderr = a.cf.Stderr()
+	cmd.Stdin = a.cf.Stdin()
+
+	return trace.Wrap(a.cf.RunCommand(cmd))
 }
 
 func printAWSRoles(roles awsutils.Roles) {

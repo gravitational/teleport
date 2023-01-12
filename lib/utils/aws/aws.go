@@ -19,6 +19,7 @@ package aws
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"net/http"
@@ -171,23 +172,38 @@ func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
 	return
 }
 
-// VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
-// AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
-// the AWSCredentials LocalProxyConfig configuration.
-func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials) error {
+func parseSigV4AndVerifyAccessKeyID(req *http.Request, credentials *credentials.Credentials) (*SigV4, error) {
 	sigV4, err := ParseSigV4(req.Header.Get("Authorization"))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	// Verifies the request is signed by the expected access key ID.
 	credValue, err := credentials.Get()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	if sigV4.KeyID != credValue.AccessKeyID {
-		return trace.AccessDenied("AccessKeyID does not match")
+	if subtle.ConstantTimeCompare([]byte(sigV4.KeyID), []byte(credValue.AccessKeyID)) != 1 {
+		return nil, trace.AccessDenied("AccessKeyID does not match")
+	}
+
+	return sigV4, nil
+}
+
+// VerifyAWSAccessKeyID verifies the AccessKeyID from the request signature.
+func VerifyAWSAccessKeyID(req *http.Request, credentials *credentials.Credentials) error {
+	_, err := parseSigV4AndVerifyAccessKeyID(req, credentials)
+	return trace.Wrap(err)
+}
+
+// VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
+// AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
+// the AWSCredentials LocalProxyConfig configuration.
+func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials) error {
+	sigV4, err := parseSigV4AndVerifyAccessKeyID(req, credentials)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again

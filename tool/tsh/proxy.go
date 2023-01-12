@@ -673,6 +673,12 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.KeyStore != "" {
+		if err := awsApp.SetupKeyStore(cf.KeyStore); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	err = awsApp.StartLocalProxies()
 	if err != nil {
 		return trace.Wrap(err)

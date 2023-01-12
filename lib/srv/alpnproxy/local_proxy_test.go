@@ -74,7 +74,8 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			name:       "different aws secret access key",
 			originCred: firstAWSCred,
 			proxyCred:  secondAWSCred,
-			wantStatus: http.StatusForbidden,
+			// Since only AccessKeyID is verified, SecretAccessKey doesn't matter at all.
+			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "different aws access key ID",
