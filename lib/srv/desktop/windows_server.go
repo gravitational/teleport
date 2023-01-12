@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -106,6 +107,7 @@ type WindowsService struct {
 	lc *windows.LDAPClient
 
 	mu              sync.Mutex // mu protects the fields that follow
+	ldapConfigured  bool
 	ldapInitialized bool
 	ldapCertRenew   *time.Timer
 
@@ -165,6 +167,7 @@ type WindowsServiceConfig struct {
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
 	// LDAPConfig contains parameters for connecting to an LDAP server.
+	// LDAP functionality is disabled if Addr is empty.
 	windows.LDAPConfig
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
@@ -192,8 +195,10 @@ type HeartbeatConfig struct {
 	PublicAddr string
 	// OnHeartbeat is called after each heartbeat attempt.
 	OnHeartbeat func(error)
-	// StaticHosts is an optional list of static Windows hosts to register.
+	// StaticHosts is an optional list of AD-connected static Windows hosts to register.
 	StaticHosts []utils.NetAddr
+	// NonADHosts is an optional list of static Windows hosts to register, that are not part of Active Directory.
+	NonADHosts []utils.NetAddr
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
@@ -246,8 +251,10 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := cfg.LDAPConfig.Check(); err != nil {
-		return trace.Wrap(err)
+	if cfg.LDAPConfig.Addr != "" {
+		if err := cfg.LDAPConfig.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if err := cfg.checkAndSetDiscoveryDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -297,14 +304,26 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err, "fetching cluster name")
 	}
 
-	// Here we assume the LDAP server is an Active Directory Domain Controller,
-	// which means it should also be a DNS server that can resolve Windows hosts.
-	dnsServer, _, err := net.SplitHostPort(cfg.LDAPConfig.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var resolver *net.Resolver
+	if cfg.LDAPConfig.Addr != "" {
+		// Here we assume the LDAP server is an Active Directory Domain Controller,
+		// which means it should also be a DNS server that can resolve Windows hosts.
+		dnsServer, _, err := net.SplitHostPort(cfg.LDAPConfig.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dnsAddr := net.JoinHostPort(dnsServer, "53")
+		cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
+		resolver = &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				// Ignore the address provided, and always explicitly dial
+				// the domain controller.
+				d := net.Dialer{Timeout: dnsDialTimeout}
+				return d.DialContext(ctx, network, dnsAddr)
+			},
+		}
 	}
-	dnsAddr := net.JoinHostPort(dnsServer, "53")
-	cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
 
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
@@ -313,15 +332,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			AccessPoint:   cfg.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
-		dnsResolver: &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				// Ignore the address provided, and always explicitly dial
-				// the domain controller.
-				d := net.Dialer{Timeout: dnsDialTimeout}
-				return d.DialContext(ctx, network, dnsAddr)
-			},
-		},
+		dnsResolver: resolver,
 		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
@@ -337,11 +348,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		LC:          s.lc,
 	})
 
-	// initialize LDAP - if this fails it will automatically schedule a retry.
-	// we don't want to return an error in this case, because failure to start
-	// the service brings down the entire Teleport process
-	if err := s.initializeLDAP(); err != nil {
-		s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
+	if s.cfg.LDAPConfig.Addr != "" {
+		s.ldapConfigured = true
+		// initialize LDAP - if this fails it will automatically schedule a retry.
+		// we don't want to return an error in this case, because failure to start
+		// the service brings down the entire Teleport process
+		if err := s.initializeLDAP(); err != nil {
+			s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
+		}
 	}
 
 	ok := false
@@ -374,7 +388,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
+	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 && len(s.cfg.Heartbeat.NonADHosts) == 0 {
 		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
@@ -570,27 +584,39 @@ func (s *WindowsService) startServiceHeartbeat() error {
 // service itself is running.
 func (s *WindowsService) startStaticHostHeartbeats() error {
 	for _, host := range s.cfg.Heartbeat.StaticHosts {
-		heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-			Context:         s.closeCtx,
-			Component:       teleport.ComponentWindowsDesktop,
-			Mode:            srv.HeartbeatModeWindowsDesktop,
-			Announcer:       s.cfg.AccessPoint,
-			GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-			CheckPeriod:     defaults.HeartbeatCheckPeriod,
-			ServerTTL:       apidefaults.ServerAnnounceTTL,
-			OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
-		})
-		if err != nil {
+		if err := s.startStaticHostHeartbeat(host, false); err != nil {
+			return err
+		}
+	}
+	for _, host := range s.cfg.Heartbeat.NonADHosts {
+		if err := s.startStaticHostHeartbeat(host, true); err != nil {
 			return trace.Wrap(err)
 		}
-		go func() {
-			if err := heartbeat.Run(); err != nil {
-				s.cfg.Log.WithError(err).Error("Heartbeat ended with error")
-			}
-		}()
 	}
+	return nil
+}
+
+func (s *WindowsService) startStaticHostHeartbeat(host utils.NetAddr, nonAD bool) error {
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Context:         s.closeCtx,
+		Component:       teleport.ComponentWindowsDesktop,
+		Mode:            srv.HeartbeatModeWindowsDesktop,
+		Announcer:       s.cfg.AccessPoint,
+		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn, nonAD),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		if err := heartbeat.Run(); err != nil {
+			s.cfg.Log.WithError(err).Error("Heartbeat ended with error")
+		}
+	}()
 	return nil
 }
 
@@ -635,6 +661,20 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
+func (s *WindowsService) readyForConnections() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// If LDAP was not configured, we assume all hosts are non-AD
+	// and the server can accept connections right away.
+	if !s.ldapConfigured {
+		return true
+	}
+
+	// If LDAP was configured, then we need to wait for it to be initialized
+	// before accepting connections.
+	return s.ldapInitialized
+}
+
 func (s *WindowsService) ldapReady() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -659,7 +699,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// don't handle connections until the LDAP initialization retry loop has succeeded
 	// (it would fail anyway, but this presents a better error to the user)
-	if !s.ldapReady() {
+	if !s.readyForConnections() {
 		const msg = "This service cannot accept connections until LDAP initialization has completed."
 		log.Error(msg)
 		sendTDPError(msg)
@@ -966,7 +1006,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 // staticHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating statically defined hosts
 func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
-	getHostLabels func(string) map[string]string) func() (types.Resource, error) {
+	getHostLabels func(string) map[string]string, nonAD bool) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := netAddr.String()
 		name, err := s.nameForStaticHost(addr)
@@ -977,6 +1017,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 		// as the name is a randomly generated UUID
 		labels := getHostLabels(addr)
 		labels[types.OriginLabel] = types.OriginConfigFile
+		labels[types.ADLabel] = strconv.FormatBool(!nonAD)
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
@@ -984,6 +1025,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 				Addr:   addr,
 				Domain: s.cfg.Domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
+				NonAD:  nonAD,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1046,21 +1088,26 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
 		fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
 	}
-	entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+
+	var activeDirectorySID string
+	if !desktop.NonAD() {
+		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if len(entries) == 0 {
+			return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
+		} else if len(entries) > 1 {
+			s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
+		}
+		activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
+		// Generate credentials with the user's SID
+
 	}
-	if len(entries) == 0 {
-		return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
-	} else if len(entries) > 1 {
-		s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
-	}
-	activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entries[0])
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
-	// Generate credentials with the user's SID
 	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
 }
 

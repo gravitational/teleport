@@ -1,0 +1,679 @@
+suite: Auth StatefulSet
+templates:
+  - auth/deployment.yaml
+  - auth/config.yaml
+tests:
+  - it: sets Statefulset annotations when specified
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment-different
+          value: 3
+
+  - it: sets Pod annotations when specified
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          value: test-annotation
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          value: 4
+
+  - it: should not have more than one replica in standalone mode
+    template: auth/deployment.yaml
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should have multiple replicas when replicaCount is set
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      clusterName: helm-lint.example.com
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should set affinity when set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: gravitational.io/dedicated
+                    operator: In
+                    values:
+                      - teleport
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - matchSnapshot:
+          path: spec.template.spec.affinity
+
+  - it: should set required affinity when highAvailability.requireAntiAffinity is set
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/aws-ha-antiaffinity.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot:
+          path: spec.template.spec.affinity
+
+  - it: should set tolerations when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/tolerations.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.tolerations
+      - matchSnapshot:
+          path: spec.template.spec.tolerations
+
+  - it: should set resources when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set securityContext when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.privileged
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 99
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not set securityContext when is empty object (default value)
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].securityContext
+
+  # we can't use the dynamic chart version or appVersion as a variable in the tests,
+  # so we override it manually and check that gets set instead
+  # this saves us having to update the test every time we cut a new release
+  - it: should use enterprise image and mount license when enterprise is set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      enterprise: true
+      teleportVersionOverride: 8.3.4
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport-ent:8.3.4
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/license
+            name: "license"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: license
+            secret:
+              secretName: license
+
+  - it: should use OSS image and not mount license when enterprise is not set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      teleportVersionOverride: 8.3.4
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport:8.3.4
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/license
+            name: "license"
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: license
+            secret:
+              secretName: license
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount GCP credentials in GCP mode
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/gcp-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: "gcp-credentials"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: gcp-credentials
+            secret:
+              secretName: teleport-gcp-credentials
+
+  - it: should not mount secret when credentialSecretName is blank in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/gcp-ha-workload.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: "gcp-credentials"
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: gcp-credentials
+            secret:
+              secretName: teleport-gcp-credentials
+
+  - it: should mount GCP credentials for initContainer in GCP mode
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/gcp-ha.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: "gcp-credentials"
+            readOnly: true
+
+  - it: should mount ConfigMap containing Teleport config
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport
+            name: "config"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME-auth
+
+  - it: should mount extraVolumes and extraVolumeMounts on container and initContainers
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/volumes.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
+  - it: should set imagePullPolicy when set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: should set environment when extraEnv set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOME_ENVIRONMENT_VARIABLE
+            value: "some-value"
+
+  - it: should provision initContainer correctly when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/resources.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: "echo test"
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: "teleport-init"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 2Gi
+      - contains:
+          path: spec.template.spec.initContainers[1].args
+          content: "echo test2"
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: "teleport-init2"
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec.initContainers
+
+  - it: should add insecureSkipProxyTLSVerify to args when set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      insecureSkipProxyTLSVerify: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--insecure"
+
+  - it: should expose diag port
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: diag
+            containerPort: 3000
+            protocol: TCP
+
+  - it: should set postStart command if set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      postStart:
+        command: ["/bin/echo", "test"]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.postStart.exec.command
+          value: ["/bin/echo", "test"]
+
+  - it: should add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is true
+    template: auth/deployment.yaml
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+
+  - it: should not add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is false
+    template: auth/deployment.yaml
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+
+  - it: should add PersistentVolumeClaim as volume when in scratch mode and persistence.enabled is true
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+
+  - it: should not add PersistentVolumeClaim as volume when in scratch mode and persistence.enabled is false
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+
+  - it: should add an operator side-car when operator is enabled
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/operator.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: operator
+      - matchSnapshot:
+          path: spec.template.spec.containers[1]
+
+  - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+
+  - it: should not add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set but persistence.enabled is false
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+
+  - it: should add named PersistentVolumeClaim as volume when in scratch mode and persistence.existingClaimName is set
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+
+  - it: should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName is set and persistence.enabled is false
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add emptyDir for data in AWS mode
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should add emptyDir for data in GCP mode
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/gcp-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should set priorityClassName when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/priority-class-name.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: system-cluster-critical
+
+  - it: should set probeTimeoutSeconds when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/probe-timeout-seconds.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+
+  - it: should mount tls.existingCASecretName and set environment when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+
+  - it: should mount tls.existingCASecretName and set extra environment when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOME_ENVIRONMENT_VARIABLE
+            value: some-value
+
+  - it: should set minReadySeconds when replicaCount > 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        minReadySeconds: 60
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 60
+
+  - it: should not set minReadySeconds when replicaCount = 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        minReadySeconds: 60
+        replicaCount: 1
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: null
+
+  - it: should use Recreate strategy when replicaCount = 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        replicaCount: 1
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should not set strategy when replicaCount > 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  - it: should not perform surge rolling updates when replicaCount > 1
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      highAvailability:
+        replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 0
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 1
