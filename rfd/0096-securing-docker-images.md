@@ -318,6 +318,6 @@ Panther instance can then ingest the alerts via the GitHub audit log.
 ### Reacting to alerts
 
 Once the allert data is aggregated into Panther, we can configure events to lodge 
-GitHub issues and/or alert the development team via Slack or e-mail. The develkopment 
+GitHub issues and/or alert the development team via Slack or e-mail. The development 
 team will be expected to resolve the issues as per the eleport Vulnerability Management 
 Policy.
