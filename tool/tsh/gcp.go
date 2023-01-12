@@ -20,11 +20,13 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -126,9 +128,47 @@ func (a *gcpApp) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
+func (a *gcpApp) getGcloudConfigPath() string {
+	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name, "gcloud")
+}
+
+func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
+	if serviceAccount == "" {
+		return "", trace.BadParameter("invalid service account format: empty string received")
+	}
+
+	user, domain, found := strings.Cut(serviceAccount, "@")
+	if !found {
+		return "", trace.BadParameter("invalid service account format: missing @")
+	}
+	if user == "" {
+		return "", trace.BadParameter("invalid service account format: empty user")
+	}
+
+	projectID, iamDomain, found := strings.Cut(domain, ".")
+	if !found {
+		return "", trace.BadParameter("invalid service account format: missing <project-id>.iam.gserviceaccount.com after @")
+	}
+
+	if projectID == "" {
+		return "", trace.BadParameter("invalid service account format: missing project ID")
+	}
+
+	if iamDomain != "iam.gserviceaccount.com" {
+		return "", trace.BadParameter("invalid service account format: expected suffix %q, got %q", "iam.gserviceaccount.com", iamDomain)
+	}
+
+	return projectID, nil
+}
+
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
+	projectID, err := projectIDFromServiceAccountName(a.app.GCPServiceAccount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	envVars := map[string]string{
 		// Env var CLOUDSDK_AUTH_ACCESS_TOKEN is one of the available ways of providing access token
 		// https://cloud.google.com/sdk/docs/authorizing#:~:text=If%20you%20already,access%20token%20value.
@@ -137,6 +177,14 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
 		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.app.Name),
+
+		// We need to set project ID. This is sourced from the account name.
+		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
+		"CLOUDSDK_CORE_PROJECT": projectID,
+
+		// Use isolated gcloud config path.
+		// https://cloud.google.com/sdk/docs/configurations#:~:text=The%20config%20directory%20can%20be%20changed%20by%20setting%20the%20environment%20variable%20CLOUDSDK_CONFIG
+		"CLOUDSDK_CONFIG": a.getGcloudConfigPath(),
 	}
 
 	// Set proxy settings.
