@@ -121,6 +121,7 @@ func (w *WatcherResponseWriter) WriteHeader(code int) {
 				// Some valid cases:
 				// - user does not have the `watch` permission.
 				// - API is unable to serve the request.
+				// Logic from: https://github.com/kubernetes/client-go/blob/58ff029093df37cad9fa28778a37f11fa495d9cf/rest/request.go#L1040
 				_, err := io.Copy(w.target, w.pipeReader)
 				return trace.Wrap(err)
 			default:

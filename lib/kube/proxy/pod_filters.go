@@ -171,9 +171,10 @@ func (d *podFilterer) decode(buffer []byte) (runtime.Object, []byte, error) {
 	case d.responseCode == http.StatusSwitchingProtocols:
 		// no-op, we've been upgraded
 		return nil, buffer, nil
-	case d.responseCode < http.StatusOK || d.responseCode > http.StatusPartialContent:
+	case d.responseCode < http.StatusOK /* 200 */ || d.responseCode > http.StatusPartialContent /* 206 */ :
 		// calculate an unstructured error from the response which the Result object may use if the caller
 		// did not return a structured error.
+		// Logic from: https://github.com/kubernetes/client-go/blob/58ff029093df37cad9fa28778a37f11fa495d9cf/rest/request.go#L1040
 		return nil, buffer, nil
 	default:
 		out, err := decodeAndSetGVK(d.decoder, buffer)
