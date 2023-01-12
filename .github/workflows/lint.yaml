@@ -5,15 +5,16 @@ on:
     branches:
       - master
   pull_request:
+  merge_group:
 
 jobs:
   lint:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
-      packages: read
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport12

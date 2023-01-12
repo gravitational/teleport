@@ -48,6 +48,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -67,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
@@ -75,6 +79,9 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -979,9 +986,10 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 		t.Run(name, func(t *testing.T) {
 			// Setup user and session recording mode.
 			username := suite.Me.Username
-			role, err := types.NewRoleV3("devs", types.RoleSpecV5{
+			role, err := types.NewRole("devs", types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Logins: []string{username},
+					Logins:     []string{username},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 				Options: types.RoleOptions{
 					RecordSession: &types.RecordSession{
@@ -1540,10 +1548,11 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	teleport := suite.NewTeleportInstance(t)
 
 	username := suite.Me.Username
-	role, err := types.NewRoleV3("devs", types.RoleSpecV5{
+	role, err := types.NewRole("devs", types.RoleSpecV6{
 		Options: tc.options,
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -1688,32 +1697,41 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 // TestInvalidLogins validates that you can't login with invalid login or
 // with invalid 'site' parameter
 func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
-
-	testKey, testVal := "TELEPORT_TEST_ENV", "howdy"
-	cmd := []string{"printenv", testKey}
+	s := suite.newTeleport(t, nil, true)
+	defer s.StopAll()
 
 	// make sure sessions set run command
-	tc, err := teleport.NewClient(helpers.ClientConfig{
+	tc, err := s.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
-		Port:    helpers.Port(t, teleport.SSH),
+		Port:    helpers.Port(t, s.SSH),
 	})
 	require.NoError(t, err)
 
-	tc.Env = map[string]string{testKey: testVal}
+	// if SessionID is provided, it should be set in the session env vars.
+	tc.SessionID = uuid.NewString()
+	cmd := []string{"printenv", sshutils.SessionEnvVar}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false /* runLocally */)
 
 	require.NoError(t, err)
-	require.Equal(t, testVal, strings.TrimSpace(out.String()))
+	require.Equal(t, tc.SessionID, strings.TrimSpace(out.String()))
+
+	// The proxy url should be set in the session env vars.
+	cmd = []string{"printenv", teleport.SSHSessionWebproxyAddr}
+	out = &bytes.Buffer{}
+	tc.Stdout = out
+	err = tc.SSH(ctx, cmd, false /* runLocally */)
+
+	require.NoError(t, err)
+	require.Equal(t, tc.WebProxyAddr, strings.TrimSpace(out.String()))
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
@@ -2138,9 +2156,10 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2166,9 +2185,10 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2419,9 +2439,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	// If the test is using labels, the cluster will be labeled
@@ -2434,7 +2455,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRoleV3(mainAdmins, types.RoleSpecV5{
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"superuser"},
 		},
@@ -2445,7 +2466,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := types.NewRoleV3(mainOps, types.RoleSpecV5{
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -2474,9 +2495,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2640,9 +2662,10 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2668,9 +2691,10 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -3935,7 +3959,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4099,7 +4123,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4243,7 +4267,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&helpers.DisabledIMDSClient{}))
+			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4256,9 +4280,10 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV5{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{suite.Me.Username},
+			Logins:     []string{suite.Me.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -4274,9 +4299,10 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV5{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{suite.Me.Username},
+			Logins:     []string{suite.Me.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -4755,7 +4781,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
-			role, err := types.NewRoleV3(tt.inRoleName, types.RoleSpecV5{
+			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:     []string{tt.inLogin},
 					NodeLabels: tt.inLabels,
@@ -5559,7 +5585,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	authServer := main.Process.GetAuthServer()
 
 	// Create new request role
-	requestedRole, err := types.NewRoleV3(requestedRoleName, types.RoleSpecV5{
+	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV6{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})
@@ -5569,12 +5595,13 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
-	userRole, err := types.NewRoleV3(userRoleName, types.RoleSpecV5{
+	userRole, err := types.NewRole(userRoleName, types.RoleSpecV6{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
 			Logins: []string{
 				suite.Me.Username,
 			},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Request: &types.AccessRequestConditions{
 				Roles: []string{requestedRoleName},
 			},
@@ -5621,7 +5648,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 
 	accessRequestID := req.GetName()
 
-	err = authServer.CreateAccessRequest(context.TODO(), req)
+	err = authServer.CreateAccessRequest(context.TODO(), req, tlsca.Identity{})
 	require.NoError(t, err)
 
 	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
@@ -5862,6 +5889,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
 	cfg.Console = nil
 	cfg.Log = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return cfg
 }
 
@@ -6176,10 +6204,10 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	plainRole, err := types.NewRole("plain", types.RoleSpecV5{})
+	plainRole, err := types.NewRole("plain", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	moderatedRole, err := types.NewRole("moderated", types.RoleSpecV5{
+	moderatedRole, err := types.NewRole("moderated", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			RequireSessionJoin: []*types.SessionRequirePolicy{
 				{
@@ -6294,9 +6322,13 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	leafCfg.Listeners = standardPortsOrMuxSetup(t, false, &leafCfg.Fds)
 	leaf := helpers.NewInstance(t, leafCfg)
 
-	role, err := types.NewRoleV3("dev", types.RoleSpecV5{
+	role, err := types.NewRole("dev", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:           []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -6686,4 +6718,101 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
 	require.NoError(t, err)
 	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+}
+
+// TestProxySSHPortMultiplexing ensures that the Proxy SSH port
+// is serving both SSH and gRPC regardless of TLS Routing mode.
+func TestProxySSHPortMultiplexing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		disableTLSRouting bool
+	}{
+		{
+			name: "TLS routing enabled",
+		},
+		{
+			name:              "TLS routing disabled",
+			disableTLSRouting: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			rc := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: "example.com",
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Priv:        privateKey,
+				Pub:         publicKey,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			rcConf := service.MakeDefaultConfig()
+			rcConf.DataDir = t.TempDir()
+			rcConf.Auth.Preference.SetSecondFactor("off")
+			rcConf.SSH.Enabled = false
+			rcConf.Proxy.DisableWebInterface = true
+			rcConf.Proxy.DisableTLS = false
+			rcConf.Proxy.DisableALPNSNIListener = test.disableTLSRouting
+			rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+			// Create identical user/role in both clusters.
+			me, err := user.Current()
+			require.NoError(t, err)
+
+			role := services.NewImplicitRole()
+			role.SetName("test")
+			role.SetLogins(types.Allow, []string{me.Username})
+			role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}})
+			rc.AddUserWithRole(me.Username, role)
+
+			err = rc.CreateEx(t, nil, rcConf)
+			require.NoError(t, err)
+
+			require.NoError(t, rc.Start())
+			t.Cleanup(func() {
+				require.NoError(t, rc.StopAll())
+			})
+
+			// create an authenticated client for the user
+			tc, err := rc.NewClient(helpers.ClientConfig{
+				Login:   me.Username,
+				Cluster: helpers.Site,
+				Host:    Host,
+			})
+			require.NoError(t, err)
+
+			// connect via SSH
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			pc, err := tc.ConnectToProxy(ctx)
+			require.NoError(t, err)
+			require.NoError(t, pc.Close())
+
+			// connect via gRPC
+			tlsConfig, err := tc.LoadTLSConfig()
+			require.NoError(t, err)
+			tlsConfig.NextProtos = []string{string(common.ProtocolProxySSHGRPC)}
+
+			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			conn, err := grpc.DialContext(
+				ctx,
+				tc.SSHProxyAddr,
+				grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+				grpc.WithBlock(),
+			)
+			require.NoError(t, err)
+			require.Equal(t, connectivity.Ready, conn.GetState())
+			require.NoError(t, conn.Close())
+		})
+	}
 }

@@ -49,7 +49,7 @@ func ExampleClient_roleCRUD() {
 	defer clt.Close()
 
 	// Resource Spec structs reflect their Resource's yaml definition.
-	roleSpec := types.RoleSpecV5{
+	roleSpec := types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -92,6 +92,7 @@ func ExampleClient_roleCRUD() {
 		log.Fatalf("failed to delete role: %v", err)
 	}
 }
+
 func ExampleNew() {
 	ctx := context.Background()
 	clt, err := client.New(ctx, client.Config{

@@ -41,11 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolMySQL)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new MySQL engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
@@ -243,9 +240,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Azure requires database login to be <user>@<server-name> e.g.
-		// alice@mysql-server-name.
-		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
+		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
 	}
 
 	// Use default net dialer unless it is already initialized.

@@ -231,32 +231,13 @@ spec:
 version: v5
 ```
 
-Retrieve your user:
-
-```code
-# e.g., myuser
-$ TELEPORT_USER=<Var name="teleport-user"/>
-$ tctl get user/${TELEPORT_USER?} > user.yaml
-```
-
-Add `kube-manager` to your Teleport user's list of roles:
-
-```diff
-   roles:
-   - access
-   - auditor
-   - kube-user
-+  - kube-manager
-```
-
-Apply your changes:
+Create the role:
 
 ```code
 $ tctl create -f kube-manager.yaml
-$ tctl create -f user.yaml
 ```
 
-Log out of your cluster and log in again to assume the new role.
+(!docs/pages/includes/add-role-to-user.mdx role="kube-manager"!)
 
 ## Step 3/3. Manage dynamic Kubernetes cluster resources
 

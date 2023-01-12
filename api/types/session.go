@@ -321,6 +321,10 @@ type CreateAppSessionRequest struct {
 	ClusterName string `json:"cluster_name"`
 	// AWSRoleARN is AWS role this the user wants to assume.
 	AWSRoleARN string `json:"aws_role_arn"`
+	// AzureIdentity is Azure identity this the user wants to assume.
+	AzureIdentity string `json:"azure_identity"`
+	// GCPServiceAccount is GCP service account this the user wants to assume.
+	GCPServiceAccount string `json:"gcp_service_account"`
 }
 
 // Check validates the request.

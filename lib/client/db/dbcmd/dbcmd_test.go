@@ -528,6 +528,42 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd:          nil,
 			wantErr:      true,
 		},
+		{
+			name:         "dynamodb for exec is an error",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithNoTLS(), WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          nil,
+			wantErr:      true,
+		},
+		{
+			name:         "dynamodb without proxy is an error",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithPrintFormat(), WithNoTLS(), WithLocalProxy("", 0, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          nil,
+			wantErr:      true,
+		},
+		{
+			name:         "dynamodb with TLS proxy is an error",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithPrintFormat(), WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          nil,
+			wantErr:      true,
+		},
+		{
+			name:         "dynamodb with print format and no-TLS proxy is ok",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithPrintFormat(), WithNoTLS(), WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          []string{"aws", "--endpoint", "http://localhost:12345/", "[dynamodb|dynamodbstreams|dax]", "<command>"},
+			wantErr:      false,
+		},
 	}
 
 	for _, tt := range tests {

@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
@@ -77,6 +78,10 @@ type CommandLineFlags struct {
 	AdvertiseIP string
 	// --config flag
 	ConfigFile string
+	// --apply-on-startup contains the path of a YAML manifest whose resources should be
+	// applied on startup. Unlike the bootstrap flag, the resources are always applied,
+	// even if the cluster is already initialized. Existing resources will be updated.
+	ApplyOnStartupFile string
 	// Bootstrap flag contains a YAML file that defines a set of resources to bootstrap
 	// a cluster.
 	BootstrapFile string
@@ -120,6 +125,9 @@ type CommandLineFlags struct {
 	// AppURI is the internal address of the application to proxy.
 	AppURI string
 
+	// AppCloud is set if application is proxying Cloud API
+	AppCloud string
+
 	// AppPublicAddr is the public address of the application to proxy.
 	AppPublicAddr string
 
@@ -137,6 +145,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
 	DatabaseAWSAccountID string
+	// DatabaseAWSExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseAWSRDSInstanceID is RDS instance identifier.
@@ -628,6 +638,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if err := dtconfig.ValidateConfigAgainstModules(cfg.Auth.Preference.GetDeviceTrust()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if fc.Auth.MessageOfTheDay != "" {
@@ -657,26 +670,29 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// Set cluster networking configuration from file configuration.
-	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
-		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
-		WebIdleTimeout:           fc.Auth.WebIdleTimeout,
-		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
-		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
-		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
-		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
-		RoutingStrategy:          fc.Auth.RoutingStrategy,
-		TunnelStrategy:           fc.Auth.TunnelStrategy,
-		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// Only override networking configuration if some of its fields are
+	// specified in file configuration.
+	if fc.Auth.hasCustomNetworkingConfig() {
+		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+			RoutingStrategy:          fc.Auth.RoutingStrategy,
+			TunnelStrategy:           fc.Auth.TunnelStrategy,
+			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
-	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
+	if fc.Auth.hasCustomSessionRecording() {
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
@@ -885,6 +901,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			Certificate: p.Certificate,
 		})
 	}
+	cfg.Proxy.KeyPairsReloadInterval = fc.Proxy.KeyPairsReloadInterval
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
 	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
@@ -1300,10 +1317,15 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Mode:       service.TLSMode(database.TLS.Mode),
 			},
 			AWS: service.DatabaseAWS{
-				AccountID: database.AWS.AccountID,
-				Region:    database.AWS.Region,
+				AccountID:  database.AWS.AccountID,
+				ExternalID: database.AWS.ExternalID,
+				Region:     database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
+				},
+				RedshiftServerless: service.DatabaseAWSRedshiftServerless{
+					WorkgroupName: database.AWS.RedshiftServerless.WorkgroupName,
+					EndpointName:  database.AWS.RedshiftServerless.EndpointName,
 				},
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
@@ -1331,7 +1353,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				SPN:        database.AD.SPN,
 			},
 			Azure: service.DatabaseAzure{
-				ResourceID: database.Azure.ResourceID,
+				ResourceID:    database.Azure.ResourceID,
+				IsFlexiServer: database.Azure.IsFlexiServer,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1421,6 +1444,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			StaticLabels:       staticLabels,
 			DynamicLabels:      dynamicLabels,
 			InsecureSkipVerify: application.InsecureSkipVerify,
+			Cloud:              application.Cloud,
 		}
 		if application.Rewrite != nil {
 			// Parse http rewrite headers if there are any.
@@ -1519,6 +1543,10 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 
 // applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
 func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
+	if err := fc.WindowsDesktop.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg.WindowsDesktop.Enabled = true
 
 	if fc.WindowsDesktop.ListenAddress != "" {
@@ -1541,14 +1569,23 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
+	cfg.WindowsDesktop.Discovery = service.LDAPDiscoveryConfig{
+		BaseDN:          fc.WindowsDesktop.Discovery.BaseDN,
+		Filters:         fc.WindowsDesktop.Discovery.Filters,
+		LabelAttributes: fc.WindowsDesktop.Discovery.LabelAttributes,
+	}
 
 	var err error
 	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
 	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1579,6 +1616,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
+		SID:                fc.WindowsDesktop.LDAP.SID,
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
@@ -1868,7 +1906,7 @@ func applyConfigVersion(fc *FileConfig, cfg *service.Config) {
 
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func Configure(clf *CommandLineFlags, cfg *service.Config) error {
+func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) error {
 	// pass the value of --insecure flag to the runtime
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
@@ -1894,7 +1932,18 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if len(resources) < 1 {
 			return trace.BadParameter("no resources found: %q", clf.BootstrapFile)
 		}
-		cfg.Auth.Resources = resources
+		cfg.Auth.BootstrapResources = resources
+	}
+
+	if clf.ApplyOnStartupFile != "" {
+		resources, err := ReadResources(clf.ApplyOnStartupFile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(resources) < 1 {
+			return trace.BadParameter("no resources found: %q", clf.ApplyOnStartupFile)
+		}
+		cfg.Auth.ApplyOnStartupResources = resources
 	}
 
 	// Apply command line --debug flag to override logger severity.
@@ -1912,9 +1961,28 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// If this process is trying to join a cluster as an application service,
 	// make sure application name and URI are provided.
-	if slices.Contains(splitRoles(clf.Roles), defaults.RoleApp) &&
-		(clf.AppName == "" || clf.AppURI == "") {
-		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+	if slices.Contains(splitRoles(clf.Roles), defaults.RoleApp) {
+		if (clf.AppName == "") && (clf.AppURI == "" && clf.AppCloud == "") {
+			// TODO: remove legacyAppFlags once `teleport start --app-name` is removed.
+			if legacyAppFlags {
+				return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+			}
+			return trace.BadParameter("to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
+		}
+
+		if clf.AppName == "" {
+			if legacyAppFlags {
+				return trace.BadParameter("application name (--app-name) is required to join application proxy to the cluster")
+			}
+			return trace.BadParameter("to join application proxy to the cluster provide application name (--name)")
+		}
+
+		if clf.AppURI == "" && clf.AppCloud == "" {
+			if legacyAppFlags {
+				return trace.BadParameter("URI (--app-uri) flag is required to join application proxy to the cluster")
+			}
+			return trace.BadParameter("to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
+		}
 	}
 
 	// If application name was specified on command line, add to file
@@ -1932,6 +2000,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		app := service.App{
 			Name:          clf.AppName,
 			URI:           clf.AppURI,
+			Cloud:         clf.AppCloud,
 			PublicAddr:    clf.AppPublicAddr,
 			StaticLabels:  static,
 			DynamicLabels: dynamic,
@@ -1970,8 +2039,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				CACert: caBytes,
 			},
 			AWS: service.DatabaseAWS{
-				Region:    clf.DatabaseAWSRegion,
-				AccountID: clf.DatabaseAWSAccountID,
+				Region:     clf.DatabaseAWSRegion,
+				AccountID:  clf.DatabaseAWSAccountID,
+				ExternalID: clf.DatabaseAWSExternalID,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},

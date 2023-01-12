@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -977,7 +978,7 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 	if err != nil {
 		// Underlying ListResources for kube server was not available, use fallback KubeService.
 		// ListResources returns NotImplemented if ResourceType is unknown.
-		// DELETE IN 12.0.0
+		// DELETE IN 13.0.0
 		if trace.IsNotImplemented(err) {
 			return c.getKubeServersFallback(ctx)
 		}
@@ -1001,7 +1002,7 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 
 // getKubeServersFallback previous implementation of `GetKubeServers` function
 // using `GetKubeServices` call.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) getKubeServersFallback(ctx context.Context) ([]types.KubeServer, error) {
 	resources, err := c.GetKubeServices(ctx)
 	if err != nil {
@@ -1035,7 +1036,7 @@ func (c *Client) DeleteKubernetesServer(ctx context.Context, hostID, name string
 // deleteKubeServerFallback deletes a named Kube Service using legacy API call
 // `DeleteKubeService`.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) deleteKubeServerFallback(ctx context.Context, name string) error {
 	err := c.DeleteKubeService(ctx, name)
 	return trace.Wrap(err)
@@ -1056,7 +1057,7 @@ func (c *Client) DeleteAllKubernetesServers(ctx context.Context) error {
 // deleteAllKubeServersFallback deletes all kubernetes servers using legacy API call
 // `DeleteAllKubeServices`.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) deleteAllKubernetesServersFallback(ctx context.Context) error {
 	err := c.DeleteAllKubeServices(ctx)
 	return trace.Wrap(err)
@@ -1078,7 +1079,7 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 
 // UpsertKubeService is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	server, ok := s.(*types.ServerV2)
 	if !ok {
@@ -1092,7 +1093,7 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 
 // UpsertKubeServiceV2 is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	server, ok := s.(*types.ServerV2)
 	if !ok {
@@ -1107,7 +1108,7 @@ func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*type
 
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
 		Namespace:    defaults.Namespace,
@@ -1190,16 +1191,52 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 
 // GetAppSessions gets all application web sessions.
 func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	resp, err := c.grpc.GetAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	var (
+		nextToken string
+		sessions  []types.WebSession
+	)
+
+	// Leverages ListAppSessions instead of GetAppSessions to prevent
+	// the server from having to send all sessions in a single message.
+	// If there are enough sessions it can cause the max message size to be
+	// exceeded.
+	for {
+		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return sessions, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListAppSessions(
+		ctx,
+		&proto.ListAppSessionsRequest{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			User:      user,
+		},
+		c.callOpts...,
+	)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, "", trail.FromGRPC(err)
 	}
 
 	out := make([]types.WebSession, 0, len(resp.GetSessions()))
 	for _, v := range resp.GetSessions() {
 		out = append(out, v)
 	}
-	return out, nil
+	return out, resp.NextPageToken, nil
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
@@ -1220,10 +1257,12 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    req.Username,
-		PublicAddr:  req.PublicAddr,
-		ClusterName: req.ClusterName,
-		AWSRoleARN:  req.AWSRoleARN,
+		Username:          req.Username,
+		PublicAddr:        req.PublicAddr,
+		ClusterName:       req.ClusterName,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1328,7 +1367,7 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 }
 
 // DeleteKubeService deletes a named kubernetes service.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{
 		Name: name,
@@ -1337,7 +1376,7 @@ func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 }
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{}, c.callOpts...)
 	return trace.Wrap(err)
@@ -1453,7 +1492,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	r, ok := role.(*types.RoleV5)
+	r, ok := role.(*types.RoleV6)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
@@ -1986,6 +2025,10 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 	for _, rawEvent := range response.Items {
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {
+			if trace.IsBadParameter(err) {
+				log.Warnf("skipping unknown event: %v", err)
+				continue
+			}
 			return nil, "", trace.Wrap(err)
 		}
 		decodedEvents = append(decodedEvents, event)
@@ -2428,6 +2471,32 @@ func (c *Client) DeleteAllDatabases(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// UpsertDatabaseService creates or updates existing DatabaseService resource.
+func (c *Client) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	serviceV1, ok := service.(*types.DatabaseServiceV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported DatabaseService type %T", serviceV1)
+	}
+	keepAlive, err := c.grpc.UpsertDatabaseService(ctx, &proto.UpsertDatabaseServiceRequest{
+		Service: serviceV1,
+	}, c.callOpts...)
+
+	return keepAlive, trail.FromGRPC(err)
+}
+
+// DeleteDatabaseService deletes a specific DatabaseService resource.
+func (c *Client) DeleteDatabaseService(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDatabaseService(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllDatabaseServices deletes all DatabaseService resources.
+// If an error occurs, a partial delete may happen.
+func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDatabaseServices(ctx, &proto.DeleteAllDatabaseServicesRequest{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{}, c.callOpts...)
@@ -2654,6 +2723,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
 			resources[i] = respResource.GetDatabaseServer()
+		case types.KindDatabaseService:
+			resources[i] = respResource.GetDatabaseService()
 		case types.KindAppServer:
 			resources[i] = respResource.GetAppServer()
 		case types.KindNode:
@@ -2906,4 +2977,30 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
 	_, err := c.grpc.ChangePassword(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
+
+	return trail.FromGRPC(err)
+}
+
+// GetLicense returns the license used to start the teleport enterprise auth server
+func (c *Client) GetLicense(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetLicense(ctx, &proto.GetLicenseRequest{})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return string(resp.License), nil
+}
+
+// ListReleases returns a list of teleport enterprise releases
+func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) ([]*types.Release, error) {
+	resp, err := c.grpc.ListReleases(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.Releases, nil
 }

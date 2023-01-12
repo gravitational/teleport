@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -56,7 +57,8 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log: utils.NewLoggerForTests(),
+		log:    utils.NewLoggerForTests(),
+		Config: Config{Clock: clockwork.NewRealClock()},
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
 		},

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -44,7 +45,18 @@ import (
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+	return cmp.Equal(lhs, rhs,
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		// Optimize types.CAKeySet comparison.
+		cmp.Comparer(func(a, b types.CAKeySet) bool {
+			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
+			// plus using proto.Equal is more efficient than cmp.Equal.
+			aClone := a.Clone()
+			bClone := b.Clone()
+			return proto.Equal(&aClone, &bClone)
+		}),
+	)
 }
 
 // ValidateCertAuthority validates the CertAuthority
@@ -272,6 +284,11 @@ type UserCertParams struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
 	// SourceIP is an IP that certificate should be pinned to.
@@ -291,6 +308,13 @@ type UserCertParams struct {
 	ConnectionDiagnosticID string
 	// PrivateKeyPolicy is the private key policy supported by this certificate.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// DeviceID is the trusted device identifier.
+	DeviceID string
+	// DeviceAssetTag is the device inventory identifier.
+	DeviceAssetTag string
+	// DeviceCredentialID is the identifier for the credential used by the device
+	// to authenticate itself.
+	DeviceCredentialID string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

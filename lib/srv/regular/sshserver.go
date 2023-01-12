@@ -66,11 +66,9 @@ import (
 
 const sftpSubsystem = "sftp"
 
-var (
-	log = logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentNode,
-	})
-)
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentNode,
+})
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
@@ -314,7 +312,6 @@ func (s *Server) close() {
 	if s.users != nil {
 		s.users.Shutdown()
 	}
-
 }
 
 // Close closes listening socket and stops accepting connections
@@ -1047,8 +1044,6 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
-	case teleport.RecordingProxyReqType:
-		s.handleRecordingProxy(ctx, r)
 	case teleport.ClusterDetailsReqType:
 		s.handleClusterDetails(ctx, r)
 	case teleport.VersionRequest:
@@ -1207,6 +1202,16 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}()
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
+		// On regular server in "normal" mode "direct-tcpip" channels from
+		// SessionJoinPrincipal should be rejected, otherwise it's possible
+		// to use the "-teleport-internal-join" user to bypass RBAC.
+		if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+			s.Logger.Error("Connection rejected, direct-tcpip with SessionJoinPrincipal in regular node must be blocked")
+			rejectChannel(
+				nch, ssh.Prohibited,
+				fmt.Sprintf("attempted %v channel open in join-only mode", channelType))
+			return
+		}
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			s.Logger.Errorf("Failed to parse request data: %v, err: %v.", string(nch.ExtraData()), err)
@@ -1574,7 +1579,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
 	}
-
 	switch req.Type {
 	case tracessh.TracingRequest:
 		return nil
@@ -1817,39 +1821,6 @@ func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
 	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, details)
 }
 
-// handleRecordingProxy responds to global out-of-band with a bool which
-// indicates if it is in recording mode or not.
-//
-// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
-// cluster information.
-// TODO(tross):DELETE IN 12.0
-func (s *Server) handleRecordingProxy(ctx context.Context, req *ssh.Request) {
-	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
-
-	if !req.WantReply {
-		return
-	}
-
-	// get the cluster config, if we can't get it, reply false
-	recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		if err := req.Reply(false, nil); err != nil {
-			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
-		}
-		return
-	}
-
-	// reply true that we were able to process the message and reply with a
-	// bool if we are in recording mode or not
-	recordingProxy := services.IsRecordAtProxy(recConfig.GetMode())
-	if err := req.Reply(true, []byte(strconv.FormatBool(recordingProxy))); err != nil {
-		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
-		return
-	}
-
-	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
-}
-
 // handleVersionRequest replies with the Teleport version of the server.
 func (s *Server) handleVersionRequest(req *ssh.Request) {
 	err := req.Reply(true, []byte(teleport.Version))
@@ -1976,7 +1947,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 // 'ssh: subsystem request failed' will be the only error displayed when
 // access is denied.
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
-	s.Logger.Error(err)
+	s.Logger.WithError(err).Errorf("failure handling SSH %q request", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
 	// stderr so the output does not mix with the rest of the output if the remote
 	// side is not doing additional formatting for extended data.
