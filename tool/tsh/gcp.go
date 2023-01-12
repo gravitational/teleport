@@ -20,12 +20,14 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -127,6 +129,10 @@ func (a *gcpApp) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
+func (a *gcpApp) getGcloudConfigPath() string {
+	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name, "gcloud")
+}
+
 var projectIDRegexp = regexp.MustCompile(`.*@(?P<projectID>.*)\.iam\.gserviceaccount\.com`)
 
 func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
@@ -164,6 +170,10 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 		// We need to set project ID. This is sourced from the account name.
 		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
 		"CLOUDSDK_CORE_PROJECT": projectID,
+
+		// Use isolated gcloud config path.
+		// https://cloud.google.com/sdk/docs/configurations#:~:text=The%20config%20directory%20can%20be%20changed%20by%20setting%20the%20environment%20variable%20CLOUDSDK_CONFIG
+		"CLOUDSDK_CONFIG": a.getGcloudConfigPath(),
 	}
 
 	// Set proxy settings.

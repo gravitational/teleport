@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func Test_getGCPServiceAccountFromFlags(t *testing.T) {
@@ -257,6 +258,34 @@ func TestSortedGCPServiceAccounts(t *testing.T) {
 			require.Equal(t, tt.want, []string(acc))
 		})
 	}
+}
+
+func Test_gcpApp_Config(t *testing.T) {
+	cf := &CLIConf{HomePath: t.TempDir()}
+	profile := &client.ProfileStatus{}
+	route := tlsca.RouteToApp{
+		ClusterName:       "test.teleport.io",
+		Name:              "myapp",
+		GCPServiceAccount: "test@myproject-123456.iam.gserviceaccount.com",
+	}
+
+	t.Setenv("TELEPORT_GCLOUD_SECRET", "my_secret")
+
+	app, err := newGCPApp(cf, profile, route)
+	require.NoError(t, err)
+	require.NotNil(t, app)
+
+	require.Equal(t, "my_secret", app.secret)
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp/gcloud", app.getGcloudConfigPath())
+
+	env, err := app.GetEnvVars()
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"CLOUDSDK_AUTH_ACCESS_TOKEN":         "my_secret",
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": "keys/-app/myapp-localca.pem",
+		"CLOUDSDK_CORE_PROJECT":              "myproject-123456",
+		"CLOUDSDK_CONFIG":                    app.getGcloudConfigPath(),
+	}, env)
 }
 
 func Test_projectIDFromServiceAccountName(t *testing.T) {
