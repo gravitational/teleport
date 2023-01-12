@@ -14,25 +14,48 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package predicate
+package partial
 
 import (
+	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
+func constraint(expr string) []Constraint {
+	return []Constraint{{
+		Allow: true,
+		Expr:  expr,
+	}}
+}
+
 // TestSolverIntEq tests solving for a single integer equality.
 func TestSolverIntEq(t *testing.T) {
 	state := NewSolver()
-	x, err := state.PartialSolveForAll("x == 7", func(s []string) any {
+	x, err := state.PartialSolveForAll(context.Background(), constraint("x == 7"), func(s []string) any {
 		return nil
-	}, "x", TypeInt, 1, 10*time.Second)
+	}, "x", TypeInt, 1)
 
 	require.NoError(t, err)
 	require.Len(t, x, 1)
 	require.Equal(t, "7", x[0].String())
+}
+
+// TestSolverFn tests custom functions
+func TestSolverFn(t *testing.T) {
+	state := NewSolver()
+	x, err := state.PartialSolveForAll(context.Background(), constraint("upper(x) == \"BANANA\""), func(s []string) any {
+		return nil
+	}, "x", TypeString, 2)
+
+	require.NoError(t, err)
+
+	s := make([]string, len(x))
+	for i, v := range x {
+		s[i] = v.String()
+	}
+	require.ElementsMatch(t, []string{"\"BananA\"", "\"BAnanA\""}, s)
 }
 
 // TestSolverStringExpMultiSolution tests solving against a string equality expression with two solutions.
@@ -45,7 +68,7 @@ func TestSolverStringExpMultiSolution(t *testing.T) {
 	}
 
 	state := NewSolver()
-	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 3, 10*time.Second)
+	x, err := state.PartialSolveForAll(context.Background(), constraint("x == \"blah\" || x == \"root\" || x == jimsName"), resolver, "x", TypeString, 3)
 	require.NoError(t, err)
 
 	s := make([]string, len(x))
@@ -69,7 +92,7 @@ func BenchmarkSolverStringExpMultiSolutionCached(b *testing.B) {
 	state := NewSolver()
 
 	for i := 0; i < b.N; i++ {
-		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 3, 10*time.Second)
+		x, err := state.PartialSolveForAll(context.Background(), constraint("x == \"blah\" || x == \"root\" || x == jimsName"), resolver, "x", TypeString, 3)
 
 		if err != nil {
 			b.Fatal(err)
@@ -96,7 +119,7 @@ func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		state := NewSolver()
-		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 3, 10*time.Second)
+		x, err := state.PartialSolveForAll(context.Background(), constraint("x == \"blah\" || x == \"root\" || x == jimsName"), resolver, "x", TypeString, 3)
 
 		if err != nil {
 			b.Fatal(err)
