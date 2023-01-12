@@ -8,12 +8,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
+	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -137,6 +141,8 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	}
 	devicepb.RegisterDeviceTrustServiceServer(gRPCServer, deviceService)
 
+	p.registerLoginRuleService(gRPCServer)
+
 	// Create a SAMLService and register it with the auth.Server
 	sas, err := NewSAMLAuthService(&SAMLAuthServiceConfig{
 		Auth:    authServer.AuthServer,
@@ -179,6 +185,15 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	}
 
 	return nil
+}
+
+func (p *Plugin) registerLoginRuleService(grpcServer *grpc.Server) {
+	storage := lrstorage.New(p.GetBackend)
+	service := loginrulev1.NewService(&loginrulev1.ServiceConfig{
+		Storage:    storage,
+		Authorizer: p.authorizer,
+	})
+	loginrulepb.RegisterLoginRuleServiceServer(grpcServer, service)
 }
 
 // RegisterAuthWebHandlers plugs in new handlers into OSS auth server router
