@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -206,7 +207,10 @@ func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
 // removeBotoConfig removes config files written by WriteBotoConfig.
 func (a *gcpApp) removeBotoConfig() []error {
 	// try to remove both files
-	return []error{os.Remove(a.getExternalAccountFilePath()), os.Remove(a.getBotoConfigPath())}
+	return []error{
+		trace.Wrap(os.Remove(a.getExternalAccountFilePath())),
+		trace.Wrap(os.Remove(a.getBotoConfigPath())),
+	}
 }
 
 func (a *gcpApp) getBotoConfigDir() string {
@@ -223,6 +227,9 @@ func (a *gcpApp) getExternalAccountFilePath() string {
 
 // getBotoConfig returns minimal boto configuration, referencing an external account file.
 func (a *gcpApp) getBotoConfig() string {
+	// gsutil will look for `gs_external_account_authorized_user_file` in `[Credentials]` section as per the source code:
+	// https://github.com/GoogleCloudPlatform/gsutil/blob/2fd97591681a51ca0541d04b865e7d67a54efad4/gslib/gcs_json_credentials.py#L290-L294
+	// there appears to be no documentation for this config setting otherwise.
 	return fmt.Sprintf(`[Credentials]
 gs_external_account_authorized_user_file = %v
 `, a.getExternalAccountFilePath())
@@ -235,7 +242,7 @@ func (a *gcpApp) getExternalAccountFile() string {
 
 // writeBotoConfig writes app-specific boto configuration file as well as external account file, referenced in boto config.
 func (a *gcpApp) writeBotoConfig() error {
-	err := os.MkdirAll(a.getBotoConfigDir(), 0700)
+	err := os.MkdirAll(a.getBotoConfigDir(), teleport.PrivateDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
