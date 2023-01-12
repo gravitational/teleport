@@ -880,6 +880,9 @@ tsh bench sessions --max=5000 --web user ls
     paste
   - [ ] `desktop.clipboard.receive` (`TDP03I`) emitted for remote copy -> local
     paste
+  - [ ] `desktop.directory.share` (`TDP04I`) emitted when Teleport starts sharing a directory
+  - [ ] `desktop.directory.read` (`TDP05I`) emitted when a file is read over the shared directory
+  - [ ] `desktop.directory.write` (`TDP06I`) emitted when a file is written to over the shared directory
 
 ## Binaries compatibility
 
