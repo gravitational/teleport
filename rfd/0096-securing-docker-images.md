@@ -3,7 +3,7 @@ authors: Trent Clarke (trent@goteleport.com)
 state: draft
 ---
 
-# RFD 0098 - Delivering secure Teleport OCI Images
+# RFD 0096 - Delivering secure Teleport OCI Images
 
 # Required Approvers
 * Engineering: @r0mant
@@ -119,6 +119,55 @@ downloaded directly from their project's souce reposiotory. Sourcing `dumb-init`
 `libpam` and so on from the Ubuntu or Debian package repositories implies some minimal 
 curation and provenance checking by the debian packaging tools, so we will prefer that to
 sourcing them elsewhere.
+
+### Release build process
+
+```mermaid
+graph TD
+    pull_base[Pull distroless\nbase image]
+    signature_valid?{is cosign\nsignature valid?}
+    deb[/Teleport Debian Package from CI/]
+    df[/Dockerfile from repo/]
+    base[/Distroless base image/]
+    candidate_image[/Candidate Telport image/]
+    push_internal[Push Candidate Image\nto internal ECR Registry]
+    trivy_scan[Scan Candidate Image\nwith trivy]
+    build[$ docker build ...] 
+    upload_results[Upload scan results\nto GitHub Code Scanning]
+    bad_scan?{Scan detected\nhigh-risk\nvulnerabilities?}
+    fail_build[Fail the build]
+    image_build_ok[Image build succeeds]
+    sign_image[cosign ...]
+    promote_build[/Release engineer\npromotes build/]
+    promote_image[Candidate image\nbecomes release image\nin Public ECR]
+    build_ok?{Does all go well\nwith the rest of\nthe build?}
+    
+    pull_base --> signature_valid?
+
+    signature_valid? -- yes --> base
+    signature_valid? -- no --> fail_build
+
+    deb --> build
+    df --> build
+    base --> build
+
+    build --> sign_image --> candidate_image
+    candidate_image --> push_internal
+    push_internal --> trivy_scan
+
+    trivy_scan --> upload_results 
+
+    upload_results --> bad_scan?
+
+    bad_scan? -- no --> build_ok?
+    bad_scan? -- yes --> fail_build
+    
+
+    promote_build --> promote_image
+
+    build_ok? -- yes --> promote_build
+    build_ok? -- no --> fail_build
+```    
 
 ### Base image verification
 
@@ -242,6 +291,10 @@ More information keyless signing:
 > it, and it looks like it should be pretty straightforward to do from GHA (see 3rd 
 > link above) - but all the `COSIGN_EXPERIMENTAL=1` in the examples is making me 
 > nervous. Thoughts greatly appreciated._
+
+### Build-time scanning
+
+All Teleport images shall be scanned with [trivy](https://github.com/aquasecurity/trivy-action#using-trivy-with-github-code-scanning)
 
 ### Debug Images
 
