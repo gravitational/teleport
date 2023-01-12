@@ -3084,6 +3084,8 @@ func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.
 	return sctx, site, nil
 }
 
+// getSiteByParams gets the RemoteSite (which can represent this local cluster or a
+// remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) getSiteByParams(sctx *SessionContext, p httprouter.Params) (reversetunnel.RemoteSite, error) {
 	clusterName := p.ByName("site")
 	if clusterName == currentSiteShortcut {
