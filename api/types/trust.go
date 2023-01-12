@@ -41,7 +41,7 @@ const (
 	// AllCAsType is a special type that represents all CertAuthTypes.
 	// DEPRECATED, DELETE IN 14.0.0. For more information see:
 	// https://github.com/gravitational/teleport/issues/17493
-	AllCAsType CertAuthType = "all"
+	CertAuthTypeAll CertAuthType = "all"
 )
 
 // CertAuthTypes lists all certificate authority types.

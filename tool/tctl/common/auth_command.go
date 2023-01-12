@@ -279,7 +279,7 @@ func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.Clien
 	if a.rotateType == "" {
 		return trace.BadParameter("required flag --type not provided; previous versions defaulted to --type=all which is deprecated and will be removed in a future version")
 	}
-	if a.rotateType == "all" {
+	if a.rotateType == types.AllCAsType {
 		fmt.Println("\033[0;31mNOTICE:\033[0m --type=all will be deprecated in a future version")
 	}
 
@@ -853,9 +853,10 @@ func getDatabaseServer(ctx context.Context, clientAPI auth.ClientI, dbName strin
 }
 
 func getCertAuthTypes() []string {
-	t := []string{string(types.AllCAsType)}
+	t := make([]string, 0, len(types.CertAuthTypes)+1)
 	for _, at := range types.CertAuthTypes {
 		t = append(t, string(at))
 	}
+	t = append(t, string(types.AllCAsType))
 	return t
 }

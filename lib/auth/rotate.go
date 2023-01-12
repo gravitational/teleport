@@ -90,7 +90,7 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	}
 	// Type all is valid too but will be deprecated in a future release.
 	// See: https://github.com/gravitational/teleport/issues/17493
-	if err := r.Type.Check(); err != nil && r.Type != "all" {
+	if err := r.Type.Check(); err != nil && r.Type != types.AllCAsType {
 		return trace.Wrap(err)
 	}
 	if r.GracePeriod == nil {
