@@ -1165,7 +1165,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 			Clock:     srv.Clock,
 			Client:    remoteSite.remoteAccessPoint,
 		},
-		// TODO: add OpenSSHCA?
 		Types: []types.CertAuthType{types.HostCA},
 	})
 	if err != nil {

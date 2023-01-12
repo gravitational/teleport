@@ -186,11 +186,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				PrivateKeyType: types.PrivateKeyType_RAW,
 				PublicKey:      s.PubKey,
 			}},
-			TLS: []*types.TLSKeyPair{{
-				Key:     s.PrivKey,
-				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
-			}},
 		},
 	})
 	if err != nil {
