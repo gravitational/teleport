@@ -15,9 +15,12 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"sort"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -278,6 +281,30 @@ func Test_gcpApp_Config(t *testing.T) {
 	require.Equal(t, "my_secret", app.secret)
 	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp/gcloud", app.getGcloudConfigPath())
 
+	require.Equal(t, "c45b4408", app.prefix)
+
+	require.NoError(t, app.writeBotoConfig())
+
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp", app.getBotoConfigDir())
+
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp/c45b4408_boto.cfg", app.getBotoConfigPath())
+	expectedBotoConfig := fmt.Sprintf(`[Credentials]
+gs_external_account_authorized_user_file = %v/gcp/test.teleport.io/myapp/c45b4408_external.json
+`, cf.HomePath)
+	require.Equal(t, expectedBotoConfig, app.getBotoConfig())
+	out, err := os.ReadFile(app.getBotoConfigPath())
+	require.NoError(t, err)
+	require.Equal(t, expectedBotoConfig, string(out))
+
+	expectedExternalAccountFile := `{ "type": "external_account_authorized_user","token": "my_secret" }`
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp/c45b4408_external.json", app.getExternalAccountFilePath())
+	require.Equal(t, expectedExternalAccountFile, app.getExternalAccountFile())
+	out, err = os.ReadFile(app.getExternalAccountFilePath())
+	require.NoError(t, err)
+	require.Equal(t, expectedExternalAccountFile, string(out))
+
+	require.NoError(t, trace.NewAggregate(app.removeBotoConfig()...))
+
 	env, err := app.GetEnvVars()
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{
@@ -285,6 +312,7 @@ func Test_gcpApp_Config(t *testing.T) {
 		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": "keys/-app/myapp-localca.pem",
 		"CLOUDSDK_CORE_PROJECT":              "myproject-123456",
 		"CLOUDSDK_CONFIG":                    app.getGcloudConfigPath(),
+		"BOTO_CONFIG":                        app.getBotoConfigPath(),
 	}, env)
 }
 

@@ -17,6 +17,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"os"
 	"os/exec"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -38,6 +40,7 @@ import (
 
 const (
 	gcloudCLIBinaryName = "gcloud"
+	gsutilCLIBinaryName = "gsutil"
 )
 
 func onGcloud(cf *CLIConf) error {
@@ -63,12 +66,38 @@ func onGcloud(cf *CLIConf) error {
 	return app.RunCommand(cmd)
 }
 
+func onGsutil(cf *CLIConf) error {
+	app, err := pickActiveGCPApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = app.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := app.Close(); err != nil {
+			log.WithError(err).Error("Failed to close GCP app.")
+		}
+	}()
+
+	args := cf.GCPCommandArgs
+
+	cmd := exec.Command(gsutilCLIBinaryName, args...)
+	return app.RunCommand(cmd)
+}
+
 // gcpApp is an GCP app that can start local proxies to serve GCP APIs.
 type gcpApp struct {
 	cf      *CLIConf
 	profile *client.ProfileStatus
 	app     tlsca.RouteToApp
 	secret  string
+	// prefix is a prefix added to the name of configuration files, allowing two instances of gcpApp
+	// to run concurrently without overwriting each other files.
+	prefix string
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
@@ -80,11 +109,17 @@ func newGCPApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToApp)
 	if err != nil {
 		return nil, err
 	}
+
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(secret))
+	prefix := fmt.Sprintf("%x", h.Sum32())
+
 	return &gcpApp{
 		cf:      cf,
 		profile: profile,
 		app:     app,
 		secret:  secret,
+		prefix:  prefix,
 	}, nil
 }
 
@@ -106,6 +141,11 @@ func getGCPSecret() (string, error) {
 // The request flow to remote server (i.e. GCP APIs) looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
 func (a *gcpApp) StartLocalProxies() error {
+	// configuration files
+	if err := a.writeBotoConfig(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// HTTPS proxy mode
 	if err := a.startLocalALPNProxy(""); err != nil {
 		return trace.Wrap(err)
@@ -119,12 +159,15 @@ func (a *gcpApp) StartLocalProxies() error {
 // Close makes all necessary close calls.
 func (a *gcpApp) Close() error {
 	var errs []error
+	// close proxies
 	if a.localALPNProxy != nil {
 		errs = append(errs, a.localALPNProxy.Close())
 	}
 	if a.localForwardProxy != nil {
 		errs = append(errs, a.localForwardProxy.Close())
 	}
+	// remove boto config
+	errs = append(errs, a.removeBotoConfig()...)
 	return trace.NewAggregate(errs...)
 }
 
@@ -161,6 +204,62 @@ func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
 	return projectID, nil
 }
 
+// removeBotoConfig removes config files written by WriteBotoConfig.
+func (a *gcpApp) removeBotoConfig() []error {
+	// try to remove both files
+	return []error{
+		trace.Wrap(os.Remove(a.getExternalAccountFilePath())),
+		trace.Wrap(os.Remove(a.getBotoConfigPath())),
+	}
+}
+
+func (a *gcpApp) getBotoConfigDir() string {
+	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name)
+}
+
+func (a *gcpApp) getBotoConfigPath() string {
+	return path.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
+}
+
+func (a *gcpApp) getExternalAccountFilePath() string {
+	return path.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
+}
+
+// getBotoConfig returns minimal boto configuration, referencing an external account file.
+func (a *gcpApp) getBotoConfig() string {
+	// gsutil will look for `gs_external_account_authorized_user_file` in `[Credentials]` section as per the source code:
+	// https://github.com/GoogleCloudPlatform/gsutil/blob/2fd97591681a51ca0541d04b865e7d67a54efad4/gslib/gcs_json_credentials.py#L290-L294
+	// there appears to be no documentation for this config setting otherwise.
+	return fmt.Sprintf(`[Credentials]
+gs_external_account_authorized_user_file = %v
+`, a.getExternalAccountFilePath())
+}
+
+// getExternalAccountFile returns the contents of external account file, which depend on a current secret.
+func (a *gcpApp) getExternalAccountFile() string {
+	return fmt.Sprintf(`{ "type": "external_account_authorized_user","token": %q }`, a.secret)
+}
+
+// writeBotoConfig writes app-specific boto configuration file as well as external account file, referenced in boto config.
+func (a *gcpApp) writeBotoConfig() error {
+	err := os.MkdirAll(a.getBotoConfigDir(), teleport.PrivateDirMode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.WriteFile(a.getBotoConfigPath(), []byte(a.getBotoConfig()), 0644)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.WriteFile(a.getExternalAccountFilePath(), []byte(a.getExternalAccountFile()), 0644)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
@@ -185,6 +284,10 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 		// Use isolated gcloud config path.
 		// https://cloud.google.com/sdk/docs/configurations#:~:text=The%20config%20directory%20can%20be%20changed%20by%20setting%20the%20environment%20variable%20CLOUDSDK_CONFIG
 		"CLOUDSDK_CONFIG": a.getGcloudConfigPath(),
+
+		// Set custom path to boto config. Used to provide fixed access token for `gsutil`.
+		// More info: https://cloud.google.com/storage/docs/boto-gsutil
+		"BOTO_CONFIG": a.getBotoConfigPath(),
 	}
 
 	// Set proxy settings.
