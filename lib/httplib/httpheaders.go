@@ -19,6 +19,7 @@ limitations under the License.
 package httplib
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -63,6 +64,20 @@ func SetIndexContentSecurityPolicy(h http.Header) {
 		"img-src 'self' data: blob:",
 		"font-src 'self' data:",
 		"connect-src 'self' wss:",
+	}, ";")
+
+	h.Set("Content-Security-Policy", cspValue)
+}
+
+// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
+func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
+	var cspValue = strings.Join([]string{
+		GetDefaultContentSecurityPolicy(),
+		// 'unsafe-inline' is required by CSS-in-JS to work
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob:",
+		"font-src 'self' data:",
+		fmt.Sprintf("connect-src 'self' %s", applicationURL),
 	}, ";")
 
 	h.Set("Content-Security-Policy", cspValue)
