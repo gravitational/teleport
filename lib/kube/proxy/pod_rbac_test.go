@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -36,8 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	"k8s.io/apimachinery/pkg/watch"
 	restclientwatch "k8s.io/client-go/rest/watch"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
@@ -271,142 +270,21 @@ func getPodsFromPodList(items []corev1.Pod) []string {
 }
 
 func TestWatcherResponseWriter(t *testing.T) {
-	t.Parallel()
-	fakeEvents := fakeEvents()
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
-	type args struct {
-		allowed []types.KubernetesResource
-		denied  []types.KubernetesResource
-	}
-	tests := []struct {
-		name string
-		args args
-		want []*metav1.WatchEvent
-	}{
-		{
-			name: "receive every event",
-			args: args{
-				allowed: []types.KubernetesResource{
-					{
-						Kind:      types.KindKubePod,
-						Namespace: "*",
-						Name:      "*",
-					},
-				},
-			},
-			want: fakeEvents,
-		},
-		{
-			name: "receive events for default namespace",
-			args: args{
-				allowed: []types.KubernetesResource{
-					{
-						Kind:      types.KindKubePod,
-						Namespace: "default",
-						Name:      "*",
-					},
-				},
-			},
-			want: fakeEvents[1:],
-		},
-		{
-			name: "receive events for default namespace but with denied pod",
-			args: args{
-				allowed: []types.KubernetesResource{
-					{
-						Kind:      types.KindKubePod,
-						Namespace: "default",
-						Name:      "*",
-					},
-				},
-				denied: []types.KubernetesResource{
-					{
-						Kind:      types.KindKubePod,
-						Namespace: "default",
-						Name:      "otherPod",
-					},
-				},
-			},
-			want: fakeEvents[1:2],
-		},
-		{
-			name: "receive receives no events for default namespace",
-			args: args{
-				allowed: []types.KubernetesResource{
-					{
-						Kind:      types.KindKubePod,
-						Namespace: "default",
-						Name:      "rand*",
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			userReader, userWriter := io.Pipe()
-			negotiator := newClientNegotiator()
-			filterWrapper := newPodFiltererBuilder(tt.args.allowed, tt.args.denied, log)
-			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter), negotiator, filterWrapper)
-			watchEncoder, decoder := newWatchSerializers(
-				t,
-				responsewriters.DefaultContentType,
-				negotiator,
-				watcher,
-				userReader,
-			)
-
-			require.NoError(t, err)
-			watcher.Header().Set(
-				responsewriters.ContentTypeHeader, responsewriters.DefaultContentType,
-			)
-			watcher.WriteHeader(http.StatusOK)
-			var collectedEvents []*metav1.WatchEvent
-			wg := sync.WaitGroup{}
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for {
-					event, err := decoder.decodeStreamingMessage()
-					if err != nil {
-						break
-					}
-					collectedEvents = append(collectedEvents, event)
-				}
-			}()
-
-			for _, event := range fakeEvents {
-				err := watchEncoder.Encode(&watch.Event{
-					Type:   watch.EventType(event.Type),
-					Object: event.Object.Object,
-				})
-				require.NoError(t, err)
-			}
-			watcher.Close()
-			userReader.CloseWithError(io.EOF)
-			userWriter.CloseWithError(io.EOF)
-			wg.Wait()
-			require.Empty(t,
-				cmp.Diff(tt.want, collectedEvents,
-					cmp.FilterPath(func(path cmp.Path) bool {
-						if field, ok := path.Last().(cmp.StructField); ok {
-							// Ignore Raw fields that contain the Object encoded.
-							return strings.EqualFold(field.Name(), "Raw")
-						}
-						return false
-					}, cmp.Ignore()),
-				),
-			)
-		})
-	}
-}
-
-func fakeEvents() []*metav1.WatchEvent {
 	defaultNamespace := "default"
 	devNamespace := "dev"
-	return []*metav1.WatchEvent{
+	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
+	t.Parallel()
+	statusErr := &metav1.Status{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Status",
+			APIVersion: "v1",
+		},
+		Status:  metav1.StatusFailure,
+		Message: "error",
+		Code:    http.StatusForbidden,
+	}
+	fakeEvents := []*metav1.WatchEvent{
 		{
 			Type:   string(watch.Added),
 			Object: newRawExtension("podAdded", devNamespace),
@@ -419,6 +297,165 @@ func fakeEvents() []*metav1.WatchEvent {
 			Type:   string(watch.Modified),
 			Object: newRawExtension("otherPod", defaultNamespace),
 		},
+	}
+
+	type args struct {
+		allowed []types.KubernetesResource
+		denied  []types.KubernetesResource
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantEvents []*metav1.WatchEvent
+		wantStatus *metav1.Status
+	}{
+		{
+			name: "receive every event",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "*",
+						Name:      "*",
+					},
+				},
+			},
+			wantEvents: fakeEvents,
+		},
+		{
+			name: "receive events for default namespace",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: defaultNamespace,
+						Name:      "*",
+					},
+				},
+			},
+			wantEvents: fakeEvents[1:],
+		},
+		{
+			name: "receive events for default namespace but with denied pod",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: defaultNamespace,
+						Name:      "*",
+					},
+				},
+				denied: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: defaultNamespace,
+						Name:      "otherPod",
+					},
+				},
+			},
+			wantEvents: fakeEvents[1:2],
+		},
+		{
+			name: "receive receives no events for default namespace",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: defaultNamespace,
+						Name:      "rand*",
+					},
+				},
+			},
+			wantStatus: statusErr,
+			wantEvents: []*metav1.WatchEvent{
+				{
+					Type: string(watch.Error),
+					Object: runtime.RawExtension{
+						Object: statusErr,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			userReader, userWriter := io.Pipe()
+			negotiator := newClientNegotiator()
+			filterWrapper := newPodFilterer(tt.args.allowed, tt.args.denied, log)
+			// watcher parses the data written into itself and if the user is allowed to
+			// receive the update, it writes the event into target.
+			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
+			require.NoError(t, err)
+
+			// create the encoder that writes frames into watcher ResponseWriter and
+			// a decoder that parses the events written into userWriter pipe.
+			watchEncoder, decoder := newWatchSerializers(
+				t,
+				responsewriters.DefaultContentType,
+				negotiator,
+				watcher,
+				userReader,
+			)
+			// Set the content type header to use `json`.
+			watcher.Header().Set(
+				responsewriters.ContentTypeHeader, responsewriters.DefaultContentType,
+			)
+			// Write the status to spin the goroutine that filters the requests.
+			watcher.WriteHeader(http.StatusOK)
+
+			var collectedEvents []*metav1.WatchEvent
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					// collects filtered events.
+					event, err := decoder.decodeStreamingMessage()
+					if err != nil {
+						break
+					}
+					collectedEvents = append(collectedEvents, event)
+				}
+			}()
+
+			for _, event := range fakeEvents {
+				// writes frames into watcher ResponseWrite.
+				err := watchEncoder.Encode(&watch.Event{
+					Type:   watch.EventType(event.Type),
+					Object: event.Object.Object,
+				})
+				require.NoError(t, err)
+			}
+			// Write the metav1.Status to make sure it's always forwarded.
+			if tt.wantStatus != nil {
+				// writes frames into watcher ResponseWrite.
+				err := watchEncoder.Encode(&watch.Event{
+					Type:   watch.Error,
+					Object: tt.wantStatus,
+				})
+				require.NoError(t, err)
+			}
+
+			watcher.Close()
+			userReader.CloseWithError(io.EOF)
+			userWriter.CloseWithError(io.EOF)
+			// Waits until collector finishes.
+			wg.Wait()
+			// verify events.
+			require.Empty(t,
+				cmp.Diff(tt.wantEvents, collectedEvents,
+					cmp.FilterPath(func(path cmp.Path) bool {
+						if field, ok := path.Last().(cmp.StructField); ok {
+							// Ignore Raw fields that contain the Object encoded.
+							return strings.EqualFold(field.Name(), "Raw")
+						}
+						return false
+					}, cmp.Ignore()),
+				),
+			)
+		})
+
 	}
 }
 

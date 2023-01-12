@@ -722,6 +722,43 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 	}, nil
 }
 
+// emitAuditEvent emits the audit event for a `kube.request` event if the session
+// requires audit events.
+func (f *Forwarder) emitAuditEvent(ctx *authContext, req *http.Request, sess *clusterSession, status int) {
+	if sess.noAuditEvents {
+		return
+	}
+	// Emit audit event.
+	event := &apievents.KubeRequest{
+		Metadata: apievents.Metadata{
+			Type: events.KubeRequestEvent,
+			Code: events.KubeRequestCode,
+		},
+		UserMetadata: ctx.eventUserMeta(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.RemoteAddr,
+			LocalAddr:  sess.kubeAddress,
+			Protocol:   events.EventProtocolKube,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        f.cfg.HostID,
+			ServerNamespace: f.cfg.Namespace,
+		},
+		RequestPath:               req.URL.Path,
+		Verb:                      req.Method,
+		ResponseCode:              int32(status),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+	}
+	r := parseResourcePath(req.URL.Path)
+	if r.skipEvent {
+		return
+	}
+	r.populateEvent(event)
+	if err := f.cfg.AuthClient.EmitAuditEvent(f.ctx, event); err != nil {
+		f.log.WithError(err).Warn("Failed to emit event.")
+	}
+}
+
 // fillDefaultKubePrincipalDetails fills the default details in order to keep
 // the correct behavior when forwarding the request to the Kubernetes API.
 // By default, if no kubernetes_users are set (which will be a majority), a
@@ -1753,38 +1790,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 	rw := httplib.NewResponseStatusRecorder(w)
 	sess.forwarder.ServeHTTP(rw, req)
 
-	if sess.noAuditEvents {
-		return nil, nil
-	}
-	// Emit audit event.
-	event := &apievents.KubeRequest{
-		Metadata: apievents.Metadata{
-			Type: events.KubeRequestEvent,
-			Code: events.KubeRequestCode,
-		},
-		UserMetadata: ctx.eventUserMeta(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
-			LocalAddr:  sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.HostID,
-			ServerNamespace: f.cfg.Namespace,
-		},
-		RequestPath:               req.URL.Path,
-		Verb:                      req.Method,
-		ResponseCode:              int32(rw.Status()),
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
-	}
-	r := parseResourcePath(req.URL.Path)
-	if r.skipEvent {
-		return nil, nil
-	}
-	r.populateEvent(event)
-	if err := f.cfg.AuthClient.EmitAuditEvent(f.ctx, event); err != nil {
-		f.log.WithError(err).Warn("Failed to emit event.")
-	}
+	f.emitAuditEvent(ctx, req, sess, rw.Status())
 
 	return nil, nil
 }
@@ -2378,38 +2384,7 @@ func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.
 		}
 	}
 
-	if sess.noAuditEvents {
-		return nil, nil
-	}
-	// Emit audit event.
-	event := &apievents.KubeRequest{
-		Metadata: apievents.Metadata{
-			Type: events.KubeRequestEvent,
-			Code: events.KubeRequestCode,
-		},
-		UserMetadata: ctx.eventUserMeta(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
-			LocalAddr:  sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.HostID,
-			ServerNamespace: f.cfg.Namespace,
-		},
-		RequestPath:               req.URL.Path,
-		Verb:                      req.Method,
-		ResponseCode:              int32(status),
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
-	}
-	r := parseResourcePath(req.URL.Path)
-	if r.skipEvent {
-		return nil, nil
-	}
-	r.populateEvent(event)
-	if err := f.cfg.AuthClient.EmitAuditEvent(f.ctx, event); err != nil {
-		f.log.WithError(err).Warn("Failed to emit event.")
-	}
+	f.emitAuditEvent(ctx, req, sess, status)
 
 	return nil, nil
 }
@@ -2428,7 +2403,7 @@ func (f *Forwarder) listPodsList(req *http.Request, w http.ResponseWriter, sess 
 	// filterBuffer filters the response to exclude pods the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newPodFiltererBuilder(allowedResources, deniedResources, f.log),
+		newPodFilterer(allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -2452,7 +2427,7 @@ func (f *Forwarder) listPodsList(req *http.Request, w http.ResponseWriter, sess 
 // for the next event.
 func (f *Forwarder) listPodsWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
 	negotiator := newClientNegotiator()
-	rw, err := responsewriters.NewWatcherResponseWriter(w, negotiator, newPodFiltererBuilder(allowedResources, deniedResources, f.log))
+	rw, err := responsewriters.NewWatcherResponseWriter(w, negotiator, newPodFilterer(allowedResources, deniedResources, f.log))
 	if err != nil {
 		return http.StatusInternalServerError, trace.Wrap(err)
 	}
@@ -2464,7 +2439,8 @@ func (f *Forwarder) listPodsWatcher(req *http.Request, w http.ResponseWriter, se
 	return rw.Status(), trace.Wrap(err)
 }
 
-// deletePodsCollection calls checks the listPodsList
+// deletePodsCollection calls listPods method to list the Pods the user
+// has access to and calls their delete method using the allowed kube principals.
 func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
@@ -2511,38 +2487,7 @@ func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter
 		}
 	}
 
-	if sess.noAuditEvents {
-		return nil, nil
-	}
-	// Emit audit event.
-	event := &apievents.KubeRequest{
-		Metadata: apievents.Metadata{
-			Type: events.KubeRequestEvent,
-			Code: events.KubeRequestCode,
-		},
-		UserMetadata: ctx.eventUserMeta(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
-			LocalAddr:  sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.HostID,
-			ServerNamespace: f.cfg.Namespace,
-		},
-		RequestPath:               req.URL.Path,
-		Verb:                      req.Method,
-		ResponseCode:              int32(status),
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
-	}
-	r := parseResourcePath(req.URL.Path)
-	if r.skipEvent {
-		return nil, nil
-	}
-	r.populateEvent(event)
-	if err := f.cfg.AuthClient.EmitAuditEvent(f.ctx, event); err != nil {
-		f.log.WithError(err).Warn("Failed to emit event.")
-	}
+	f.emitAuditEvent(ctx, req, sess, status)
 
 	return nil, nil
 }
@@ -2668,8 +2613,9 @@ func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.Del
 	if err != nil {
 		return into, trace.Wrap(err)
 	}
-	if len(data) > 0 {
-		_, _, err = decoder.Decode(data, nil, &into)
+	if len(data) == 0 {
+		return into, nil
 	}
+	_, _, err = decoder.Decode(data, nil, &into)
 	return into, trace.Wrap(err)
 }

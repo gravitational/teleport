@@ -29,30 +29,36 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
-// newPodFiltererBuilder creates a wrapper function that once executed creates
+// newPodFilterer creates a wrapper function that once executed creates
 // a runtime filter for Pods.
 // The filter exclusion criteria is:
 // - deniedPods: excluded if (namespace,name) matches an entry even if it matches
 // the allowedPod's list.
 // - allowedPods: excluded if (namespace,name) not match a single entry.
-func newPodFiltererBuilder(allowedPods, deniedPods []types.KubernetesResource, log logrus.FieldLogger) responsewriters.FilterWrapper {
-	negotiator := newClientNegotiator()
+func newPodFilterer(allowedPods, deniedPods []types.KubernetesResource, log logrus.FieldLogger) responsewriters.FilterWrapper {
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
-		return newPodFilterer(
-			podFiltererConfig{
-				contentType:      contentType,
-				responseCode:     responseCode,
-				negotiator:       negotiator,
-				allowedResources: allowedPods,
-				deniedResources:  deniedPods,
-				log:              log,
-			},
-		)
+		negotiator := newClientNegotiator()
+		encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, negotiator)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &podFilterer{
+			encoder:          encoder,
+			decoder:          decoder,
+			contentType:      contentType,
+			responseCode:     responseCode,
+			negotiator:       negotiator,
+			allowedResources: allowedPods,
+			deniedResources:  deniedPods,
+			log:              log,
+		}, nil
 	}
 }
 
-// podFiltererConfig holds the configuration for filtering pods from responses.
-type podFiltererConfig struct {
+// podFilterer is a pod filterer instance.
+type podFilterer struct {
+	encoder runtime.Encoder
+	decoder runtime.Decoder
 	// contentType is the response "Content-Type" header.
 	contentType string
 	// responseCode is the response status code.
@@ -65,33 +71,6 @@ type podFiltererConfig struct {
 	deniedResources []types.KubernetesResource
 	// log is the logger.
 	log logrus.FieldLogger
-}
-
-// newPodFilterer creates a new instance of podFilterer with the encoders and
-// decoders for the given contentType value.
-// podFilterer is able to exclude Pods from list requests executed against the
-// target cluster.
-// The filter exclusion criteria is:
-// - deniedResources: excluded if (namespace,name) matches an entry even if it matches
-// the allowedResources's list.
-// - allowedResources: excluded if (namespace,name) not match a single entry.
-func newPodFilterer(cfg podFiltererConfig) (*podFilterer, error) {
-	encoder, decoder, err := newEncoderAndDecoderForContentType(cfg.contentType, cfg.negotiator)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &podFilterer{
-		encoder:           encoder,
-		decoder:           decoder,
-		podFiltererConfig: cfg,
-	}, nil
-}
-
-// podFilterer is a pod filterer instance.
-type podFilterer struct {
-	podFiltererConfig
-	encoder runtime.Encoder
-	decoder runtime.Decoder
 }
 
 // FilterBuffer receives a byte array, decodes the response into the appropriate
@@ -114,6 +93,8 @@ func (d *podFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 	var filtered runtime.Object
 	switch o := obj.(type) {
 	case *metav1.Status:
+		// Status object is returned when the Kubernetes API returns an error and
+		// should be forwarded to the user.
 		filtered = obj
 	case *corev1.Pod:
 		// filterPod filters a single corev1.Pod and returns an error if access to

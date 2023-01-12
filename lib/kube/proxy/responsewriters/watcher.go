@@ -215,8 +215,21 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 
 		switch obj.(type) {
 		case *metav1.Status:
-			// if the response is  status forward it into target and return.
-			err = encoder.Encode(obj, writer)
+			// Status object is returned when the Kubernetes API returns an error and
+			// should be forwarded to the user.
+			// If eventType is empty, it means that status was returned without event.
+			if eventType == "" {
+				err = encoder.Encode(obj, writer)
+				return trace.Wrap(err)
+			}
+			// encode the event into the target connection.
+			err = watchEncoder.Encode(
+				&watch.Event{
+					Type:   eventType,
+					Object: obj,
+				},
+			)
+
 			return trace.Wrap(err)
 		default:
 			if filter != nil {
@@ -262,6 +275,8 @@ func (w *WatcherResponseWriter) decodeStreamingMessage(
 	}
 	switch res.(type) {
 	case *metav1.Status:
+		// Status object is returned when the Kubernetes API returns an error and
+		// should be forwarded to the user.
 		return "", res, nil
 	default:
 		switch watch.EventType(event.Type) {

@@ -269,7 +269,7 @@ type roleSpec struct {
 	kubeGroups     []string
 	sessionRequire []*types.SessionRequirePolicy
 	sessionJoin    []*types.SessionJoinPolicy
-	setupRoleFunc  func(types.Role)
+	setupRoleFunc  func(types.Role) // If nil all pods are allowed.
 }
 
 // createUserAndRole creates Teleport user and role with specified names
