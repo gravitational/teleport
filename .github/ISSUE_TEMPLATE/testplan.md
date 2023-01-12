@@ -124,7 +124,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
   - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
 
-- [ ] Restricted Session 
+- [ ] Restricted Session
   - [ ] Network request are allowed when a policy allow them.
   - [ ] Network request are blocked when a policy deny them.
 
@@ -291,7 +291,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 ### Kubernetes Secret Storage
 
 * [ ] Kubernetes Secret storage for Agent's Identity
-    * [ ] Install Teleport agent with a short-lived token  
+    * [ ] Install Teleport agent with a short-lived token
       * [ ] Validate if the Teleport is installed as a Kubernetes `Statefulset`
       * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
     * [ ] Force cluster CA rotation
@@ -475,6 +475,102 @@ FIDO2 items.
   - [ ] `tsh touchid ls` works
   - [ ] `tsh touchid rm` works (careful, may lock you out!)
 
+### Device Trust
+
+Device Trust requires Teleport Enterprise.
+
+This feature has additional build requirements, so it should be tested with a
+pre-release build from Drone (eg:
+`https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+
+Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
+`tsh` binary from `tsh.app`.
+
+A simple formula for testing device authorization is:
+
+```shell
+# Before enrollment.
+# Replace with other kinds of access, as appropriate (db, kube, etc)
+tsh ssh node-that-requires-device-trust
+> ERROR: ssh: rejected: administratively prohibited (unauthorized device)
+
+# Register the device.
+# Get the serial number from "Apple -> About This Mac".
+tctl devices add --os=macos --asset-tag=<SERIAL_NUMBER> --enroll
+
+# Enroll the device.
+tsh device enroll --token=<TOKEN_FROM_COMMAND_ABOVE>
+tsh logout; tsh login
+
+# After enrollment
+tsh ssh node-that-requires-device-trust
+> $
+```
+
+- [ ] Inventory management
+  - [ ] Add device (`tctl devices add`)
+  - [ ] Add device and create enrollment token (`tctl devices add --enroll`)
+  - [ ] List devices (`tctl devices ls`)
+  - [ ] Remove device using device ID (`tctl devices rm`)
+  - [ ] Remove device using asset tag (`tctl devices rm`)
+  - [ ] Create enrollment token using device ID (`tctl devices enroll`)
+  - [ ] Create enrollment token using asset tag (`tctl devices enroll`)
+
+- [ ] Device enrollment
+  - [ ] Enroll device on macOS (`tsh device enroll`)
+  - [ ] Verify device extensions on TLS certificate
+
+    Note that different accesses have different certificates (Database, Kube,
+    etc).
+
+    ```shell
+    $ openssl x509 -noout -in ~/.tsh/keys/zarquon/llama-x509.pem -nameopt sep_multiline -subject | grep 1.3.9999.3
+    > 1.3.9999.3.1=6e60b9fd-1e3e-473d-b148-27b4f158c2a7
+    > 1.3.9999.3.2=AAAAAAAAAAAA
+    > 1.3.9999.3.3=661c9340-81b0-4a1a-a671-7b1304d28600
+    ```
+
+  - [ ] Verify device extensions on SSH certificate
+
+    ```shell
+    ssh-keygen -L -f ~/.tsh/keys/zarquon/llama-ssh/zarquon-cert.pub | grep teleport-device-
+    teleport-device-asset-tag ...
+    teleport-device-credential-id ...
+    teleport-device-id ...
+    ```
+
+- [ ] Device authorization
+  - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
+  - [ ] device_trust.mode="off" doesn't impede access (Enterprise and OSS)
+  - [ ] device_trust.mode="optional" doesn't impede access, but issues device
+        extensions on login
+  - [ ] device_trust.mode="required" enforces enrolled devices
+  - [ ] device_trust.mode="required" is enforced by processes, and not only by
+        Auth APIs
+
+    Testing this requires issuing a certificate without device extensions
+    (mode="off"), then changing the cluster configuration to mode="required" and
+    attempting to access a process directly, without a login attempt.
+
+  - [ ] Device authorization works correctly for both require_session_mfa=false
+        and require_session_mfa=true
+
+  - [ ] Device authorization applies to SSH access (all items above)
+  - [ ] Device authorization applies to Trusted Clusters (root with
+        mode="optional" and leaf with mode="required")
+  - [ ] Device authorization applies to Database access (all items above)
+  - [ ] Device authorization applies to Kubernetes access (all items above)
+
+- [ ] Device audit (see [lib/events/codes.go][device_event_codes])
+  - [ ] Inventory management actions issue events (success only)
+  - [ ] Device enrollment issues device event (any outcomes)
+  - [ ] Device authorization issues device event (any outcomes)
+  - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
+        data (for certificates with device extensions)
+
+[device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
+[event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
+
 ### Hardware Key Support
 
 Hardware Key Support is an Enterprise feature and is not available for OSS.
@@ -528,7 +624,7 @@ Perform all tests on the following configurations:
 - [ ] With Proxy Peering Enabled
 - [ ] With TLS Routing Enabled
 
-* Cluster with 10K direct dial nodes: 
+* Cluster with 10K direct dial nodes:
  - [ ] etcd
  - [ ] DynamoDB
  - [ ] Firestore
@@ -567,7 +663,7 @@ Run a concurrent session test that will spawn 5 interactive sessions per node in
 
 ```shell
 tsh bench sessions --max=5000 user ls
-tsh bench sessions --max=5000 --web user ls 
+tsh bench sessions --max=5000 --web user ls
 ```
 
 - [ ] Verify that all 5000 sessions are able to be established.
@@ -704,7 +800,7 @@ tsh bench sessions --max=5000 --web user ls
       - [ ] Can detect and register Azure Cache for Redis servers.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
-  - [ ] Can detect and manage MemoryDB users 
+  - [ ] Can detect and manage MemoryDB users
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
