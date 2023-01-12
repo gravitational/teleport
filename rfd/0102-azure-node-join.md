@@ -3,7 +3,7 @@ authors: Andrew Burke (andrew.burke@goteleport.com)
 state: draft
 ---
 
-# RFD X - Azure join method
+# RFD 102 - Azure join method
 
 ## Required Approvers
 Engineering: @jakule && @r0mant
