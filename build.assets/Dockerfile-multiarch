@@ -62,7 +62,7 @@ RUN yum update -y $YUM_UPDATE_FLAGS && \
         # required for node-pty
         centos-release-scl \
         # required for node-pty
-        devtoolset-11-* \
+        devtoolset-11 \
         git \
         gcc \
         gcc-c++ \
