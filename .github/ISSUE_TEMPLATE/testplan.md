@@ -802,6 +802,8 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] The clipboard icon is highlighted in the top bar
     - [ ] After allowing clipboard permission, copy text from local workstation, paste into remote desktop
     - [ ] After allowing clipboard permission, copy text from remote desktop, paste into local workstation
+    - [ ] After disallowing clipboard permission, confirm copying text from local workstation and pasting into remote desktop doesn't work
+    - [ ] After disallowing clipboard permission, confirm copying text from remote desktop and pasting into local workstation doesn't work
   - When a user has a role with clipboard sharing enabled and is *not* using a chromium based browser
     - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
   - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
