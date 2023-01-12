@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "teleport/legacy/types/events/device_metadata.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -75,11 +76,18 @@ message UserMetadata {
   // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
   string AWSRoleARN = 4 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
 
-  // AzureIdentity is the Azure identity to assume when accessing Azure API.
-  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
-
   // AccessRequests are the IDs of access requests created by the user
   repeated string AccessRequests = 5 [(gogoproto.jsontag) = "access_requests,omitempty"];
+
+  // AzureIdentity is the Azure identity user assumes when accessing Azure API.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+
+  // GCPServiceAccount is the GCP service account user assumes when accessing GCP API.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+
+  // TrustedDevice contains information about the users' trusted device.
+  // Requires a registered and enrolled device to be used during authentication.
+  DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
 }
 
 // Server is a server metadata
@@ -3287,6 +3295,8 @@ message Identity {
   ];
   // AzureIdentities is a list of allowed Azure identities user can assume.
   repeated string AzureIdentities = 24 [(gogoproto.jsontag) = "azure_identities,omitempty"];
+  // GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
+  repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -3303,6 +3313,8 @@ message RouteToApp {
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
   // AzureIdentity is the Azure identity ot assume when accessing Azure API.
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+  // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

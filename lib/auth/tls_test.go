@@ -1980,7 +1980,7 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
-		superImpersonatorRole, err := types.NewRoleV3("superimpersonator", types.RoleSpecV6{
+		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
 			},
@@ -1998,7 +1998,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
-		role, err := types.NewRoleV3("impersonate", types.RoleSpecV6{
+		role, err := types.NewRole("impersonate", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{superImpersonator.GetName()},
 				Impersonate: &types.ImpersonateConditions{
