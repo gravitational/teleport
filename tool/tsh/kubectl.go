@@ -67,13 +67,13 @@ type resourceKind struct {
 // If the access request is created, tsh waits for the approval and runs the expected
 // command again.
 func onKubectlCommand(cf *CLIConf, args []string) error {
-	if len(os.Getenv(tshKubectlReexec)) > 0 {
-		runKubectlCode(args)
-		return nil
+	if os.Getenv(tshKubectlReexec) == "" {
+		err := runKubectlAndCollectRun(cf, args)
+		return trace.Wrap(err)
 	}
-	err := runKubectlAndCollectRun(cf, args)
 
-	return trace.Wrap(err)
+	runKubectlCode(args)
+	return nil
 }
 
 const (
@@ -172,6 +172,8 @@ func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
 		}()
 
 		err := runKubectlReexec(cf.executablePath, args, writer)
+		writer.CloseWithError(io.EOF)
+		wg.Wait()
 		if err == nil {
 			break
 		} else if !errors.As(err, &exitErr) {
@@ -181,8 +183,7 @@ func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
 			// ignore it since the user was allowed to execute the command in the pod.
 			break
 		}
-		writer.CloseWithError(io.EOF)
-		wg.Wait()
+
 		if len(missingKubeResources) > 0 && !alreadyRequestedAccess {
 			// create the access requests for the user and wait for approval.
 			if err := createKubeAccessRequest(cf, missingKubeResources, args); err != nil {
@@ -219,7 +220,7 @@ func createKubeAccessRequest(cf *CLIConf, resources []resourceKind, args []strin
 	}
 	cf.Reason = fmt.Sprintf("Resource request automatically created for %v", args)
 	if err := executeAccessRequest(cf, tc); err != nil {
-		// TODO: intercept the error to validate the origin
+		// TODO(tigrato): intercept the error to validate the origin
 		return trace.Wrap(err)
 	}
 	return nil
@@ -253,12 +254,12 @@ func extractKubeConfigAndContext(args []string) (kubeconfig string, context stri
 // and `--context` flag values and to use them if any was overriten.
 func getKubeClusterName(args []string, teleportClusterName string) (string, error) {
 	kubeconfigLocation, selectedContext := extractKubeConfigAndContext(args)
-	if len(selectedContext) == 0 {
+	if selectedContext == "" {
 		kubeName, err := kubeconfig.SelectedKubeCluster(kubeconfigLocation, teleportClusterName)
 		return kubeName, trace.Wrap(err)
 	}
 	kubeName := kubeconfig.KubeClusterFromContext(selectedContext, teleportClusterName)
-	if len(kubeName) == 0 {
+	if kubeName == "" {
 		return "", trace.BadParameter("selected context %q does not belong to Teleport cluster %q", selectedContext, teleportClusterName)
 	}
 	return kubeName, nil
