@@ -644,7 +644,9 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
   - [ ] AWS Redshift.
+  - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
@@ -665,7 +667,9 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
   - [ ] AWS Redshift.
+  - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
@@ -695,8 +699,10 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify discovery.
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
+      - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register Redshift clusters.
+      - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
     - [ ] Azure
