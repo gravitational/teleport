@@ -3470,7 +3470,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			// notify parties that we've started reverse tunnel server
 			process.BroadcastEvent(Event{Name: ProxyReverseTunnelReady, Payload: tsrv})
-			tsrv.Wait()
+			tsrv.Wait(process.ExitContext())
 			return nil
 		})
 	}

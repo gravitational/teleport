@@ -433,9 +433,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 			Type: events.RecoveryTokenCreateEvent,
 			Code: events.RecoveryTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
@@ -530,9 +528,7 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 			Type: events.PrivilegeTokenCreateEvent,
 			Code: events.PrivilegeTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),

@@ -413,6 +413,8 @@ release:
 	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -458,6 +460,19 @@ build-archive:
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	cd ./build.assets/tooling/ && \
+	go run ./cmd/notarize-apple-binaries/*.go \
+		--log-level=debug $(ABSOLUTE_BINARY_PATHS)
+	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #

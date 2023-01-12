@@ -347,6 +347,11 @@ type CLIConf struct {
 	// AzureCommandArgs contains arguments that will be forwarded to Azure CLI binary.
 	AzureCommandArgs []string
 
+	// GCPServiceAccount is GCP service account name that will be used for GCP CLI access.
+	GCPServiceAccount string
+	// GCPCommandArgs contains arguments that will be forwarded to GCP CLI binary.
+	GCPCommandArgs []string
+
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
 
@@ -492,6 +497,7 @@ const (
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar     = "TELEPORT_GCLOUD_SECRET"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -637,6 +643,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 
+	gcloud := app.Command("gcloud", "Access GCP API.").Interspersed(false)
+	gcloud.Arg("command", "`gcloud` command and subcommands arguments that are going to be forwarded to GCP CLI.").StringsVar(&cf.GCPCommandArgs)
+	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Alias("gcp")
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
@@ -651,6 +662,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
+	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
@@ -698,6 +710,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
+
+	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
+	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyGcloud.Alias("gcp")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1089,6 +1107,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAWS(&cf)
 	case proxyAzure.FullCommand():
 		err = onProxyCommandAzure(&cf)
+	case proxyGcloud.FullCommand():
+		err = onProxyCommandGCloud(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1128,6 +1148,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onAWS(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
+	case gcloud.FullCommand():
+		err = onGcloud(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():
@@ -1465,7 +1487,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			env := getTshEnv()
@@ -1488,7 +1510,7 @@ func onLogin(cf *CLIConf) error {
 
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfig(cf, tc, ""); err == nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err == nil {
 				return trace.Wrap(onStatus(cf))
 			}
 
@@ -1511,7 +1533,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1527,7 +1549,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -1610,7 +1632,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfig(cf, tc, ""); err != nil {
+		if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3899,7 +3921,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfig(cf, tc, ""); err != nil {
+	if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4238,4 +4260,15 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	}
 
 	return trace.NewAggregate(errors...)
+}
+
+// updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to
+// tsh login call and updates the default kubeconfig with its value,
+// otherwise does nothing.
+func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string) error {
+	if len(cf.KubernetesCluster) == 0 {
+		return nil
+	}
+	err := updateKubeConfig(cf, tc, "")
+	return trace.Wrap(err)
 }

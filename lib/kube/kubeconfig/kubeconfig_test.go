@@ -182,6 +182,9 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	wantConfig := initialConfig.DeepCopy()
+	wantConfig.Contexts[wantConfig.CurrentContext].Extensions = map[string]runtime.Object{
+		selectedExtension: nil,
+	}
 	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
@@ -425,6 +428,7 @@ func TestRemove(t *testing.T) {
 		clusterAddr = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, initialConfig := setup(t)
+
 	creds, _, err := genUserKey("localhost")
 	require.NoError(t, err)
 

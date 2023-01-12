@@ -163,15 +163,15 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	}
 	if ws.GetUser() != identity.Username {
 		err := trace.AccessDenied("session owner %q does not match caller %q", ws.GetUser(), identity.Username)
+
+		userMeta := identity.GetUserMetadata()
+		userMeta.Login = ws.GetUser()
 		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  identity.Username,
-			},
+			UserMetadata: userMeta,
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  clientConn.LocalAddr().String(),
 				RemoteAddr: clientConn.RemoteAddr().String(),
@@ -316,15 +316,15 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	if ws.GetUser() != identity.Username {
 		err := trace.AccessDenied("session owner %q does not match caller %q",
 			ws.GetUser(), identity.Username)
+
+		userMeta := identity.GetUserMetadata()
+		userMeta.Login = ws.GetUser()
 		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  identity.Username,
-			},
+			UserMetadata: userMeta,
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  r.Host,
 				RemoteAddr: r.RemoteAddr,
