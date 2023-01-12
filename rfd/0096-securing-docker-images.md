@@ -140,7 +140,7 @@ graph TD
     sign_image[cosign ...]
     promote_build[/Release engineer\npromotes build/]
     promote_image[Candidate image\nbecomes release image\nin Public ECR]
-    build_ok?{Does all go well\nwith the rest of\nthe build?}
+    build_ok?{Does all go well<br/>with the rest of\nthe build?}
     
     pull_base --> signature_valid?
 
