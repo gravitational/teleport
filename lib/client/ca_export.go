@@ -119,11 +119,11 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 		return exportTLSAuthority(ctx, client, req)
 	}
 
-	// If none of the above auth-types was requested, means we are dealing with SSH HostCA or SSH UserCA.
+	// If none of the above auth-types was requested, means we are dealing with SSH HostCA, SSH UserCA, or SSH OpenSSHCA.
 	// Either for adding SSH known hosts (~/.ssh/known_hosts) or authorized keys (`~/.ssh/authorized_keys`).
-	// Both are exported if AuthType is empty.
+	// All are exported if AuthType is empty.
 	if req.AuthType == "" {
-		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
+		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA, types.OpenSSHCA}
 	} else {
 		authType := types.CertAuthType(req.AuthType)
 		if err := authType.Check(); err != nil {

@@ -704,8 +704,9 @@ func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.Ce
 	if !ver12orAbove {
 		s.logger.Debugf("Connected to remote cluster of version %s. OpenSSH CA won't be propagated.", remoteClusterVersion)
 		return types.CertAuthorityFilter{
-			types.HostCA: s.srv.ClusterName,
-			types.UserCA: s.srv.ClusterName,
+			types.HostCA:     s.srv.ClusterName,
+			types.UserCA:     s.srv.ClusterName,
+			types.DatabaseCA: s.srv.ClusterName,
 		}, nil
 	}
 

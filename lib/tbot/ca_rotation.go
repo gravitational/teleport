@@ -225,11 +225,12 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 		)
 	}
 
-	// We want to skip anything that is not host, user, db
+	// We want to skip anything that is not host, user, db, or openssh
 	if !slices.Contains([]string{
 		string(types.HostCA),
 		string(types.UserCA),
 		string(types.DatabaseCA),
+		string(types.OpenSSHCA),
 	}, ca.GetSubKind()) {
 		return fmt.Sprintf("skipping due to CA kind '%s'", ca.GetSubKind())
 	}
