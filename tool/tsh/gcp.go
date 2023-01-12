@@ -21,7 +21,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -132,8 +131,6 @@ func (a *gcpApp) Close() error {
 func (a *gcpApp) getGcloudConfigPath() string {
 	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name, "gcloud")
 }
-
-var projectIDRegexp = regexp.MustCompile(`.*@(?P<projectID>.*)\.iam\.gserviceaccount\.com`)
 
 func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
 	if serviceAccount == "" {
