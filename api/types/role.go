@@ -228,22 +228,6 @@ func NewRole(name string, spec RoleSpecV6) (Role, error) {
 	return &role, nil
 }
 
-// NewRoleV3 constructs new standard V3 role.
-// This is mostly a legacy function and will create a role with V3 RBAC semantics.
-func NewRoleV3(name string, spec RoleSpecV6) (Role, error) {
-	role := RoleV6{
-		Version: V3,
-		Metadata: Metadata{
-			Name: name,
-		},
-		Spec: spec,
-	}
-	if err := role.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &role, nil
-}
-
 // RoleConditionType specifies if it's an allow rule (true) or deny rule (false).
 type RoleConditionType bool
 

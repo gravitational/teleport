@@ -124,27 +124,6 @@ export namespace UIBannerClickEvent {
     }
 }
 
-export class UIOnboardGetStartedClickEvent extends jspb.Message { 
-    getUserName(): string;
-    setUserName(value: string): UIOnboardGetStartedClickEvent;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): UIOnboardGetStartedClickEvent.AsObject;
-    static toObject(includeInstance: boolean, msg: UIOnboardGetStartedClickEvent): UIOnboardGetStartedClickEvent.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: UIOnboardGetStartedClickEvent, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): UIOnboardGetStartedClickEvent;
-    static deserializeBinaryFromReader(message: UIOnboardGetStartedClickEvent, reader: jspb.BinaryReader): UIOnboardGetStartedClickEvent;
-}
-
-export namespace UIOnboardGetStartedClickEvent {
-    export type AsObject = {
-        userName: string,
-    }
-}
-
 export class UIOnboardCompleteGoToDashboardClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UIOnboardCompleteGoToDashboardClickEvent;
@@ -233,6 +212,12 @@ export class UIOnboardRegisterChallengeSubmitEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UIOnboardRegisterChallengeSubmitEvent;
 
+    getMfaType(): string;
+    setMfaType(value: string): UIOnboardRegisterChallengeSubmitEvent;
+
+    getLoginFlow(): string;
+    setLoginFlow(value: string): UIOnboardRegisterChallengeSubmitEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIOnboardRegisterChallengeSubmitEvent.AsObject;
@@ -247,6 +232,8 @@ export class UIOnboardRegisterChallengeSubmitEvent extends jspb.Message {
 export namespace UIOnboardRegisterChallengeSubmitEvent {
     export type AsObject = {
         userName: string,
+        mfaType: string,
+        loginFlow: string,
     }
 }
 
@@ -266,6 +253,48 @@ export class UIRecoveryCodesContinueClickEvent extends jspb.Message {
 }
 
 export namespace UIRecoveryCodesContinueClickEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
+export class UIRecoveryCodesCopyClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UIRecoveryCodesCopyClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIRecoveryCodesCopyClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIRecoveryCodesCopyClickEvent): UIRecoveryCodesCopyClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIRecoveryCodesCopyClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIRecoveryCodesCopyClickEvent;
+    static deserializeBinaryFromReader(message: UIRecoveryCodesCopyClickEvent, reader: jspb.BinaryReader): UIRecoveryCodesCopyClickEvent;
+}
+
+export namespace UIRecoveryCodesCopyClickEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
+export class UIRecoveryCodesPrintClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UIRecoveryCodesPrintClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIRecoveryCodesPrintClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIRecoveryCodesPrintClickEvent): UIRecoveryCodesPrintClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIRecoveryCodesPrintClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIRecoveryCodesPrintClickEvent;
+    static deserializeBinaryFromReader(message: UIRecoveryCodesPrintClickEvent, reader: jspb.BinaryReader): UIRecoveryCodesPrintClickEvent;
+}
+
+export namespace UIRecoveryCodesPrintClickEvent {
     export type AsObject = {
         userName: string,
     }
@@ -312,12 +341,6 @@ export class SubmitEventRequest extends jspb.Message {
     setUiBannerClick(value?: UIBannerClickEvent): SubmitEventRequest;
 
 
-    hasUiOnboardGetStartedClick(): boolean;
-    clearUiOnboardGetStartedClick(): void;
-    getUiOnboardGetStartedClick(): UIOnboardGetStartedClickEvent | undefined;
-    setUiOnboardGetStartedClick(value?: UIOnboardGetStartedClickEvent): SubmitEventRequest;
-
-
     hasUiOnboardCompleteGoToDashboardClick(): boolean;
     clearUiOnboardCompleteGoToDashboardClick(): void;
     getUiOnboardCompleteGoToDashboardClick(): UIOnboardCompleteGoToDashboardClickEvent | undefined;
@@ -354,6 +377,18 @@ export class SubmitEventRequest extends jspb.Message {
     setUiRecoveryCodesContinueClick(value?: UIRecoveryCodesContinueClickEvent): SubmitEventRequest;
 
 
+    hasUiRecoveryCodesCopyClick(): boolean;
+    clearUiRecoveryCodesCopyClick(): void;
+    getUiRecoveryCodesCopyClick(): UIRecoveryCodesCopyClickEvent | undefined;
+    setUiRecoveryCodesCopyClick(value?: UIRecoveryCodesCopyClickEvent): SubmitEventRequest;
+
+
+    hasUiRecoveryCodesPrintClick(): boolean;
+    clearUiRecoveryCodesPrintClick(): void;
+    getUiRecoveryCodesPrintClick(): UIRecoveryCodesPrintClickEvent | undefined;
+    setUiRecoveryCodesPrintClick(value?: UIRecoveryCodesPrintClickEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -375,13 +410,14 @@ export namespace SubmitEventRequest {
         resourceCreate?: ResourceCreateEvent.AsObject,
         sessionStart?: SessionStartEvent.AsObject,
         uiBannerClick?: UIBannerClickEvent.AsObject,
-        uiOnboardGetStartedClick?: UIOnboardGetStartedClickEvent.AsObject,
         uiOnboardCompleteGoToDashboardClick?: UIOnboardCompleteGoToDashboardClickEvent.AsObject,
         uiOnboardAddFirstResourceClick?: UIOnboardAddFirstResourceClickEvent.AsObject,
         uiOnboardAddFirstResourceLaterClick?: UIOnboardAddFirstResourceLaterClickEvent.AsObject,
         uiOnboardSetCredentialSubmit?: UIOnboardSetCredentialSubmitEvent.AsObject,
         uiOnboardRegisterChallengeSubmit?: UIOnboardRegisterChallengeSubmitEvent.AsObject,
         uiRecoveryCodesContinueClick?: UIRecoveryCodesContinueClickEvent.AsObject,
+        uiRecoveryCodesCopyClick?: UIRecoveryCodesCopyClickEvent.AsObject,
+        uiRecoveryCodesPrintClick?: UIRecoveryCodesPrintClickEvent.AsObject,
     }
 
     export enum EventCase {
@@ -397,8 +433,6 @@ export namespace SubmitEventRequest {
 
     UI_BANNER_CLICK = 7,
 
-    UI_ONBOARD_GET_STARTED_CLICK = 8,
-
     UI_ONBOARD_COMPLETE_GO_TO_DASHBOARD_CLICK = 9,
 
     UI_ONBOARD_ADD_FIRST_RESOURCE_CLICK = 10,
@@ -410,6 +444,10 @@ export namespace SubmitEventRequest {
     UI_ONBOARD_REGISTER_CHALLENGE_SUBMIT = 13,
 
     UI_RECOVERY_CODES_CONTINUE_CLICK = 14,
+
+    UI_RECOVERY_CODES_COPY_CLICK = 15,
+
+    UI_RECOVERY_CODES_PRINT_CLICK = 16,
 
     }
 
@@ -428,6 +466,40 @@ export class SubmitEventResponse extends jspb.Message {
 }
 
 export namespace SubmitEventResponse {
+    export type AsObject = {
+    }
+}
+
+export class HelloTeleportRequest extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): HelloTeleportRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: HelloTeleportRequest): HelloTeleportRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: HelloTeleportRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): HelloTeleportRequest;
+    static deserializeBinaryFromReader(message: HelloTeleportRequest, reader: jspb.BinaryReader): HelloTeleportRequest;
+}
+
+export namespace HelloTeleportRequest {
+    export type AsObject = {
+    }
+}
+
+export class HelloTeleportResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): HelloTeleportResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: HelloTeleportResponse): HelloTeleportResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: HelloTeleportResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): HelloTeleportResponse;
+    static deserializeBinaryFromReader(message: HelloTeleportResponse, reader: jspb.BinaryReader): HelloTeleportResponse;
+}
+
+export namespace HelloTeleportResponse {
     export type AsObject = {
     }
 }
