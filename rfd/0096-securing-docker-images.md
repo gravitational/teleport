@@ -41,8 +41,8 @@ For the sake of this RFD, I will define _delivering a secure image_ as
 >     a dependency, and
 >  5. is updated to resolve any discovered vulnerabilities in a timely fashion.
 
-For the purposes of this discussion, a "timely fashion" for updates is as the
-Teleport Vulnerability Management Policy:
+For the purposes of this discussion, a "timely fashion" for updates is as per 
+the Teleport Vulnerability Management Policy:
 
    | Severity | Resolution time |
    |----------|---------------|
@@ -225,26 +225,20 @@ our images will be signed using the `cosign` tool, similarly to the Distroless
 base images.
 
 The `cosign` tool [integrates well with GHA](https://github.blog/2021-12-06-safeguard-container-signing-capability-actions/), 
-and is even included in the template "how to publish a docker image" example workflow. 
-
-We will need to either publish a public key somewhere, or use ["keyless" signing](https://docs.sigstore.dev/cosign/sign/#keyless-signing), 
-which requires the signer authenticating against OIDC.
+and is even included in the template "how to publish a docker image" example 
+workflow. It also provides "keyless" signing via OIDC, meaning that our build
+process can use its GitHub identity to sign the image, obviating the need for
+extra keys for us to manage.
 
 More information keyless signing:
  * https://docs.sigstore.dev/cosign/sign/#keyless-signing
  * https://docs.google.com/document/d/1461lQUoVqbhCve7PuKNf-2_NfpjrzBG5tFohuMVTuK4/edit
  * https://www.appvia.io/blog/tutorial-keyless-sign-and-verify-your-container-images/#oidc-flow-with-interaction-free-with-github-actions
 
-> **NOTE FOR REVIEWERS:** _I'm a bit torn here. Using a simple keypair is pretty
-> straightforward, and the only real decision is how to distribute the public 
-> key. On the other hand, the keyless signing feels more like the "right way" to do
-> it, and it looks like it should be pretty straightforward to do from GHA (see 3rd 
-> link above) - but all the `COSIGN_EXPERIMENTAL=1` in the examples is making me 
-> nervous. Thoughts greatly appreciated._
-
 ### Build-time scanning
 
-All Teleport images shall be scanned with [trivy](https://github.com/aquasecurity/trivy-action#using-trivy-with-github-code-scanning)
+All Teleport images shall be scanned with [trivy](https://github.com/aquasecurity/trivy-action#using-trivy-with-github-code-scanning) 
+at build time, and if any high-risk vulnerabilities are found the build will be stopped.
 
 ### Image build process summary
 
@@ -290,11 +284,10 @@ graph TD
 Troubleshooting a distroless image is hard, as there are no tools baked into
 the image to aid in debugging a deployment.
 
-The `distroless` team also supplies a `debug`-tagged image that includes `busybox`. 
-
-If we need to add tooling in order to aid troubleshooting a Teleport installation,
-it is possible co construct a parallel `teleport-debug` image, based on a 
-distroless `debug` image (to supply a shell, etc)
+In addtion to the main distroless image sets, the `distroless` team also supplies 
+a `debug`-tagged image that includes `busybox` (that is, a basic shell and some
+utilities). In order to provide tooling for troubleshooting a Teleport installation,
+we will create a parallel `teleport-debug` image, based on a distroless `debug` image.
 
 While we should take as much care as possible when constructing and 
 monitoring this image, use of the debug image should probably be
@@ -308,11 +301,23 @@ our customers aware of our intentions well in advance so that they can prepare.
 
 ## 2. Scanning and monitoring the image
 
-There are many options for scanning and monitoring, but given we are already using the
-Amazon ECR, it seems most logical to use the built-in ECR scanning tools to detect
-known vulnerabilities in the final images. 
+### Collecting the data 
 
-Indeed we are already doing this, with results of the scan being injected into our 
-Panther SIEM instance.
+We are already using the scanning tools built-ino AWS ECR, which periodically scans our 
+images and results of the scan into our Panther SIEM instance.
 
+To increase the size and quality of the vulnetrability database we scan with, we should 
+also use `trivy` for ongoing scans, in addition to the build-time scans described above. 
 
+Trivy's in a GHA integration should make it straightforward to run 
+workflow to repeatedly scan out published images.
+
+The output of the scan will be injected into the GitHub code scanning tab, and our 
+Panther instance can then ingest the alerts via the GitHub audit log.
+
+### Reacting to alerts
+
+Once the allert data is aggregated into Panther, we can configure events to lodge 
+GitHub issues and/or alert the development team via Slack or e-mail. The develkopment 
+team will be expected to resolve the issues as per the eleport Vulnerability Management 
+Policy.
