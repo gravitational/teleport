@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
+	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	restclientwatch "k8s.io/client-go/rest/watch"
 
@@ -573,4 +575,186 @@ func (f *fakeResponseWriter) WriteHeader(status int) {
 
 func (f *fakeResponseWriter) Write(b []byte) (int, error) {
 	return f.writer.Write(b)
+}
+
+func TestDeletePodCollectionRBAC(t *testing.T) {
+	t.Parallel()
+	const (
+		usernameWithFullAccess      = "full_user"
+		usernameWithNamespaceAccess = "default_user"
+		usernameWithLimitedAccess   = "limited_user"
+	)
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := setupTestContext(
+		context.Background(),
+		t,
+		testConfig{
+			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		},
+	)
+	// close tests
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with full access to kubernetes Pods.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithFullAccess, _ := testCtx.createUserAndRole(
+		testCtx.ctx,
+		t,
+		usernameWithFullAccess,
+		roleSpec{
+			name:       usernameWithFullAccess,
+			kubeUsers:  roleKubeUsers,
+			kubeGroups: roleKubeGroups,
+
+			setupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+					},
+				})
+			},
+		},
+	)
+	// create a user with full access to kubernetes Pods.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithNamespaceAccess, _ := testCtx.createUserAndRole(
+		testCtx.ctx,
+		t,
+		usernameWithNamespaceAccess,
+		roleSpec{
+			name:       usernameWithNamespaceAccess,
+			kubeUsers:  roleKubeUsers,
+			kubeGroups: roleKubeGroups,
+			setupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Name:      types.Wildcard,
+							Namespace: metav1.NamespaceDefault,
+						},
+					})
+			},
+		},
+	)
+
+	// create a moderator user with access to kubernetes
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithLimitedAccess, _ := testCtx.createUserAndRole(
+		testCtx.ctx,
+		t,
+		usernameWithLimitedAccess,
+		roleSpec{
+			name:       usernameWithLimitedAccess,
+			kubeUsers:  roleKubeUsers,
+			kubeGroups: roleKubeGroups,
+			setupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Name:      "nginx-*",
+							Namespace: metav1.NamespaceDefault,
+						},
+					},
+				)
+			},
+		},
+	)
+
+	type args struct {
+		user      types.User
+		namespace string
+	}
+	tests := []struct {
+		name        string
+		args        args
+		deletedPods []string
+	}{
+		{
+			name: "delete pods in default namespace for user with full access",
+			args: args{
+				user:      userWithFullAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+
+			deletedPods: []string{
+				"default/nginx-1",
+				"default/nginx-2",
+				"default/test",
+			},
+		},
+		{
+			name: "delete pods for user limited to default namespace",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+			deletedPods: []string{
+				"default/nginx-1",
+				"default/nginx-2",
+				"default/test",
+			},
+		},
+		{
+			name: "delete pods in dev namespace for user limited to default",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: "dev",
+			},
+			deletedPods: []string{},
+		},
+		{
+			name: "delete pods in default namespace for user with limited access",
+			args: args{
+				user:      userWithLimitedAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+
+			deletedPods: []string{
+				"default/nginx-1",
+				"default/nginx-2",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			requestID := kubetypes.UID(uuid.NewString())
+			t.Parallel()
+			// generate a kube client with user certs for auth
+			client, _ := testCtx.genTestKubeClientTLSCert(
+				t,
+				tt.args.user.GetName(),
+				kubeCluster,
+			)
+			err := client.CoreV1().Pods(tt.args.namespace).DeleteCollection(
+				testCtx.ctx,
+				metav1.DeleteOptions{
+					// We send the requestID as precondition to identify the request where it came
+					// from. kubemock receives this metav1.DeleteOptions and
+					// accumulates the deleted pods per Preconditions.UID.
+					Preconditions: &metav1.Preconditions{
+						UID: &requestID,
+					},
+				},
+				metav1.ListOptions{},
+			)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.deletedPods, kubeMock.DeletedPods(string(requestID)))
+		})
+	}
+	require.Empty(t, kubeMock.DeletedPods(""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
 }

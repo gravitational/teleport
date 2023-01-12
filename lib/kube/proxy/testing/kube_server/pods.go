@@ -17,6 +17,9 @@ limitations under the License.
 package kubeserver
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -99,13 +102,22 @@ func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p http
 func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	namespace := p.ByName("podNamespace")
 	name := p.ByName("podName")
+	fmt.Println(namespace, name)
+	deleteOpts, err := parseDeleteCollectionBody(req.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reqID := ""
+	if deleteOpts.Preconditions != nil && deleteOpts.Preconditions.UID != nil {
+		reqID = string(*deleteOpts.Preconditions.UID)
+	}
 	filter := func(pod corev1.Pod) bool {
 		return pod.Name == name && namespace == pod.Namespace
 	}
 	for _, pod := range podList.Items {
 		if filter(pod) {
 			s.mu.Lock()
-			s.deletedPods = append(s.deletedPods, filepath.Join(namespace, name))
+			s.deletedPods[reqID] = append(s.deletedPods[reqID], filepath.Join(namespace, name))
 			s.mu.Unlock()
 			return pod, nil
 		}
@@ -113,11 +125,26 @@ func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p h
 	return nil, trace.NotFound("pod %q not found", filepath.Join(namespace, name))
 }
 
-func (s *KubeMockServer) DeletedPods() []string {
+func (s *KubeMockServer) DeletedPods(reqID string) []string {
 	s.mu.Lock()
-	deleted := make([]string, len(s.deletedPods))
-	copy(s.deletedPods, s.deletedPods)
+	deleted := make([]string, len(s.deletedPods[reqID]))
+	copy(deleted, s.deletedPods[reqID])
 	s.mu.Unlock()
 	sort.Strings(deleted)
 	return deleted
+}
+
+// parseDeleteCollectionBody parses the request body targeted to pod collection
+// endpoints.
+func parseDeleteCollectionBody(r io.Reader) (metav1.DeleteOptions, error) {
+	into := metav1.DeleteOptions{}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return into, trace.Wrap(err)
+	}
+	if len(data) == 0 {
+		return into, nil
+	}
+	err = json.Unmarshal(data, &into)
+	return into, trace.Wrap(err)
 }

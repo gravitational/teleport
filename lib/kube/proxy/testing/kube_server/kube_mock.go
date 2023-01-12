@@ -103,7 +103,7 @@ type KubeMockServer struct {
 	Addr        net.Addr
 	URL         string
 	CA          []byte
-	deletedPods []string
+	deletedPods map[string][]string
 	mu          sync.Mutex
 }
 
@@ -116,8 +116,9 @@ type KubeMockServer struct {
 // TODO(tigrato): add support for other endpoints
 func NewKubeAPIMock() (*KubeMockServer, error) {
 	s := &KubeMockServer{
-		router: httprouter.New(),
-		log:    log.NewEntry(log.New()),
+		router:      httprouter.New(),
+		log:         log.NewEntry(log.New()),
+		deletedPods: make(map[string][]string),
 	}
 	s.setup()
 	if err := http2.ConfigureServer(s.server.Config, &http2.Server{}); err != nil {
