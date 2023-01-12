@@ -124,23 +124,23 @@ sourcing them elsewhere.
 
 ```mermaid
 graph TD
-    pull_base[Pull distroless\nbase image]
-    signature_valid?{is cosign\nsignature valid?}
+    pull_base[Pull distroless<br/>base image]
+    signature_valid?{is cosign<br/>signature valid?}
     deb[/Teleport Debian Package from CI/]
     df[/Dockerfile from repo/]
     base[/Distroless base image/]
     candidate_image[/Candidate Telport image/]
-    push_internal[Push Candidate Image\nto internal ECR Registry]
-    trivy_scan[Scan Candidate Image\nwith trivy]
+    push_internal[Push Candidate Image<br/>to internal ECR Registry]
+    trivy_scan[Scan Candidate Image<br/>with trivy]
     build[$ docker build ...] 
-    upload_results[Upload scan results\nto GitHub Code Scanning]
-    bad_scan?{Scan detected\nhigh-risk\nvulnerabilities?}
+    upload_results[Upload scan results<br/>to GitHub Code Scanning]
+    bad_scan?{Scan detected<br/>nhigh-risk<br/>vulnerabilities?}
     fail_build[Fail the build]
     image_build_ok[Image build succeeds]
     sign_image[cosign ...]
-    promote_build[/Release engineer\npromotes build/]
-    promote_image[Candidate image\nbecomes release image\nin Public ECR]
-    build_ok?{Does all go well<br/>with the rest of\nthe build?}
+    promote_build[/Release engineer<br/>promotes build/]
+    promote_image[Candidate image<br/>becomes release image<br/>in Public ECR]
+    build_ok?{Does all go well<br/>with the rest of<br/>the build?}
     
     pull_base --> signature_valid?
 
