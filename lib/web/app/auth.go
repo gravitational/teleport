@@ -79,21 +79,13 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 		return trace.AccessDenied("access denied")
 	}
 
-	// Set the "Set-Cookie" header on the response.
-	// Set Same-Site policy for the session cookie to None in order to
-	// support redirects that identity providers do during SSO auth.
-	// Otherwise the session cookie won't be sent and the user will
-	// get redirected to the application launcher.
-	//
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
-
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,
 		Value:    cookieValue,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -102,7 +94,7 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	return nil
