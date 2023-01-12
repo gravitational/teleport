@@ -57,7 +57,6 @@ func (m *AuthorizationCheckerMiddleware) HandleRequest(rw http.ResponseWriter, r
 	expectedAuth := "Bearer " + m.Secret
 
 	if subtle.ConstantTimeCompare([]byte(auth), []byte(expectedAuth)) != 1 {
-		m.Log.Debugf("Invalid Authorization header value %q, expected %q.", auth, expectedAuth)
 		trace.WriteError(rw, trace.AccessDenied("Invalid Authorization header"))
 		return true
 	}
