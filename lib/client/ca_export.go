@@ -199,8 +199,8 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			// export certificate authority in user or host ca format
 			var castr string
 			switch ca.GetType() {
-			case types.UserCA:
-				castr, err = userCAFormat(ca, key.PublicKey)
+			case types.UserCA, types.OpenSSHCA:
+				castr, err = userOrOpenSSHCAFormat(ca, key.PublicKey)
 			case types.HostCA:
 				castr, err = hostCAFormat(ca, key.PublicKey, client)
 			default:
@@ -270,7 +270,7 @@ func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSA
 //	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
-func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
+func userOrOpenSSHCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 	return sshutils.MarshalAuthorizedKeysFormat(ca.GetClusterName(), keyBytes)
 }
 
