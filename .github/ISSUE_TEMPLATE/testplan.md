@@ -754,6 +754,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
+  - [ ] Azure SQL Server.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -779,6 +780,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
+  - [ ] Azure SQL Server.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -801,6 +803,7 @@ tsh bench sessions --max=5000 --web user ls
       - [ ] Can detect and register RDS instances.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
+      - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Redshift clusters.
       - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
       - [ ] Can detect and register ElastiCache Redis clusters.
@@ -809,6 +812,7 @@ tsh bench sessions --max=5000 --web user ls
       - [ ] Can detect and register MySQL and Postgres single-server instances.
       - [ ] Can detect and register MySQL and Postgres flexible-server instances.
       - [ ] Can detect and register Azure Cache for Redis servers.
+      - [ ] Can detect and register Azure SQL Servers and Azure SQL Managed Instances.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users

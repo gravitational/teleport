@@ -358,6 +358,7 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		Apps:               apps,
 		AWSRolesARNs:       tlsID.AWSRoleARNs,
 		AzureIdentities:    tlsID.AzureIdentities,
+		GCPServiceAccounts: tlsID.GCPServiceAccounts,
 		IsVirtual:          opts.IsVirtual,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
