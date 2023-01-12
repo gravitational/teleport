@@ -43,6 +43,12 @@ import (
 var (
 	podForbiddenRe   = regexp.MustCompile(`(?m)Error from server \(Forbidden\): pods "(.*)" is forbidden: User ".*" cannot get resource "pods" in API group "" in the namespace "(.*)"`)
 	clusterForbidden = "[00] access denied"
+	// clusterObjectDiscoveryFailed is printed when kubectl tries to do API discovery
+	// - calling /apis endpoint - but Teleport denies the request. Since it cannot
+	// discover the resources available in the cluster, it prints this message saying
+	// that the cluster does not have pod(s). Since every Kubernetes cluster supports
+	// pods, it's safe to create a resource access request.
+	clusterObjectDiscoveryFailed = regexp.MustCompile(`(?m)the server doesn't have a resource type "pods?"`)
 )
 
 // resourceKind identifies a Kubernetes resource.
@@ -165,7 +171,7 @@ func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
 					missingKubeResources = append(missingKubeResources, resourceKind{kind: types.KindKubePod, subResourceName: filepath.Join(results[2], results[1])})
 					// Check if cluster access was denied. If denied we should create
 					// a Resource Access Request for the cluster and not a pod.
-				} else if strings.Contains(line, clusterForbidden) {
+				} else if strings.Contains(line, clusterForbidden) || clusterObjectDiscoveryFailed.MatchString(line) {
 					missingKubeResources = append(missingKubeResources, resourceKind{kind: types.KindKubernetesCluster})
 				}
 			}
