@@ -88,6 +88,11 @@ type AuthCommand struct {
 func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	a.config = config
 
+	certTypes := make([]string, len(types.CertAuthTypes))
+	for i, certType := range types.CertAuthTypes {
+		certTypes[i] = string(certType)
+	}
+
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
 	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout")
@@ -132,7 +137,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
 		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
-	a.authRotate.Flag("type", "Certificate authority to rotate, rotates host, user, database, and openssh CA by default").StringVar(&a.rotateType)
+	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, rotates %s CAs by default", strings.Join(certTypes, ", "))).StringVar(&a.rotateType)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 
 	a.authLS = auth.Command("ls", "List connected auth servers")
