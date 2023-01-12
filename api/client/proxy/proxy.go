@@ -71,32 +71,39 @@ func parse(addr string) (*url.URL, error) {
 	return addrURL, nil
 }
 
-// HTTPFallbackRoundTripper is a wrapper for http.Transport that downgrades requests
-// to plain HTTP when using a plain HTTP proxy at localhost.
-type HTTPFallbackRoundTripper struct {
+// HTTPRoundTripper is a wrapper for http.Transport that
+// - adds extra HTTP headers to all requests, and
+// - downgrades requests to plain HTTP when proxy is at localhost and the wrapped http.Transport has TLSClientConfig.InsecureSkipVerify set to true.
+type HTTPRoundTripper struct {
 	*http.Transport
+	// extraHeaders is a map of extra HTTP headers to be included in requests.
+	extraHeaders map[string]string
+	// isProxyHTTPLocalhost indicates that the HTTP_PROXY is at "http://localhost"
 	isProxyHTTPLocalhost bool
 }
 
-// NewHTTPFallbackRoundTripper creates a new initialized HTTP fallback roundtripper.
-func NewHTTPFallbackRoundTripper(transport *http.Transport, insecure bool) *HTTPFallbackRoundTripper {
+// NewHTTPRoundTripper creates a new initialized HTTP roundtripper.
+func NewHTTPRoundTripper(transport *http.Transport, extraHeaders map[string]string) *HTTPRoundTripper {
 	proxyConfig := httpproxy.FromEnvironment()
-	rt := HTTPFallbackRoundTripper{
+	return &HTTPRoundTripper{
 		Transport:            transport,
+		extraHeaders:         extraHeaders,
 		isProxyHTTPLocalhost: strings.HasPrefix(proxyConfig.HTTPProxy, "http://localhost"),
 	}
-	if rt.TLSClientConfig != nil {
-		rt.TLSClientConfig.InsecureSkipVerify = insecure
-	}
-	return &rt
 }
 
 // RoundTrip executes a single HTTP transaction. Part of the RoundTripper interface.
-func (rt *HTTPFallbackRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	tlsConfig := rt.Transport.TLSClientConfig
+func (rt *HTTPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Add extra HTTP headers.
+	for header, v := range rt.extraHeaders {
+		req.Header.Add(header, v)
+	}
+
 	// Use plain HTTP if proxying via http://localhost in insecure mode.
+	tlsConfig := rt.Transport.TLSClientConfig
 	if rt.isProxyHTTPLocalhost && tlsConfig != nil && tlsConfig.InsecureSkipVerify {
 		req.URL.Scheme = "http"
 	}
+
 	return rt.Transport.RoundTrip(req)
 }

@@ -42,13 +42,13 @@ import (
 )
 
 func TestAWSIAMDocuments(t *testing.T) {
-	userTarget, err := awslib.IdentityFromArn("arn:aws:iam::1234567:user/example-user")
+	userTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:user/example-user")
 	require.NoError(t, err)
 
-	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::1234567:role/example-role")
+	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:role/example-role")
 	require.NoError(t, err)
 
-	unknownIdentity, err := awslib.IdentityFromArn("arn:aws:iam::1234567:ec2/example-ec2")
+	unknownIdentity, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:ec2/example-ec2")
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -257,7 +257,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
 						"secretsmanager:TagResource",
 					},
-					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
 			},
 			boundaryStatements: []*awslib.Statement{
@@ -277,7 +277,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
 						"secretsmanager:TagResource",
 					},
-					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
 			},
 		},
@@ -321,15 +321,15 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:TagResource",
 					},
 					Resources: []string{
-						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
-						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:teleport/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:my-prefix/*",
 					},
 				},
 				{
 					Effect:  "Allow",
 					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
 					Resources: []string{
-						"arn:aws:kms:*:1234567:key/my-kms-id",
+						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
 			},
@@ -351,15 +351,15 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:TagResource",
 					},
 					Resources: []string{
-						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
-						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:teleport/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:my-prefix/*",
 					},
 				},
 				{
 					Effect:  "Allow",
 					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
 					Resources: []string{
-						"arn:aws:kms:*:1234567:key/my-kms-id",
+						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
 			},
@@ -389,7 +389,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
 						"secretsmanager:TagResource",
 					},
-					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
 			},
 			boundaryStatements: []*awslib.Statement{
@@ -408,7 +408,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
 						"secretsmanager:TagResource",
 					},
-					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
 			},
 		},
@@ -451,15 +451,15 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:TagResource",
 					},
 					Resources: []string{
-						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
-						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:teleport/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:my-prefix/*",
 					},
 				},
 				{
 					Effect:  "Allow",
 					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
 					Resources: []string{
-						"arn:aws:kms:*:1234567:key/my-kms-id",
+						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
 			},
@@ -480,15 +480,15 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"secretsmanager:TagResource",
 					},
 					Resources: []string{
-						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
-						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:teleport/*",
+						"arn:aws:secretsmanager:*:123456789012:secret:my-prefix/*",
 					},
 				},
 				{
 					Effect:  "Allow",
 					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
 					Resources: []string{
-						"arn:aws:kms:*:1234567:key/my-kms-id",
+						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
 			},
@@ -842,26 +842,26 @@ func TestAWSPoliciesTarget(t *testing.T) {
 			targetPartitionID: "aws",
 		},
 		"UserARNFromFlags": {
-			flags:             configurators.BootstrapFlags{AttachToUser: "arn:aws:iam::123456:user/example-user"},
+			flags:             configurators.BootstrapFlags{AttachToUser: "arn:aws:iam::123456789012:user/example-user"},
 			targetType:        awslib.User{},
 			targetName:        "example-user",
-			targetAccountID:   "123456",
+			targetAccountID:   "123456789012",
 			targetPartitionID: "aws",
 		},
 		"RoleNameFromFlags": {
 			flags:             configurators.BootstrapFlags{AttachToRole: "example-role"},
-			accountID:         "123456",
+			accountID:         "123456789012",
 			partitionID:       "aws",
 			targetType:        awslib.Role{},
 			targetName:        "example-role",
-			targetAccountID:   "123456",
+			targetAccountID:   "123456789012",
 			targetPartitionID: "aws",
 		},
 		"RoleARNFromFlags": {
-			flags:             configurators.BootstrapFlags{AttachToRole: "arn:aws:iam::123456:role/example-role"},
+			flags:             configurators.BootstrapFlags{AttachToRole: "arn:aws:iam::123456789012:role/example-role"},
 			targetType:        awslib.Role{},
 			targetName:        "example-role",
-			targetAccountID:   "123456",
+			targetAccountID:   "123456789012",
 			targetPartitionID: "aws",
 		},
 		"UserFromIdentity": {

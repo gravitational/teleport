@@ -48,16 +48,28 @@ type SchemaGenerator struct {
 // RootSchema is a wrapper for a message we are generating a schema for.
 type RootSchema struct {
 	groupName  string
-	versions   map[string]*Schema
+	versions   []SchemaVersion
 	name       string
 	pluralName string
 	kind       string
+}
+
+type SchemaVersion struct {
+	Version string
+	Schema  *Schema
 }
 
 // Schema is a set of object properties.
 type Schema struct {
 	apiextv1.JSONSchemaProps
 	built bool
+}
+
+func (s *Schema) DeepCopy() *Schema {
+	return &Schema{
+		JSONSchemaProps: *s.JSONSchemaProps.DeepCopy(),
+		built:           s.built,
+	}
 }
 
 func NewSchemaGenerator(groupName string) *SchemaGenerator {
@@ -75,7 +87,7 @@ func NewSchema() *Schema {
 	}}
 }
 
-func (generator *SchemaGenerator) addResource(file *File, name string) error {
+func (generator *SchemaGenerator) addResource(file *File, name string, overrideVersion ...string) error {
 	rootMsg, ok := file.messageByName[name]
 	if !ok {
 		return trace.NotFound("resource %q is not found", name)
@@ -95,9 +107,13 @@ func (generator *SchemaGenerator) addResource(file *File, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	schema = schema.DeepCopy()
 	resourceKind, resourceVersion, err := parseKindAndVersion(rootMsg)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(overrideVersion) > 0 {
+		resourceVersion = overrideVersion[0]
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
 
@@ -105,15 +121,16 @@ func (generator *SchemaGenerator) addResource(file *File, name string) error {
 	if !ok {
 		root = &RootSchema{
 			groupName:  generator.groupName,
-			versions:   make(map[string]*Schema),
 			kind:       resourceKind,
 			name:       strings.ToLower(resourceKind),
 			pluralName: strings.ToLower(flect.Pluralize(resourceKind)),
 		}
 		generator.roots[resourceKind] = root
 	}
-
-	root.versions[resourceVersion] = schema
+	root.versions = append(root.versions, SchemaVersion{
+		Version: resourceVersion,
+		Schema:  schema,
+	})
 
 	return nil
 }
@@ -290,9 +307,11 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		fmt.Printf("parser error: %s", err)
 	}
 
-	for versionName, schema := range root.versions {
-		var statusType crdtools.TypeIdent
+	for i, schemaVersion := range root.versions {
 
+		var statusType crdtools.TypeIdent
+		versionName := schemaVersion.Version
+		schema := schemaVersion.Schema
 		for _, pkg := range pkgs {
 			// This if is a bit janky, condition checking should be stronger
 			if pkg.Name == versionName {
@@ -307,9 +326,10 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		}
 
 		crd.Spec.Versions = append(crd.Spec.Versions, apiextv1.CustomResourceDefinitionVersion{
-			Name:    versionName,
-			Served:  true,
-			Storage: true,
+			Name:   versionName,
+			Served: true,
+			// Storage the first version available.
+			Storage: i == 0,
 			Subresources: &apiextv1.CustomResourceSubresources{
 				Status: &apiextv1.CustomResourceSubresourceStatus{},
 			},

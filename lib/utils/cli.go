@@ -243,7 +243,7 @@ func formatCertError(err error) string {
 	}
 
 	var certInvalidErr x509.CertificateInvalidError
-	if errors.As(err, &x509.CertificateInvalidError{}) {
+	if errors.As(err, &certInvalidErr) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.

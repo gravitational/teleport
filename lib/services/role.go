@@ -97,14 +97,14 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return &types.RoleV5{
+	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
 				// Explicitly disable options that default to true, otherwise the option
@@ -126,7 +126,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
+	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -172,7 +172,7 @@ func RoleForUser(u types.User) types.Role {
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
+	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
@@ -333,6 +333,10 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		outAzureIdentities := applyValueTraitsSlice(inAzureIdentities, traits, "Azure identity")
 		warnInvalidAzureIdentities(outAzureIdentities)
 		r.SetAzureIdentities(condition, apiutils.Deduplicate(outAzureIdentities))
+
+		inGCPAccounts := r.GetGCPServiceAccounts(condition)
+		outGCPAccounts := applyValueTraitsSlice(inGCPAccounts, traits, "GCP service account")
+		r.SetGCPServiceAccounts(condition, apiutils.Deduplicate(outGCPAccounts))
 
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
@@ -498,7 +502,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 			constants.TraitKubeGroups, constants.TraitKubeUsers,
 			constants.TraitDBNames, constants.TraitDBUsers,
 			constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-			teleport.TraitJWT:
+			constants.TraitGCPServiceAccounts, teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -680,13 +684,13 @@ type HostUsersInfo struct {
 }
 
 // RoleFromSpec returns new Role created from spec
-func RoleFromSpec(name string, spec types.RoleSpecV5) (types.Role, error) {
+func RoleFromSpec(name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
 	return role, trace.Wrap(err)
 }
 
 // RoleSetFromSpec returns a new RoleSet from spec
-func RoleSetFromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
+func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 	role, err := RoleFromSpec(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1032,6 +1036,19 @@ func MatchAzureIdentity(selectors []string, identity string, matchWildcard bool)
 		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, identity: %v", selectors, identity)
+}
+
+// MatchGCPServiceAccount returns true if provided GCP service account matches selectors.
+func MatchGCPServiceAccount(selectors []string, account string, matchWildcard bool) (bool, string) {
+	for _, l := range selectors {
+		if l == account {
+			return true, "element matched"
+		}
+		if matchWildcard && l == types.Wildcard {
+			return true, "wildcard matched"
+		}
+	}
+	return false, fmt.Sprintf("no match, role selectors %v, identity: %v", selectors, account)
 }
 
 // MatchDatabaseName returns true if provided database name matches selectors.
@@ -1447,6 +1464,38 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 	return out, nil
 }
 
+// CheckGCPServiceAccounts returns a list of GCP service accounts this role set is allowed to assume.
+func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error) {
+	accounts := make(map[string]struct{})
+	var matchedTTL bool
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
+			matchedTTL = true
+			for _, account := range role.GetGCPServiceAccounts(types.Allow) {
+				accounts[strings.ToLower(account)] = struct{}{}
+			}
+		}
+	}
+	for _, role := range set {
+		for _, account := range role.GetGCPServiceAccounts(types.Deny) {
+			// deny * removes all accounts
+			if account == types.Wildcard {
+				accounts = make(map[string]struct{})
+			}
+			// remove particular account
+			delete(accounts, strings.ToLower(account))
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user cannot request GCP API access for %v", ttl)
+	}
+	if len(accounts) == 0 {
+		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
+	}
+	return utils.StringsSliceFromSet(accounts), nil
+}
+
 // CheckLoginDuration checks if role set can login up to given duration and
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
@@ -1602,6 +1651,24 @@ func (m *AzureIdentityMatcher) Match(role types.Role, condition types.RoleCondit
 // String returns the matcher's string representation.
 func (m *AzureIdentityMatcher) String() string {
 	return fmt.Sprintf("AzureIdentityMatcher(Identity=%v)", m.Identity)
+}
+
+// GCPServiceAccountMatcher matches a role against GCP service account.
+type GCPServiceAccountMatcher struct {
+	// ServiceAccount is a GCP service account to match, e.g. teleport@example-123456.iam.gserviceaccount.com.
+	// It can also be a wildcard *, but that is only respected for Deny rules.
+	ServiceAccount string
+}
+
+// Match matches GCP ServiceAccount against provided role and condition.
+func (m *GCPServiceAccountMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	match, _ := MatchGCPServiceAccount(role.GetGCPServiceAccounts(condition), m.ServiceAccount, condition == types.Deny)
+	return match, nil
+}
+
+// String returns the matcher's string representation.
+func (m *GCPServiceAccountMatcher) String() string {
+	return fmt.Sprintf("GCPServiceAccountMatcher(ServiceAccount=%v)", m.ServiceAccount)
 }
 
 // CanImpersonateSomeone returns true if this checker has any impersonation rules
@@ -2763,13 +2830,15 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
+	case types.V6:
+		fallthrough
 	case types.V5:
 		fallthrough
 	case types.V4:
 		// V4 roles are identical to V3 except for their defaults
 		fallthrough
 	case types.V3:
-		var role types.RoleV5
+		var role types.RoleV6
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -2802,7 +2871,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch role := role.(type) {
-	case *types.RoleV5:
+	case *types.RoleV6:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -2813,5 +2882,23 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
+	}
+}
+
+// DowngradeToV5 converts a V6 role to V5 so that it will be compatible with
+// older instances. Makes a shallow copy if the conversion is necessary. The
+// passed in role will not be mutated.
+// DELETE IN 13.0.0
+func DowngradeRoleToV5(r *types.RoleV6) (*types.RoleV6, error) {
+	switch r.Version {
+	case types.V3, types.V4, types.V5:
+		return r, nil
+	case types.V6:
+		var downgraded types.RoleV6
+		downgraded = *r
+		downgraded.Version = types.V5
+		return &downgraded, nil
+	default:
+		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }

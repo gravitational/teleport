@@ -2141,12 +2141,103 @@ func TestWindowsDesktopService(t *testing.T) {
 			},
 		},
 		{
+			desc:        "NOK - hosts specified but ldap not specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - hosts specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "OK - no hosts specified and ldap not specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - no hosts specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - discovery specified but ldap not specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "something",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "something",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "OK - discovery not specified and ldap not specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - discovery not specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
 			desc:        "OK - valid config",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.EnabledFlag = "yes"
 				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
 				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: ".*", Labels: map[string]string{"key": "value"}},
 				}
@@ -2712,6 +2803,34 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				AWS: service.DatabaseAWS{
 					Region:    "us-east-1",
 					AccountID: "123456789012",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+			},
+		},
+		{
+			desc: "AWS DynamoDB",
+			inFlags: CommandLineFlags{
+				DatabaseName:          "ddb",
+				DatabaseProtocol:      defaults.ProtocolDynamoDB,
+				DatabaseURI:           "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:  "123456789012",
+				DatabaseAWSExternalID: "12345678901234",
+				DatabaseAWSRegion:     "us-east-1",
+			},
+			outDatabase: service.Database{
+				Name:     "ddb",
+				Protocol: defaults.ProtocolDynamoDB,
+				URI:      "dynamodb.us-east-1.amazonaws.com",
+				AWS: service.DatabaseAWS{
+					Region:     "us-east-1",
+					AccountID:  "123456789012",
+					ExternalID: "12345678901234",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,

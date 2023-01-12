@@ -100,6 +100,37 @@ func newWebSocketClient(config *rest.Config, method string, u *url.URL, opts ...
 	return c, nil
 }
 
+// StreamWithContext copies the contents from stdin into the connection and respective stdout and stderr
+// from the connection into the desired buffers.
+// This method will block until the server closes the connection.
+// Unfortunately, the K8S Websocket protocol does not support half-closed streams,
+// i.e. indicating that nothing else will be sent via stdin. If the server
+// reads the stdin stream until io.EOF is received, it will block on reading.
+// This issue is being tracked by https://github.com/kubernetes/kubernetes/issues/89899
+// To prevent this issue, and uniquely for testing, this client will send
+// an exit keyword specified by testingkubemock.CloseStreamMessage. Our mock server is expecting that
+// keyword and will return once it's received.
+
+// The protocol docs are at https://pkg.go.dev/k8s.io/apiserver/pkg/util/wsstream#pkg-constants
+// Below we have a copy of the implemented binary protocol specification.
+
+// The Websocket subprotocol "channel.k8s.io" prepends each binary message with a byte indicating
+// the channel number (zero indexed) the message was sent on. Messages in both directions should
+// prefix their messages with this channel byte. When used for remote execution, the channel numbers
+// are by convention defined to match the POSIX file-descriptors assigned to STDIN, STDOUT, and STDERR
+// (0, 1, and 2). No other conversion is performed on the raw subprotocol - writes are sent as they
+// are received by the server.
+//
+// Example client session:
+//
+//	CONNECT http://server.com with subprotocol "channel.k8s.io"
+//	WRITE []byte{0, 102, 111, 111, 10} # send "foo\n" on channel 0 (STDIN)
+//	READ  []byte{1, 10}                # receive "\n" on channel 1 (STDOUT)
+//	CLOSE
+func (e *wsStreamClient) StreamWithContext(_ context.Context, options clientremotecommand.StreamOptions) error {
+	return trace.Wrap(e.Stream(options))
+}
+
 // Stream copies the contents from stdin into the connection and respective stdout and stderr
 // from the connection into the desired buffers.
 // This method will block until the server closes the connection.

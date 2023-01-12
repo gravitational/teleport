@@ -393,24 +393,24 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 		expectError   bool
 	}{
 		{
-			inputUsername: "arn:aws:iam::1234567890:role/rolename",
-			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+			inputUsername: "arn:aws:iam::123456789012:role/rolename",
+			expectRoleARN: "arn:aws:iam::123456789012:role/rolename",
 		},
 		{
-			inputUsername: "arn:aws:iam::1234567890:user/user",
+			inputUsername: "arn:aws:iam::123456789012:user/user",
 			expectError:   true,
 		},
 		{
-			inputUsername: "arn:aws:not-iam::1234567890:role/rolename",
+			inputUsername: "arn:aws:not-iam::123456789012:role/rolename",
 			expectError:   true,
 		},
 		{
 			inputUsername: "role/rolename",
-			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+			expectRoleARN: "arn:aws:iam::123456789012:role/rolename",
 		},
 		{
 			inputUsername: "rolename",
-			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+			expectRoleARN: "arn:aws:iam::123456789012:role/rolename",
 		},
 		{
 			inputUsername: "IAM:user",
@@ -520,7 +520,7 @@ func newRedshiftServerlessDatabase(t *testing.T) types.Database {
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
-		URI:      "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
+		URI:      "my-workgroup.123456789012.eu-west-2.redshift-serverless.amazonaws.com:5439",
 	})
 	require.NoError(t, err)
 	return database

@@ -91,7 +91,7 @@ func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgr
 		}},
 		CreationDate: aws.Time(sampleTime),
 		Endpoint: &redshiftserverless.Endpoint{
-			Address: aws.String(fmt.Sprintf("%v.1234567890.%v.redshift-serverless.amazonaws.com", name, region)),
+			Address: aws.String(fmt.Sprintf("%v.123456789012.%v.redshift-serverless.amazonaws.com", name, region)),
 			Port:    aws.Int64(5439),
 			VpcEndpoints: []*redshiftserverless.VpcEndpoint{{
 				VpcEndpointId: aws.String("vpc-endpoint-id"),
@@ -101,7 +101,7 @@ func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgr
 		NamespaceName:      aws.String("my-namespace"),
 		PubliclyAccessible: aws.Bool(true),
 		Status:             aws.String("AVAILABLE"),
-		WorkgroupArn:       aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%v:1234567890:workgroup/some-uuid-for-%v", region, name)),
+		WorkgroupArn:       aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%v:123456789012:workgroup/some-uuid-for-%v", region, name)),
 		WorkgroupId:        aws.String(fmt.Sprintf("some-uuid-for-%v", name)),
 		WorkgroupName:      aws.String(name),
 	}
@@ -110,8 +110,8 @@ func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgr
 // RedshiftServerlessEndpointAccess returns a sample redshiftserverless.EndpointAccess.
 func RedshiftServerlessEndpointAccess(workgroup *redshiftserverless.Workgroup, name, region string) *redshiftserverless.EndpointAccess {
 	return &redshiftserverless.EndpointAccess{
-		Address:            aws.String(fmt.Sprintf("%s-endpoint-xxxyyyzzz.1234567890.%s.redshift-serverless.amazonaws.com", name, region)),
-		EndpointArn:        aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%s:1234567890:managedvpcendpoint/some-uuid-for-%v", region, name)),
+		Address:            aws.String(fmt.Sprintf("%s-endpoint-xxxyyyzzz.123456789012.%s.redshift-serverless.amazonaws.com", name, region)),
+		EndpointArn:        aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%s:123456789012:managedvpcendpoint/some-uuid-for-%v", region, name)),
 		EndpointCreateTime: aws.Time(sampleTime),
 		EndpointName:       aws.String(name),
 		EndpointStatus:     aws.String("AVAILABLE"),

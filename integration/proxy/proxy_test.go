@@ -305,14 +305,20 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := helpers.MustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV5{
+	kubeRoleSpec := types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: []string{kube.TestImpersonationGroup},
-			KubeUsers:  []string{k8User},
+			Logins:           []string{username},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubeGroups:       []string{kube.TestImpersonationGroup},
+			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	}
-	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -357,14 +363,20 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := helpers.MustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV5{
+	kubeRoleSpec := types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: []string{kube.TestImpersonationGroup},
-			KubeUsers:  []string{k8User},
+			Logins:           []string{username},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubeGroups:       []string{kube.TestImpersonationGroup},
+			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	}
-	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -492,7 +504,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
-
 		})
 	})
 
@@ -833,13 +844,13 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		},
 	})
 
-	sess := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
-	status, _, err := pack.MakeRequest(sess, http.MethodGet, "/")
+	cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+	status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
-	sess = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
-	status, _, err = pack.MakeRequest(sess, http.MethodGet, "/")
+	cookies = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+	status, _, err = pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 }
