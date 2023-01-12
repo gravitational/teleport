@@ -428,50 +428,74 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		SshAuthorizedKey: key.Cert,
 	}
 
-	// Reset dtAuthnRunCeremony after tests.
-	oldRunCeremony := *client.DTAuthnRunCeremony
-	t.Cleanup(func() { *client.DTAuthnRunCeremony = oldRunCeremony })
+	t.Run("device login", func(t *testing.T) {
+		// We need this because the running standalone process is not Enterprise.
+		teleportClient.SetDTAttemptLoginIgnorePing(true)
 
-	// validatingRunCeremony checks the parameters passed to dtAuthnRunCeremony
-	// and returns validCerts on success.
-	validatingRunCeremony := func(_ context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-		switch {
-		case devicesClient == nil:
-			return nil, errors.New("want non-nil devicesClient")
-		case certs == nil:
-			return nil, errors.New("want non-nil certs")
-		case len(certs.SshAuthorizedKey) == 0:
-			return nil, errors.New("want non-empty certs.SshAuthorizedKey")
+		// validatingRunCeremony checks the parameters passed to dtAuthnRunCeremony
+		// and returns validCerts on success.
+		var runCeremonyCalls int
+		validatingRunCeremony := func(_ context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+			runCeremonyCalls++
+			switch {
+			case devicesClient == nil:
+				return nil, errors.New("want non-nil devicesClient")
+			case certs == nil:
+				return nil, errors.New("want non-nil certs")
+			case len(certs.SshAuthorizedKey) == 0:
+				return nil, errors.New("want non-empty certs.SshAuthorizedKey")
+			}
+			return validCerts, nil
 		}
-		return validCerts, nil
-	}
-	*client.DTAuthnRunCeremony = validatingRunCeremony
+		teleportClient.SetDTAuthnRunCeremony(validatingRunCeremony)
 
-	// Sanity check that we can do authenticated actions before
-	// AttemptDeviceLogin.
-	authenticatedAction := func() error {
-		// Any authenticated action would do.
-		_, err := teleportClient.ListAllNodes(ctx)
-		return err
-	}
-	require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
+		// Sanity check that we can do authenticated actions before
+		// AttemptDeviceLogin.
+		authenticatedAction := func() error {
+			// Any authenticated action would do.
+			_, err := teleportClient.ListAllNodes(ctx)
+			return err
+		}
+		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
 
-	// Test! Exercise DeviceLogin.
-	got, err := teleportClient.DeviceLogin(ctx, &devicepb.UserCertificates{
-		SshAuthorizedKey: key.Cert,
+		// Test! Exercise DeviceLogin.
+		got, err := teleportClient.DeviceLogin(ctx, &devicepb.UserCertificates{
+			SshAuthorizedKey: key.Cert,
+		})
+		require.NoError(t, err, "DeviceLogin failed")
+		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
+		assert.Equal(t, 1, runCeremonyCalls, `DeviceLogin didn't call dtAuthnRunCeremony()`)
+
+		// Test! Exercise AttemptDeviceLogin.
+		require.NoError(t,
+			teleportClient.AttemptDeviceLogin(ctx, key),
+			"AttemptDeviceLogin failed")
+		assert.Equal(t, 2, runCeremonyCalls, `AttemptDeviceLogin didn't call dtAuthnRunCeremony()`)
+
+		// Verify that the "new" key was applied correctly.
+		require.NoError(t, authenticatedAction(), "Authenticated action failed *after* AttemptDeviceLogin")
 	})
-	require.NoError(t, err, "DeviceLogin failed")
-	require.Equal(t, validCerts, got, "DeviceLogin mismatch")
 
-	// Test! Exercise AttemptDeviceLogin.
-	// Absence of errors is good enough here, since we know that DeviceLogin
-	// works based on the assertions above.
-	require.NoError(t,
-		teleportClient.AttemptDeviceLogin(ctx, key),
-		"AttemptDeviceLogin failed")
+	t.Run("attempt login respects ping", func(t *testing.T) {
+		runCeremonyCalled := false
+		teleportClient.SetDTAttemptLoginIgnorePing(false)
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+			runCeremonyCalled = true
+			return nil, errors.New("dtAuthnRunCeremony called unexpectedly")
+		})
 
-	// Verify that the "new" key was applied correctly.
-	require.NoError(t, authenticatedAction(), "Authenticated action failed after AttemptDeviceLogin")
+		// Sanity check the Ping response.
+		resp, err := teleportClient.Ping(ctx)
+		require.NoError(t, err, "Ping failed")
+		require.True(t, resp.Auth.DeviceTrustDisabled, "Expected device trust to be disabled for Teleport OSS")
+
+		// Test!
+		// AttemptDeviceLogin should obey Ping and not attempt the ceremony.
+		require.NoError(t,
+			teleportClient.AttemptDeviceLogin(ctx, key),
+			"AttemptDeviceLogin failed")
+		assert.False(t, runCeremonyCalled, "AttemptDeviceLogin called DeviceLogin/dtAuthnRunCeremony, despite the Ping response")
+	})
 }
 
 type standaloneBundle struct {
@@ -499,7 +523,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	// Prepare role and user.
 	// Both resources are bootstrapped by the Auth Server below.
 	const username = "llama"
-	role, err := types.NewRoleV3(username, types.RoleSpecV6{
+	role, err := types.NewRole(username, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},

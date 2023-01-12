@@ -242,6 +242,23 @@ log:
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 affinity: {}
 
+# Pod's DNS Configuration
+# https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config
+# This value is useful if you need to reduce the DNS load: set "ndots" to 0 and only use FQDNs.
+dnsConfig: {}
+#  nameservers:
+#    - 1.2.3.4
+#  searches:
+#    - ns1.svc.cluster-domain.example
+#    - my.dns.search.suffix
+#  options:
+#    - name: ndots
+#      value: "2"
+
+# Pod's DNS Policy
+# https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy
+dnsPolicy: ""
+
 # nodeSelector to apply for pod assignment
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
 nodeSelector: {}

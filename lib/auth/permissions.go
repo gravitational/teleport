@@ -891,14 +891,13 @@ func ClientImpersonator(ctx context.Context) string {
 // did not come from an HTTP request, metadata for teleport.UserSystem is
 // returned.
 func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
+	identityGetter, ok := ctx.Value(ContextUser).(IdentityGetter)
 	if !ok {
 		return apievents.UserMetadata{
 			User: teleport.UserSystem,
 		}
 	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := identityGetter.GetIdentity().GetUserMetadata()
 	if meta.User == "" {
 		meta.User = teleport.UserSystem
 	}
@@ -909,14 +908,7 @@ func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
 // by a remote client making a call, with the specified username overriding the one
 // from the remote client.
 func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
-		return apievents.UserMetadata{
-			User: user,
-		}
-	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := ClientUserMetadata(ctx)
 	meta.User = user
 	return meta
 }

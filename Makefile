@@ -413,6 +413,8 @@ release:
 	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -458,6 +460,19 @@ build-archive:
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	cd ./build.assets/tooling/ && \
+	go run ./cmd/notarize-apple-binaries/*.go \
+		--log-level=debug $(ABSOLUTE_BINARY_PATHS)
+	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
@@ -848,6 +863,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/teleterm/api/protogen/**' \
 		-ignore 'lib/prehog/gen/**' \
+		-ignore 'lib/prehog/gen-js/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
@@ -1039,6 +1055,7 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host: protos/all
+	$(BUF) generate --template=lib/prehog/buf-teleterm.gen.yaml lib/prehog/proto
 	$(BUF) generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
 
 .PHONY: goinstall

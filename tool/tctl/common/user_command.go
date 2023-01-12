@@ -40,17 +40,18 @@ import (
 // UserCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type UserCommand struct {
-	config                 *service.Config
-	login                  string
-	allowedLogins          []string
-	allowedWindowsLogins   []string
-	allowedKubeUsers       []string
-	allowedKubeGroups      []string
-	allowedDatabaseUsers   []string
-	allowedDatabaseNames   []string
-	allowedAWSRoleARNs     []string
-	allowedAzureIdentities []string
-	allowedRoles           []string
+	config                    *service.Config
+	login                     string
+	allowedLogins             []string
+	allowedWindowsLogins      []string
+	allowedKubeUsers          []string
+	allowedKubeGroups         []string
+	allowedDatabaseUsers      []string
+	allowedDatabaseNames      []string
+	allowedAWSRoleARNs        []string
+	allowedAzureIdentities    []string
+	allowedGCPServiceAccounts []string
+	allowedRoles              []string
 
 	ttl time.Duration
 
@@ -82,6 +83,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
 	u.userAdd.Flag("azure-identities", "List of allowed Azure identities for the new user").StringsVar(&u.allowedAzureIdentities)
+	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -111,6 +113,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 		StringsVar(&u.allowedAWSRoleARNs)
 	u.userUpdate.Flag("set-azure-identities", "List of allowed Azure identities for the user, replaces current Azure identities").
 		StringsVar(&u.allowedAzureIdentities)
+	u.userUpdate.Flag("set-gcp-service-accounts", "List of allowed GCP service accounts for the user, replaces current service accounts").
+		StringsVar(&u.allowedGCPServiceAccounts)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -234,14 +238,15 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	}
 
 	traits := map[string][]string{
-		constants.TraitLogins:          u.allowedLogins,
-		constants.TraitWindowsLogins:   u.allowedWindowsLogins,
-		constants.TraitKubeUsers:       flattenSlice(u.allowedKubeUsers),
-		constants.TraitKubeGroups:      flattenSlice(u.allowedKubeGroups),
-		constants.TraitDBUsers:         flattenSlice(u.allowedDatabaseUsers),
-		constants.TraitDBNames:         flattenSlice(u.allowedDatabaseNames),
-		constants.TraitAWSRoleARNs:     flattenSlice(u.allowedAWSRoleARNs),
-		constants.TraitAzureIdentities: azureIdentities,
+		constants.TraitLogins:             u.allowedLogins,
+		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
+		constants.TraitKubeUsers:          flattenSlice(u.allowedKubeUsers),
+		constants.TraitKubeGroups:         flattenSlice(u.allowedKubeGroups),
+		constants.TraitDBUsers:            flattenSlice(u.allowedDatabaseUsers),
+		constants.TraitDBNames:            flattenSlice(u.allowedDatabaseNames),
+		constants.TraitAWSRoleARNs:        flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitAzureIdentities:    azureIdentities,
+		constants.TraitGCPServiceAccounts: flattenSlice(u.allowedGCPServiceAccounts),
 	}
 
 	user, err := types.NewUser(u.login)
@@ -369,6 +374,11 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		}
 		user.SetAzureIdentities(azureIdentities)
 		updateMessages["Azure identities"] = azureIdentities
+	}
+	if len(u.allowedGCPServiceAccounts) > 0 {
+		accounts := flattenSlice(u.allowedGCPServiceAccounts)
+		user.SetGCPServiceAccounts(accounts)
+		updateMessages["GCP service accounts"] = accounts
 	}
 
 	if len(updateMessages) == 0 {

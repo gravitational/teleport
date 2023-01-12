@@ -1758,6 +1758,10 @@ type Proxy struct {
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
 
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration `yaml:"https_keypairs_reload_interval"`
+
 	// ACME configures ACME protocol support
 	ACME ACME `yaml:"acme"`
 
@@ -1937,13 +1941,32 @@ type WindowsDesktopService struct {
 	LDAP LDAPConfig `yaml:"ldap"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
-	// Hosts is a list of static Windows hosts connected to this service in
-	// gateway mode.
+	// Hosts is a list of static, AD-connected Windows hosts. This gives users
+	// a way to specify AD-connected hosts that won't be found by the filters
+	// specified in `discovery` (or if `discovery` is omitted).
 	Hosts []string `yaml:"hosts,omitempty"`
+	// NonADHosts is a list of standalone Windows hosts that are not
+	// jointed to an Active Directory domain.
+	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
 	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+}
+
+// Check checks whether the WindowsDesktopService is valid or not
+func (wds *WindowsDesktopService) Check() error {
+	if len(wds.Hosts) > 0 && wds.LDAP.Addr == "" {
+		return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
+			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
+	}
+
+	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
+		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
+			"ldap configuration must also be specified")
+	}
+
+	return nil
 }
 
 // WindowsHostLabelRule describes how a set of labels should be a applied to
