@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
@@ -346,4 +348,62 @@ func TestGCPExtensions(t *testing.T) {
 	out, err := FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(out, &identity))
+}
+
+func TestIdentity_GetUserMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		identity Identity
+		want     apievents.UserMetadata
+	}{
+		{
+			name: "user metadata",
+			identity: Identity{
+				Username:     "alpaca",
+				Impersonator: "llama",
+				RouteToApp: RouteToApp{
+					AWSRoleARN:        "awsrolearn",
+					AzureIdentity:     "azureidentity",
+					GCPServiceAccount: "gcpaccount",
+				},
+				ActiveRequests: []string{"accessreq1", "accessreq2"},
+			},
+			want: apievents.UserMetadata{
+				User:              "alpaca",
+				Impersonator:      "llama",
+				AWSRoleARN:        "awsrolearn",
+				AccessRequests:    []string{"accessreq1", "accessreq2"},
+				AzureIdentity:     "azureidentity",
+				GCPServiceAccount: "gcpaccount",
+			},
+		},
+		{
+			name: "device metadata",
+			identity: Identity{
+				Username: "llama",
+				DeviceExtensions: DeviceExtensions{
+					DeviceID:     "deviceid1",
+					AssetTag:     "assettag1",
+					CredentialID: "credentialid1",
+				},
+			},
+			want: apievents.UserMetadata{
+				User: "llama",
+				TrustedDevice: &apievents.DeviceMetadata{
+					DeviceId:     "deviceid1",
+					AssetTag:     "assettag1",
+					CredentialId: "credentialid1",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.identity.GetUserMetadata()
+			want := test.want
+			if !proto.Equal(&got, &want) {
+				t.Errorf("GetUserMetadata mismatch (-want +got)\n%s", cmp.Diff(want, got))
+			}
+		})
+	}
 }
