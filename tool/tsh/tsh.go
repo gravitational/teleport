@@ -3227,9 +3227,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
-			} else {
-				log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
 			}
+			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
 		}
 	}
 
