@@ -1,0 +1,360 @@
+matches snapshot for acme-on.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        acme:
+          email: test@email.com
+          enabled: true
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: test-acme-cluster:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for acme-uri-staging.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        acme:
+          email: test@email.com
+          enabled: true
+          uri: https://acme-staging-v02.api.letsencrypt.org/directory
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: test-acme-cluster:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for aws-ha-acme.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        https_keypairs:
+        - cert_file: /etc/teleport-tls/tls.crt
+          key_file: /etc/teleport-tls/tls.key
+        https_keypairs_reload_interval: 12h
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: test-aws-cluster:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for existing-tls-secret.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        https_keypairs:
+        - cert_file: /etc/teleport-tls/tls.crt
+          key_file: /etc/teleport-tls/tls.key
+        https_keypairs_reload_interval: 12h
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: test-cluster-name:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for log-basic.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: test-log-cluster:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: json
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for log-extra.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: test-log-cluster:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - level
+            - timestamp
+            - component
+            - caller
+            output: json
+          output: /var/lib/teleport/test.log
+          severity: DEBUG
+      version: v3
+matches snapshot for proxy-listener-mode-multiplex.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        public_addr: test-proxy-listener-mode:443
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for proxy-listener-mode-separate.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: test-proxy-listener-mode:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for public-addresses.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        kube_public_addr:
+        - loadbalancer.example.com:3026
+        listen_addr: 0.0.0.0:3023
+        mongo_listen_addr: 0.0.0.0:27017
+        mongo_public_addr:
+        - loadbalancer.example.com:27017
+        mysql_listen_addr: 0.0.0.0:3036
+        mysql_public_addr:
+        - loadbalancer.example.com:3036
+        postgres_listen_addr: 0.0.0.0:5432
+        postgres_public_addr:
+        - loadbalancer.example.com:5432
+        public_addr:
+        - loadbalancer.example.com:443
+        ssh_public_addr:
+        - loadbalancer.example.com:3023
+        tunnel_listen_addr: 0.0.0.0:3024
+        tunnel_public_addr:
+        - loadbalancer.example.com:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for separate-mongo-listener.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mongo_listen_addr: 0.0.0.0:27017
+        mongo_public_addr: helm-lint:27017
+        mysql_listen_addr: 0.0.0.0:3036
+        public_addr: helm-lint:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for separate-postgres-listener.yaml:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        kube_listen_addr: 0.0.0.0:3026
+        listen_addr: 0.0.0.0:3023
+        mysql_listen_addr: 0.0.0.0:3036
+        postgres_listen_addr: 0.0.0.0:5432
+        postgres_public_addr: helm-lint:5432
+        public_addr: helm-lint:443
+        tunnel_listen_addr: 0.0.0.0:3024
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3

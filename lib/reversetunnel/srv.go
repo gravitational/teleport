@@ -397,7 +397,7 @@ func (s *server) periodicFunctions() {
 
 			connectedRemoteClusters := s.getRemoteClusters()
 
-			remoteClusters, err := s.localAuthClient.GetRemoteClusters()
+			remoteClusters, err := s.localAccessPoint.GetRemoteClusters()
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to get remote clusters")
 			}
