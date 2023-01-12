@@ -1001,6 +1001,15 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 }
 
 func (id Identity) GetUserMetadata() events.UserMetadata {
+	var device *events.DeviceMetadata
+	if id.DeviceExtensions != (DeviceExtensions{}) {
+		device = &events.DeviceMetadata{
+			DeviceId:     id.DeviceExtensions.DeviceID,
+			AssetTag:     id.DeviceExtensions.AssetTag,
+			CredentialId: id.DeviceExtensions.CredentialID,
+		}
+	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1008,6 +1017,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AzureIdentity:     id.RouteToApp.AzureIdentity,
 		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 		AccessRequests:    id.ActiveRequests,
+		TrustedDevice:     device,
 	}
 }
 
