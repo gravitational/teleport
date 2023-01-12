@@ -258,3 +258,43 @@ func TestSortedGCPServiceAccounts(t *testing.T) {
 		})
 	}
 }
+
+func Test_projectIDFromServiceAccountName(t *testing.T) {
+	tests := []struct {
+		name           string
+		serviceAccount string
+		want           string
+		wantErr        require.ErrorAssertionFunc
+	}{
+		{
+			name:           "empty string",
+			serviceAccount: "",
+			want:           "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "cannot extract project ID from service account")
+			},
+		},
+		{
+			name:           "good service account",
+			serviceAccount: "test@myproject-123456.iam.gserviceaccount.com",
+			want:           "myproject-123456",
+			wantErr:        require.NoError,
+		},
+		{
+			name:           "missing domain",
+			serviceAccount: "test@myproject-123456",
+			want:           "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "cannot extract project ID from service account")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := projectIDFromServiceAccountName(tt.serviceAccount)
+			require.Equal(t, tt.want, got)
+			tt.wantErr(t, err)
+		})
+	}
+}

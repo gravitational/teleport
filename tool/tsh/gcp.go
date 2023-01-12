@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -126,9 +127,31 @@ func (a *gcpApp) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
+var projectIDRegexp = regexp.MustCompile(`.*@(?P<projectID>.*)\.iam\.gserviceaccount\.com`)
+
+func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
+	match := projectIDRegexp.FindStringSubmatch(serviceAccount)
+	if match == nil {
+		return "", trace.BadParameter("cannot extract project ID from service account %q", serviceAccount)
+	}
+
+	for i, name := range projectIDRegexp.SubexpNames() {
+		if name == "projectID" {
+			return match[i], nil
+		}
+	}
+
+	return "", trace.BadParameter("cannot extract project ID from service account %q", serviceAccount)
+}
+
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
+	projectID, err := projectIDFromServiceAccountName(a.app.GCPServiceAccount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	envVars := map[string]string{
 		// Env var CLOUDSDK_AUTH_ACCESS_TOKEN is one of the available ways of providing access token
 		// https://cloud.google.com/sdk/docs/authorizing#:~:text=If%20you%20already,access%20token%20value.
@@ -137,6 +160,10 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
 		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.app.Name),
+
+		// We need to set project ID. This is sourced from the account name.
+		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
+		"CLOUDSDK_CORE_PROJECT": projectID,
 	}
 
 	// Set proxy settings.
