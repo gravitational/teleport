@@ -749,6 +749,8 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
+  - [ ] Azure single-server MySQL and Postgres
+  - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
@@ -772,6 +774,8 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
+  - [ ] Azure single-server MySQL and Postgres
+  - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
@@ -802,7 +806,8 @@ tsh bench sessions --max=5000 --web user ls
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
     - [ ] Azure
-      - [ ] Can detect and register MySQL and Postgres instances.
+      - [ ] Can detect and register MySQL and Postgres single-server instances.
+      - [ ] Can detect and register MySQL and Postgres flexible-server instances.
       - [ ] Can detect and register Azure Cache for Redis servers.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
