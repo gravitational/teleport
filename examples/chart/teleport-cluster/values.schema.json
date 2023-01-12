@@ -9,7 +9,9 @@
         "podSecurityPolicy",
         "labels",
         "chartMode",
+        "validateConfigOnDeploy",
         "highAvailability",
+        "podMonitor",
         "tls",
         "image",
         "enterpriseImage",
@@ -29,6 +31,42 @@
             "$id": "#/properties/clusterName",
             "type": "string",
             "default": ""
+        },
+        "auth": {
+            "$id": "#/properties/auth",
+            "type": "object"
+        },
+        "proxy": {
+            "$id": "#/properties/proxy",
+            "type": "object"
+        },
+        "createProxyToken": {
+            "$id": "#/properties/createProxyToken",
+            "type": "boolean",
+            "default": true
+        },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
         },
         "authentication": {
             "$id": "#/properties/authentication",
@@ -267,9 +305,14 @@
                 "standalone",
                 "aws",
                 "gcp",
-                "custom"
+                "scratch"
             ],
             "default": "standalone"
+        },
+        "validateConfigOnDeploy": {
+            "$id": "#/properties/validateConfigOnDeploy",
+            "type": "boolean",
+            "default": true
         },
         "standalone": {
             "$id": "#/properties/standalone",
