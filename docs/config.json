@@ -818,6 +818,10 @@
                "slug": "/database-access/guides/postgres-redshift/"
             },
             {
+              "title": "AWS Redshift Serverless",
+              "slug": "/database-access/guides/redshift-serverless/"
+            },
+            {
                "title": "Azure Cache for Redis",
                "slug": "/database-access/guides/azure-redis/"
             },
