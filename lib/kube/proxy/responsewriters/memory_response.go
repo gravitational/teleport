@@ -17,6 +17,7 @@ package responsewriters
 import (
 	"bytes"
 	"net/http"
+	"strconv"
 
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
@@ -26,11 +27,10 @@ import (
 // NewMemoryResponseWriter creates a MemoryResponseWriter that satisfies
 // the http.ResponseWriter interface and accumulates the response into a memory
 // buffer for later decoding.
-func NewMemoryResponseWriter(dec FilterWrapper) *MemoryResponseWriter {
+func NewMemoryResponseWriter() *MemoryResponseWriter {
 	return &MemoryResponseWriter{
 		header: make(http.Header),
 		buf:    bytes.NewBuffer(make([]byte, 0, 1<<16)),
-		filter: dec,
 	}
 }
 
@@ -40,7 +40,6 @@ type MemoryResponseWriter struct {
 	header http.Header
 	buf    *bytes.Buffer
 	status int
-	filter FilterWrapper
 }
 
 // Write appends b into the memory buffer.
@@ -73,42 +72,26 @@ func (f *MemoryResponseWriter) Status() int {
 	return f.status
 }
 
-// FilterInto copies the headers, response code and body into the provided response
-// writer. If MemoryResponseWriter was initialized with a filter, it will
-// filter the response buffer before writing it into the destination response.
-func (f *MemoryResponseWriter) FilterInto(w http.ResponseWriter) error {
-	copyHeader(w.Header(), f.header)
-
-	b := f.buf.Bytes()
-
-	if f.filter != nil {
-		filter, err := f.filter(GetContentHeader(f.header), f.Status())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		w.WriteHeader(f.Status())
-		err = filter.FilterBuffer(b, w)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if flusher, ok := w.(http.Flusher); ok {
+// CopyInto copies the headers, response code and body into the provided response
+// writer.
+func (f *MemoryResponseWriter) CopyInto(dst http.ResponseWriter) error {
+	defer func() {
+		if flusher, ok := dst.(http.Flusher); ok {
 			flusher.Flush()
 		}
+	}()
+	b := f.buf.Bytes()
+	copyHeader(dst.Header(), f.header, len(b))
+	dst.WriteHeader(f.Status())
 
-		return nil
-	}
-	w.WriteHeader(f.Status())
-	_, err := w.Write(b)
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
+	_, err := dst.Write(b)
 	return trace.Wrap(err)
 }
 
 // copyHeader copies every header execpt the "Content-Length" because the header
 // includes the size of the response with the excluded resources.
-func copyHeader(dst, src http.Header) {
-	src.Del(forward.ContentLength)
+// For the "Content-Length" header, we replace the value with the new body size.
+func copyHeader(dst, src http.Header, contentLength int) {
+	src.Set(forward.ContentLength, strconv.Itoa(contentLength))
 	maps.Copy(dst, src)
 }

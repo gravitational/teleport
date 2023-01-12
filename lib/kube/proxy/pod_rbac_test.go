@@ -18,15 +18,29 @@ package proxy
 
 import (
 	"context"
+	"io"
+	"mime"
+	"net/http"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
+	"k8s.io/apimachinery/pkg/watch"
+	restclientwatch "k8s.io/client-go/rest/watch"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
@@ -208,7 +222,7 @@ func TestListPodRBAC(t *testing.T) {
 					"default/nginx-1",
 					"default/nginx-2",
 				},
-				getTestPodResult: &errors.StatusError{
+				getTestPodResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
 						Message: "[00] access denied",
@@ -254,4 +268,272 @@ func getPodsFromPodList(items []corev1.Pod) []string {
 		pods = append(pods, filepath.Join(item.Namespace, item.Name))
 	}
 	return pods
+}
+
+func TestWatcherResponseWriter(t *testing.T) {
+	t.Parallel()
+	fakeEvents := fakeEvents()
+	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
+	type args struct {
+		allowed []types.KubernetesResource
+		denied  []types.KubernetesResource
+	}
+	tests := []struct {
+		name string
+		args args
+		want []*metav1.WatchEvent
+	}{
+		{
+			name: "receive every event",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "*",
+						Name:      "*",
+					},
+				},
+			},
+			want: fakeEvents,
+		},
+		{
+			name: "receive events for default namespace",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "*",
+					},
+				},
+			},
+			want: fakeEvents[1:],
+		},
+		{
+			name: "receive events for default namespace but with denied pod",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "*",
+					},
+				},
+				denied: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "otherPod",
+					},
+				},
+			},
+			want: fakeEvents[1:2],
+		},
+		{
+			name: "receive receives no events for default namespace",
+			args: args{
+				allowed: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "rand*",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			userReader, userWriter := io.Pipe()
+			negotiator := newClientNegotiator()
+			filterWrapper := newPodFiltererBuilder(tt.args.allowed, tt.args.denied, log)
+			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter), negotiator, filterWrapper)
+			watchEncoder, decoder := newWatchSerializers(
+				t,
+				responsewriters.DefaultContentType,
+				negotiator,
+				watcher,
+				userReader,
+			)
+
+			require.NoError(t, err)
+			watcher.Header().Set(
+				responsewriters.ContentTypeHeader, responsewriters.DefaultContentType,
+			)
+			watcher.WriteHeader(http.StatusOK)
+			var collectedEvents []*metav1.WatchEvent
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					event, err := decoder.decodeStreamingMessage()
+					if err != nil {
+						break
+					}
+					collectedEvents = append(collectedEvents, event)
+				}
+			}()
+
+			for _, event := range fakeEvents {
+				err := watchEncoder.Encode(&watch.Event{
+					Type:   watch.EventType(event.Type),
+					Object: event.Object.Object,
+				})
+				require.NoError(t, err)
+			}
+			watcher.Close()
+			userReader.CloseWithError(io.EOF)
+			userWriter.CloseWithError(io.EOF)
+			wg.Wait()
+			require.Empty(t,
+				cmp.Diff(tt.want, collectedEvents,
+					cmp.FilterPath(func(path cmp.Path) bool {
+						if field, ok := path.Last().(cmp.StructField); ok {
+							// Ignore Raw fields that contain the Object encoded.
+							return strings.EqualFold(field.Name(), "Raw")
+						}
+						return false
+					}, cmp.Ignore()),
+				),
+			)
+		})
+	}
+}
+
+func fakeEvents() []*metav1.WatchEvent {
+	defaultNamespace := "default"
+	devNamespace := "dev"
+	return []*metav1.WatchEvent{
+		{
+			Type:   string(watch.Added),
+			Object: newRawExtension("podAdded", devNamespace),
+		},
+		{
+			Type:   string(watch.Modified),
+			Object: newRawExtension("podAdded", defaultNamespace),
+		},
+		{
+			Type:   string(watch.Modified),
+			Object: newRawExtension("otherPod", defaultNamespace),
+		},
+	}
+}
+
+func newRawExtension(name, namespace string) runtime.RawExtension {
+	return runtime.RawExtension{
+		Object: newFakePod(name, namespace),
+	}
+}
+
+func newFakePod(name, namespace string) *corev1.Pod {
+	return &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+}
+
+func newWatchSerializers(
+	t *testing.T,
+	contentType string,
+	negotiator runtime.ClientNegotiator,
+	writer io.Writer, reader io.ReadCloser,
+) (*restclientwatch.Encoder, *streamDecoder) {
+	// parse mime type.
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	require.NoError(t, err)
+	// create a stream decoder based on mediaType.s
+	objectDecoder, streamingSerializer, framer, err := negotiator.StreamDecoder(mediaType, params)
+	require.NoError(t, err)
+	// create a encoder to encode filtered requests to the user.
+	encoder, err := negotiator.Encoder(mediaType, params)
+	require.NoError(t, err)
+	// create a frameReader that waits until the Kubernetes API sends the full
+	// event frame.
+	frameReader := framer.NewFrameReader(reader)
+	t.Cleanup(func() {
+		frameReader.Close()
+	})
+	// create a frameWriter that writes event frames into the user's connection.
+	frameWriter := framer.NewFrameWriter(writer)
+	// streamingDecoder is the decoder that parses metav1.WatchEvents from the
+	// long-lived connection.
+	streamingDecoder := streaming.NewDecoder(frameReader, streamingSerializer)
+	t.Cleanup(func() {
+		streamingDecoder.Close()
+	})
+	// create encoders
+	watchEventEncoder := streaming.NewEncoder(frameWriter, streamingSerializer)
+	watchEncoder := restclientwatch.NewEncoder(watchEventEncoder, encoder)
+
+	return watchEncoder,
+		&streamDecoder{streamDecoder: streamingDecoder, embeddedEncoder: objectDecoder}
+}
+
+type streamDecoder struct {
+	streamDecoder   streaming.Decoder
+	embeddedEncoder runtime.Decoder
+}
+
+func (s *streamDecoder) decodeStreamingMessage() (*metav1.WatchEvent, error) {
+	var event metav1.WatchEvent
+	res, gvk, err := s.streamDecoder.Decode(nil, &event)
+	if err != nil {
+		return nil, err
+	}
+	if gvk != nil {
+		res.GetObjectKind().SetGroupVersionKind(*gvk)
+	}
+	switch res.(type) {
+	case *metav1.Status:
+		return nil, trace.BadParameter("expected metav1.WatchEvent; got *metav1.Status")
+	default:
+		switch watch.EventType(event.Type) {
+		case watch.Added, watch.Modified, watch.Deleted, watch.Error, watch.Bookmark:
+		default:
+			return nil, trace.BadParameter("got invalid watch event type: %v", event.Type)
+		}
+		obj, gvk, err := s.embeddedEncoder.Decode(event.Object.Raw, nil /* defaults */, nil /* into */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if gvk != nil {
+			obj.GetObjectKind().SetGroupVersionKind(*gvk)
+		}
+		event.Object.Object = obj
+		return &event, nil
+	}
+}
+
+func newFakeResponseWriter(writer *io.PipeWriter) *fakeResponseWriter {
+	return &fakeResponseWriter{
+		writer: writer,
+		header: http.Header{},
+	}
+}
+
+type fakeResponseWriter struct {
+	writer *io.PipeWriter
+	header http.Header
+	status int
+}
+
+func (f *fakeResponseWriter) Header() http.Header {
+	return f.header
+}
+
+func (f *fakeResponseWriter) WriteHeader(status int) {
+	f.status = status
+}
+
+func (f *fakeResponseWriter) Write(b []byte) (int, error) {
+	return f.writer.Write(b)
 }

@@ -302,3 +302,23 @@ func decodeAndSetGVK(decoder runtime.Decoder, payload []byte) (runtime.Object, e
 	}
 	return obj, nil
 }
+
+// filterBuffer filters the response buffer before writing it into the original
+// MemoryResponseWriter.
+func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewriters.MemoryResponseWriter) error {
+	if filterWrapper == nil {
+		return nil
+	}
+
+	filter, err := filterWrapper(responsewriters.GetContentHeader(src.Header()), src.Status())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// copy body into another slice so we can manipulate it.
+	bodyCopy := make([]byte, src.Buffer().Len())
+	copy(bodyCopy, src.Buffer().Bytes())
+	// filter.FilterBuffer encodes the filtered payload into src.Buffer, so we need to
+	// reset it to discard the old payload.
+	src.Buffer().Reset()
+	return trace.Wrap(filter.FilterBuffer(bodyCopy, src))
+}

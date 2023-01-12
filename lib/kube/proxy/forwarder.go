@@ -822,7 +822,7 @@ func (f *Forwarder) getKubeAccessDetails(
 }
 
 // podNameRegex is the Pods endpoint API url.
-var podNameRegex = regexp.MustCompile(`(?m)/api/v1/namespaces/([^/]+)/pods/([^/]+)`)
+var podNameRegex = regexp.MustCompile(`/api/v1/namespaces/([^/]+)/pods/([^/]+)`)
 
 // getPodResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific Pod endpoint. Otherwise, returns nil.
@@ -2420,14 +2420,22 @@ func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.
 // the response. Finally, the filtered response is serialized and sent back to
 // to the user with the appropriate headers.
 func (f *Forwarder) listPodsList(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
-	// Create a memory response writer with the respective pod filter builder.
-	// The filterer builder is only executed once we know the response Content-Type.
-	memBuffer := responsewriters.NewMemoryResponseWriter(newPodFiltererBuilder(allowedResources, deniedResources, f.log))
+	// Creates a memory response writer that collects the response status, headers
+	// and payload into memory.
+	memBuffer := responsewriters.NewMemoryResponseWriter()
 	// Forward the request to the target cluster.
 	sess.forwarder.ServeHTTP(memBuffer, req)
-	// memBuffer.FilterInto parses the response, filters it and writes it into
-	// w.
-	err := memBuffer.FilterInto(w)
+	// filterBuffer filters the response to exclude pods the user doesn't have access to.
+	// The filtered payload will be written into memBuffer again.
+	if err := filterBuffer(
+		newPodFiltererBuilder(allowedResources, deniedResources, f.log),
+		memBuffer,
+	); err != nil {
+		return memBuffer.Status(), trace.Wrap(err)
+	}
+	// Copy the filtered payload into target http.ResponseWriter.
+	err := memBuffer.CopyInto(w)
+
 	// Returns the status and any filter error.
 	return memBuffer.Status(), trace.Wrap(err)
 }
@@ -2444,12 +2452,15 @@ func (f *Forwarder) listPodsList(req *http.Request, w http.ResponseWriter, sess 
 // for the next event.
 func (f *Forwarder) listPodsWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
 	negotiator := newClientNegotiator()
-	rw := responsewriters.NewWatcherResponseWriter(w, negotiator, newPodFiltererBuilder(allowedResources, deniedResources, f.log))
+	rw, err := responsewriters.NewWatcherResponseWriter(w, negotiator, newPodFiltererBuilder(allowedResources, deniedResources, f.log))
+	if err != nil {
+		return http.StatusInternalServerError, trace.Wrap(err)
+	}
 	// Forwards the request to the target cluster.
 	sess.forwarder.ServeHTTP(rw, req)
 	// Once the request terminates, close the watcher and waits for resources
 	// cleanup.
-	err := rw.Close()
+	err = rw.Close()
 	return rw.Status(), trace.Wrap(err)
 }
 
@@ -2485,7 +2496,7 @@ func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
-		memoryRW := responsewriters.NewMemoryResponseWriter(nil)
+		memoryRW := responsewriters.NewMemoryResponseWriter()
 		listReq := req.Clone(req.Context())
 		// reset body and method since list does not need the body response.
 		listReq.Body = nil
@@ -2630,7 +2641,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 		return internalErrStatus, trace.Wrap(err)
 	}
 	// copy the output into the user's ResponseWriter and return.
-	return memWriter.Status(), trace.Wrap(memWriter.FilterInto(w))
+	return memWriter.Status(), trace.Wrap(memWriter.CopyInto(w))
 }
 
 // newImpersonatedKubeClient creates a new Kubernetes Client that impersonates 3

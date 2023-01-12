@@ -60,17 +60,15 @@ type WatcherResponseWriter struct {
 	filter FilterWrapper
 }
 
-// NewWatcherResponseWriter creates a WatcherResponseWriter that satisfies the
-// http.ResponseWriter interface and once the server writes the headers and
-// response code spins a goroutine that parses each event frame, decodes it
-// and analyzes if the user is allowed to receive the events for that pod.
-// If the user is not allowed, the event is ignored.
-// If allowed, the event is encoded into the user's response.
+// NewWatcherResponseWriter creates a new WatcherResponseWriter.
 func NewWatcherResponseWriter(
 	target http.ResponseWriter,
 	negotiator runtime.ClientNegotiator,
 	filter FilterWrapper,
-) *WatcherResponseWriter {
+) (*WatcherResponseWriter, error) {
+	if err := checkWatcherRequiredFields(target, negotiator); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	reader, writer := io.Pipe()
 	return &WatcherResponseWriter{
 		target:     target,
@@ -78,7 +76,19 @@ func NewWatcherResponseWriter(
 		pipeWriter: writer,
 		negotiator: negotiator,
 		filter:     filter,
+	}, nil
+}
+
+// checkWatcherRequiredFields checks if the target response writer and negotiator are
+// defined.
+func checkWatcherRequiredFields(target http.ResponseWriter, negotiator runtime.ClientNegotiator) error {
+	if target == nil {
+		return trace.BadParameter("missing target ResponseWriter")
 	}
+	if negotiator == nil {
+		return trace.BadParameter("missing negotiator")
+	}
+	return nil
 }
 
 // Write writes buf into the pipeWriter.
@@ -104,7 +114,13 @@ func (w *WatcherResponseWriter) WriteHeader(code int) {
 			case code == http.StatusSwitchingProtocols:
 				// no-op, we've been upgraded
 				return nil
-			case code < http.StatusOK || code > http.StatusPartialContent:
+			case code < http.StatusOK /* 200 */ || code > http.StatusPartialContent /* 206 */ :
+				// If code is bellow 200 (OK) or higher than 206 (PartialContent), it means that
+				// Kubernetes returned an error response which does not contain watch events.
+				// In that case, it is safe to write it back to target and return early.
+				// Some valid cases:
+				// - user does not have the `watch` permission.
+				// - API is unable to serve the request.
 				_, err := io.Copy(w.target, w.pipeReader)
 				return trace.Wrap(err)
 			default:
