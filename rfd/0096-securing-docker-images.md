@@ -120,55 +120,6 @@ downloaded directly from their project's souce reposiotory. Sourcing `dumb-init`
 curation and provenance checking by the debian packaging tools, so we will prefer that to
 sourcing them elsewhere.
 
-### Release build process
-
-```mermaid
-graph TD
-    pull_base[Pull distroless<br/>base image]
-    signature_valid?{is cosign<br/>signature valid?}
-    deb[/Teleport Debian Package from CI/]
-    df[/Dockerfile from repo/]
-    base[/Distroless base image/]
-    candidate_image[/Candidate Telport image/]
-    push_internal[Push Candidate Image<br/>to internal ECR Registry]
-    trivy_scan[Scan Candidate Image<br/>with trivy]
-    build[$ docker build ...] 
-    upload_results[Upload scan results<br/>to GitHub Code Scanning]
-    bad_scan?{Scan detected<br/>nhigh-risk<br/>vulnerabilities?}
-    fail_build[Fail the build]
-    image_build_ok[Image build succeeds]
-    sign_image[cosign ...]
-    promote_build[/Release engineer<br/>promotes build/]
-    promote_image[Candidate image<br/>becomes release image<br/>in Public ECR]
-    build_ok?{Does all go well<br/>with the rest of<br/>the build?}
-    
-    pull_base --> signature_valid?
-
-    signature_valid? -- yes --> base
-    signature_valid? -- no --> fail_build
-
-    deb --> build
-    df --> build
-    base --> build
-
-    build --> sign_image --> candidate_image
-    candidate_image --> push_internal
-    push_internal --> trivy_scan
-
-    trivy_scan --> upload_results 
-
-    upload_results --> bad_scan?
-
-    bad_scan? -- no --> build_ok?
-    bad_scan? -- yes --> fail_build
-    
-
-    promote_build --> promote_image
-
-    build_ok? -- yes --> promote_build
-    build_ok? -- no --> fail_build
-```    
-
 ### Base image verification
 
 The distroless base image will be pulled and verified prior to constructing the
@@ -202,7 +153,6 @@ reduce the flexibility of the build system.
 
 For the above reasons, Teleport images for public consumption must not be 
 built in such a shared environment.
-
 ### Building the image
 
 The image will be built from a multi-stage docker file, using build stages to download
@@ -295,6 +245,45 @@ More information keyless signing:
 ### Build-time scanning
 
 All Teleport images shall be scanned with [trivy](https://github.com/aquasecurity/trivy-action#using-trivy-with-github-code-scanning)
+
+### Image build process summary
+
+```mermaid
+graph TD
+    pull_base[Pull distroless<br/>base image]
+    signature_valid?{is cosign<br/>signature valid?}
+    deb[/Teleport Debian Package<br/>from CI/]
+    df[/Dockerfile from repo/]
+    base[/Distroless base image/]
+    candidate_image[/Candidate Telport image/]
+    push_internal[Push Candidate Image<br/>to internal ECR Registry]
+    trivy_scan[Scan Candidate Image<br/>with trivy]
+    build[$ docker build ...] 
+    upload_results[Upload scan results<br/>to GitHub Code Scanning]
+    bad_scan?{Does scan<br/>detect high-risk<br/>vulnerabilities?}
+    fail_build[Fail the build]
+    sign_image[cosign ...]
+    promote_build[/Release engineer<br/>promotes build/]
+    promote_image[Candidate image<br/>becomes release image<br/>in Public ECR]
+    build_ok?{Does all go well<br/>with the rest of<br/>the build?}
+    
+    pull_base --> signature_valid?
+    signature_valid? -- yes --> base
+    signature_valid? -- no --> fail_build
+    deb --> build
+    df --> build
+    base --> build
+    build --> sign_image --> candidate_image
+    candidate_image --> push_internal
+    push_internal --> trivy_scan
+    trivy_scan --> upload_results 
+    upload_results --> bad_scan?
+    bad_scan? -- no --> build_ok?
+    bad_scan? -- yes --> fail_build
+    promote_build --> promote_image
+    build_ok? -- yes --> promote_build
+    build_ok? -- no --> fail_build
+```    
 
 ### Debug Images
 
