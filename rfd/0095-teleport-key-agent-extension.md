@@ -35,7 +35,7 @@ To improve UX, we can add an option via an env variable - `TELEPORT_FORWARD_AGEN
 
 When using `tsh ssh -o "ForwardAgent local"`, the user's active `tsh` profile will be forwarded through a new SSH agent extension. This will include the current profile name, profile `yaml` file, client certificates, and trusted CA certificates. In the remote session, `tsh` will see an empty `~/.tsh` directory and instead check for the forwarded ssh agent for profile and certificate data. Each call to `tsh` will use the forwarded profile and certificates to carry out requests.
 
-Within a remote agent forwarding session, user's can continue to forward their `tsh` profile by using `tsh ssh -A`. We use normal agent forwarding instead of "local" agent forwarding because on the remote host we want to forward the existing `$SSH_AUTH_SOCK`, which is connected to the user's local agent and has access to their local certificates.
+Within a remote agent forwarding session, users can continue to forward their `tsh` profile by using `tsh ssh -A`. We use normal agent forwarding instead of "local" agent forwarding because on the remote host we want to forward the existing `$SSH_AUTH_SOCK`, which is connected to the user's local agent and has access to their local certificates.
 
 ```bash
 $ tsh login --user=dev --proxy=proxy.example.com:3080
@@ -83,6 +83,20 @@ $ tsh ssh -o "ForwardAgent local" server01
 ERROR: Not logged in.
 ```
 
+### Security
+
+#### SSH Agent Forwarding Risks
+
+SSH Agent forwarding comes with an inherent security risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with OS permissions equal to or above the remote user. This is possible due to the way SSH channels are forwarded within a remote session, and this problem is shared by other protocols like X11 forwarding.
+
+The primary redeeming security principle for forwarded SSH channels is that forwarded keys cannot outlive the original session. This means that once the user who called `ssh -A` exits out of their session, no agent keys remain usable on the remote machine, and no sensitive data could have been exfiltrated to outlive the session. We'll call this security principle "session contingency" in this RFD.
+
+We can follow this same framework to forward a user's certificates and agent key without exposing their actual private key, only an interface to send the forwarded agent cryptographic challenges. This would allow users to forward their certificates and agent keys relatively safely to be used in a remote session and guarantee that malicious users cannot exfiltrate their `~/.tsh` and impersonate them. These forwarded keys could be used for any `tsh` and `tctl` request, or more generally, any Teleport API request.
+
+#### Other concerns
+
+Please take a look at [this issue](https://github.com/gravitational/teleport-private/issues/299) for more details on another security concern related to these changes.
+
 ### Teleport Key Agent Changes
 
 We will add new [SSH Agent extensions](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.7) to forward `~/.tsh` profile information, certificates, and additional functions (per-session MFA). Basic SSH Agent functionality will not be impacted by adding these extensions, so existing integrations will remain unchanged.
@@ -103,7 +117,7 @@ An Extension response can be any custom message, but failures should result in `
 
 **Key Extension:**
 
-This extension requests a forwarded key, holding the `tsh` profile and certificates for the current forwarded session.
+This extension requests a forwarded key, holding the `tsh` profile and certificates for the forwarded key.
 
         byte            SSH_AGENTC_EXTENSION
         string          key@goteleport.com
@@ -159,7 +173,11 @@ Note: The underlying `teleport/api/profile.Profile` struct is subject to change,
 
 **Sign Extension:**
 
-This extension requests a signature using the provided key.
+The standard `SSH_AGENTC_SIGN_REQUEST` expects to receive an un-hashed cryptograpic message challenge, and performs the hash and signature together on the ssh-agent server side. In `x/crypto`, this is sufficient for the `ssh.Signer` interface, but most uses of the `crypto.Signer` interface send hashed digests. This means that the `SSH_AGENTC_SIGN_REQUEST` can not be wrapped into a `crypto.Signer` without making modifications to the common `x/crypto` libraries. Additionally, some signature schemes are not supported by the `x/crypto` implementation of ssh-agent, including the `RSAPSS` signature schemes used in TLS 1.3.
+
+Instead, we will introduce a new sign extension that is more interoperable with the `crypto.Signer` interface.
+
+This extension requests a signature for the provided certs.
 
         byte            SSH_AGENTC_EXTENSION
         string          sign@goteleport.com
@@ -174,11 +192,9 @@ The resulting signature will be returned alongside the signing algorithm used.
         string          signature format
         byte[]          signature blob
 
-Unlike the standard `sign@openssh.com` request, `sign@goteleport.com` expects to receive digested data (pre-hashed) rather than the raw message to digest on the agent side. This makes it possible to perform signatures with algorithms other than the ssh signing algorithms (e.g. `ssh-rsa`, `ssh-rsa-cert-v01@openssh.com`). For example, this enables the use of `RSASSA-PSS` algorithms used in TLS 1.3 handshakes.
-
 Hash name should be the stringified representation of a golang `crypto.Hash` value. For example, `SHA-1`, `SHA-256`, or `SHA-512`.
 
-Salt length can be empty for algorithms that don't use a salt, or a positive integer for those that do (such as `RSASSA-PSS`). Salt length can also be set to `auto` to automatically use the largest salt length possible during signing, which can be auto-detected during verification.
+Salt length can be empty for algorithms that don't use a salt, or a positive integer for those that do (such as `RSAPSS`). Salt length can also be set to `auto` to automatically use the largest salt length possible during signing, which can be auto-detected during verification.
 
 **Prompt MFA Challenge Extension:**
 
@@ -200,18 +216,6 @@ Where challenge response blob is a json encoded `api/client/proto.MFAAuthenticat
 
 Note: The protobuf structs used above are subject to change, which may lead to backwards compatibility concerns. In this case, this extension should be taken into consideration before making changes to these structs.
 
-### Security
-
-#### SSH Agent Forwarding Risks
-
-SSH Agent forwarding introduces an inherent risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with OS permissions equal to or above the remote user. Still, these forwarded keys can only be used as long as the user maintains the agent forwarding sessions, since agent forwarding does not allow keys to be exported (only certificates). This security principle constrains some potential options, such as providing the user's raw private key via the `key@goteleport.com` extension.
-
-However, even with the new extensions constrained in this way, a user can abuse the forwarded agent to reissue certificates with new private keys held on the remote host. This can easily be done with the `GenerateUserCerts` rpc.
-
-This raises a security concern that is not present in standard ssh agent forwarding, since the user's login session can essentially be exported to the remote host via a reissue command, rather than being contingent on the forwarding agent session providing access to a private key on the local host.
-
-For this reason, we may want to consider limiting certificate reissue commands to using the same public key as the active identity, or at least limit the TTL of non-matching certificates to just 1 minute. These restrictions may impact other features, including remote kubernetes support, so it is not currently planned.
-
 ### Additional Considerations
 
 #### Syncing local/remote `tsh` profiles
@@ -230,9 +234,7 @@ If we were to enable this functionality, we would need to do one or both of the 
 
 Kubernetes access requires the ability to load a TLS certificate and raw private key pair provided to a kubeconfig file through the `tsh kube credentials` exec plugin. Since we do not want to provide the user's raw private key through the forwarded agent, `tsh kube credentials` will need a different way to acquire a valid TLS certificate and private key.
 
-As explained in the security section above, it is currently possible to reissue certificates over the forwarded agent with new private keys. By utilizing this feature, we can enable kubernetes access on remote hosts without introducing any new systems. We will just need to update `tsh kube credentials` to make a reissue request with a new raw private key if the available private key is a forwarded agent key.
-
-Note: If we decide to disable reissue requests with non-matching public keys, then we will need to get a bit more creative. One option would be to create a generalized forward proxy ssh channel that could be used by the remote host to form connections to Teleport services by proxying through the local host. This approach would warrant a separate RFD.
+One option would be to create a generalized forward proxy ssh channel that could be used by the remote host to form connections to Teleport services by proxying through the local host. This approach would warrant a separate RFD.
 
 #### OpenSSH Per-session MFA Support
 
