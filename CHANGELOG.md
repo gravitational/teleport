@@ -1,5 +1,17 @@
 # Changelog
 
+## 11.2.1
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Added support for periodically reloading the proxy's TLS certificates [#20040](https://github.com/gravitational/teleport/pull/20040)
+* Improved desktop certificate generation by using the proper field for querying a user's SID [#20022](https://github.com/gravitational/teleport/pull/20022)
+* Updated the web UI to hide the trusted clusters screen for users who lack the appropriate role [#1494](https://github.com/gravitational/webapps/pull/1494/)
+* Fixed an issue resulting in an "invalid bearer token" message [#20102](https://github.com/gravitational/teleport/pull/#20102)
+* Fixed an issue preventing bots from using IAM joining [#20011](https://github.com/gravitational/teleport/pull/20011)
+* Fixed an issue where Machine ID Certificates did not respect the provided TTL when using IAM joining [#20001](https://github.com/gravitational/teleport/pull/20001)
+* Updated to Go 1.19.5 [#20084](https://github.com/gravitational/teleport/pull/20084)
+
 ## 11.2.0
 
 This release of Teleport contains multiple improvements and bug fixes.
