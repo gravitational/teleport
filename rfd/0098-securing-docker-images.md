@@ -236,7 +236,7 @@ More information keyless signing:
  * https://docs.google.com/document/d/1461lQUoVqbhCve7PuKNf-2_NfpjrzBG5tFohuMVTuK4/edit
  * https://www.appvia.io/blog/tutorial-keyless-sign-and-verify-your-container-images/#oidc-flow-with-interaction-free-with-github-actions
 
-> **AUTHOR'S NOTE:** _I'm a bit torn here. Using a simple keypair is pretty
+> **NOTE FOR REVIEWERS:** _I'm a bit torn here. Using a simple keypair is pretty
 > straightforward, and the only real decision is how to distribute the public 
 > key. On the other hand, the keyless signing feels more like the "right way" to do
 > it, and it looks like it should be pretty straightforward to do from GHA (see 3rd 
