@@ -334,6 +334,10 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		warnInvalidAzureIdentities(outAzureIdentities)
 		r.SetAzureIdentities(condition, apiutils.Deduplicate(outAzureIdentities))
 
+		inGCPAccounts := r.GetGCPServiceAccounts(condition)
+		outGCPAccounts := applyValueTraitsSlice(inGCPAccounts, traits, "GCP service account")
+		r.SetGCPServiceAccounts(condition, apiutils.Deduplicate(outGCPAccounts))
+
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
 		outKubeGroups := applyValueTraitsSlice(inKubeGroups, traits, "kube group")
@@ -498,7 +502,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 			constants.TraitKubeGroups, constants.TraitKubeUsers,
 			constants.TraitDBNames, constants.TraitDBUsers,
 			constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-			teleport.TraitJWT:
+			constants.TraitGCPServiceAccounts, teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -1034,6 +1038,19 @@ func MatchAzureIdentity(selectors []string, identity string, matchWildcard bool)
 	return false, fmt.Sprintf("no match, role selectors %v, identity: %v", selectors, identity)
 }
 
+// MatchGCPServiceAccount returns true if provided GCP service account matches selectors.
+func MatchGCPServiceAccount(selectors []string, account string, matchWildcard bool) (bool, string) {
+	for _, l := range selectors {
+		if l == account {
+			return true, "element matched"
+		}
+		if matchWildcard && l == types.Wildcard {
+			return true, "wildcard matched"
+		}
+	}
+	return false, fmt.Sprintf("no match, role selectors %v, identity: %v", selectors, account)
+}
+
 // MatchDatabaseName returns true if provided database name matches selectors.
 func MatchDatabaseName(selectors []string, name string) (bool, string) {
 	for _, n := range selectors {
@@ -1447,6 +1464,38 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 	return out, nil
 }
 
+// CheckGCPServiceAccounts returns a list of GCP service accounts this role set is allowed to assume.
+func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error) {
+	accounts := make(map[string]struct{})
+	var matchedTTL bool
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
+			matchedTTL = true
+			for _, account := range role.GetGCPServiceAccounts(types.Allow) {
+				accounts[strings.ToLower(account)] = struct{}{}
+			}
+		}
+	}
+	for _, role := range set {
+		for _, account := range role.GetGCPServiceAccounts(types.Deny) {
+			// deny * removes all accounts
+			if account == types.Wildcard {
+				accounts = make(map[string]struct{})
+			}
+			// remove particular account
+			delete(accounts, strings.ToLower(account))
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user cannot request GCP API access for %v", ttl)
+	}
+	if len(accounts) == 0 {
+		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
+	}
+	return utils.StringsSliceFromSet(accounts), nil
+}
+
 // CheckLoginDuration checks if role set can login up to given duration and
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
@@ -1602,6 +1651,24 @@ func (m *AzureIdentityMatcher) Match(role types.Role, condition types.RoleCondit
 // String returns the matcher's string representation.
 func (m *AzureIdentityMatcher) String() string {
 	return fmt.Sprintf("AzureIdentityMatcher(Identity=%v)", m.Identity)
+}
+
+// GCPServiceAccountMatcher matches a role against GCP service account.
+type GCPServiceAccountMatcher struct {
+	// ServiceAccount is a GCP service account to match, e.g. teleport@example-123456.iam.gserviceaccount.com.
+	// It can also be a wildcard *, but that is only respected for Deny rules.
+	ServiceAccount string
+}
+
+// Match matches GCP ServiceAccount against provided role and condition.
+func (m *GCPServiceAccountMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	match, _ := MatchGCPServiceAccount(role.GetGCPServiceAccounts(condition), m.ServiceAccount, condition == types.Deny)
+	return match, nil
+}
+
+// String returns the matcher's string representation.
+func (m *GCPServiceAccountMatcher) String() string {
+	return fmt.Sprintf("GCPServiceAccountMatcher(ServiceAccount=%v)", m.ServiceAccount)
 }
 
 // CanImpersonateSomeone returns true if this checker has any impersonation rules

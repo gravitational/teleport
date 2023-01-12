@@ -338,6 +338,10 @@ const (
 	// TraitAzureIdentities is the name of the role variable used to store
 	// allowed Azure identity names.
 	TraitAzureIdentities = "azure_identities"
+
+	// TraitGCPServiceAccounts is the name of the role variable used to store
+	// allowed GCP service accounts.
+	TraitGCPServiceAccounts = "gcp_service_accounts"
 )
 
 // Constants for AWS discovery

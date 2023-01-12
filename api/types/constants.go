@@ -303,6 +303,9 @@ const (
 	// KindInstance represents a teleport instance independent of any specific service.
 	KindInstance = "instance"
 
+	// KindLoginRule is a login rule resource.
+	KindLoginRule = "login_rule"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -366,6 +369,9 @@ const (
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
+
+	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
+	ADLabel = TeleportNamespace + "/ad"
 
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.

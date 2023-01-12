@@ -1,0 +1,15 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+dnsPolicy: ClusterFirstWithHostNet
+dnsConfig:
+  nameservers:
+    - 1.2.3.4
+  searches:
+    - ns1.svc.cluster-domain.example
+    - my.dns.search.suffix
+  options:
+    - name: ndots
+      value: "2"
+    - name: edns0
