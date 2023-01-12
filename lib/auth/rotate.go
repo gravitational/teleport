@@ -88,7 +88,7 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.Mode == "" {
 		r.Mode = types.RotationModeManual
 	}
-	// Type all is valid too but will be deprecated in a future release.
+	// types.CertAuthTypeAll is valid too but will be deprecated in a future release.
 	// See: https://github.com/gravitational/teleport/issues/17493
 	if err := r.Type.Check(); err != nil && r.Type != types.CertAuthTypeAll {
 		return trace.Wrap(err)
