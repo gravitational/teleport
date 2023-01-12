@@ -145,7 +145,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			w.cfg.AuthClient = mockAuthClient{
+			w.cfg.AccessPoint = mockAuthClient{
 				reverseTunnels:    tt.reverseTunnels,
 				reverseTunnelsErr: tt.reverseTunnelsErr,
 			}
