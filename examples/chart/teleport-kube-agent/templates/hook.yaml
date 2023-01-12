@@ -64,30 +64,27 @@ spec:
     metadata:
       name: {{ .Release.Name }}-hook
     spec:
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+      {{- end }}
       serviceAccountName: {{ .Release.Name }}-hook
       restartPolicy: OnFailure
       containers:
       - name: post-install-job
-        image: "mirror.gcr.io/library/alpine"
-        command: 
+        image: alpine/k8s:1.26.0
+        command:
         - sh
         - "-c"
         - |
             /bin/sh <<'EOF'
               set -eu -o pipefail
-              # download curl
-              apk add curl
-              # download kubectl
-              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-              curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
-              echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c
-              if [ $? -ne 0 ]; then
-                  exit $?
-              fi
-              chmod +x kubectl
               # wait until statefulset is ready
-              ./kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }}
+              kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }}
               # delete deployment
-              ./kubectl delete deployment/{{ .Release.Name }}
+              kubectl delete deployment/{{ .Release.Name }}
             EOF
 {{- end}}

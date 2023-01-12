@@ -318,7 +318,7 @@ func NewServer(cfg Config) (Server, error) {
 		offlineThreshold: offlineThreshold,
 	}
 
-	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
+	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -398,7 +398,7 @@ func (s *server) periodicFunctions() {
 
 			connectedRemoteClusters := s.getRemoteClusters()
 
-			remoteClusters, err := s.localAuthClient.GetRemoteClusters()
+			remoteClusters, err := s.localAccessPoint.GetRemoteClusters()
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to get remote clusters")
 			}

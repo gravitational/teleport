@@ -304,11 +304,7 @@ func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
 func (c *Client) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
-	caType := "all"
-	if req.Type != "" {
-		caType = string(req.Type)
-	}
-	_, err := c.PostJSON(ctx, c.Endpoint("authorities", caType, "rotate"), req)
+	_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
 	return trace.Wrap(err)
 }
 
