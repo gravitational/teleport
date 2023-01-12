@@ -25,7 +25,6 @@ import (
 type AppCookies struct {
 	SessionCookie        *http.Cookie
 	SubjectSessionCookie *http.Cookie
-	AuthStateCookie      *http.Cookie
 }
 
 // WithSubjectCookie returns a copy of AppCookies with the specified subject session cookie.
@@ -44,9 +43,6 @@ func (ac *AppCookies) ToSlice() []*http.Cookie {
 	if ac.SubjectSessionCookie != nil {
 		out = append(out, ac.SubjectSessionCookie)
 	}
-	if ac.AuthStateCookie != nil {
-		out = append(out, ac.AuthStateCookie)
-	}
 	return out
 }
 
@@ -60,8 +56,6 @@ func ParseCookies(t *testing.T, cookies []*http.Cookie) *AppCookies {
 			out.SessionCookie = c
 		case app.SubjectCookieName:
 			out.SubjectSessionCookie = c
-		case app.AuthStateCookieName:
-			out.AuthStateCookie = c
 		default:
 			t.Fatalf("unrecognized cookie name: %q", c.Name)
 		}
