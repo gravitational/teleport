@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport/api/types"
@@ -190,6 +191,7 @@ current-context: foo
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
+						clientRestCfg:   &rest.Config{},
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
@@ -198,6 +200,7 @@ current-context: foo
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
+						clientRestCfg:   &rest.Config{},
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
@@ -206,6 +209,7 @@ current-context: foo
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
+						clientRestCfg:   &rest.Config{},
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
@@ -229,6 +233,7 @@ current-context: foo
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
+						clientRestCfg:   &rest.Config{},
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, teleClusterName),
 				},
@@ -245,6 +250,7 @@ current-context: foo
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
+						clientRestCfg:   &rest.Config{},
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
@@ -253,6 +259,7 @@ current-context: foo
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
+						clientRestCfg:   &rest.Config{},
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
@@ -261,6 +268,7 @@ current-context: foo
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
+						clientRestCfg:   &rest.Config{},
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
@@ -280,6 +288,7 @@ current-context: foo
 				cmp.AllowUnexported(kubeDetails{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
+				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
 			))
 		})
 	}
