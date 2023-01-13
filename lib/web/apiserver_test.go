@@ -32,7 +32,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"image"
 	"io"
 	"net"
 	"net/http"
@@ -1701,10 +1700,6 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
-
-	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	err = tdpConn.WriteMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
-	require.NoError(t, err)
 }
 
 func TestDesktopAccessMFARequiresMfa(t *testing.T) {

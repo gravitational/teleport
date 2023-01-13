@@ -95,22 +95,11 @@ type byteReader interface {
 }
 
 func readRaw(in byteReader) ([]byte, error) {
-	// Peek at the first byte to figure out message type.
-	t, err := in.ReadByte()
+	msg, err := decode(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch mt := MessageType(t); mt {
-	case TypePNG2Frame:
-		return readRawPNG2Frame(t, in)
-	default:
-		message, err := decodeMessage(t, in)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return message.Encode()
-	}
+	return msg.Encode()
 }
 
 func decode(in byteReader) (Message, error) {
@@ -194,13 +183,6 @@ type PNGFrame struct {
 	enc *png.Encoder // optionally override the PNG encoder
 }
 
-func NewPNG(img image.Image, enc *png.Encoder) PNG2Frame {
-	return PNG2Frame{
-		Img: img,
-		enc: enc,
-	}
-}
-
 func (f PNGFrame) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypePNGFrame))
@@ -244,86 +226,30 @@ func decodePNGFrame(in byteReader) (PNGFrame, error) {
 
 // PNG2Frame is a newer versin of PNGFrame that includes the
 // length of the PNG data.
-type PNG2Frame PNGFrame
-
-func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
-	var length uint32
-	var header struct {
-		Left, Top     uint32
-		Right, Bottom uint32
-	}
-	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
-		return PNG2Frame{}, trace.Wrap(err)
-	}
-	if err := binary.Read(in, binary.BigEndian, &header); err != nil {
-		return PNG2Frame{}, trace.Wrap(err)
-	}
-	img, err := png.Decode(io.LimitReader(in, int64(length)))
-	if err != nil {
-		return PNG2Frame{}, trace.Wrap(err)
-	}
-	// PNG encoding does not preserve offset image bounds.
-	// Opportunistically restore them based on the header.
-	switch img := img.(type) {
-	case *image.RGBA:
-		img.Rect = image.Rect(int(header.Left), int(header.Top), int(header.Right), int(header.Bottom))
-	case *image.NRGBA:
-		img.Rect = image.Rect(int(header.Left), int(header.Top), int(header.Right), int(header.Bottom))
-	}
-	return PNG2Frame{Img: img}, nil
+type PNG2Frame struct {
+	// Msg is already encoded PNG2Frame message
+	Msg []byte
 }
 
-func readRawPNG2Frame(firstByte byte, in byteReader) ([]byte, error) {
-	if MessageType(firstByte) != TypePNG2Frame {
-		return nil, trace.Wrap(trace.BadParameter("incorrect first byte passed to readRawPNG2Frame, expected %v but got %v", TypePNG2Frame, firstByte))
-	}
-
+func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 	var pngLength uint32
 	if err := binary.Read(in, binary.BigEndian, &pngLength); err != nil {
-		return nil, trace.Wrap(err)
+		return PNG2Frame{}, trace.Wrap(err)
 	}
 
 	b := make([]byte, 1+4+pngLength+16)
-	b[0] = firstByte
+	b[0] = byte(TypePNG2Frame)
 
 	binary.BigEndian.PutUint32(b[1:5], pngLength)
 
 	if _, err := io.ReadFull(in, b[5:]); err != nil {
-		return nil, trace.Wrap(err)
+		return PNG2Frame{}, trace.Wrap(err)
 	}
-
-	return b, nil
+	return PNG2Frame{b}, nil
 }
 
 func (f PNG2Frame) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypePNG2Frame))
-
-	// write 0 as a placeholder length for now
-	writeUint32(buf, uint32(0))
-
-	writeUint32(buf, uint32(f.Img.Bounds().Min.X))
-	writeUint32(buf, uint32(f.Img.Bounds().Min.Y))
-	writeUint32(buf, uint32(f.Img.Bounds().Max.X))
-	writeUint32(buf, uint32(f.Img.Bounds().Max.Y))
-
-	encoder := f.enc
-	if encoder == nil {
-		encoder = &png.Encoder{}
-	}
-	before := buf.Len()
-	if err := encoder.Encode(buf, f.Img); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	after := buf.Len()
-
-	result := buf.Bytes()
-
-	// fill in the length
-	pngLen := after - before
-	binary.BigEndian.PutUint32(result[1:5], uint32(pngLen))
-
-	return result, nil
+	return f.Msg, nil
 }
 
 // MouseMove is the mouse movement message.

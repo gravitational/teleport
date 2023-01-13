@@ -143,6 +143,8 @@ type Client struct {
 	// we reuse the same image to avoid allocating on each bitmap
 	img *image.RGBA
 
+	bitmapMsgBuffer []byte
+
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
 }
@@ -603,23 +605,19 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	uptr := (*uint8)(ptr)
 	data := unsafe.Slice(uptr, int(cb.data_len))
 
-	buf := make([]byte, 0, 21)
-	buf = append(buf, byte(tdp.TypePNG2Frame))
-	buf = binary.BigEndian.AppendUint32(buf, uint32(len(data)))
-	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_left))
-	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_top))
-	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_right))
-	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_bottom))
+	c.bitmapMsgBuffer = c.bitmapMsgBuffer[:0]
+	c.bitmapMsgBuffer = append(c.bitmapMsgBuffer, byte(tdp.TypePNG2Frame))
+	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(len(data)))
+	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_left))
+	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_top))
+	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_right))
+	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_bottom))
+	c.bitmapMsgBuffer = append(c.bitmapMsgBuffer, data...)
 
-	if _, err := c.cfg.Conn.Write(buf); err != nil {
-		c.cfg.Log.Error("failed to write PNG header")
+	if err := c.cfg.Conn.WriteMessage(tdp.PNG2Frame{c.bitmapMsgBuffer}); err != nil {
+		c.cfg.Log.Errorf("failed to write PNG2Frame: %v", err)
 		return C.ErrCodeFailure
 	}
-
-	if _, err := c.cfg.Conn.Write(data); err != nil {
-		c.cfg.Log.Error("failed to write PNG data")
-	}
-
 	return C.ErrCodeSuccess
 }
 
