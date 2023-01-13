@@ -94,14 +94,6 @@ type byteReader interface {
 	io.ByteReader
 }
 
-func readRaw(in byteReader) ([]byte, error) {
-	msg, err := decode(in)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return msg.Encode()
-}
-
 func decode(in byteReader) (Message, error) {
 	// Peek at the first byte to figure out message type.
 	t, err := in.ReadByte()

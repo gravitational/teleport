@@ -77,10 +77,6 @@ func (c *Conn) Close() error {
 	return err
 }
 
-func (c *Conn) ReadRaw() ([]byte, error) {
-	return readRaw(c.bufr)
-}
-
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
 	m, err := decode(c.bufr)
