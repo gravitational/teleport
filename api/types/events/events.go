@@ -125,3 +125,30 @@ func (e *Exec) TrimToMaxSize(maxSize int) AuditEvent {
 
 	return out
 }
+
+// TrimToMaxSize trims the UserLogin event to the given maximum size.
+// The initial implementation is to cover concerns that a malicious user could
+// craft a request that creates error messages too large to be handled by the
+// underlying storage and thus cause the events to be omitted entirely. See
+// teleport-private#172.
+func (e *UserLogin) TrimToMaxSize(maxSize int) AuditEvent {
+	size := e.Size()
+	if size <= maxSize {
+		return e
+	}
+
+	out := proto.Clone(e).(*UserLogin)
+	out.Status.Error = ""
+	out.Status.UserMessage = ""
+
+	// Use 10% max size ballast + message size without Error and UserMessage
+	sizeBallast := maxSize/10 + out.Size()
+	maxSize -= sizeBallast
+
+	maxFieldSize := maxSizePerField(maxSize, 2)
+
+	out.Status.Error = trimN(e.Status.Error, maxFieldSize)
+	out.Status.UserMessage = trimN(e.Status.UserMessage, maxFieldSize)
+
+	return out
+}
