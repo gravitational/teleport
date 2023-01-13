@@ -46,17 +46,17 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Capture proProcess in a variable so plugins can access its backend after it
+	// Capture process in a variable so plugins can access its backend after it
 	// is initialized.
-	var proProcess *pro.Process
+	var enterpriseProcess interface{ GetBackend() backend.Backend }
 
 	authPlugin, err := auth.NewPlugin(auth.Config{
 		License: licenseFile,
 		GetBackend: func() backend.Backend {
-			if proProcess == nil {
+			if enterpriseProcess == nil {
 				panic("Failed to acquire backend, Teleport process is nil")
 			}
-			return proProcess.GetBackend()
+			return enterpriseProcess.GetBackend()
 		},
 	})
 	if err != nil {
@@ -94,11 +94,13 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 			return nil, trace.Wrap(err)
 		}
 
+		enterpriseProcess = cloudProcess
+
 		return cloudProcess, nil
 	}
 
 	// Initialize teleport pro
-	proProcess, err = pro.NewTeleport(pro.Config{
+	proProcess, err := pro.NewTeleport(pro.Config{
 		AuthPlugin:  authPlugin,
 		OSSProcess:  ossProcess,
 		LicenseFile: licenseFile,
@@ -106,6 +108,8 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	enterpriseProcess = proProcess
 
 	return proProcess, nil
 }
