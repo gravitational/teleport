@@ -138,9 +138,9 @@ func TestNewUserContext(t *testing.T) {
 	require.Equal(t, userContext.ACL.AccessRequests, access{
 		List:   true,
 		Read:   true,
-		Edit:   true,
 		Create: true,
-		Delete: true,
+		Edit:   false,
+		Delete: false,
 	})
 
 	// test that when user has `search_as_roles`, all permissions on access requests are true
@@ -162,9 +162,9 @@ func TestNewUserContext(t *testing.T) {
 	require.Equal(t, userContext.ACL.AccessRequests, access{
 		List:   true,
 		Read:   true,
-		Edit:   true,
 		Create: true,
-		Delete: true,
+		Edit:   false,
+		Delete: false,
 	})
 }
 
