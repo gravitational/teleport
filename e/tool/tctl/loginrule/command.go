@@ -12,12 +12,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/e/lib/loginrule"
+	"github.com/gravitational/teleport/api/types"
+	eloginrule "github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
 type subcommand interface {
@@ -105,7 +107,7 @@ func (t *testCommand) run(ctx context.Context, c auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	result, err := loginrule.Evaluate(loginRules, &loginrule.EvaluationInput{Traits: traits})
+	result, err := eloginrule.Evaluate(loginRules, &eloginrule.EvaluationInput{Traits: traits})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -159,10 +161,10 @@ func parseLoginRules(r io.Reader) ([]*loginrulepb.LoginRule, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		if raw.Kind != ResourceKind {
-			return nil, trace.BadParameter("found resource kind %q, expected %s", raw.Kind, ResourceKind)
+		if raw.Kind != types.KindLoginRule {
+			return nil, trace.BadParameter("found resource kind %q, expected %s", raw.Kind, types.KindLoginRule)
 		}
-		rule, err := unmarshalLoginRule(raw.Raw)
+		rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
