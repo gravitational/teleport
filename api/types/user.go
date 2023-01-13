@@ -98,6 +98,10 @@ type User interface {
 	GetTraits() map[string][]string
 	// GetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
+	// GetDynamicTraits gets the dynamic trait map for this user used to populate role variables.
+	GetDynamicTraits() map[string][]string
+	// SetDynamicTraits sets the dynamic trait map for this user used to populate role variables.
+	SetDynamicTraits(map[string][]string)
 }
 
 // NewUser creates new empty user
@@ -192,6 +196,16 @@ func (u *UserV2) GetTraits() map[string][]string {
 // SetTraits sets the trait map for this user used to populate role variables.
 func (u *UserV2) SetTraits(traits map[string][]string) {
 	u.Spec.Traits = traits
+}
+
+// GetDynamicTraits gets the dynamic trait map for this user used to populate role variables.
+func (u *UserV2) GetDynamicTraits() map[string][]string {
+	return u.Spec.DynamicTraits
+}
+
+// SetDynamicTraits sets the dynamic trait map for this user used to populate role variables.
+func (u *UserV2) SetDynamicTraits(traits map[string][]string) {
+	u.Spec.DynamicTraits = traits
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -436,3 +450,24 @@ func (i *ExternalIdentity) Check() error {
 	}
 	return nil
 }
+
+// Users is a list of User resources.
+type Users []User
+
+// ToMap returns these users as a map keyed by user name.
+func (u Users) ToMap() map[string]User {
+	m := make(map[string]User)
+	for _, user := range u {
+		m[user.GetName()] = user
+	}
+	return m
+}
+
+// Len returns the slice length.
+func (u Users) Len() int { return len(u) }
+
+// Less compares access requests by name.
+func (u Users) Less(i, j int) bool { return u[i].GetName() < u[j].GetName() }
+
+// Swap swaps two access requests.
+func (u Users) Swap(i, j int) { u[i], u[j] = u[j], u[i] }

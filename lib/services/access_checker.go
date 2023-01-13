@@ -389,11 +389,11 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 	// so we fallback to the traits and roles in the backend.
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
+	u, err := access.GetUser(identity.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if len(identity.Groups) == 0 {
-		u, err := access.GetUser(identity.Username, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 
 		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
 			"from backend. If the identity provider allows username changes, this can "+
@@ -401,6 +401,10 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 			identity.Username)
 		roles = u.GetRoles()
 		traits = u.GetTraits()
+	}
+
+	for trait, value := range u.GetDynamicTraits() {
+		traits[trait] = value
 	}
 
 	return &AccessInfo{
@@ -466,6 +470,10 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 func AccessInfoFromUser(user types.User) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
+
+	for trait, value := range user.GetDynamicTraits() {
+		traits[trait] = value
+	}
 	return &AccessInfo{
 		Roles:  roles,
 		Traits: traits,

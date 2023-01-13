@@ -619,6 +619,10 @@ func (o OktaApplications) SortByCustom(sortBy SortBy) error {
 		sort.SliceStable(o, func(i, j int) bool {
 			return stringCompare(o[i].GetName(), o[j].GetName(), isDesc)
 		})
+	case ResourceSpecDescription:
+		sort.SliceStable(o, func(i, j int) bool {
+			return stringCompare(o[i].GetDescription(), o[j].GetDescription(), isDesc)
+		})
 	default:
 		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindOktaApps)
 	}

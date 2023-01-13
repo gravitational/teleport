@@ -520,6 +520,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return interpolated, nil
 }
 
@@ -746,17 +747,21 @@ func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, 
 	// so we fallback to the traits and roles in the backend.
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
+	u, err := access.GetUser(identity.Username, false)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	if len(identity.Groups) == 0 {
-		u, err := access.GetUser(identity.Username, false)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
 
 		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
 			"from backend. If the identity provider allows username changes, this can "+
 			"potentially allow an attacker to change the role of the existing user.",
 			identity.Username)
 		return u.GetRoles(), u.GetTraits(), nil
+	}
+
+	for trait, value := range u.GetDynamicTraits() {
+		identity.Traits[trait] = value
 	}
 
 	return identity.Groups, identity.Traits, nil
@@ -2174,8 +2179,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		}
 	}
 
-	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-
 	var errs []error
 	allowed := false
 	// Check allow rules.
@@ -2222,7 +2225,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		// if we've reached this point, namespace, labels, and matchers all match.
 		// if MFA is verified or never required, we're done.
 		if mfa.Verified || mfa.Required == MFARequiredNever {
-			log.Infof("MFA already verified or not required")
 			return nil
 		}
 

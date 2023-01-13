@@ -833,6 +833,10 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Merge the dynamic traits
+	for trait, value := range user.GetDynamicTraits() {
+		accessInfo.Traits[trait] = value
+	}
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)

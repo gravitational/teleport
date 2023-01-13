@@ -1617,7 +1617,6 @@ func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Contex
 	p.current = newCurrent
 	p.defineCollectorAsInitialized()
 
-	p.Log.Infof("AR Initialized")
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
@@ -1645,14 +1644,12 @@ func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Contex
 	defer p.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		p.Log.Infof("AR Deleted")
 		delete(p.current, event.Resource.GetName())
 		select {
 		case <-ctx.Done():
 		case p.AccessRequestsC <- resourcesToSlice(p.current):
 		}
 	case types.OpPut:
-		p.Log.Infof("AR Put")
 		accessRequest, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
@@ -1671,3 +1668,146 @@ func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Contex
 }
 
 func (*accessRequestCollector) notifyStale() {}
+
+// UserWatcherConfig is a UserWatcher configuration.
+type UserWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// UserGetter is responsible for fetching user resources.
+	UsersService
+	// UsersC receives up-to-date list of all users resources.
+	UsersC chan types.Users
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *UserWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.UsersService == nil {
+		service, ok := cfg.Client.(UsersService)
+		if !ok {
+			return trace.BadParameter("missing parameter UsersService and Client not usable as UsersService")
+		}
+		cfg.UsersService = service
+	}
+	if cfg.UsersC == nil {
+		cfg.UsersC = make(chan types.Users)
+	}
+	return nil
+}
+
+// NewUserWatcher returns a new instance of UserWatcher.
+func NewUserWatcher(ctx context.Context, cfg UserWatcherConfig) (*UserWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &userCollector{
+		UserWatcherConfig: cfg,
+		initializationC:   make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &UserWatcher{watcher, collector}, nil
+}
+
+// UserWatcher is built on top of resourceWatcher to monitor user resources.
+type UserWatcher struct {
+	*resourceWatcher
+	*userCollector
+}
+
+// userCollector accompanies resourceWatcher when monitoring user resources.
+type userCollector struct {
+	// UserWatcherConfig is the watcher configuration.
+	UserWatcherConfig
+	// current holds a map of the currently known access request resources.
+	current map[string]types.User
+	// lock protects the "current" map.
+	lock sync.RWMutex
+	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *userCollector) resourceKind() string {
+	return types.KindUser
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *userCollector) initializationChan() <-chan struct{} {
+	return p.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *userCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	p.Log.Infof("Get resources")
+	users, err := p.UsersService.GetUsers(false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.User, len(users))
+	for _, user := range users {
+		newCurrent[user.GetName()] = user
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.defineCollectorAsInitialized()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case p.UsersC <- users:
+		p.Log.Info("Sent the users")
+	}
+
+	return nil
+}
+
+func (p *userCollector) defineCollectorAsInitialized() {
+	p.once.Do(func() {
+		// mark watcher as initialized.
+		close(p.initializationC)
+		p.Log.Infof("Initialized")
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *userCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindUser {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+	case types.OpPut:
+		user, ok := event.Resource.(types.User)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		// If this is already present, don't do anything more
+		if _, ok := p.current[user.GetName()]; ok {
+			return
+		}
+		p.current[user.GetName()] = user
+		select {
+		case <-ctx.Done():
+		case p.UsersC <- resourcesToSlice(p.current):
+		}
+
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*userCollector) notifyStale() {}

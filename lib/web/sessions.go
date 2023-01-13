@@ -430,9 +430,23 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 		return nil, trace.Wrap(err)
 	}
 
+	identity, err := c.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	user, err := c.cfg.UnsafeCachedAuthClient.GetUser(identity.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for trait, value := range user.GetDynamicTraits() {
+		accessInfo.Traits[trait] = value
 	}
 
 	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)

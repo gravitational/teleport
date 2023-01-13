@@ -2700,6 +2700,14 @@ message UserSpecV2 {
   // LocalAuths hold sensitive data necessary for performing local
   // authentication
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
+
+  // DynamicTraits hold traits calculated within Teleport. These can also be used
+  // to populate role variables.
+  wrappers.LabelValues DynamicTraits = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "dynamic_traits,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked

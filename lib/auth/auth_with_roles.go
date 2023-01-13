@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"runtime/debug"
 	"strings"
 	"time"
 
@@ -1206,8 +1205,6 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-
-	log.Infof("Stack: %s", string(debug.Stack()))
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -1248,7 +1245,6 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// we will be making unnecessary trips and doing needless work of deserializing every
 	// item for every subset.
 	if req.RequiresFakePagination() {
-		log.Infof("Fake pagination dawg")
 		resp, err := a.listResourcesWithSort(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1586,15 +1582,12 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
 	}
 
-	log.Infof("Fake paginate resources: %v", resources)
-
 	// Apply request filters and get pagination info.
 	resp, err := local.FakePaginate(resources, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Infof("Fake paginate response: %v", resp)
 	return resp, nil
 }
 
