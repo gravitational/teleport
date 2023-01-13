@@ -131,6 +131,14 @@ should set nodeSelector when set in values:
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
       image: public.ecr.aws/gravitational/teleport:12.0.0-dev
       imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - teleport
+            - wait
+            - duration
+            - 30s
       livenessProbe:
         failureThreshold: 6
         httpGet:
@@ -162,6 +170,7 @@ should set nodeSelector when set in values:
       environment: security
       role: bastion
     serviceAccountName: RELEASE-NAME
+    terminationGracePeriodSeconds: 60
     volumes:
     - configMap:
         name: RELEASE-NAME-auth
