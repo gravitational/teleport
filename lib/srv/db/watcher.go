@@ -306,7 +306,7 @@ func (c *cloudCredentialsChecker) checkAzure(ctx context.Context, database types
 	}
 
 	if !slices.Contains(allSubIDs, rid.SubscriptionID) {
-		c.warn(nil, database, fmt.Sprintf("The discovered database %q is in a different subscription (ID: %s) than the database agent's tenant.",
+		c.warn(nil, database, fmt.Sprintf("The discovered database %q is in a subscription (ID: %s) that the database agent does not have access to.",
 			database.GetName(),
 			rid.SubscriptionID,
 		))
