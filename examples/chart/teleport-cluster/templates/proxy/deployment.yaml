@@ -50,6 +50,9 @@ spec:
 {{- end }}
       labels: {{- include "teleport-cluster.proxy.labels" . | nindent 8 }}
     spec:
+{{- if $proxy.nodeSelector }}
+      nodeSelector: {{- toYaml $proxy.nodeSelector | nindent 8 }}
+{{- end }}
       affinity:
 {{- if $proxy.affinity }}
   {{- if $proxy.highAvailability.requireAntiAffinity }}

@@ -15,12 +15,15 @@
 package main
 
 import (
-	"sort"
+	"fmt"
+	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func Test_getGCPServiceAccountFromFlags(t *testing.T) {
@@ -34,15 +37,14 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 		{
 			name:                    "no flag, use default service account",
 			requestedServiceAccount: "",
-			profileAccounts:         []string{"default"},
-			want:                    "default",
+			profileAccounts:         []string{"default@example-123456.iam.gserviceaccount.com"},
+			want:                    "default@example-123456.iam.gserviceaccount.com",
 			wantErr:                 require.NoError,
 		},
 		{
 			name:                    "no flag, multiple possible service accounts",
 			requestedServiceAccount: "",
 			profileAccounts:         []string{"id1", "id2"},
-			want:                    "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "multiple GCP service accounts available, choose one with --gcp-service-account flag")
 			},
@@ -51,36 +53,32 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 			name:                    "no flag, no service accounts",
 			requestedServiceAccount: "",
 			profileAccounts:         []string{},
-			want:                    "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "no GCP service accounts available, check your permissions")
 			},
 		},
-
 		{
 			name:                    "exact match, one option",
-			requestedServiceAccount: "id1",
-			profileAccounts:         []string{"id1"},
-			want:                    "id1",
+			requestedServiceAccount: "id1@example-123456.iam.gserviceaccount.com",
+			profileAccounts:         []string{"id1@example-123456.iam.gserviceaccount.com"},
+			want:                    "id1@example-123456.iam.gserviceaccount.com",
 			wantErr:                 require.NoError,
 		},
 		{
 			name:                    "exact match, multiple options",
-			requestedServiceAccount: "id1",
-			profileAccounts:         []string{"id1", "id2"},
-			want:                    "id1",
+			requestedServiceAccount: "id1@example-123456.iam.gserviceaccount.com",
+			profileAccounts:         []string{"id1@example-123456.iam.gserviceaccount.com", "id2@example-123456.iam.gserviceaccount.com"},
+			want:                    "id1@example-123456.iam.gserviceaccount.com",
 			wantErr:                 require.NoError,
 		},
 		{
 			name:                    "no match, multiple options",
-			requestedServiceAccount: "id3",
-			profileAccounts:         []string{"id1", "id2"},
-			want:                    "",
+			requestedServiceAccount: "id3@example-123456.iam.gserviceaccount.com",
+			profileAccounts:         []string{"id1@example-123456.iam.gserviceaccount.com", "id2@example-123456.iam.gserviceaccount.com"},
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "failed to find the service account matching \"id3\"")
+				require.ErrorContains(t, err, "failed to find the service account matching \"id3@example-123456.iam.gserviceaccount.com\"")
 			},
 		},
-
 		{
 			name:                    "prefix match, one option",
 			requestedServiceAccount: "id1",
@@ -105,31 +103,37 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 				"id1@example-123456.iam.gserviceaccount.com",
 				"id1@example-777777.iam.gserviceaccount.com",
 			},
-			want: "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "provided service account \"id1\" is ambiguous, please specify full service account name")
 			},
 		},
-
 		{
 			name:                    "no match, multiple options",
-			requestedServiceAccount: "id3",
+			requestedServiceAccount: "id3@example-123456.iam.gserviceaccount.com",
 			profileAccounts: []string{
 				"id1@example-123456.iam.gserviceaccount.com",
 				"id2@example-123456.iam.gserviceaccount.com",
 				"idX@example-777777.iam.gserviceaccount.com",
 			},
-			want: "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "failed to find the service account matching \"id3\"")
+				require.ErrorContains(t, err, "failed to find the service account matching \"id3@example-123456.iam.gserviceaccount.com\"")
+			},
+		},
+		{
+			name:                    "service account name is validated",
+			requestedServiceAccount: "",
+			profileAccounts:         []string{"default"},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "chosen GCP service account \"default\" is invalid")
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := getGCPServiceAccountFromFlags(&CLIConf{GCPServiceAccount: tt.requestedServiceAccount}, &client.ProfileStatus{GCPServiceAccounts: tt.profileAccounts})
-			require.Equal(t, tt.want, result)
 			tt.wantErr(t, err)
+			require.Equal(t, tt.want, result)
 		})
 	}
 }
@@ -171,90 +175,55 @@ test-0@other-999999.iam.gserviceaccount.com
 	}
 }
 
-func TestSortedGCPServiceAccounts(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want []string
-	}{
-		{
-			name: "empty",
-			args: nil,
-			want: nil,
-		},
-		{
-			name: "unsorted accounts",
-			args: []string{
-				"test-3@example-123456.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-1@example-123456.iam.gserviceaccount.com",
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-0@other-999999.iam.gserviceaccount.com",
-			},
-			want: []string{
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-1@example-123456.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-3@example-123456.iam.gserviceaccount.com",
-				"test-0@other-999999.iam.gserviceaccount.com",
-			},
-		},
-		{
-			name: "invalid accounts",
-			args: []string{
-				"",
-				"@",
-				"@@@",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-0_example-100200.iam.gserviceaccount.com",
-				"test-0_other-999999.iam.gserviceaccount.com",
-			},
-			want: []string{
-				"",
-				"@",
-				"test-0_example-100200.iam.gserviceaccount.com",
-				"test-0_other-999999.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"@@@",
-			},
-		},
-		{
-			name: "mixed invalid and valid accounts",
-			args: []string{
-				"",
-				"@",
-				"@@@",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-3@example-123456.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-0_other-999999.iam.gserviceaccount.com",
-			},
-			want: []string{
-				"",
-				"@",
-				"test-0_other-999999.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"@@@",
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-3@example-123456.iam.gserviceaccount.com",
-			},
-		},
+func Test_gcpApp_Config(t *testing.T) {
+	cf := &CLIConf{HomePath: t.TempDir()}
+	profile := &client.ProfileStatus{}
+	route := tlsca.RouteToApp{
+		ClusterName:       "test.teleport.io",
+		Name:              "myapp",
+		GCPServiceAccount: "test@myproject-123456.iam.gserviceaccount.com",
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			acc := SortedGCPServiceAccounts(tt.args)
-			sort.Sort(acc)
-			require.Equal(t, tt.want, []string(acc))
-		})
-	}
+
+	t.Setenv("TELEPORT_GCLOUD_SECRET", "my_secret")
+
+	app, err := newGCPApp(cf, profile, route)
+	require.NoError(t, err)
+	require.NotNil(t, app)
+
+	require.Equal(t, "my_secret", app.secret)
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp/gcloud", app.getGcloudConfigPath())
+
+	require.Equal(t, "c45b4408", app.prefix)
+
+	require.NoError(t, app.writeBotoConfig())
+
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp", app.getBotoConfigDir())
+
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp/c45b4408_boto.cfg", app.getBotoConfigPath())
+	expectedBotoConfig := fmt.Sprintf(`[Credentials]
+gs_external_account_authorized_user_file = %v/gcp/test.teleport.io/myapp/c45b4408_external.json
+`, cf.HomePath)
+	require.Equal(t, expectedBotoConfig, app.getBotoConfig())
+	out, err := os.ReadFile(app.getBotoConfigPath())
+	require.NoError(t, err)
+	require.Equal(t, expectedBotoConfig, string(out))
+
+	expectedExternalAccountFile := `{ "type": "external_account_authorized_user","token": "my_secret" }`
+	require.Equal(t, cf.HomePath+"/gcp/test.teleport.io/myapp/c45b4408_external.json", app.getExternalAccountFilePath())
+	require.Equal(t, expectedExternalAccountFile, app.getExternalAccountFile())
+	out, err = os.ReadFile(app.getExternalAccountFilePath())
+	require.NoError(t, err)
+	require.Equal(t, expectedExternalAccountFile, string(out))
+
+	require.NoError(t, trace.NewAggregate(app.removeBotoConfig()...))
+
+	env, err := app.GetEnvVars()
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"CLOUDSDK_AUTH_ACCESS_TOKEN":         "my_secret",
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": "keys/-app/myapp-localca.pem",
+		"CLOUDSDK_CORE_PROJECT":              "myproject-123456",
+		"CLOUDSDK_CONFIG":                    app.getGcloudConfigPath(),
+		"BOTO_CONFIG":                        app.getBotoConfigPath(),
+	}, env)
 }

@@ -221,6 +221,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -352,6 +353,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindDatabase},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
