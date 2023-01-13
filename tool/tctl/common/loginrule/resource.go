@@ -2,11 +2,12 @@ package loginrule
 
 import (
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // Resource is a type to represent login rules which implements types.Resource
