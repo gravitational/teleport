@@ -79,7 +79,7 @@ provenance of a given image](https://github.com/GoogleContainerTools/distroless#
 using `cosign` and a public key. Stronger, SLSA-2 level guarantees [can be verified with additional
 tooling](https://security.googleblog.com/2021/09/distroless-builds-are-now-slsa-2.html). 
 
-> **NOTE:** We are _already_  using Distroless images to distribute some Teleport 
+> **NOTE:** We are _already_ using Distroless images to distribute some Teleport 
 > plugins. This would extend their use to Teleport proper.
 
 ### 2. Ongoing scanning
@@ -153,6 +153,7 @@ reduce the flexibility of the build system.
 
 For the above reasons, Teleport images for public consumption must not be 
 built in such a shared environment.
+
 ### Building the image
 
 The image will be built from a multi-stage docker file, using build stages to download
@@ -177,7 +178,7 @@ COPY --from=teleport /opt/teleport/bin/* /bin
 ENTRYPOINT ["/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
 ```
 > **NOTE:** This unpack-and-copy installation method is only appropriate for
-> packages with no complex installation requirements, like post-inbstall hooks. 
+> packages with no complex installation requirements, like post-install hooks. 
 >
 > Also note that for the sake of clarity I'm only including one dependency package. 
 > In the real distribution there would be multiple packages required.
@@ -303,7 +304,7 @@ our customers aware of our intentions well in advance so that they can prepare.
 
 ### Collecting the data 
 
-We are already using the scanning tools built-ino AWS ECR, which periodically scans our 
+We are already using the scanning tools built-in to AWS ECR, which periodically scans our 
 images and results of the scan into our Panther SIEM instance.
 
 To increase the size and quality of the vulnetrability database we scan with, we should 
@@ -317,7 +318,7 @@ Panther instance can then ingest the alerts via the GitHub audit log.
 
 ### Reacting to alerts
 
-Once the allert data is aggregated into Panther, we can configure events to lodge 
+Once the alert data is aggregated into Panther, we can configure events to lodge 
 GitHub issues and/or alert the development team via Slack or e-mail. The development 
-team will be expected to resolve the issues as per the eleport Vulnerability Management 
+team will be expected to resolve the issues as per the Teleport Vulnerability Management 
 Policy.
