@@ -92,7 +92,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 
 	if p.IngressReporter != nil {
 		p.IngressReporter.ConnectionAuthenticated(ingress.Postgres, clientConn)
-		p.IngressReporter.AuthenticatedConnectionClosed(ingress.Postgres, clientConn)
+		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.Postgres, clientConn)
 	}
 
 	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
