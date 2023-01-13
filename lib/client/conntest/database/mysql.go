@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -35,17 +36,17 @@ import (
 type MySQLPinger struct{}
 
 // Ping connects to the database and issues a basic select statement to validate the connection.
-func (p *MySQLPinger) Ping(ctx context.Context, ping PingParams) error {
-	if err := ping.CheckAndSetDefaults(); err != nil {
+func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
+	if err := params.CheckAndSetDefaults(defaults.ProtocolMySQL); err != nil {
 		return trace.Wrap(err)
 	}
 
 	var nd net.Dialer
-	addr := fmt.Sprintf("%s:%d", ping.Host, ping.Port)
+	addr := fmt.Sprintf("%s:%d", params.Host, params.Port)
 	conn, err := client.ConnectWithDialer(ctx, "tcp", addr,
-		ping.Username,
+		params.Username,
 		"", // no password, we're dialing into a tunnel.
-		ping.DatabaseName,
+		params.DatabaseName,
 		nd.DialContext,
 	)
 	if err != nil {

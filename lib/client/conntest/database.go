@@ -41,7 +41,7 @@ import (
 // databasePinger describes the required methods to test a Database Connection.
 type databasePinger interface {
 	// Ping tests the connection to the Database with a simple request.
-	Ping(ctx context.Context, req database.PingParams) error
+	Ping(ctx context.Context, params database.PingParams) error
 
 	// IsConnectionRefusedError returns whether the error is referring to a connection refused.
 	IsConnectionRefusedError(error) bool

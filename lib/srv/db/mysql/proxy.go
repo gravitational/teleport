@@ -238,14 +238,14 @@ func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	switch p := packet.(type) {
+	switch packet.(type) {
 	case *protocol.OK:
 		err = server.WriteOK(nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	case *protocol.Error:
-		err = server.WriteError(p)
+		err = server.WritePacket(packet.Bytes())
 		if err != nil {
 			return trace.Wrap(err)
 		}
