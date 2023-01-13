@@ -483,7 +483,6 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 					kubeResourceDeniedAccessMsg(
 						clientIdentity.Username,
 						req.Method,
-						clientIdentity.KubernetesCluster,
 						kubeResource,
 					),
 				)
@@ -920,7 +919,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterName)
 	var roleMatchers services.RoleMatchers
 	if actx.kubeResource != nil {
-		notFoundMessage = kubeResourceDeniedAccessMsg(actx.User.GetName(), actx.httpMethod, actx.kubeClusterName, actx.kubeResource)
+		notFoundMessage = kubeResourceDeniedAccessMsg(actx.User.GetName(), actx.httpMethod, actx.kubeResource)
 		roleMatchers = services.RoleMatchers{
 			// Append a matcher that validates if the Kubernetes resource is allowed
 			// by the roles that satisfy the Kubernetes Cluster.
@@ -2641,7 +2640,7 @@ func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.Del
 // kubeResourceDeniedAccessMsg creates a Kubernetes API like forbidden response.
 // Logic from:
 // https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/staging/src/k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/errors.go#L51
-func kubeResourceDeniedAccessMsg(user, method, kubeCluster string, kubeResource *types.KubernetesResource) string {
+func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.KubernetesResource) string {
 	resource := pluralize(kubeResource.Kind)
 	/* pod api group is "" */
 	// Check this code when we introduce new resources.

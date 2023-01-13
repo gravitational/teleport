@@ -2126,7 +2126,7 @@ type KubeResourcesMatcher struct {
 	unmatchedReqs map[string]struct{}
 }
 
-// Match matches a Pod Name name against provided role and condition.
+// Match matches a Kubernetes resource against provided role and condition.
 func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	var finalResult bool
 	for _, pod := range m.resources {

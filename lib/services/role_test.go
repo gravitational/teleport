@@ -6278,3 +6278,217 @@ func TestMatchGCPServiceAccount(t *testing.T) {
 		})
 	}
 }
+
+func TestKubeResourcesMatcher(t *testing.T) {
+	defaultRole, err := types.NewRole("kube",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      types.Wildcard,
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "nginx-*",
+					},
+				},
+			},
+			Deny: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "restricted",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	prodRole, err := types.NewRole("kube2",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "prod",
+						Name:      "pod",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	invalidRole, err := types.NewRole("kube3",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: `^[($`,
+						Name:      `^[($`,
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	type args struct {
+		resources []types.KubernetesResource
+		roles     []types.Role
+		cond      types.RoleConditionType
+	}
+	tests := []struct {
+		name               string
+		args               args
+		wantMatch          []bool
+		assertErr          require.ErrorAssertionFunc
+		unmatchedResources []string
+	}{
+		{
+			name: "user requests a valid subset of pods for defaultRole",
+			args: args{
+				roles: []types.Role{defaultRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      "pod",
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "nginx-*",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{},
+		},
+		{
+			name: "user requests a valid and invalid pod for role defaultRole",
+			args: args{
+				roles: []types.Role{defaultRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      "pod",
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "nginx*",
+					},
+				},
+			},
+			// returns true because the first resource matched but the request will fail
+			// because unmatchedResources is not empty.
+			wantMatch:          boolsToSlice(true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{"default/nginx*"},
+		},
+		{
+			name: "user requests a valid subset of pods but distributed accross two roles",
+			args: args{
+				roles: []types.Role{defaultRole, prodRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      "pod",
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "prod",
+						Name:      "pod",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(true, true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{},
+		},
+		{
+			name: "user requests a pod that does not match any role",
+			args: args{
+				roles: []types.Role{defaultRole, prodRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "pod",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(false, false),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{"default/pod"},
+		},
+		{
+			name: "user requests a denied pod",
+			args: args{
+				roles: []types.Role{defaultRole},
+				cond:  types.Deny,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "restricted",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{},
+		},
+		{
+			name: "user requests a role with wrong regex",
+			args: args{
+				roles: []types.Role{invalidRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "restricted",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(false),
+			assertErr:          require.Error,
+			unmatchedResources: []string{"default/restricted"},
+		},
+	}
+	for _, tt := range tests[len(tests)-1:] {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := NewKubeResourcesMatcher(tt.args.resources)
+			// Verify each role independently. If a resource matches the role, matched
+			// is true. Later, after analysing all roles we verify the resources that
+			// missed the match.
+			for i, role := range tt.args.roles {
+				matched, err := matcher.Match(role, tt.args.cond)
+				require.Equal(t, tt.wantMatch[i], matched)
+				tt.assertErr(t, err)
+			}
+			unmatched := matcher.Unmatched()
+			sort.Strings(unmatched)
+			require.Equal(t, tt.unmatchedResources, unmatched)
+		})
+	}
+}
+
+func boolsToSlice(v ...bool) []bool {
+	return v
+}
