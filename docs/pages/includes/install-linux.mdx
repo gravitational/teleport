@@ -63,7 +63,7 @@ Next, use the appropriate commands for your environment to install your package.
   will update after one is filled out.
 
   ```code
-  $ curl https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH" description="The CPU architecture of the system Teleport will be installed on"/>-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH" description="The CPU architecture of the system Teleport will be installed on"/>-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
   $ shasum -a 256 teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
@@ -111,7 +111,7 @@ Next, use the appropriate commands for your environment to install your package.
   <TabItem label="Tarball" scope="enterprise">
 
   ```code
-  $ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
   $ shasum -a 256 teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
@@ -125,7 +125,7 @@ Next, use the appropriate commands for your environment to install your package.
   will be slightly different:
 
   ```code
-  $ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz
   $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz
@@ -173,7 +173,7 @@ Next, use the appropriate commands for your environment to install your package.
   <TabItem label="Tarball" scope="cloud">
 
   ```code
-  $ curl https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
   $ shasum -a 256 teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
