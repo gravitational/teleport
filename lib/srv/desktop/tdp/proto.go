@@ -224,7 +224,7 @@ func decodePNGFrame(in byteReader) (PNGFrame, error) {
 	return PNGFrame{Img: img}, nil
 }
 
-// PNG2Frame is a newer versin of PNGFrame that includes the
+// PNG2Frame is a newer version of PNGFrame that includes the
 // length of the PNG data.
 type PNG2Frame struct {
 	// Msg is already encoded PNG2Frame message
