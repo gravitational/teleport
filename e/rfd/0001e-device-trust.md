@@ -1,9 +1,9 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
-# RFD 01 - Device Trust
+# RFD 01e - Device Trust
 
 ## Required approvers
 
@@ -19,7 +19,10 @@ can't be exfiltrated from it (for example, Apple's Secure Enclave or a TPM -
 Trusted Platform Module). (Paraphrased from
 [gravitational/teleport#7084](https://github.com/gravitational/teleport/issues/7084#issuecomment-1203362575).)
 
-Device trust is a Teleport Enterprise feature.
+Device trust is a Teleport Enterprise feature. It is available as a preview in
+Teleport 12 (see
+[#514](https://github.com/gravitational/teleport.e/issues/514#issuecomment-1224609251)
+for current status).
 
 ## Why
 
@@ -262,7 +265,7 @@ shown in the snippet below:
       kCFAllocatorDefault, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
       kSecAccessControlPrivateKeyUsage, NULL /* error */);
 
-  NSString *label = @"com.gravitational.teleport.tsh.devicekey"
+  NSString *label = @"com.gravitational.teleport.devicekey"
   NSDictionary *attributes = @{
     // Secure Enclave requires EC/256bit keys.
     (id)kSecAttrKeyType : (id)kSecAttrKeyTypeECSECPrimeRandom,
@@ -750,6 +753,18 @@ message DeviceEvent {
 }
 ```
 
+<details open><summary>UserMetadata changes</summary>
+
+```diff
+// UserMetadata is a common user event metadata
+message UserMetadata {
+  // Existing fields omitted.
+
++  // TrustedDevice contains information about the users' trusted device.
++  // Requires a registered and enrolled device to be used during authentication.
++  DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
+}
+```
 </details>
 
 ### Configuration and roles
@@ -789,20 +804,13 @@ https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772f
 message AuthPreferenceSpecV2 {
   // (...)
 +
-+   DeviceTrustSettings device_trust = 12;
++   DeviceTrust device_trust = 12;
 }
 ```
 
 ```proto
-enum DeviceTrustMode {
-  DEVICE_TRUST_MODE_UNSPECIFIED = 0;
-  DEVICE_TRUST_MODE_OFF = 1;
-  DEVICE_TRUST_MODE_OPTIONAL = 2;
-  DEVICE_TRUST_MODE_REQUIRED = 3;
-}
-
-message DeviceTrustSettings {
-  DeviceTrustMode mode = 1;
+message DeviceTrust {
+  string mode = 1; // "off", "optional" or "required"
 }
 ```
 
@@ -819,7 +827,7 @@ https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772f
 message RoleOptions {
   // (...)
 +
-+  DeviceTrustMode device_trust_mode = 22;
++  string device_trust_mode = 22;
 }
 ```
 
@@ -1093,28 +1101,23 @@ The keyspace below is added to storage:
 
 * `devices/id/$dev_id`:
   base device information, serves authz and list requests by itself
-* `devices/id/$dev_id/enroll_token`:
+* `devices/enroll_token/$dev_id`:
   device enrollment token
-* `devices/id/$dev_id/collected_data/$id`:
+* `devices/collected_data/$dev_id/$data_id`:
   records last N instances of collected data
-* `devices/byCredential/$cred_id`:
-  maps a credential ID to a device ID
 * `devices/byTag/$asset_tag`:
   maps an asset tag device IDs
 
 `devices/id/$dev_id` stores a stripped-down Device proto (update_time, collected
 data and enroll_token are always removed).
 
-`devices/id/$dev_id/enroll_token` stores a StoredEnrollToken. It contains the
+`devices/enroll_token/$dev_id` stores a StoredEnrollToken. It contains the
 bcrypt-hashed enrollment token. Expires in a short time-frame (eg, 1h).
 
-`devices/id/$dev_id/collected_data/$data_id` stores a StoredCollectedData
+`devices/collected_data/$dev_id/$data_id` stores a StoredCollectedData
 proto. Up to N (eg, 10) entries are kept; the system automatically deletes
 older entries. The special ID `1` is used for the enrollment data - this ID is
 never deleted and doesn't count for the N most recent entries.
-
-`devices/byCredential/$cred_id` stores a manual index of credential ID to device
-ID, in the form of a DeviceRef proto.
 
 `devices/byTag/$asset_tag` stores a manual index of asset tag to device ID, in
 the form of an DevicesRef proto.
