@@ -9,7 +9,7 @@ state: draft
 
 * Engineering: @jakule && @r0mant
 * Product: @klizhentas
-* Security: @reedloden
+* Security: @reedloden @jentfoo
 
 ## What
 
