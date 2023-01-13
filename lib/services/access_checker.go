@@ -316,7 +316,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	if len(a.info.AllowedResourceIDs) > 0 {
 		for _, r := range a.info.AllowedResourceIDs {
 			if r.Kind == types.KindKubePod && r.Name == cluster.GetName() && r.ClusterName == a.localCluster {
-				splitted := strings.SplitN(r.SubResourceName, "/", 2)
+				splitted := strings.SplitN(r.SubResourceName, "/", 3)
 				// This condition should never happen since SubResourceName is validated
 				// but it's better to validate it.
 				if len(splitted) != 2 {

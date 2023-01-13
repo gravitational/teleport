@@ -105,6 +105,7 @@ func (d *podFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 			}
 			return trace.Wrap(err)
 		}
+		filtered = obj
 	case *corev1.PodList:
 		filtered = filterCoreV1PodList(o, d.allowedResources, d.deniedResources, d.log)
 	case *metav1.Table:
@@ -113,6 +114,8 @@ func (d *podFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 			return trace.Wrap(err)
 		}
 	default:
+		// It's important default types are never blindly forwarded or protocol
+		// extensions could result in information disclosures.
 		return trace.BadParameter("unexpected type received; got %T", obj)
 	}
 	// encode the filterer response back to the user.
@@ -143,6 +146,8 @@ func (d *podFilterer) FilterObj(obj runtime.Object) (bool, error) {
 		}
 		return len(o.Rows) > 0, nil
 	default:
+		// It's important default types are never blindly forwarded or protocol
+		// extensions could result in information disclosures.
 		return false, trace.BadParameter("unexpected type received; got %T", obj)
 	}
 }
