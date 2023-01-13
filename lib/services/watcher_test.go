@@ -46,8 +46,7 @@ import (
 
 var _ types.Events = (*errorWatcher)(nil)
 
-type errorWatcher struct {
-}
+type errorWatcher struct{}
 
 func (e errorWatcher) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
 	return nil, errors.New("watcher error")
@@ -55,8 +54,7 @@ func (e errorWatcher) NewWatcher(context.Context, types.Watch) (types.Watcher, e
 
 var _ services.ProxyGetter = (*nopProxyGetter)(nil)
 
-type nopProxyGetter struct {
-}
+type nopProxyGetter struct{}
 
 func (n nopProxyGetter) GetProxies() ([]types.Server, error) {
 	return nil, nil
@@ -752,7 +750,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			},
 			Clock: clock,
 		},
-		Types: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA},
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -924,7 +922,6 @@ func TestNodeWatcher(t *testing.T) {
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	require.Empty(t, w.GetNodes(func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
-
 }
 
 func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
