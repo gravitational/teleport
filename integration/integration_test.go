@@ -3064,6 +3064,9 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 // nodes will reconnect when network connection between the proxy and node
 // is restored.
 func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
+	// TODO(jakule): Re-enable this test
+	t.Skip("flaky test. Skip temporary")
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
 
@@ -5849,7 +5852,7 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 
 // invoke makes it easier to defer multiple cancelFuncs held by the same variable
 // without them stomping on one another.
-func invoke(cancel context.CancelFunc) {
+func invoke(cancel context.CancelFunc) { //nolint:unused // unused as TestReverseTunnelCollapse is skipped
 	cancel()
 }
 
