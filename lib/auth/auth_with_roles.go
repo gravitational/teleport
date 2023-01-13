@@ -56,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1457,7 +1456,8 @@ func decideLimit(limit, items int64, respectLimit bool) int64 {
 }
 
 // getKubernetesClient creates a new Kubernetes client configured with temporary
-// certificates bounded with `search_as_role` roles.
+// certificates with `search_as_role` roles.
+// Requires that Teleport Auth Server can connect to any Teleport Proxy.
 func (a *ServerWithRoles) getKubernetesClient(ctx context.Context, kubeCluster string) (*kubernetes.Clientset, error) {
 	authServer := a.authServer
 	clusterName, err := authServer.GetClusterName()
@@ -1472,43 +1472,25 @@ func (a *ServerWithRoles) getKubernetesClient(ctx context.Context, kubeCluster s
 		return nil, trace.Wrap(err)
 	}
 
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	privKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	id := tlsca.Identity{
-		Username:          a.context.User.GetName(),
-		Groups:            a.context.Checker.RoleNames(),
-		KubernetesUsers:   a.context.User.GetKubeUsers(),
-		KubernetesGroups:  a.context.User.GetKubeGroups(),
-		KubernetesCluster: kubeCluster,
-		RouteToCluster:    clusterName.GetClusterName(),
-		Traits:            a.context.User.GetTraits(),
-		// pass the MFAVerified to make sure the request goes through.
-		MFAVerified: a.context.Identity.GetIdentity().MFAVerified,
-	}
-
-	subj, err := id.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     authServer.GetClock(),
-		PublicKey: privKey.Public(),
-		Subject:   subj,
-		NotAfter:  authServer.GetClock().Now().Add(10 * time.Minute),
+	certs, err := authServer.generateUserCert(certRequest{
+		user:              a.context.User,
+		ttl:               10 * time.Minute,
+		compatibility:     constants.CertificateFormatStandard,
+		publicKey:         privKey.MarshalSSHPublicKey(),
+		routeToCluster:    clusterName.GetClusterName(),
+		checker:           a.context.Checker,
+		traits:            a.context.User.GetTraits(),
+		sourceIP:          a.context.Identity.GetIdentity().ClientIP,
+		disallowReissue:   true,
+		renewable:         false,
+		kubernetesCluster: kubeCluster,
+		// force MFA verified because we are working on behalf of the user.
+		mfaVerified: a.context.Identity.GetIdentity().MFAVerified,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1516,22 +1498,15 @@ func (a *ServerWithRoles) getKubernetesClient(ctx context.Context, kubeCluster s
 
 	tlsClientConfig := rest.TLSClientConfig{
 		CAData:   ca.GetActiveKeys().TLS[0].Cert,
-		CertData: cert,
+		CertData: certs.TLS,
 		KeyData:  privKey.PrivateKeyPEM(),
 	}
-	networkCfg, err := authServer.GetClusterNetworkingConfig(ctx)
+
+	proxy, err := a.kubeProxyAddr(ctx, &tlsClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	proxy := a.getProxyPublicAddr()
-	if networkCfg.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-		tlsClientConfig.ServerName = constants.KubeSNIPrefix + clusterName.GetClusterName()
-	} else {
-		proxy, err = a.getKubeProxyAddr(ctx, proxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
+
 	restConfig := &rest.Config{
 		Host:            "https://" + proxy,
 		TLSClientConfig: tlsClientConfig,
@@ -1539,6 +1514,55 @@ func (a *ServerWithRoles) getKubernetesClient(ctx context.Context, kubeCluster s
 
 	client, err := kubernetes.NewForConfig(restConfig)
 	return client, trace.Wrap(err)
+}
+
+// kubeProxyAddr checks the proxy listener mode and returns the appropriate
+// Kube proxy address. If the mode is Multiplex, it also sets the SNI in restConfig.
+func (a *ServerWithRoles) kubeProxyAddr(ctx context.Context, restConfig *rest.TLSClientConfig) (string, error) {
+	authServer := a.authServer
+	networkCfg, err := authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	proxy := a.getProxyPublicAddr()
+	if networkCfg.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+		proxyHost, err := proxyHost(proxy)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		restConfig.ServerName = constants.KubeSNIPrefix + proxyHost
+	} else {
+		proxy, err = a.getKubeProxyAddrSeparatedMode(ctx, proxy)
+	}
+	return proxy, trace.Wrap(err)
+}
+
+// getKubeProxyAddrSeparatedMode hits the proxyAddr ping endpoint - proxyAddr/webapi/ping -
+// to discover the real kubernetes proxy address when proxy listener mode is
+// separate.
+func (a *ServerWithRoles) getKubeProxyAddrSeparatedMode(ctx context.Context, proxyAddr string) (string, error) {
+	cfg := &webclient.Config{
+		Context:   ctx,
+		Insecure:  true,
+		ProxyAddr: proxyAddr,
+	}
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	rsp, err := webclient.Ping(cfg)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return rsp.Proxy.Kube.PublicAddr, nil
+}
+
+// proxyHost parses the proxy address and returns its host or an error.
+func proxyHost(proxy string) (string, error) {
+	addr, err := utils.ParseAddr(proxy)
+	if err == nil {
+		return addr.Host(), nil
+	}
+	return "", trace.BadParameter("invalid proxy address %q", proxy)
 }
 
 // resourceAccessChecker allows access to be checked differently per resource type.
@@ -2342,25 +2366,6 @@ func (a *ServerWithRoles) getProxyPublicAddr() string {
 		}
 	}
 	return ""
-}
-
-// getKubeProxyAddr hits the proxyAddr ping endpoint - proxyAddr/webapi/ping -
-// to discover the real kubernetes proxy address when proxy listener mode is
-// separate.
-func (a *ServerWithRoles) getKubeProxyAddr(ctx context.Context, proxyAddr string) (string, error) {
-	cfg := &webclient.Config{
-		Context:   ctx,
-		Insecure:  true,
-		ProxyAddr: proxyAddr,
-	}
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	rsp, err := webclient.Ping(cfg)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return rsp.Proxy.Kube.PublicAddr, nil
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
