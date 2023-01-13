@@ -771,6 +771,15 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	accessCapabilities, err := clt.GetAccessCapabilities(r.Context(), types.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Printf("\n\n\naccessCapabilities: %+v\n\n\n", accessCapabilities)
+
 	// The following section is similar to
 	// https://github.com/gravitational/teleport/blob/ea810d30d99f26e58a190edc5facfbe0c09ea5e5/lib/srv/desktop/windows_server.go#L757-L769
 	recConfig, err := c.cfg.UnsafeCachedAuthClient.GetSessionRecordingConfig(r.Context())
@@ -779,7 +788,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled)
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled, accessCapabilities)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

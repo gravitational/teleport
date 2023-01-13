@@ -192,7 +192,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
+func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool, accessCapabilities *types.AccessCapabilities) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
 	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
@@ -207,9 +207,22 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
 	dbAccess := newAccess(userRoles, ctx, types.KindDatabase)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
-	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
+	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
+
+	// If the user has a requestable role or any `search_as_roles`,
+	// they can create access requests for themselves even without an
+	// explicit `allow` rule
+	if len(userRoles.GetAllowedSearchAsRoles()) > 0 || len(accessCapabilities.RequestableRoles) > 0 {
+		requestAccess = access{
+			List:   true,
+			Read:   true,
+			Edit:   true,
+			Create: true,
+			Delete: true,
+		}
+	}
 
 	var billingAccess access
 	if features.Cloud {

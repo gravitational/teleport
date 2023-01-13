@@ -121,6 +121,7 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindAccessRequest, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},

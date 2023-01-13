@@ -78,7 +78,7 @@ func TestNewUserContext(t *testing.T) {
 	role2.SetWindowsLogins(types.Allow, []string{"d"})
 
 	roleSet := []types.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true, &types.AccessCapabilities{})
 	require.NoError(t, err)
 
 	allowed := access{true, true, true, true, true}
@@ -117,18 +117,55 @@ func TestNewUserContext(t *testing.T) {
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true)
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true, &types.AccessCapabilities{})
 	require.NoError(t, err)
 	require.Equal(t, userContext.AuthType, authSSO)
 
-	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true}, true, &types.AccessCapabilities{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userContext.ACL.Billing, access{true, true, false, false, false}))
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
-	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false)
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false, &types.AccessCapabilities{})
 	require.NoError(t, err)
 	require.Equal(t, userContext.ACL.DesktopSessionRecording, false)
+
+	// test that when user has requestable roles, all permissions on access requests are true
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false, &types.AccessCapabilities{
+		RequestableRoles: []string{"role1"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, userContext.ACL.AccessRequests, access{
+		List:   true,
+		Read:   true,
+		Edit:   true,
+		Create: true,
+		Delete: true,
+	})
+
+	// test that when user has `search_as_roles`, all permissions on access requests are true
+	roleSet = []types.Role{&types.RoleV6{
+		Metadata: types.Metadata{
+			Name: "requester",
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"access"},
+				},
+			},
+		},
+	}}
+
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false, &types.AccessCapabilities{})
+	require.NoError(t, err)
+	require.Equal(t, userContext.ACL.AccessRequests, access{
+		List:   true,
+		Read:   true,
+		Edit:   true,
+		Create: true,
+		Delete: true,
+	})
 }
 
 func TestNewUserContextCloud(t *testing.T) {
@@ -156,7 +193,7 @@ func TestNewUserContextCloud(t *testing.T) {
 
 	allowed := access{true, true, true, true, true}
 
-	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true, &types.AccessCapabilities{})
 	require.NoError(t, err)
 
 	require.Equal(t, userContext.Name, "root")
