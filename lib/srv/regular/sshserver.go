@@ -1686,11 +1686,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			Type: events.X11ForwardEvent,
 			Code: events.X11ForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        ctx.Identity.Login,
-			User:         ctx.Identity.TeleportUser,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
