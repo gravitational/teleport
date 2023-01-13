@@ -59,7 +59,7 @@ spec:
     # - repository_owner
     # - sub
     allow:
-      - # repository is full qualified (e.g including the owner) name of a
+      - # repository is a full qualified (e.g. including the owner) name of a
         # GitHub repository.
         repository: gravitational/teleport
         # repository_owner is the name of an organization or user that a
@@ -68,20 +68,19 @@ spec:
         # workflow is the exact name of a workflow as configured in the GitHub 
         # Action workflow YAML file.
         workflow: my-workflow
-        # environment is the environment associated with the GitHub Actions run,
-        # if no environment is configured for the GitHub Actions run, this will
+        # environment is the environment associated with the GitHub Actions run.
+        # If no environment is configured for the GitHub Actions run, this will
         # be empty.
         environment: production
         # actor is the GitHub username that caused the GitHub Actions run,
-        # whether by comitting or by directly despatching the workflow.
+        # whether by comitting or by directly dispatching the workflow.
         actor: octocat
         # ref is the git ref that triggered the action run.
         ref: ref/heads/main
-        # ref_type is the type of the git ref that triggered the action run,
-        # for example `branch`.
+        # ref_type is the type of the git ref that triggered the action run.
         ref_type: branch
         # sub is a concatenated string of various attributes of the workflow 
-        # run, GitHub explains the format of this string at:
+        # run. GitHub explains the format of this string at:
         # https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims
         sub: repo:gravitational/example-repo:environment:production
 
