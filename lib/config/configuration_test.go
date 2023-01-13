@@ -2141,12 +2141,103 @@ func TestWindowsDesktopService(t *testing.T) {
 			},
 		},
 		{
+			desc:        "NOK - hosts specified but ldap not specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - hosts specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "OK - no hosts specified and ldap not specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - no hosts specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - discovery specified but ldap not specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "something",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "something",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "OK - discovery not specified and ldap not specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "",
+				}
+			},
+		},
+		{
+			desc:        "OK - discovery not specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
 			desc:        "OK - valid config",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.EnabledFlag = "yes"
 				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
 				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: ".*", Labels: map[string]string{"key": "value"}},
 				}

@@ -132,6 +132,7 @@ func NewPresetAccessRole() types.Role {
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
 	role.SetAzureIdentities(types.Allow, []string{teleport.TraitInternalAzureIdentities})
+	role.SetGCPServiceAccounts(types.Allow, []string{teleport.TraitInternalGCPServiceAccounts})
 	return role
 }
 

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1617,7 +1618,7 @@ func TestCheckRuleAccess(t *testing.T) {
 
 func TestGuessIfAccessIsPossible(t *testing.T) {
 	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
-	ownSessions, err := types.NewRoleV3("own-sessions", types.RoleSpecV6{
+	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1629,7 +1630,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	ownSSHSessions, err := types.NewRoleV3("own-ssh-sessions", types.RoleSpecV6{
+	ownSSHSessions, err := types.NewRole("own-ssh-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1651,7 +1652,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simple, all-or-nothing roles.
-	readAllSessions, err := types.NewRoleV3("all-sessions", types.RoleSpecV6{
+	readAllSessions, err := types.NewRole("all-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1662,7 +1663,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	allowSSHSessions, err := types.NewRoleV3("all-ssh-sessions", types.RoleSpecV6{
+	allowSSHSessions, err := types.NewRole("all-ssh-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1673,7 +1674,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	denySSHSessions, err := types.NewRoleV3("deny-ssh-sessions", types.RoleSpecV6{
+	denySSHSessions, err := types.NewRole("deny-ssh-sessions", types.RoleSpecV6{
 		Deny: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1917,6 +1918,8 @@ func TestApplyTraits(t *testing.T) {
 		outRoleARNs             []string
 		inAzureIdentities       []string
 		outAzureIdentities      []string
+		inGCPServiceAccounts    []string
+		outGCPServiceAccounts   []string
 		inLabels                types.Labels
 		outLabels               types.Labels
 		inKubeLabels            types.Labels
@@ -2059,6 +2062,28 @@ func TestApplyTraits(t *testing.T) {
 					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/external-foo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/internal-azure-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 				},
+			},
+		},
+		{
+			comment: "GCP service account substitute in allow rule",
+			inTraits: map[string][]string{
+				"foo":                             {"bar"},
+				constants.TraitGCPServiceAccounts: {"baz"},
+			},
+			allow: rule{
+				inGCPServiceAccounts:  []string{"{{external.foo}}", teleport.TraitInternalGCPServiceAccounts},
+				outGCPServiceAccounts: []string{"bar", "baz"},
+			},
+		},
+		{
+			comment: "GCP service account substitute in deny rule",
+			inTraits: map[string][]string{
+				"foo":                             {"bar"},
+				constants.TraitGCPServiceAccounts: {"baz"},
+			},
+			deny: rule{
+				inGCPServiceAccounts:  []string{"{{external.foo}}", teleport.TraitInternalGCPServiceAccounts},
+				outGCPServiceAccounts: []string{"bar", "baz"},
 			},
 		},
 		{
@@ -2445,6 +2470,7 @@ func TestApplyTraits(t *testing.T) {
 						AppLabels:            tt.allow.inAppLabels,
 						AWSRoleARNs:          tt.allow.inRoleARNs,
 						AzureIdentities:      tt.allow.inAzureIdentities,
+						GCPServiceAccounts:   tt.allow.inGCPServiceAccounts,
 						DatabaseLabels:       tt.allow.inDBLabels,
 						DatabaseNames:        tt.allow.inDBNames,
 						DatabaseUsers:        tt.allow.inDBUsers,
@@ -2463,6 +2489,7 @@ func TestApplyTraits(t *testing.T) {
 						AppLabels:            tt.deny.inAppLabels,
 						AWSRoleARNs:          tt.deny.inRoleARNs,
 						AzureIdentities:      tt.deny.inAzureIdentities,
+						GCPServiceAccounts:   tt.deny.inGCPServiceAccounts,
 						DatabaseLabels:       tt.deny.inDBLabels,
 						DatabaseNames:        tt.deny.inDBNames,
 						DatabaseUsers:        tt.deny.inDBUsers,
@@ -2492,6 +2519,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outAppLabels, outRole.GetAppLabels(rule.condition))
 				require.Equal(t, rule.spec.outRoleARNs, outRole.GetAWSRoleARNs(rule.condition))
 				require.Equal(t, rule.spec.outAzureIdentities, outRole.GetAzureIdentities(rule.condition))
+				require.Equal(t, rule.spec.outGCPServiceAccounts, outRole.GetGCPServiceAccounts(rule.condition))
 				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
 				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
 				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
@@ -3706,6 +3734,485 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	}
 }
 
+// TestCheckAccessToGCP verifies GCP account access checker.
+func TestCheckAccessToGCP(t *testing.T) {
+	app, err := types.NewAppV3(types.Metadata{Name: "azureapp"}, types.AppSpecV3{Cloud: types.CloudAzure})
+	require.NoError(t, err)
+	readOnlyAccount := "readonly@example-123456.iam.gserviceaccount.com"
+	fullAccessAccount := "fullaccess@example-123456.iam.gserviceaccount.com"
+	roleNoAccess := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "noaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				AppLabels:          types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GCPServiceAccounts: []string{},
+			},
+		},
+	}
+	roleReadOnly := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "readonly",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				AppLabels:          types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GCPServiceAccounts: []string{readOnlyAccount},
+			},
+		},
+	}
+	roleFullAccess := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "fullaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				AppLabels:          types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GCPServiceAccounts: []string{readOnlyAccount, fullAccessAccount},
+			},
+		},
+	}
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		access map[string]bool
+	}{
+		{
+			name:  "empty role set",
+			roles: nil,
+			access: map[string]bool{
+				readOnlyAccount:   false,
+				fullAccessAccount: false,
+			},
+		},
+		{
+			name:  "no access role",
+			roles: RoleSet{roleNoAccess},
+			access: map[string]bool{
+				readOnlyAccount:   false,
+				fullAccessAccount: false,
+			},
+		},
+		{
+			name:  "readonly role",
+			roles: RoleSet{roleReadOnly},
+			access: map[string]bool{
+				readOnlyAccount:   true,
+				fullAccessAccount: false,
+			},
+		},
+		{
+			name:  "full access role",
+			roles: RoleSet{roleFullAccess},
+			access: map[string]bool{
+				readOnlyAccount:   true,
+				fullAccessAccount: true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for account, hasAccess := range test.access {
+				err := test.roles.checkAccess(app, AccessMFAParams{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				if hasAccess {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+
+			}
+		})
+	}
+}
+
+func TestCheckAzureIdentities(t *testing.T) {
+	readOnlyIdentity := "readonly"
+	fullAccessIdentity := "fullaccess"
+
+	maxSessionTTL := time.Hour * 2
+	sessionShort := time.Hour * 1
+	sessionLong := time.Hour * 3
+
+	roleNoAccess := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "noaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{},
+			},
+		},
+	}
+	roleReadOnly := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "readonly",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{readOnlyIdentity},
+			},
+		},
+	}
+	roleFullAccess := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "fullaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{readOnlyIdentity, fullAccessIdentity},
+			},
+		},
+	}
+
+	roleDenyReadOnlyIdentity := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "deny-identity",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Deny: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AzureIdentities: []string{readOnlyIdentity},
+			},
+		},
+	}
+
+	roleDenyReadOnlyIdentityUppercase := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "deny-identity-upper",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Deny: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AzureIdentities: []string{strings.ToUpper(readOnlyIdentity)},
+			},
+		},
+	}
+
+	roleDenyAll := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "deny-all",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Deny: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AzureIdentities: []string{types.Wildcard},
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		roles          RoleSet
+		ttl            time.Duration
+		overrideTTL    bool
+		wantIdentities []string
+		wantError      require.ErrorAssertionFunc
+	}{
+		{
+			name:      "empty role set",
+			roles:     nil,
+			wantError: require.Error,
+		},
+		{
+			name:        "no access role",
+			overrideTTL: true,
+			roles:       RoleSet{roleNoAccess},
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
+			},
+		},
+		{
+			name:           "readonly role, short session",
+			overrideTTL:    false,
+			ttl:            sessionShort,
+			roles:          RoleSet{roleReadOnly},
+			wantIdentities: []string{"readonly"},
+			wantError:      require.NoError,
+		},
+		{
+			name:        "readonly role, long session",
+			overrideTTL: false,
+			ttl:         sessionLong,
+			roles:       RoleSet{roleReadOnly},
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "this user cannot access Azure API for 3h0m0s")
+			},
+		},
+		{
+			name:           "readonly role, override TTL",
+			overrideTTL:    true,
+			roles:          RoleSet{roleReadOnly},
+			wantIdentities: []string{"readonly"},
+			wantError:      require.NoError,
+		},
+		{
+			name:           "full access role",
+			overrideTTL:    true,
+			roles:          RoleSet{roleFullAccess},
+			wantIdentities: []string{"fullaccess", "readonly"},
+			wantError:      require.NoError,
+		},
+		{
+			name:           "denying a role works",
+			overrideTTL:    true,
+			roles:          RoleSet{roleFullAccess, roleDenyReadOnlyIdentity},
+			wantIdentities: []string{"fullaccess"},
+			wantError:      require.NoError,
+		},
+		{
+			name:           "denying an uppercase role works",
+			overrideTTL:    true,
+			roles:          RoleSet{roleFullAccess, roleDenyReadOnlyIdentityUppercase},
+			wantIdentities: []string{"fullaccess"},
+			wantError:      require.NoError,
+		},
+		{
+			name:           "denying wildcard works",
+			overrideTTL:    true,
+			roles:          RoleSet{roleFullAccess, roleDenyAll},
+			wantIdentities: nil,
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			identities, err := tt.roles.CheckAzureIdentities(tt.ttl, tt.overrideTTL)
+			require.Equal(t, tt.wantIdentities, identities)
+			tt.wantError(t, err)
+		})
+	}
+}
+
+func TestCheckGCPServiceAccounts(t *testing.T) {
+	readOnlyAccount := "readonly@example-123456.iam.gserviceaccount.com"
+	fullAccessAccount := "fullaccess@example-123456.iam.gserviceaccount.com"
+
+	maxSessionTTL := time.Hour * 2
+	sessionShort := time.Hour * 1
+	sessionLong := time.Hour * 3
+
+	roleNoAccess := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "noaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				AppLabels:          types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GCPServiceAccounts: []string{},
+			},
+		},
+	}
+	roleReadOnly := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "readonly",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				AppLabels:          types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GCPServiceAccounts: []string{readOnlyAccount},
+			},
+		},
+	}
+	roleFullAccess := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "fullaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				AppLabels:          types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GCPServiceAccounts: []string{readOnlyAccount, fullAccessAccount},
+			},
+		},
+	}
+
+	roleDenyReadOnlyAccount := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "deny-account",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Deny: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				GCPServiceAccounts: []string{readOnlyAccount},
+			},
+		},
+	}
+
+	roleDenyReadOnlyAccountUppercase := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "deny-account-upper",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Deny: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				GCPServiceAccounts: []string{strings.ToUpper(readOnlyAccount)},
+			},
+		},
+	}
+
+	roleDenyAll := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "deny-all",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			},
+			Deny: types.RoleConditions{
+				Namespaces:         []string{apidefaults.Namespace},
+				GCPServiceAccounts: []string{types.Wildcard},
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		roles        RoleSet
+		ttl          time.Duration
+		overrideTTL  bool
+		wantAccounts []string
+		wantError    require.ErrorAssertionFunc
+	}{
+		{
+			name:      "empty role set",
+			roles:     nil,
+			wantError: require.Error,
+		},
+		{
+			name:        "no access role",
+			overrideTTL: true,
+			roles:       RoleSet{roleNoAccess},
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
+			},
+		},
+		{
+			name:         "readonly role, short session",
+			overrideTTL:  false,
+			ttl:          sessionShort,
+			roles:        RoleSet{roleReadOnly},
+			wantAccounts: []string{"readonly@example-123456.iam.gserviceaccount.com"},
+			wantError:    require.NoError,
+		},
+		{
+			name:        "readonly role, long session",
+			overrideTTL: false,
+			ttl:         sessionLong,
+			roles:       RoleSet{roleReadOnly},
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "this user cannot request GCP API access for 3h0m0s")
+			},
+		},
+		{
+			name:         "readonly role, override TTL",
+			overrideTTL:  true,
+			roles:        RoleSet{roleReadOnly},
+			wantAccounts: []string{"readonly@example-123456.iam.gserviceaccount.com"},
+			wantError:    require.NoError,
+		},
+		{
+			name:         "full access role",
+			overrideTTL:  true,
+			roles:        RoleSet{roleFullAccess},
+			wantAccounts: []string{"fullaccess@example-123456.iam.gserviceaccount.com", "readonly@example-123456.iam.gserviceaccount.com"},
+			wantError:    require.NoError,
+		},
+		{
+			name:         "denying a role works",
+			overrideTTL:  true,
+			roles:        RoleSet{roleFullAccess, roleDenyReadOnlyAccount},
+			wantAccounts: []string{"fullaccess@example-123456.iam.gserviceaccount.com"},
+			wantError:    require.NoError,
+		},
+		{
+			name:         "denying an uppercase role works",
+			overrideTTL:  true,
+			roles:        RoleSet{roleFullAccess, roleDenyReadOnlyAccountUppercase},
+			wantAccounts: []string{"fullaccess@example-123456.iam.gserviceaccount.com"},
+			wantError:    require.NoError,
+		},
+		{
+			name:         "denying wildcard works",
+			overrideTTL:  true,
+			roles:        RoleSet{roleFullAccess, roleDenyAll},
+			wantAccounts: nil,
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accounts, err := tt.roles.CheckGCPServiceAccounts(tt.ttl, tt.overrideTTL)
+			require.Equal(t, tt.wantAccounts, accounts)
+			tt.wantError(t, err)
+		})
+	}
+}
+
 func TestCheckAccessToKubernetes(t *testing.T) {
 	clusterNoLabels := &types.KubernetesCluster{
 		Name: "no-labels",
@@ -4265,7 +4772,7 @@ func TestRoleSetLockingMode(t *testing.T) {
 
 	missingMode := constants.LockingMode("")
 	newRoleWithLockingMode := func(t *testing.T, mode constants.LockingMode) types.Role {
-		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV6{Options: types.RoleOptions{Lock: mode}})
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV6{Options: types.RoleOptions{Lock: mode}})
 		require.NoError(t, err)
 		return role
 	}
@@ -4304,14 +4811,14 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	allowWhere := func(where string) types.Role {
-		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV6{Allow: types.RoleConditions{
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV6{Allow: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)
 		return role
 	}
 	denyWhere := func(where string) types.Role {
-		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV6{Deny: types.RoleConditions{
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV6{Deny: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)
@@ -5655,6 +6162,119 @@ func TestMatchValidAzureIdentity(t *testing.T) {
 					require.False(t, MatchValidAzureIdentity(tt.identity))
 				}
 			}
+		})
+	}
+}
+
+func TestGCPServiceAccountMatcher_Match(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []string
+
+		role      types.Role
+		matchType types.RoleConditionType
+
+		wantMatched []string
+	}{
+		{
+			name:     "allow ignores wildcard",
+			accounts: []string{"foo", "bar", "baz"},
+			role: newRole(func(r *types.RoleV6) {
+				r.Spec.Allow.GCPServiceAccounts = []string{"*", "bar", "baz"}
+			}),
+			matchType:   types.Allow,
+			wantMatched: []string{"bar", "baz"},
+		},
+		{
+			name:     "deny matches wildcard",
+			accounts: []string{"FoO", "BAr", "baz"},
+			role: newRole(func(r *types.RoleV6) {
+				r.Spec.Deny.GCPServiceAccounts = []string{"*"}
+			}),
+			matchType:   types.Deny,
+			wantMatched: []string{"FoO", "BAr", "baz"},
+		},
+		{
+			name:     "non-wildcard deny matches",
+			accounts: []string{"foo", "bar", "baz"},
+			role: newRole(func(r *types.RoleV6) {
+				r.Spec.Deny.GCPServiceAccounts = []string{"foo", "bar", "admin"}
+			}),
+			matchType:   types.Deny,
+			wantMatched: []string{"foo", "bar"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var matched []string
+			for _, account := range tt.accounts {
+				m := &GCPServiceAccountMatcher{ServiceAccount: account}
+				if ok, _ := m.Match(tt.role, tt.matchType); ok {
+					matched = append(matched, account)
+				}
+			}
+			require.Equal(t, tt.wantMatched, matched)
+		})
+	}
+}
+
+func TestMatchGCPServiceAccount(t *testing.T) {
+	tests := []struct {
+		name string
+
+		accounts      []string
+		account       string
+		matchWildcard bool
+
+		wantMatch     bool
+		wantMatchType string
+	}{
+		{
+			name: "allow exact match",
+
+			accounts:      []string{"foo", "bar", "baz"},
+			account:       "bar",
+			matchWildcard: false,
+
+			wantMatch:     true,
+			wantMatchType: "element matched",
+		},
+		{
+			name: "wildcard in allow doesn't work",
+
+			accounts:      []string{"foo", "bar", "*"},
+			account:       "baz",
+			matchWildcard: false,
+
+			wantMatch:     false,
+			wantMatchType: "no match, role selectors [foo bar *], identity: baz",
+		},
+		{
+			name: "deny exact match",
+
+			accounts:      []string{"foo", "bar", "baz"},
+			account:       "bar",
+			matchWildcard: true,
+
+			wantMatch:     true,
+			wantMatchType: "element matched",
+		},
+		{
+			name: "wildcard in deny works",
+
+			accounts:      []string{"foo", "bar", "*"},
+			account:       "baz",
+			matchWildcard: true,
+
+			wantMatch:     true,
+			wantMatchType: "wildcard matched",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMatch, gotMatchType := MatchGCPServiceAccount(tt.accounts, tt.account, tt.matchWildcard)
+			require.Equal(t, tt.wantMatch, gotMatch)
+			require.Equal(t, tt.wantMatchType, gotMatchType)
 		})
 	}
 }
