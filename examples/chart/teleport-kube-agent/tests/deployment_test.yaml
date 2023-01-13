@@ -614,6 +614,34 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set dnsConfig when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.dnsConfig
+          value: null
+      - matchSnapshot:
+          path: spec.template.spec.dnsConfig
+
+  - it: should set dnsPolicy when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
   - it: should not render Deployment if action is fresh install without storage
     template: deployment.yaml
     release:
@@ -626,4 +654,3 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
-

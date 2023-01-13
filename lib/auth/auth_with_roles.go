@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -257,6 +258,12 @@ func hasLocalUserRole(authContext Context) bool {
 // It should not be called through ServerWithRoles and will always panic.
 func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
 	panic("DevicesClient not implemented by ServerWithRoles")
+}
+
+// LoginRuleClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles and will always panic.
+func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
+	panic("LoginRuleClient not implemented by ServerWithRoles")
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -635,6 +642,11 @@ func (a *ServerWithRoles) ActivateCertAuthority(id types.CertAuthID) error {
 
 // DeactivateCertAuthority not implemented: can only be called locally.
 func (a *ServerWithRoles) DeactivateCertAuthority(id types.CertAuthID) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateUserCARoleMap not implemented: can only be called locally.
+func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -2614,6 +2626,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		azureIdentity:     req.RouteToApp.AzureIdentity,
+		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
 		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.

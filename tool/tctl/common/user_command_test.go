@@ -16,6 +16,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -63,6 +64,157 @@ func TestTrimDurationSuffix(t *testing.T) {
 	}
 }
 
+func TestUserAdd(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	ctx := context.Background()
+	client := getAuthClient(ctx, t, fileConfig)
+
+	tests := []struct {
+		name string
+		args []string
+		// if dontAddDefaultRoles is false (default), `--roles auditor` is added to the command line.
+		// this makes it easier to see the essence of particular test case.
+		dontAddDefaultRoles bool
+		wantRoles           []string
+		wantTraits          map[string][]string
+		errorChecker        require.ErrorAssertionFunc
+	}{
+		{
+			name:                "set roles",
+			dontAddDefaultRoles: true,
+			args:                []string{"--roles", "editor,access"},
+			wantRoles:           []string{"editor", "access"},
+		},
+		{
+			name:                "nonexistent roles",
+			dontAddDefaultRoles: true,
+			args:                []string{"--roles", "editor,access,fake"},
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err), err)
+			},
+		},
+		{
+			name: "logins",
+			args: []string{"--logins", "l1,l2,l3"},
+			wantTraits: map[string][]string{
+				constants.TraitLogins: {"l1", "l2", "l3"},
+			},
+		},
+		{
+			name: "windows logins",
+			args: []string{"--windows-logins", "w1,w2,w3"},
+			wantTraits: map[string][]string{
+				constants.TraitWindowsLogins: {"w1", "w2", "w3"},
+			},
+		},
+		{
+			name: "kube users",
+			args: []string{"--kubernetes-users", "k1,k2,k3"},
+			wantTraits: map[string][]string{
+				constants.TraitKubeUsers: {"k1", "k2", "k3"},
+			},
+		},
+		{
+			name: "kube groups",
+			args: []string{"--kubernetes-groups", "k4,k5,k6"},
+			wantTraits: map[string][]string{
+				constants.TraitKubeGroups: {"k4", "k5", "k6"},
+			},
+		},
+		{
+			name: "db users",
+			args: []string{"--db-users", "d1,d2,d3"},
+			wantTraits: map[string][]string{
+				constants.TraitDBUsers: {"d1", "d2", "d3"},
+			},
+		},
+		{
+			name: "db names",
+			args: []string{"--db-names", "d4,d5,d6"},
+			wantTraits: map[string][]string{
+				constants.TraitDBNames: {"d4", "d5", "d6"},
+			},
+		},
+		{
+			name: "AWS role ARNs",
+			args: []string{"--aws-role-arns", "a1,a2,a3"},
+			wantTraits: map[string][]string{
+				constants.TraitAWSRoleARNs: {"a1", "a2", "a3"},
+			},
+		},
+		{
+			name: "Azure identities",
+			args: []string{"--azure-identities", "/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure-1,/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure-2,/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure-3"},
+			wantTraits: map[string][]string{
+				constants.TraitAzureIdentities: {
+					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure-1",
+					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure-2",
+					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure-3",
+				},
+			},
+		},
+		{
+			name: "GCP service accounts",
+			args: []string{"--gcp-service-accounts", "a1@example-123456.iam.gserviceaccount.com,a2@example-456789.iam.gserviceaccount.com,a3@example-111222.iam.gserviceaccount.com"},
+			wantTraits: map[string][]string{
+				constants.TraitGCPServiceAccounts: {
+					"a1@example-123456.iam.gserviceaccount.com",
+					"a2@example-456789.iam.gserviceaccount.com",
+					"a3@example-111222.iam.gserviceaccount.com",
+				},
+			},
+		},
+		{
+			name: "invalid GCP service account are rejected",
+			args: []string{"--gcp-service-accounts", "foobar"},
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
+			},
+		},
+	}
+
+	for ix, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			username := fmt.Sprintf("test-user-%v", ix)
+
+			args := []string{"add"}
+			if !tc.dontAddDefaultRoles {
+				args = append(args, "--roles", "auditor")
+			}
+			args = append(args, tc.args...)
+			args = append(args, username)
+			err := runUserCommand(t, fileConfig, args)
+			if tc.errorChecker != nil {
+				tc.errorChecker(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			createdUser, err := client.GetUser(username, false)
+			require.NoError(t, err)
+
+			if len(tc.wantRoles) > 0 {
+				require.Equal(t, tc.wantRoles, createdUser.GetRoles())
+			}
+
+			for trait, values := range tc.wantTraits {
+				require.Equal(t, values, createdUser.GetTraits()[trait])
+			}
+		})
+	}
+}
+
 func TestUserUpdate(t *testing.T) {
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -87,11 +239,13 @@ func TestUserUpdate(t *testing.T) {
 		args         []string
 		wantRoles    []string
 		wantTraits   map[string][]string
-		errorChecker func(error) bool
+		errorChecker require.ErrorAssertionFunc
 	}{
 		{
-			name:         "no args",
-			errorChecker: trace.IsBadParameter,
+			name: "no args",
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), err)
+			},
 		},
 		{
 			name:      "new roles",
@@ -99,9 +253,11 @@ func TestUserUpdate(t *testing.T) {
 			wantRoles: []string{"editor", "access"},
 		},
 		{
-			name:         "nonexistant roles",
-			args:         []string{"--set-roles", "editor,access,fake"},
-			errorChecker: trace.IsNotFound,
+			name: "nonexistent roles",
+			args: []string{"--set-roles", "editor,access,fake"},
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err), err)
+			},
 		},
 		{
 			name: "new logins",
@@ -163,6 +319,24 @@ func TestUserUpdate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "new GCP service accounts",
+			args: []string{"--set-gcp-service-accounts", "a1@example-123456.iam.gserviceaccount.com,a2@example-456789.iam.gserviceaccount.com,a3@example-111222.iam.gserviceaccount.com"},
+			wantTraits: map[string][]string{
+				constants.TraitGCPServiceAccounts: {
+					"a1@example-123456.iam.gserviceaccount.com",
+					"a2@example-456789.iam.gserviceaccount.com",
+					"a3@example-111222.iam.gserviceaccount.com",
+				},
+			},
+		},
+		{
+			name: "invalid GCP service account are rejected",
+			args: []string{"--set-gcp-service-accounts", "foobar"},
+			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -172,7 +346,7 @@ func TestUserUpdate(t *testing.T) {
 			args = append(args, "test-user")
 			err := runUserCommand(t, fileConfig, args)
 			if tc.errorChecker != nil {
-				require.True(t, tc.errorChecker(err), err)
+				tc.errorChecker(t, err)
 				return
 			}
 
