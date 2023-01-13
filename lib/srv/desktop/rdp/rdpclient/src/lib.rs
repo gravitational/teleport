@@ -819,7 +819,7 @@ pub fn encode_png(dest: &mut Vec<u8>, width: u16, height: u16, mut data: Vec<u8>
 fn swap(data: &mut Vec<u8>) {
     let mut i = 0;
     while i < data.len() {
-        (data[i], data[i + 2], data[i+3]) = (data[i + 2], data[i], 255);
+        (data[i], data[i + 2], data[i + 3]) = (data[i + 2], data[i], 255);
         i += 4;
     }
 }
