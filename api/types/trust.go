@@ -39,7 +39,7 @@ const (
 	// much like a CA in terms of rotation and storage.
 	JWTSigner CertAuthType = "jwt"
 	// CertAuthTypeAll is a special type that represents all CertAuthTypes.
-	// DEPRECATED, DELETE IN 14.0.0. For more information see:
+	// DEPRECATED, DELETE IN 13.0.0. For more information see:
 	// https://github.com/gravitational/teleport/issues/17493
 	CertAuthTypeAll CertAuthType = "all"
 )
