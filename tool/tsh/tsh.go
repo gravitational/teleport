@@ -643,10 +643,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 
-	gcloud := app.Command("gcloud", "Access GCP API.").Interspersed(false)
-	gcloud.Arg("command", "`gcloud` command and subcommands arguments that are going to be forwarded to GCP CLI.").StringsVar(&cf.GCPCommandArgs)
+	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
+	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
 	gcloud.Alias("gcp")
+
+	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
+	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
+	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -1150,6 +1154,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onAzure(&cf)
 	case gcloud.FullCommand():
 		err = onGcloud(&cf)
+	case gsutil.FullCommand():
+		err = onGsutil(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():
