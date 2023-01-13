@@ -106,6 +106,12 @@ export const eventCodes = {
   DESKTOP_SHARED_DIRECTORY_READ_FAILURE: 'TDP05W',
   DESKTOP_SHARED_DIRECTORY_WRITE: 'TDP06I',
   DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE: 'TDP06W',
+  DEVICE_CREATE: 'TV001I',
+  DEVICE_DELETE: 'TV002I',
+  DEVICE_ENROLL_TOKEN_CREATE: 'TV003I',
+  DEVICE_ENROLL_TOKEN_SPENT: 'TV004I',
+  DEVICE_ENROLL: 'TV005I',
+  DEVICE_AUTHENTICATE: 'TV006I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -1022,6 +1028,18 @@ export type RawEvents = {
       length: number;
     }
   >;
+  [eventCodes.DEVICE_CREATE]: RawDeviceEvent<typeof eventCodes.DEVICE_CREATE>;
+  [eventCodes.DEVICE_DELETE]: RawDeviceEvent<typeof eventCodes.DEVICE_DELETE>;
+  [eventCodes.DEVICE_ENROLL]: RawDeviceEvent<typeof eventCodes.DEVICE_ENROLL>;
+  [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_ENROLL_TOKEN_CREATE
+  >;
+  [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_ENROLL_TOKEN_SPENT
+  >;
+  [eventCodes.DEVICE_AUTHENTICATE]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_AUTHENTICATE
+  >;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -1136,6 +1154,15 @@ type RawEventData<T extends EventCode> = RawEvent<
     sid: string;
     tx: number;
     user: string;
+  }
+>;
+
+type RawDeviceEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    device: { asset_tag: string; device_id: string; os_type: number };
+    status: { success: boolean };
+    user: { user: string };
   }
 >;
 
