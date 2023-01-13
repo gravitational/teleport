@@ -696,6 +696,11 @@ func (a *ServerWithRoles) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpdateUserCARoleMap not implemented: can only be called locally.
+func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // GenerateToken generates multi-purpose authentication token.
 func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
