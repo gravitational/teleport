@@ -371,7 +371,6 @@ func (s *server) disconnectClusters(connectedRemoteClusters []*remoteSite, remot
 			}
 			remoteClustersStats.DeleteLabelValues(cluster.GetName())
 		}
-
 	}
 	return nil
 }
