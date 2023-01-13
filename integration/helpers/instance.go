@@ -550,6 +550,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 	return i.CreateWithConf(t, tconf)
 }
 
+// CreateWithConf creates a new instance of Teleport using the supplied config
 func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *service.Config) error {
 	i.Config = tconf
 	var err error
