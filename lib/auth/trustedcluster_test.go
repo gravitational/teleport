@@ -204,10 +204,20 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, resp.CAs, 3)
+		require.Len(t, resp.CAs, 4)
 		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
+			[]types.CertAuthType{
+				types.HostCA,
+				types.UserCA,
+				types.DatabaseCA,
+				types.OpenSSHCA,
+			},
+			[]types.CertAuthType{
+				resp.CAs[0].GetType(),
+				resp.CAs[1].GetType(),
+				resp.CAs[2].GetType(),
+				resp.CAs[3].GetType(),
+			},
 		)
 
 		for _, returnedCA := range resp.CAs {
@@ -245,6 +255,11 @@ func TestValidateTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dbCAs, 1)
 		require.Equal(t, localClusterName, dbCAs[0].GetName())
+
+		osshCAs, err := a.GetCertAuthorities(ctx, types.OpenSSHCA, false)
+		require.NoError(t, err)
+		require.Len(t, osshCAs, 1)
+		require.Equal(t, localClusterName, osshCAs[0].GetName())
 	})
 
 	t.Run("only Host and User CA are returned for v9", func(t *testing.T) {
@@ -260,6 +275,22 @@ func TestValidateTrustedCluster(t *testing.T) {
 		require.ElementsMatch(t,
 			[]types.CertAuthType{types.HostCA, types.UserCA},
 			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
+		)
+	})
+
+	t.Run("OpenSSH CA not returned for pre v12", func(t *testing.T) {
+		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
+		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+			Token:           validToken,
+			CAs:             []types.CertAuthority{leafClusterCA},
+			TeleportVersion: "11.0.0",
+		})
+		require.NoError(t, err)
+
+		require.Len(t, resp.CAs, 3)
+		require.ElementsMatch(t,
+			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
 		)
 	})
 }
