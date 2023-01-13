@@ -498,6 +498,57 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
+	// Don't try to re-login when using an identity file / external identity.
+	if tc.SkipLocalAuth {
+		return trace.Wrap(fn())
+	}
+
+	relogin := func(err error) error {
+		log.Debugf("Activating relogin on %v.", err)
+
+		// check if the error is a private key policy error.
+		if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
+			// The current private key was rejected due to an unmet key policy requirement.
+			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
+			fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
+
+			// The current private key was rejected due to an unmet key policy requirement.
+			// Set the private key policy to the expected value and re-login.
+			tc.PrivateKeyPolicy = privateKeyPolicy
+		}
+
+		key, err := tc.Login(ctx)
+		if err != nil {
+			if trace.IsTrustError(err) {
+				return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
+			}
+			return trace.Wrap(err)
+		}
+		if err := tc.ActivateKey(ctx, key); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Attempt device login. This activates a fresh key if successful.
+		if err := tc.AttemptDeviceLogin(ctx, key); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Save profile to record proxy credentials
+		if err := tc.SaveProfile(true); err != nil {
+			log.Warningf("Failed to save profile: %v", err)
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
+	_, profileErr := tc.ProfileStatus()
+	if profileErr != nil {
+		if err := relogin(profileErr); err != nil {
+			return trace.Wrap(err)
+		}
+		return fn()
+	}
+
 	err := fn()
 	if err == nil {
 		return nil
@@ -511,53 +562,16 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 
-	// Don't try to login when using an identity file / external identity.
-	if tc.SkipLocalAuth {
+	if err := relogin(profileErr); err != nil {
 		return trace.Wrap(err)
 	}
-
-	log.Debugf("Activating relogin on %v.", err)
-
-	// check if the error is a private key policy error.
-	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
-		// The current private key was rejected due to an unmet key policy requirement.
-		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
-		fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
-
-		// The current private key was rejected due to an unmet key policy requirement.
-		// Set the private key policy to the expected value and re-login.
-		tc.PrivateKeyPolicy = privateKeyPolicy
-	}
-
-	key, err := tc.Login(ctx)
-	if err != nil {
-		if trace.IsTrustError(err) {
-			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
-		}
-		return trace.Wrap(err)
-	}
-	if err := tc.ActivateKey(ctx, key); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Attempt device login. This activates a fresh key if successful.
-	if err := tc.AttemptDeviceLogin(ctx, key); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Save profile to record proxy credentials
-	if err := tc.SaveProfile(true); err != nil {
-		log.Warningf("Failed to save profile: %v", err)
-		return trace.Wrap(err)
-	}
-
 	return fn()
 }
 
 func IsErrorResolvableWithRelogin(err error) bool {
 	// Assume that failed handshake is a result of expired credentials.
 	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
-		trace.IsBadParameter(err) || trace.IsTrustError(err) || keys.IsPrivateKeyPolicyError(err) || trace.IsNotFound(err)
+		trace.IsBadParameter(err) || trace.IsTrustError(err) || keys.IsPrivateKeyPolicyError(err)
 }
 
 // LoadProfile populates Config with the values stored in the given
