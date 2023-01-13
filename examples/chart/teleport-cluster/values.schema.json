@@ -17,6 +17,7 @@
         "enterpriseImage",
         "log",
         "affinity",
+        "nodeSelector",
         "annotations",
         "extraVolumes",
         "extraVolumeMounts",
@@ -662,6 +663,11 @@
             "type": "object",
             "default": {}
         },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
+            "type": "object",
+            "default": {}
+        },
         "annotations": {
             "$id": "#/properties/annotations",
             "type": "object",
@@ -832,6 +838,11 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "terminationGracePeriodSeconds": {
+            "$id": "#/properties/terminationGracePeriodSeconds",
+            "type": "integer",
+            "default": 60
         }
     }
 }
