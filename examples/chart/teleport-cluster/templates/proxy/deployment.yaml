@@ -50,6 +50,9 @@ spec:
 {{- end }}
       labels: {{- include "teleport-cluster.proxy.labels" . | nindent 8 }}
     spec:
+{{- if $proxy.nodeSelector }}
+      nodeSelector: {{- toYaml $proxy.nodeSelector | nindent 8 }}
+{{- end }}
       affinity:
 {{- if $proxy.affinity }}
   {{- if $proxy.highAvailability.requireAntiAffinity }}
@@ -91,8 +94,17 @@ spec:
 {{- if $proxy.tolerations }}
       tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
 {{- end }}
-{{- if $proxy.initContainers }}
       initContainers:
+        # wait-auth-update is responsible for holding off the proxy rollout until all auths are running the
+        # next major version in case of major upgrade.
+        - name: wait-auth-update
+          image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
+          command:
+            - teleport
+            - wait
+            - no-resolve
+            - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local'
+{{- if $proxy.initContainers }}
   {{- range $initContainer := $proxy.initContainers }}
     {{- if and (not $initContainer.resources) $proxy.resources }}
       {{- $_ := set $initContainer "resources" $proxy.resources }}
@@ -161,8 +173,17 @@ spec:
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
           timeoutSeconds: {{ $proxy.probeTimeoutSeconds }}
-{{- if $proxy.postStart.command }}
         lifecycle:
+          # waiting during preStop ensures no new request will hit the Terminating pod
+          # on clusters using kube-proxy (kube-proxy syncs the node iptables rules every 30s)
+          preStop:
+            exec:
+              command:
+                - teleport
+                - wait
+                - duration
+                - 30s
+{{- if $proxy.postStart.command }}
           postStart:
             exec:
               command: {{ toYaml $proxy.postStart.command | nindent 14 }}
@@ -224,3 +245,4 @@ spec:
       priorityClassName: {{ $proxy.priorityClassName }}
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.proxy.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ $proxy.terminationGracePeriodSeconds }}
