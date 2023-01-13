@@ -2771,15 +2771,15 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 
 	for {
 		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:            req.Namespace,
-			ResourceType:         req.ResourceType,
-			StartKey:             startKey,
-			Limit:                chunkSize,
-			Labels:               req.Labels,
-			SearchKeywords:       req.SearchKeywords,
-			PredicateExpression:  req.PredicateExpression,
-			UseSearchAsRoles:     req.UseSearchAsRoles,
-			KubernetesPodsFilter: req.KubernetesPodsFilter,
+			Namespace:                req.Namespace,
+			ResourceType:             req.ResourceType,
+			StartKey:                 startKey,
+			Limit:                    chunkSize,
+			Labels:                   req.Labels,
+			SearchKeywords:           req.SearchKeywords,
+			PredicateExpression:      req.PredicateExpression,
+			UseSearchAsRoles:         req.UseSearchAsRoles,
+			KubernetesResourceFilter: req.KubernetesResourceFilter,
 		})
 		if err != nil {
 			if trace.IsLimitExceeded(err) {

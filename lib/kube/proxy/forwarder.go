@@ -2667,15 +2667,15 @@ func pluralize(s string) string {
 func getRequestVerb(method string) string {
 	apiVerb := ""
 	switch method {
-	case "POST":
+	case http.MethodPost:
 		apiVerb = "create"
-	case "GET":
+	case http.MethodGet:
 		apiVerb = "get"
-	case "PUT":
+	case http.MethodPut:
 		apiVerb = "update"
-	case "PATCH":
+	case http.MethodPatch:
 		apiVerb = "patch"
-	case "DELETE":
+	case http.MethodDelete:
 		apiVerb = "delete"
 	}
 	return apiVerb

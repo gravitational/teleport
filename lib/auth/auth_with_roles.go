@@ -27,10 +27,11 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -42,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1269,7 +1271,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	actionVerbs := []string{types.VerbList, types.VerbRead}
 	switch req.ResourceType {
 	case types.KindKubePod:
-		rsp, err := a.listKubernetesPods(ctx, true /* repect limit value*/, req)
+		rsp, err := a.listKubernetesPods(ctx, true /* respect limit value*/, req)
 		return rsp, trace.Wrap(err)
 	case types.KindNode:
 		// We are checking list only for Nodes to keep backwards compatibility.
@@ -1348,13 +1350,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 // short-lived user certificates that include in the roles field the available
 // search_as_role roles.
 func (a *ServerWithRoles) listKubernetesPods(ctx context.Context, respectLimit bool, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	if len(req.KubernetesPodsFilter.Cluster) == 0 {
+	if req.KubernetesResourceFilter.Cluster == "" {
 		return nil, trace.BadParameter("when listing Pods, KubernetesPodsFilter.Cluster cannot be empty")
 	}
 
-	resp := &types.ListResourcesResponse{
-		Resources: make([]types.ResourceWithLabels, 0, int(req.Limit)),
-	}
+	resp := &types.ListResourcesResponse{}
 
 	limit := int(req.Limit)
 	filter := services.MatchResourceFilter{
@@ -1400,14 +1400,14 @@ func (a *ServerWithRoles) iterateKubernetesPods(
 	respectLimit bool,
 	fn func(types.ResourceWithLabels, string) (int, error),
 ) error {
-	c, err := a.getKubernetesClient(ctx, req.KubernetesPodsFilter.Cluster)
+	c, err := a.getKubernetesClient(ctx, req.KubernetesResourceFilter.Cluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	continueKey := req.StartKey
 	itemsAppended := 0
 	for {
-		podList, err := c.CoreV1().Pods(req.KubernetesPodsFilter.Namespace).List(ctx, v1.ListOptions{
+		podList, err := c.CoreV1().Pods(req.KubernetesResourceFilter.Namespace).List(ctx, metav1.ListOptions{
 			Limit:    decideLimit(int64(req.Limit), int64(itemsAppended), respectLimit),
 			Continue: continueKey,
 		})
@@ -1507,12 +1507,23 @@ func (a *ServerWithRoles) getKubernetesClient(ctx context.Context, kubeCluster s
 		return nil, trace.Wrap(err)
 	}
 
-	restConfig := &rest.Config{
-		Host:            "https://" + proxy,
-		TLSClientConfig: tlsClientConfig,
+	rt, err := rest.TransportFor(
+		&rest.Config{
+			TLSClientConfig: tlsClientConfig,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	client, err := kubernetes.NewForConfig(restConfig)
+	client, err := kubernetes.NewForConfig(
+		&rest.Config{
+			Host: "https://" + proxy,
+			Transport: otelhttp.NewTransport(
+				rt,
+				otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+			),
+		},
+	)
 	return client, trace.Wrap(err)
 }
 

@@ -384,10 +384,10 @@ func onRequestSearch(cf *CLIConf) error {
 	defer proxyClient.Close()
 
 	// If KubeCluster not provided try to read it from kubeconfig.
-	if len(cf.KubernetesCluster) == 0 {
+	if cf.KubernetesCluster == "" {
 		cf.KubernetesCluster = selectedKubeCluster(proxyClient.ClusterName())
 	}
-	if cf.ResourceKind == types.KindKubePod && len(cf.KubernetesCluster) == 0 {
+	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
 	}
 	// if --all-namespaces flag was provided we search in every namespace.
@@ -404,7 +404,7 @@ func onRequestSearch(cf *CLIConf) error {
 		PredicateExpression: cf.PredicateExpression,
 		SearchKeywords:      tc.SearchKeywords,
 		UseSearchAsRoles:    true,
-		KubernetesPodsFilter: types.KubernetesPodsFilter{
+		KubernetesResourceFilter: types.KubernetesResourceFilter{
 			Cluster:   cf.KubernetesCluster,
 			Namespace: cf.kubeNamespace,
 		},

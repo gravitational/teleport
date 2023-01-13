@@ -463,7 +463,7 @@ func DeduplicateKubeClusters(kubeclusters []KubeCluster) []KubeCluster {
 	return result
 }
 
-var _ ResourceWithLabels = &KubernetesPodV1{}
+var _ ResourceWithLabels = (*KubernetesPodV1)(nil)
 
 // NewKubernetesPodV1 creates a new kubernetes pod resource.
 func NewKubernetesPodV1(meta Metadata, spec KubernetesPodSpecV1) (*KubernetesPodV1, error) {
@@ -544,7 +544,7 @@ func (k *KubernetesPodV1) CheckAndSetDefaults() error {
 	}
 
 	if len(k.Spec.Namespace) == 0 {
-		return trace.BadParameter("kubernetes_pod %q misses the namespace", k.GetName())
+		return trace.BadParameter("kubernetes_pod %q missing kubernetes namespace", k.GetName())
 	}
 
 	return nil

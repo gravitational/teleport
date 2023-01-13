@@ -889,7 +889,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
-	reqSearch.Flag("all-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
+	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
 
@@ -4275,7 +4275,7 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 // tsh login call and updates the default kubeconfig with its value,
 // otherwise does nothing.
 func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string) error {
-	if len(cf.KubernetesCluster) == 0 {
+	if cf.KubernetesCluster == "" {
 		return nil
 	}
 	err := updateKubeConfig(cf, tc, "")

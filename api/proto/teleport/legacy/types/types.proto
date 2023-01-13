@@ -4179,11 +4179,11 @@ message KubernetesPodSpecV1 {
   string Namespace = 1 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
-// KubernetesPodsFilter specifies a Kubernetes Pod filter.
-message KubernetesPodsFilter {
-  // Cluster is the Kubernetes Cluster to request pods.
+// KubernetesResourceFilter specifies a Kubernetes resource filter.
+message KubernetesResourceFilter {
+  // Cluster is the Kubernetes Cluster to request the resources.
   string Cluster = 1 [(gogoproto.jsontag) = "cluster,omitempty"];
-  // Namespace is the Kubernetes namespace where the pods must be located.
+  // Namespace is the Kubernetes namespace where the resources must be located.
   // To search on every Kubernetes Namespace, do not define the value.
   string Namespace = 2 [(gogoproto.jsontag) = "namespace,omitempty"];
 }

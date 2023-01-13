@@ -1683,10 +1683,10 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
-  // KubernetesPodsFilter specifies a Kubernetes Pod filter.
-  types.KubernetesPodsFilter KubernetesPodsFilter = 13 [
+  // KubernetesResourceFilter specifies a Kubernetes resource filter.
+  types.KubernetesResourceFilter KubernetesResourceFilter = 13 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "kubernetes_pods_filter,omitempty"
+    (gogoproto.jsontag) = "kubernetes_resource_filter,omitempty"
   ];
 }
 
