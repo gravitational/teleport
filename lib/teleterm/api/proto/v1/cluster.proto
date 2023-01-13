@@ -37,6 +37,11 @@ message Cluster {
   // Only present in situations where detailed
   // information is queried from the auth server.
   Features features = 8;
+  // auth_cluster_id is the unique cluster ID that is set once
+  // during the first auth server startup.
+  // Only present in situations where detailed
+  // information is queried from the auth server.
+  string auth_cluster_id = 9;
 }
 
 // LoggedInUser describes a logged-in user
@@ -51,6 +56,9 @@ message LoggedInUser {
   ACL acl = 4;
   // active_requests is an array of request-id strings of active requests
   repeated string active_requests = 5;
+
+  repeated string suggested_reviewers = 6;
+  repeated string requestable_roles = 7;
 }
 
 // ACL is the access control list of the user

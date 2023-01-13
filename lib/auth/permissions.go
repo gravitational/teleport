@@ -363,7 +363,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roleSet, err := services.RoleSetFromSpec(
 		string(types.RoleRemoteProxy),
-		types.RoleSpecV5{
+		types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:       []string{types.Wildcard},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -425,14 +425,14 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}, nil
 }
 
-func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV5 {
+func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV6 {
 	base := roleSpecForProxy(clusterName)
 	base.Allow.Rules = append(base.Allow.Rules, types.NewRule(types.KindHostCert, services.RW()))
 	return base
 }
 
-func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
-	return types.RoleSpecV5{
+func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
+	return types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Namespaces:       []string{types.Wildcard},
 			ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -522,7 +522,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAuth:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -531,11 +531,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProvisionToken:
-		return services.RoleFromSpec(role.String(), types.RoleSpecV5{})
+		return services.RoleFromSpec(role.String(), types.RoleSpecV6{})
 	case types.RoleNode:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -567,7 +567,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleApp:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -598,7 +598,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDatabase:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:     []string{types.Wildcard},
 					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -642,7 +642,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleSignup:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -654,7 +654,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAdmin:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.MaxDuration(),
 				},
@@ -675,7 +675,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleNop:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{},
 					Rules:      []types.Rule{},
@@ -684,7 +684,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleKube:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -703,13 +703,14 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
+						types.NewRule(types.KindSemaphore, services.RW()),
 					},
 				},
 			})
 	case types.RoleWindowsDesktop:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -733,7 +734,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDiscovery:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -891,14 +892,13 @@ func ClientImpersonator(ctx context.Context) string {
 // did not come from an HTTP request, metadata for teleport.UserSystem is
 // returned.
 func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
+	identityGetter, ok := ctx.Value(ContextUser).(IdentityGetter)
 	if !ok {
 		return apievents.UserMetadata{
 			User: teleport.UserSystem,
 		}
 	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := identityGetter.GetIdentity().GetUserMetadata()
 	if meta.User == "" {
 		meta.User = teleport.UserSystem
 	}
@@ -909,14 +909,7 @@ func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
 // by a remote client making a call, with the specified username overriding the one
 // from the remote client.
 func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
-		return apievents.UserMetadata{
-			User: user,
-		}
-	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := ClientUserMetadata(ctx)
 	meta.User = user
 	return meta
 }

@@ -19,9 +19,14 @@ package srv
 import (
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,7 +44,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			name:                 "node disallowed",
 			nodeAllowFileCopying: false,
 			roles: []types.Role{
-				&types.RoleV5{
+				&types.RoleV6{
 					Kind: types.KindNode,
 				},
 			},
@@ -49,7 +54,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			name:                 "node allowed",
 			nodeAllowFileCopying: true,
 			roles: []types.Role{
-				&types.RoleV5{
+				&types.RoleV6{
 					Kind: types.KindNode,
 				},
 			},
@@ -59,9 +64,9 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			name:                 "role disallowed",
 			nodeAllowFileCopying: true,
 			roles: []types.Role{
-				&types.RoleV5{
+				&types.RoleV6{
 					Kind: types.KindNode,
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							SSHFileCopy: types.NewBoolOption(false),
 						},
@@ -74,9 +79,9 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			name:                 "role allowed",
 			nodeAllowFileCopying: true,
 			roles: []types.Role{
-				&types.RoleV5{
+				&types.RoleV6{
 					Kind: types.KindNode,
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							SSHFileCopy: types.NewBoolOption(true),
 						},
@@ -89,17 +94,17 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			name:                 "conflicting roles",
 			nodeAllowFileCopying: true,
 			roles: []types.Role{
-				&types.RoleV5{
+				&types.RoleV6{
 					Kind: types.KindNode,
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							SSHFileCopy: types.NewBoolOption(true),
 						},
 					},
 				},
-				&types.RoleV5{
+				&types.RoleV6{
 					Kind: types.KindNode,
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
 							SSHFileCopy: types.NewBoolOption(false),
 						},
@@ -112,9 +117,9 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			name:                 "moderated sessions enforced",
 			nodeAllowFileCopying: true,
 			roles: []types.Role{
-				&types.RoleV5{
+				&types.RoleV6{
 					Kind: types.KindNode,
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							RequireSessionJoin: []*types.SessionRequirePolicy{
 								{
@@ -152,6 +157,64 @@ func TestCheckSFTPAllowed(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.EqualError(t, err, tt.expectedErr.Error())
+			}
+		})
+	}
+}
+
+func TestIdentityContext_GetUserMetadata(t *testing.T) {
+	tests := []struct {
+		name  string
+		idCtx IdentityContext
+		want  apievents.UserMetadata
+	}{
+		{
+			name: "user metadata",
+			idCtx: IdentityContext{
+				TeleportUser:   "alpaca",
+				Impersonator:   "llama",
+				Login:          "alpaca1",
+				ActiveRequests: []string{"access-req1", "access-req2"},
+			},
+			want: apievents.UserMetadata{
+				User:           "alpaca",
+				Login:          "alpaca1",
+				Impersonator:   "llama",
+				AccessRequests: []string{"access-req1", "access-req2"},
+			},
+		},
+		{
+			name: "device metadata",
+			idCtx: IdentityContext{
+				TeleportUser: "alpaca",
+				Login:        "alpaca1",
+				Certificate: &ssh.Certificate{
+					Permissions: ssh.Permissions{
+						Extensions: map[string]string{
+							teleport.CertExtensionDeviceID:           "deviceid1",
+							teleport.CertExtensionDeviceAssetTag:     "assettag1",
+							teleport.CertExtensionDeviceCredentialID: "credentialid1",
+						},
+					},
+				},
+			},
+			want: apievents.UserMetadata{
+				User:  "alpaca",
+				Login: "alpaca1",
+				TrustedDevice: &apievents.DeviceMetadata{
+					DeviceId:     "deviceid1",
+					AssetTag:     "assettag1",
+					CredentialId: "credentialid1",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.idCtx.GetUserMetadata()
+			want := test.want
+			if !proto.Equal(&got, &want) {
+				t.Errorf("GetUserMetadata mismatch (-want +got):\n%s", cmp.Diff(want, got))
 			}
 		})
 	}

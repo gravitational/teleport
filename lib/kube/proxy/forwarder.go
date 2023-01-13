@@ -343,7 +343,7 @@ func (c authContext) String() string {
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix(), c.Identity.GetIdentity().ActiveRequests)
 }
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
@@ -360,6 +360,12 @@ func (c *authContext) eventUserMeta() apievents.UserMetadata {
 	meta := c.Identity.GetIdentity().GetUserMetadata()
 	meta.User = name
 	meta.Login = name
+	return meta
+}
+
+func (c *authContext) eventUserMetaWithLogin(login string) apievents.UserMetadata {
+	meta := c.eventUserMeta()
+	meta.Login = login
 	return meta
 }
 
