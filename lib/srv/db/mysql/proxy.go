@@ -238,14 +238,20 @@ func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	switch packet.(type) {
+	switch p := packet.(type) {
 	case *protocol.OK:
 		err = server.WriteOK(nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	case *protocol.Error:
-		err = server.WritePacket(packet.Bytes())
+		// There may be a difference in capabilities between client <--> proxy
+		// than there is between proxy <--> agent, most notably,
+		// CLIENT_PROTOCOL_41.
+		// So rather than forwarding packet bytes directly, convert the error
+		// packet into MyError and write with respect to caps between
+		// client <--> proxy.
+		err = server.WriteError(p.ToMyError())
 		if err != nil {
 			return trace.Wrap(err)
 		}

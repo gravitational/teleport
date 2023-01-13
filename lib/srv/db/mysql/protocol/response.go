@@ -16,7 +16,10 @@ limitations under the License.
 
 package protocol
 
-import "github.com/gravitational/trace"
+import (
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/gravitational/trace"
+)
 
 // OK represents the OK packet.
 //
@@ -71,4 +74,14 @@ func parseErrorPacket(packetBytes []byte) (Packet, error) {
 		packet:  packet{bytes: packetBytes},
 		message: string(packetBytes[minLen:]),
 	}, nil
+}
+
+// ToMyError convert an error packet into a mysql.MyError.
+func (e *Error) ToMyError() *mysql.MyError {
+	if len(e.bytes) < packetHeaderAndTypeSize+2 {
+		return mysql.NewDefaultError(mysql.ER_UNKNOWN_ERROR)
+	}
+	// ignore unread bytes and "ok", we already checked len of bytes.
+	_, code, _ := readUint16(e.bytes[packetHeaderAndTypeSize:])
+	return mysql.NewError(code, e.message)
 }
