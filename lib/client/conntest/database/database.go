@@ -28,16 +28,12 @@ type PingParams struct {
 	Port int
 	// Username is the user to be used to login into the database.
 	Username string
-	// Database is the database name to be used to login into the database.
-	Database string
+	// DatabaseName is an optional database name to be used to login into the database.
+	DatabaseName string
 }
 
 // CheckAndSetDefaults validates and set the default values for the Ping.
 func (req *PingParams) CheckAndSetDefaults() error {
-	if req.Database == "" {
-		return trace.BadParameter("missing required parameter Database")
-	}
-
 	if req.Username == "" {
 		return trace.BadParameter("missing required parameter Username")
 	}

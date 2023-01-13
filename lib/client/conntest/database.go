@@ -269,10 +269,10 @@ func newPing(alpnProxyAddr, databaseUser, databaseName string) (database.PingPar
 	}
 
 	return database.PingParams{
-		Host:     proxyHost,
-		Port:     proxyPort,
-		Username: databaseUser,
-		Database: databaseName,
+		Host:         proxyHost,
+		Port:         proxyPort,
+		Username:     databaseUser,
+		DatabaseName: databaseName,
 	}, nil
 }
 
@@ -425,6 +425,8 @@ func getDatabaseConnTester(protocol string) (databasePinger, error) {
 	switch protocol {
 	case defaults.ProtocolPostgres:
 		return &database.PostgresPinger{}, nil
+	case defaults.ProtocolMySQL:
+		return &database.MySQLPinger{}, nil
 	}
 	return nil, trace.NotImplemented("database protocol %q is not supported yet for testing connection", protocol)
 }

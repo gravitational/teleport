@@ -94,7 +94,7 @@ func convertPostgresError(err *pgconn.PgError) error {
 // convertMySQLError converts MySQL driver errors to trace errors.
 func convertMySQLError(err *mysql.MyError) error {
 	switch err.Code {
-	case mysql.ER_ACCESS_DENIED_ERROR:
+	case mysql.ER_ACCESS_DENIED_ERROR, mysql.ER_DBACCESS_DENIED_ERROR:
 		return trace.AccessDenied(err.Error())
 	}
 	return err // Return unmodified.

@@ -47,7 +47,7 @@ func (p *PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
 			ping.Username,
 			ping.Host,
 			ping.Port,
-			ping.Database,
+			ping.DatabaseName,
 		),
 	)
 	if err != nil {
@@ -77,14 +77,13 @@ func (p *PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
 	return nil
 }
 
-// IsConnectionRefusedError checks whether the error is of type invalid database user.
-// This can happen when the user doesn't exist.
+// IsConnectionRefusedError checks whether the error is of type connection refused.
 func (p *PostgresPinger) IsConnectionRefusedError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	return strings.Contains(err.Error(), "connection refused (SQLSTATE )")
+	return strings.Contains(err.Error(), "connection refused (SQLSTATE")
 }
 
 // IsInvalidDatabaseUserError checks whether the error is of type invalid database user.
