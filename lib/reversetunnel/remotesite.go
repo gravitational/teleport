@@ -696,7 +696,7 @@ func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.Ce
 		}, nil
 	}
 
-	// Delete in 13.0.
+	// DELETE IN 13.0.0.
 	ver12orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.OpenSSHCAMinVersion)
 	if err != nil {
 		return nil, trace.Wrap(err)
