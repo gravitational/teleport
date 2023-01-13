@@ -2735,9 +2735,10 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = enableSSH
-		tconf.CachePolicy.Enabled = false
 		tconf, err := instance.GenerateConfig(t, nil, tconf)
 		require.NoError(t, err)
+		
+		tconf.CachePolicy.Enabled = false
 
 		return t, tconf
 	}
