@@ -5870,7 +5870,12 @@ func TestCreateDatabase(t *testing.T) {
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
-				Labels:   []ui.Label{},
+				Labels: []ui.Label{
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
+					},
+				},
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -5885,6 +5890,10 @@ func TestCreateDatabase(t *testing.T) {
 					{
 						Name:  "env",
 						Value: "prod",
+					},
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
 					},
 				},
 			},

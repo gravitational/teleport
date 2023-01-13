@@ -333,6 +333,10 @@ type MatchResourceFilter struct {
 }
 
 const (
+	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
+	AWSMatcherEC2 = "ec2"
+	// AWSMatcherEKS is the AWS matcher type for AWS Kubernetes.
+	AWSMatcherEKS = "eks"
 	// AWSMatcherRDS is the AWS matcher type for RDS databases.
 	AWSMatcherRDS = "rds"
 	// AWSMatcherRDSProxy is the AWS matcher type for RDS Proxy databases.
@@ -345,8 +349,26 @@ const (
 	AWSMatcherElastiCache = "elasticache"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
-	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
-	AWSMatcherEC2 = "ec2"
+)
+
+// SupportedAWSMatchers is list of AWS services currently supported by the
+// Teleport discovery service.
+var SupportedAWSMatchers = []string{
+	AWSMatcherEC2,
+	AWSMatcherEKS,
+	AWSMatcherRDS,
+	AWSMatcherRDSProxy,
+	AWSMatcherRedshift,
+	AWSMatcherRedshiftServerless,
+	AWSMatcherElastiCache,
+	AWSMatcherMemoryDB,
+}
+
+const (
+	// AzureMatcherVM is the Azure matcher type for Azure VMs.
+	AzureMatcherVM = "vm"
+	// AzureMatcherKubernetes is the Azure matcher type for Azure Kubernetes.
+	AzureMatcherKubernetes = "aks"
 	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
 	AzureMatcherMySQL = "mysql"
 	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
@@ -356,3 +378,25 @@ const (
 	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
 	AzureMatcherSQLServer = "sqlserver"
 )
+
+// SupportedAzureMatchers is list of Azure services currently supported by the
+// Teleport discovery service.
+var SupportedAzureMatchers = []string{
+	AzureMatcherVM,
+	AzureMatcherKubernetes,
+	AzureMatcherMySQL,
+	AzureMatcherPostgres,
+	AzureMatcherRedis,
+	AzureMatcherSQLServer,
+}
+
+const (
+	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
+	GCPMatcherKubernetes = "gke"
+)
+
+// SupportedGCPMatchers is list of GCP services currently supported by the
+// Teleport discovery service.
+var SupportedGCPMatchers = []string{
+	GCPMatcherKubernetes,
+}
