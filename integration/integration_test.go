@@ -2716,7 +2716,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		tconf.SSH.Enabled = enableSSH
 		tconf, err := instance.GenerateConfig(t, nil, tconf)
 		require.NoError(t, err)
-		
+
 		tconf.CachePolicy.Enabled = false
 
 		return t, tconf
