@@ -5852,7 +5852,7 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 
 // invoke makes it easier to defer multiple cancelFuncs held by the same variable
 // without them stomping on one another.
-func invoke(cancel context.CancelFunc) {
+func invoke(cancel context.CancelFunc) { //nolint:unused // unused as TestReverseTunnelCollapse is skipped
 	cancel()
 }
 
