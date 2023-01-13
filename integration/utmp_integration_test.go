@@ -144,6 +144,9 @@ func TestRootUsernameLimit(t *testing.T) {
 	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
 	require.NoError(t, err)
+
+	err = uacc.Close(utmpPath, wtmpPath, tty)
+	require.NoError(t, err)
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys
