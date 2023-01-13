@@ -54,7 +54,7 @@ Before creating the bot, first you must create a role in Teleport which grants
 the bot access to your Kubernetes clusters and defines the Kubernetes RBAC
 groups that will be added to your bot's requests to the Kubernetes cluster.
 
-Create `role.yaml` and insert:
+Create `role.yaml`:
 
 ```yaml
 kind: role
@@ -103,7 +103,7 @@ exact permissions that you want your bot to have. You may also wish to use a
 `RoleBinding` rather than a `ClusterRoleBinding` to limit the bot's access to an
 individual Kubernetes namespace.
 
-Create a file named `clusterolebinding.yaml` and insert:
+Create a file named `clusterolebinding.yaml`:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -136,15 +136,15 @@ With all the configuration in Teleport and Kubernetes complete, you can now
 create a GitHub Actions workflow that can connect to your Kubernetes cluster.
 
 Our example workflow will list all of the pods contained within the cluster,
-but this could equally be modified to deploy to a Kubernetes cluster with
+but this could just as easily be modified to deploy to a Kubernetes cluster with
 `kubectl` or `helm`.
 
 In the GitHub workflows directory of your repository (`.github/workflows/`)
-create a new workflow YAML file, in this case `actionstest.yml`.
+create a new workflow YAML file `actionstest.yml`.
 
-Insert the following, ensuring that you replace `my-kubernetes-cluster` with the
-name of your Kubernetes cluster and `example.domain:443` with the address of
-your Teleport Proxy.
+Insert the following, replacing `my-kubernetes-cluster` with the name of your
+Kubernetes cluster and `example.domain:443` with the address of your Teleport
+Proxy.
 
 ```yaml
 # This is a basic workflow to help you get started, modify it for your needs.
