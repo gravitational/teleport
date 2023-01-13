@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/gcp"
 )
 
 // UserCommand implements `tctl users` set of commands
@@ -237,6 +238,13 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
+	gcpServiceAccounts := flattenSlice(u.allowedGCPServiceAccounts)
+	for _, account := range gcpServiceAccounts {
+		if err := gcp.ValidateGCPServiceAccountName(account); err != nil {
+			return trace.Wrap(err, "GCP service account %q is invalid", account)
+		}
+	}
+
 	traits := map[string][]string{
 		constants.TraitLogins:             u.allowedLogins,
 		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
@@ -246,7 +254,7 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		constants.TraitDBNames:            flattenSlice(u.allowedDatabaseNames),
 		constants.TraitAWSRoleARNs:        flattenSlice(u.allowedAWSRoleARNs),
 		constants.TraitAzureIdentities:    azureIdentities,
-		constants.TraitGCPServiceAccounts: flattenSlice(u.allowedGCPServiceAccounts),
+		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
 	}
 
 	user, err := types.NewUser(u.login)
@@ -377,6 +385,11 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	}
 	if len(u.allowedGCPServiceAccounts) > 0 {
 		accounts := flattenSlice(u.allowedGCPServiceAccounts)
+		for _, account := range accounts {
+			if err := gcp.ValidateGCPServiceAccountName(account); err != nil {
+				return trace.Wrap(err, "GCP service account %q is invalid", account)
+			}
+		}
 		user.SetGCPServiceAccounts(accounts)
 		updateMessages["GCP service accounts"] = accounts
 	}

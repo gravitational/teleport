@@ -1435,3 +1435,9 @@ func validateKubeResources(kubeResources []KubernetesResource) error {
 	}
 	return nil
 }
+
+// ClusterResource returns the resource name in the following format
+// <namespace>/<name>.
+func (k *KubernetesResource) ClusterResource() string {
+	return k.Namespace + "/" + k.Name
+}

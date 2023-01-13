@@ -43,6 +43,9 @@ spec:
         {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
         app: {{ .Release.Name }}
     spec:
+{{- if $auth.nodeSelector }}
+      nodeSelector: {{- toYaml $auth.nodeSelector | nindent 8 }}
+{{- end }}
       affinity:
 {{- if $auth.affinity }}
   {{- if $auth.highAvailability.requireAntiAffinity }}
@@ -158,31 +161,40 @@ spec:
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
           timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
-{{- if .Values.postStart.command }}
         lifecycle:
+          # waiting during preStop ensures no new request will hit the Terminating pod
+          # on clusters using kube-proxy (kube-proxy syncs the node iptables rules every 30s)
+          preStop:
+            exec:
+              command:
+                - teleport
+                - wait
+                - duration
+                - 30s
+{{- if $auth.postStart.command }}
           postStart:
             exec:
-              command: {{ toYaml .Values.postStart.command | nindent 14 }}
+              command: {{ toYaml $auth.postStart.command | nindent 14 }}
 {{- end }}
-{{- if .Values.resources }}
+{{- if $auth.resources }}
         resources:
-  {{- toYaml .Values.resources | nindent 10 }}
+  {{- toYaml $auth.resources | nindent 10 }}
 {{- end }}
-{{- if .Values.securityContext }}
-        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+{{- if $auth.securityContext }}
+        securityContext: {{- toYaml $auth.securityContext | nindent 10 }}
 {{- end }}
         volumeMounts:
-{{- if .Values.enterprise }}
+{{- if $auth.enterprise }}
         - mountPath: /var/lib/license
           name: "license"
           readOnly: true
 {{- end }}
-{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
+{{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
         - mountPath: /etc/teleport-secrets
           name: "gcp-credentials"
           readOnly: true
 {{- end }}
-{{- if .Values.tls.existingCASecretName }}
+{{- if $auth.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
           readOnly: true
@@ -192,10 +204,11 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
-{{- if .Values.extraVolumeMounts }}
-  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- if $auth.extraVolumeMounts }}
+  {{- toYaml $auth.extraVolumeMounts | nindent 8 }}
 {{- end }}
-{{ if .Values.operator.enabled }}
+{{- /* Operator uses '.Values' instead of '$auth' as it will likely be moved out of the auth pods */}}
+{{- if .Values.operator.enabled }}
       - name: "operator"
         image: '{{ .Values.operator.image }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -211,16 +224,11 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-{{- if .Values.operator.resources }}
-        resources:
-  {{- toYaml .Values.operator.resources | nindent 10 }}
-{{- end }}
+  {{- if .Values.operator.resources }}
+        resources: {{- toYaml .Values.operator.resources | nindent 10 }}
+  {{- end }}
         volumeMounts:
-  {{- if .Values.highAvailability.certManager.enabled }}
-        - mountPath: /etc/teleport-tls
-          name: "teleport-tls"
-          readOnly: true
-  {{- else if .Values.tls.existingSecretName }}
+  {{- if .Values.tls.existingSecretName }}
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
@@ -232,35 +240,36 @@ spec:
           name: "data"
 {{ end }}
       volumes:
-{{- if .Values.enterprise }}
+{{- if $auth.enterprise }}
       - name: license
         secret:
           secretName: "license"
 {{- end }}
-{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
+{{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
       - name: gcp-credentials
         secret:
-          secretName: {{ .Values.gcp.credentialSecretName | quote }}
+          secretName: {{ $auth.gcp.credentialSecretName | quote }}
 {{- end }}
-{{- if .Values.tls.existingCASecretName }}
+{{- if $auth.tls.existingCASecretName }}
       - name: teleport-tls-ca
         secret:
-          secretName: {{ .Values.tls.existingCASecretName }}
+          secretName: {{ $auth.tls.existingCASecretName }}
 {{- end }}
       - name: "config"
         configMap:
           name: {{ .Release.Name }}-auth
       - name: "data"
-        {{- if and (.Values.persistence.enabled) ( and (not (eq .Values.chartMode "gcp")) (not (eq .Values.chartMode "aws"))) }}
+        {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws"))) }}
         persistentVolumeClaim:
           claimName: {{ if $auth.persistence.existingClaimName }}{{ $auth.persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
         {{- else }}
         emptyDir: {}
         {{- end }}
-{{- if .Values.extraVolumes }}
-  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- if $auth.extraVolumes }}
+  {{- toYaml $auth.extraVolumes | nindent 6 }}
 {{- end }}
-{{- if .Values.priorityClassName }}
-      priorityClassName: {{ .Values.priorityClassName }}
+{{- if $auth.priorityClassName }}
+      priorityClassName: {{ $auth.priorityClassName }}
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}

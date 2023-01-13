@@ -385,6 +385,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	waitDurationCmd := waitCmd.Command("duration", "Used internally to onWait a given duration before exiting.")
 	waitDurationCmd.Arg("duration", "Duration to onWait before exit.").DurationVar(&waitFlags.duration)
 
+	kubeState := app.Command("kube-state", "Used internally by Teleport to operate Kubernetes Secrets where Teleport stores its state.").Hidden()
+	kubeStateDelete := kubeState.Command("delete", "Used internally to delete Kubernetes states when the helm chart is uninstalled.").Hidden()
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -444,6 +447,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onWaitNoResolve(waitFlags)
 	case waitDurationCmd.FullCommand():
 		err = onWaitDuration(waitFlags)
+	case kubeStateDelete.FullCommand():
+		err = onKubeStateDelete()
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():
