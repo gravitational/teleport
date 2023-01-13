@@ -24,7 +24,7 @@
     "build-oss": "yarn build-teleport-oss",
     "build-e": "yarn build-teleport-e",
     "lint": "yarn prettier-check && yarn eslint",
-    "eslint": "eslint --ext .js,.jsx,.ts,.tsx packages/",
+    "eslint": "eslint --quiet --ext .js,.jsx,.ts,.tsx packages/",
     "type-check": "tsc --noEmit",
     "prettier-check": "yarn prettier --check 'packages/**/*.{ts,tsx,js,jsx,md}'",
     "prettier-write": "yarn prettier --write 'packages/**/*.{ts,tsx,js,jsx,md}'",
