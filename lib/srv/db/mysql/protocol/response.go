@@ -77,11 +77,11 @@ func parseErrorPacket(packetBytes []byte) (Packet, error) {
 }
 
 // ToMyError convert an error packet into a mysql.MyError.
-func (e *Error) ToMyError() *mysql.MyError {
-	if len(e.bytes) < packetHeaderAndTypeSize+2 {
+func (p *Error) ToMyError() *mysql.MyError {
+	if len(p.bytes) < packetHeaderAndTypeSize+2 {
 		return mysql.NewDefaultError(mysql.ER_UNKNOWN_ERROR)
 	}
 	// ignore unread bytes and "ok", we already checked len of bytes.
-	_, code, _ := readUint16(e.bytes[packetHeaderAndTypeSize:])
-	return mysql.NewError(code, e.message)
+	_, code, _ := readUint16(p.bytes[packetHeaderAndTypeSize:])
+	return mysql.NewError(code, p.message)
 }
