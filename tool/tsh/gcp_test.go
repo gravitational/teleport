@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"sort"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -38,15 +37,14 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 		{
 			name:                    "no flag, use default service account",
 			requestedServiceAccount: "",
-			profileAccounts:         []string{"default"},
-			want:                    "default",
+			profileAccounts:         []string{"default@example-123456.iam.gserviceaccount.com"},
+			want:                    "default@example-123456.iam.gserviceaccount.com",
 			wantErr:                 require.NoError,
 		},
 		{
 			name:                    "no flag, multiple possible service accounts",
 			requestedServiceAccount: "",
 			profileAccounts:         []string{"id1", "id2"},
-			want:                    "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "multiple GCP service accounts available, choose one with --gcp-service-account flag")
 			},
@@ -55,36 +53,32 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 			name:                    "no flag, no service accounts",
 			requestedServiceAccount: "",
 			profileAccounts:         []string{},
-			want:                    "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "no GCP service accounts available, check your permissions")
 			},
 		},
-
 		{
 			name:                    "exact match, one option",
-			requestedServiceAccount: "id1",
-			profileAccounts:         []string{"id1"},
-			want:                    "id1",
+			requestedServiceAccount: "id1@example-123456.iam.gserviceaccount.com",
+			profileAccounts:         []string{"id1@example-123456.iam.gserviceaccount.com"},
+			want:                    "id1@example-123456.iam.gserviceaccount.com",
 			wantErr:                 require.NoError,
 		},
 		{
 			name:                    "exact match, multiple options",
-			requestedServiceAccount: "id1",
-			profileAccounts:         []string{"id1", "id2"},
-			want:                    "id1",
+			requestedServiceAccount: "id1@example-123456.iam.gserviceaccount.com",
+			profileAccounts:         []string{"id1@example-123456.iam.gserviceaccount.com", "id2@example-123456.iam.gserviceaccount.com"},
+			want:                    "id1@example-123456.iam.gserviceaccount.com",
 			wantErr:                 require.NoError,
 		},
 		{
 			name:                    "no match, multiple options",
-			requestedServiceAccount: "id3",
-			profileAccounts:         []string{"id1", "id2"},
-			want:                    "",
+			requestedServiceAccount: "id3@example-123456.iam.gserviceaccount.com",
+			profileAccounts:         []string{"id1@example-123456.iam.gserviceaccount.com", "id2@example-123456.iam.gserviceaccount.com"},
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "failed to find the service account matching \"id3\"")
+				require.ErrorContains(t, err, "failed to find the service account matching \"id3@example-123456.iam.gserviceaccount.com\"")
 			},
 		},
-
 		{
 			name:                    "prefix match, one option",
 			requestedServiceAccount: "id1",
@@ -109,31 +103,37 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 				"id1@example-123456.iam.gserviceaccount.com",
 				"id1@example-777777.iam.gserviceaccount.com",
 			},
-			want: "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "provided service account \"id1\" is ambiguous, please specify full service account name")
 			},
 		},
-
 		{
 			name:                    "no match, multiple options",
-			requestedServiceAccount: "id3",
+			requestedServiceAccount: "id3@example-123456.iam.gserviceaccount.com",
 			profileAccounts: []string{
 				"id1@example-123456.iam.gserviceaccount.com",
 				"id2@example-123456.iam.gserviceaccount.com",
 				"idX@example-777777.iam.gserviceaccount.com",
 			},
-			want: "",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "failed to find the service account matching \"id3\"")
+				require.ErrorContains(t, err, "failed to find the service account matching \"id3@example-123456.iam.gserviceaccount.com\"")
+			},
+		},
+		{
+			name:                    "service account name is validated",
+			requestedServiceAccount: "",
+			profileAccounts:         []string{"default"},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "chosen GCP service account \"default\" is invalid")
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := getGCPServiceAccountFromFlags(&CLIConf{GCPServiceAccount: tt.requestedServiceAccount}, &client.ProfileStatus{GCPServiceAccounts: tt.profileAccounts})
-			require.Equal(t, tt.want, result)
 			tt.wantErr(t, err)
+			require.Equal(t, tt.want, result)
 		})
 	}
 }
@@ -171,94 +171,6 @@ test-0@other-999999.iam.gserviceaccount.com
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, formatGCPServiceAccounts(tt.accounts))
-		})
-	}
-}
-
-func TestSortedGCPServiceAccounts(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want []string
-	}{
-		{
-			name: "empty",
-			args: nil,
-			want: nil,
-		},
-		{
-			name: "unsorted accounts",
-			args: []string{
-				"test-3@example-123456.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-1@example-123456.iam.gserviceaccount.com",
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-0@other-999999.iam.gserviceaccount.com",
-			},
-			want: []string{
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-1@example-123456.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-3@example-123456.iam.gserviceaccount.com",
-				"test-0@other-999999.iam.gserviceaccount.com",
-			},
-		},
-		{
-			name: "invalid accounts",
-			args: []string{
-				"",
-				"@",
-				"@@@",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-0_example-100200.iam.gserviceaccount.com",
-				"test-0_other-999999.iam.gserviceaccount.com",
-			},
-			want: []string{
-				"",
-				"@",
-				"test-0_example-100200.iam.gserviceaccount.com",
-				"test-0_other-999999.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"@@@",
-			},
-		},
-		{
-			name: "mixed invalid and valid accounts",
-			args: []string{
-				"",
-				"@",
-				"@@@",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-3@example-123456.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-0_other-999999.iam.gserviceaccount.com",
-			},
-			want: []string{
-				"",
-				"@",
-				"test-0_other-999999.iam.gserviceaccount.com",
-				"test-1_example-123456.iam.gserviceaccount.com",
-				"test-2_example-123456.iam.gserviceaccount.com",
-				"test-3_example-123456.iam.gserviceaccount.com",
-				"@@@",
-				"test-0@example-100200.iam.gserviceaccount.com",
-				"test-2@example-123456.iam.gserviceaccount.com",
-				"test-3@example-123456.iam.gserviceaccount.com",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			acc := SortedGCPServiceAccounts(tt.args)
-			sort.Sort(acc)
-			require.Equal(t, tt.want, []string(acc))
 		})
 	}
 }
@@ -314,84 +226,4 @@ gs_external_account_authorized_user_file = %v/gcp/test.teleport.io/myapp/c45b440
 		"CLOUDSDK_CONFIG":                    app.getGcloudConfigPath(),
 		"BOTO_CONFIG":                        app.getBotoConfigPath(),
 	}, env)
-}
-
-func Test_projectIDFromServiceAccountName(t *testing.T) {
-	tests := []struct {
-		name           string
-		serviceAccount string
-		want           string
-		wantErr        require.ErrorAssertionFunc
-	}{
-		{
-			name:           "valid service account",
-			serviceAccount: "test@myproject-123456.iam.gserviceaccount.com",
-			want:           "myproject-123456",
-			wantErr:        require.NoError,
-		},
-		{
-			name:           "empty string",
-			serviceAccount: "",
-			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid service account format: empty string received")
-			},
-		},
-		{
-			name:           "missing @",
-			serviceAccount: "test",
-			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid service account format: missing @")
-			},
-		},
-		{
-			name:           "missing domain after @",
-			serviceAccount: "test@",
-			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid service account format: missing <project-id>.iam.gserviceaccount.com after @")
-			},
-		},
-		{
-			name:           "missing user before @",
-			serviceAccount: "@project",
-			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid service account format: empty user")
-			},
-		},
-		{
-			name:           "missing domain",
-			serviceAccount: "test@myproject-123456",
-			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid service account format: missing <project-id>.iam.gserviceaccount.com after @")
-			},
-		},
-		{
-			name:           "wrong domain suffix",
-			serviceAccount: "test@myproject-123456.iam.gserviceaccount",
-			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid service account format: expected suffix \"iam.gserviceaccount.com\", got \"iam.gserviceaccount\"")
-			},
-		},
-		{
-			name:           "missing project id",
-			serviceAccount: "test@.iam.gserviceaccount.com",
-			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid service account format: missing project ID")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := projectIDFromServiceAccountName(tt.serviceAccount)
-			require.Equal(t, tt.want, got)
-			tt.wantErr(t, err)
-		})
-	}
 }
