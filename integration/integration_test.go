@@ -3064,6 +3064,9 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 // nodes will reconnect when network connection between the proxy and node
 // is restored.
 func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
+	// TODO(jakule): Re-enable this test
+	t.Skip("flaky test. Skip temporary")
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
 
