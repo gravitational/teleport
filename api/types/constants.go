@@ -560,6 +560,7 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
+	KindKubePod,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

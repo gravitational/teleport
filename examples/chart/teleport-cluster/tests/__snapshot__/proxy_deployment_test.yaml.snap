@@ -44,6 +44,52 @@ should set affinity when set in values:
             operator: In
             values:
             - teleport
+should set nodeSelector when set in values:
+  1: |
+    affinity:
+      podAntiAffinity: null
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    nodeSelector:
+      environment: security
+      role: bastion
+    serviceAccountName: RELEASE-NAME-proxy
+    volumes:
+    - configMap:
+        name: RELEASE-NAME-proxy
+      name: config
+    - emptyDir: {}
+      name: data
 should set required affinity when highAvailability.requireAntiAffinity is set:
   1: |
     podAntiAffinity:
