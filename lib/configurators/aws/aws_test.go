@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -500,7 +499,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Discovery: config.Discovery{
 					AWSMatchers: []config.AWSMatcher{
 						{
-							Types:   []string{constants.AWSServiceTypeEC2},
+							Types:   []string{services.AWSMatcherEC2},
 							Regions: []string{"eu-central-1"},
 							Tags:    map[string]utils.Strings{"*": []string{"*"}},
 							InstallParams: &config.InstallParams{
