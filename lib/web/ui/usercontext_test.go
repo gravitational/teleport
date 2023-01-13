@@ -139,8 +139,8 @@ func TestNewUserContext(t *testing.T) {
 		List:   true,
 		Read:   true,
 		Create: true,
-		Edit:   false,
-		Delete: false,
+		Edit:   true,
+		Delete: true,
 	})
 
 	// test that when user has `search_as_roles`, all permissions on access requests are true
@@ -163,8 +163,8 @@ func TestNewUserContext(t *testing.T) {
 		List:   true,
 		Read:   true,
 		Create: true,
-		Edit:   false,
-		Delete: false,
+		Edit:   true,
+		Delete: true,
 	})
 }
 

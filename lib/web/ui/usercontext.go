@@ -219,8 +219,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 			List:   true,
 			Read:   true,
 			Create: true,
-			Edit:   requestAccess.Edit,
-			Delete: requestAccess.Delete,
+			Edit:   true,
+			Delete: true,
 		}
 	}
 
