@@ -213,6 +213,8 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 // discoveryResourceChecker defines an interface for checking database
 // resources created by the discovery service.
 type discoveryResourceChecker interface {
+	// check performs required checks on provided database resource before it
+	// gets registered.
 	check(ctx context.Context, database types.Database)
 }
 
@@ -297,14 +299,18 @@ func (c *cloudCredentialsChecker) checkAzure(ctx context.Context, database types
 		return
 	}
 
-	if rid, err := arm.ParseResourceID(database.GetAzure().ResourceID); err == nil {
-		if !slices.Contains(allSubIDs, rid.SubscriptionID) {
-			c.warn(nil, database, fmt.Sprintf("The discovered database %q is in a different subscription (ID: %s) than the database agent's tenant.",
-				database.GetName(),
-				rid.SubscriptionID,
-			))
-			return
-		}
+	rid, err := arm.ParseResourceID(database.GetAzure().ResourceID)
+	if err != nil {
+		c.log.Warnf("Failed to parse resource ID of database %q: %v.", database.GetName(), err)
+		return
+	}
+
+	if !slices.Contains(allSubIDs, rid.SubscriptionID) {
+		c.warn(nil, database, fmt.Sprintf("The discovered database %q is in a different subscription (ID: %s) than the database agent's tenant.",
+			database.GetName(),
+			rid.SubscriptionID,
+		))
+		return
 	}
 }
 
