@@ -57,7 +57,7 @@ func (p *MySQLPinger) Ping(ctx context.Context, ping PingParams) error {
 
 	defer func() {
 		if err := conn.Close(); err != nil {
-			logrus.WithError(err).Info("failed to close connection in MySQLPinger.Ping")
+			logrus.WithError(err).Info("Failed to close connection in MySQLPinger.Ping")
 		}
 	}()
 
