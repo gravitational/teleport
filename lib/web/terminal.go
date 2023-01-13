@@ -797,6 +797,10 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 			t.wsLock.Unlock()
 			if err != nil {
+				if errors.Is(err, websocket.ErrCloseSent) {
+					logger.Info("Websocket was closed, no longer streaming events (%v)", err)
+					return
+				}
 				logger.WithError(err).Error("Unable to send audit event to web client")
 				continue
 			}
@@ -915,7 +919,7 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 
 	ty, bytes, err := ws.ReadMessage()
 	if err != nil {
-		if err == io.EOF || websocket.IsCloseError(err, 1006) {
+		if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 			return 0, io.EOF
 		}
 
