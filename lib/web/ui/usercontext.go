@@ -224,6 +224,18 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		}
 	}
 
+	// If the user has preview_requests or preview_as_roles,
+	// they should be able to see the Access Requests screens in order to review requests
+	if len(userRoles.GetAllowedPreviewAsRoles()) > 0 || userRoles.WithoutImplicit().MaybeCanReviewRequests() {
+		requestAccess = access{
+			List:   true,
+			Read:   true,
+			Create: true,
+			Edit:   true,
+			Delete: true,
+		}
+	}
+
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
