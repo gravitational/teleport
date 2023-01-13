@@ -211,15 +211,12 @@ func TestInterpolate(t *testing.T) {
 			traits: map[string][]string{"foo": {"bar-baz"}},
 			res:    result{values: []string{"baz"}},
 		},
-		/*
-			TODO: the following test case fails due to https://github.com/gravitational/teleport/issues/16797
-			{
-				title:  "regexp replacement with named match",
-				in:     `{{regexp.replace(internal.foo, "bar-(?P<suffix>.*)", "${suffix}")}}`,
-				traits: map[string][]string{"foo": {"bar-baz"}},
-				res:    result{values: []string{"baz"}},
-			},
-		*/
+		{
+			title:  "regexp replacement with named match",
+			in:     `{{regexp.replace(internal.foo, "bar-(?P<suffix>.*)", "$suffix")}}`,
+			traits: map[string][]string{"foo": {"bar-baz"}},
+			res:    result{values: []string{"baz"}},
+		},
 		{
 			title:  "regexp replacement with multiple matches",
 			in:     `{{regexp.replace(internal.foo, "foo-(.*)-(.*)", "$1.$2")}}`,

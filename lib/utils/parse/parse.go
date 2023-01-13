@@ -223,8 +223,8 @@ func (e *MatchExpression) Match(in string) bool {
 		MatcherInput: in,
 	}
 
-	// Ignore err has there's no variable interpolation for now,
-	// and thus this cannot error for matchers.
+	// Ignore err as there's no variable interpolation for now,
+	// and thus `Evaluate` cannot error for matchers.
 	result, _ := e.matcher.Evaluate(ctx)
 	b, ok := result.(bool)
 	if !ok {
