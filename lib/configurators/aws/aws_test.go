@@ -782,7 +782,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					},
 				},
 			},
-			"Multiple": {
+			"multiple": {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						AWSMatchers: []config.AWSMatcher{

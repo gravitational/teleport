@@ -78,16 +78,16 @@ type databaseActions struct {
 	requireSecretsManager bool
 }
 
-func (a databaseActions) buildStatement(discoveryService, boundary bool) *awslib.Statement {
+func (a databaseActions) buildStatementForDiscovery() *awslib.Statement {
 	// Note that currently extra boundary policies are not required for discovery service.
-	if discoveryService {
-		return &awslib.Statement{
-			Effect:    awslib.EffectAllow,
-			Actions:   a.discovery,
-			Resources: []string{"*"},
-		}
+	return &awslib.Statement{
+		Effect:    awslib.EffectAllow,
+		Actions:   a.discovery,
+		Resources: []string{"*"},
 	}
+}
 
+func (a databaseActions) buildStatement(boundary bool) *awslib.Statement {
 	var actions []string
 	actions = append(actions, a.discovery...)
 	actions = append(actions, a.iamAuth...)
@@ -544,10 +544,12 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 	}
 
 	for _, dbActions := range allActions {
-		statements = append(statements, dbActions.buildStatement(flags.DiscoveryService, boundary))
+		if flags.DiscoveryService {
+			statements = append(statements, dbActions.buildStatementForDiscovery())
+		} else {
+			statements = append(statements, dbActions.buildStatement(boundary))
 
-		// Skip these for discovery service.
-		if !flags.DiscoveryService {
+			// Skip these for discovery service.
 			requireSecretsManager = requireSecretsManager || dbActions.requireSecretsManager
 			requireIAMEdit = requireIAMEdit || dbActions.requireIAMEdit
 		}
