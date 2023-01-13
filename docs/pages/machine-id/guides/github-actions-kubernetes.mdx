@@ -87,20 +87,20 @@ Now create the Machine ID bot, assigning it the role you created above:
 $ tctl bots add github-demo --roles=github-demo-kube-access --token=github-token
 ```
 
-## Step 3/4. Configure a Kubernetes Cluster Role Binding
+## Step 3/4. Configure a Kubernetes cluster role binding
 
 With the bot configured and a Teleport role that will pass a group to
-Kubernetes with the bot's requests, you now need a Role Binding to associate a
+Kubernetes with the bot's requests, you now need a role binding to associate a
 Kubernetes role to that group.
 
-This is the stage where you will actually determine what level of access the
-bot will have when accessing your cluster. In our example, we are applying the
-`view` ClusterRole which will allow our bot to read, but not write, all
-resources in the Kubernetes cluster.
+This is the stage where you determine what level of access the bot will have
+when accessing your cluster. In our example, we are applying the `view` cluster
+role which will allow our bot to read, but not write, all resources in the
+Kubernetes cluster.
 
 In your case you may wish to create a custom Kubernetes role that lists the
 exact permissions that you want your bot to have. You may also wish to use a
-RoleBinding rather than a ClusterRoleBinding to limit the bot's access to an
+`RoleBinding` rather than a `ClusterRoleBinding` to limit the bot's access to an
 individual Kubernetes namespace.
 
 Create a file named `clusterolebinding.yaml` and insert:
@@ -124,7 +124,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-Apply this to your cluster using `kubectl`:
+Create this Cluster Role Binding in your Kubernetes cluster using `kubectl`:
 
 ```
 $ kubectl apply -f ./clusterolebinding.yaml
