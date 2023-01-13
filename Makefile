@@ -413,6 +413,8 @@ release:
 	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -458,6 +460,19 @@ build-archive:
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	cd ./build.assets/tooling/ && \
+	go run ./cmd/notarize-apple-binaries/*.go \
+		--log-level=debug $(ABSOLUTE_BINARY_PATHS)
+	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
@@ -848,6 +863,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/teleterm/api/protogen/**' \
 		-ignore 'lib/prehog/gen/**' \
+		-ignore 'lib/prehog/gen-js/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
@@ -909,6 +925,7 @@ update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
+	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
 .PHONY: test-package
@@ -986,21 +1003,15 @@ protos/all: protos/build protos/lint protos/format
 .PHONY: protos/build
 protos/build: buf/installed
 	$(BUF) build
-	cd lib/teleterm && $(BUF) build
-	cd lib/prehog && $(BUF) build
 
 .PHONY: protos/format
 protos/format: buf/installed
 	$(BUF) format -w
-	cd lib/teleterm && $(BUF) format -w
-	cd lib/prehog && $(BUF) format -w
 
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
-	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
-	cd lib/teleterm && $(BUF) lint
-	cd lib/prehog && $(BUF) lint
+	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
 
 .PHONY: lint-protos
 lint-protos: protos/lint
@@ -1044,7 +1055,8 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host: protos/all
-	cd lib/teleterm && $(BUF) generate
+	$(BUF) generate --template=lib/prehog/buf-teleterm.gen.yaml lib/prehog/proto
+	$(BUF) generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
 
 .PHONY: goinstall
 goinstall:
@@ -1180,10 +1192,10 @@ update-webassets:
 # dronegen generates .drone.yml config
 #
 #    Usage:
-#    - install github.com/gravitational/tdr
-#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
 #    - tsh login --proxy=platform.teleport.sh
 #    - tsh app login drone
+#    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
+#    - tsh proxy app --port=8080 drone
 #    - make dronegen
 .PHONY: dronegen
 dronegen:

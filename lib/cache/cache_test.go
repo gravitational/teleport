@@ -1375,7 +1375,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
+	role, err := types.NewRole("role1", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -2710,7 +2710,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindStaticTokens:            &types.StaticTokensV2{},
 		types.KindToken:                   &types.ProvisionTokenV2{},
 		types.KindUser:                    &types.UserV2{},
-		types.KindRole:                    &types.RoleV5{Version: types.V4},
+		types.KindRole:                    &types.RoleV6{Version: types.V4},
 		types.KindNamespace:               &types.Namespace{},
 		types.KindNode:                    &types.ServerV2{},
 		types.KindProxy:                   &types.ServerV2{},

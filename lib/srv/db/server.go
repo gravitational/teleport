@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -64,6 +65,7 @@ func init() {
 	common.RegisterEngine(redis.NewEngine, defaults.ProtocolRedis)
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
 	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
+	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
 }
 
 // Config is the configuration for a database proxy server.
@@ -689,6 +691,9 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if err := s.startCloudWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Start the cloud-based databases CA renewer.
+	go s.startCARenewer(ctx)
 
 	return nil
 }

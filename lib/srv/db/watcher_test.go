@@ -207,7 +207,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 	})
 }
 
-// TestWatcherCloudFetchers tests usasge of discovery database fetchers by the
+// TestWatcherCloudFetchers tests usage of discovery database fetchers by the
 // database service.
 func TestWatcherCloudFetchers(t *testing.T) {
 	// Test an AWS fetcher. Note that status AWS can be set by Metadata

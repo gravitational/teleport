@@ -145,6 +145,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
 	DatabaseAWSAccountID string
+	// DatabaseAWSExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseAWSRDSInstanceID is RDS instance identifier.
@@ -899,6 +901,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			Certificate: p.Certificate,
 		})
 	}
+	cfg.Proxy.KeyPairsReloadInterval = fc.Proxy.KeyPairsReloadInterval
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
 	legacyKube := fc.Proxy.Kube.Configured() && fc.Proxy.Kube.Enabled()
@@ -1314,8 +1317,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Mode:       service.TLSMode(database.TLS.Mode),
 			},
 			AWS: service.DatabaseAWS{
-				AccountID: database.AWS.AccountID,
-				Region:    database.AWS.Region,
+				AccountID:  database.AWS.AccountID,
+				ExternalID: database.AWS.ExternalID,
+				Region:     database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -1349,7 +1353,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				SPN:        database.AD.SPN,
 			},
 			Azure: service.DatabaseAzure{
-				ResourceID: database.Azure.ResourceID,
+				ResourceID:    database.Azure.ResourceID,
+				IsFlexiServer: database.Azure.IsFlexiServer,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1538,6 +1543,10 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 
 // applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
 func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
+	if err := fc.WindowsDesktop.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg.WindowsDesktop.Enabled = true
 
 	if fc.WindowsDesktop.ListenAddress != "" {
@@ -1560,14 +1569,23 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
+	cfg.WindowsDesktop.Discovery = service.LDAPDiscoveryConfig{
+		BaseDN:          fc.WindowsDesktop.Discovery.BaseDN,
+		Filters:         fc.WindowsDesktop.Discovery.Filters,
+		LabelAttributes: fc.WindowsDesktop.Discovery.LabelAttributes,
+	}
 
 	var err error
 	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
 	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2021,8 +2039,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 				CACert: caBytes,
 			},
 			AWS: service.DatabaseAWS{
-				Region:    clf.DatabaseAWSRegion,
-				AccountID: clf.DatabaseAWSAccountID,
+				Region:     clf.DatabaseAWSRegion,
+				AccountID:  clf.DatabaseAWSAccountID,
+				ExternalID: clf.DatabaseAWSExternalID,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},

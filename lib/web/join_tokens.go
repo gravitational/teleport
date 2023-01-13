@@ -347,7 +347,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	var dbServiceResourceLabels []string
 	if settings.databaseInstallMode {
 		suggestedAgentMatcherLabels := token.GetSuggestedAgentMatcherLabels()
-		dbServiceResourceLabels, err = scripts.MarshalLabelsYAML(suggestedAgentMatcherLabels)
+		dbServiceResourceLabels, err = scripts.MarshalLabelsYAML(suggestedAgentMatcherLabels, 6)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

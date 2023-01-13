@@ -1054,12 +1054,32 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
+func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadata {
+	if cert == nil {
+		return nil
+	}
+
+	devID := cert.Extensions[teleport.CertExtensionDeviceID]
+	assetTag := cert.Extensions[teleport.CertExtensionDeviceAssetTag]
+	credID := cert.Extensions[teleport.CertExtensionDeviceCredentialID]
+	if devID == "" && assetTag == "" && credID == "" {
+		return nil
+	}
+
+	return &apievents.DeviceMetadata{
+		DeviceId:     devID,
+		AssetTag:     assetTag,
+		CredentialId: credID,
+	}
+}
+
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	return apievents.UserMetadata{
 		Login:          id.Login,
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
+		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
 	}
 }
 

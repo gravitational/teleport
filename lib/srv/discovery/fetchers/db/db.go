@@ -41,8 +41,8 @@ var (
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
-		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
-		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
+		services.AzureMatcherMySQL:     {newAzureMySQLFetcher, newAzureMySQLFlexServerFetcher},
+		services.AzureMatcherPostgres:  {newAzurePostgresFetcher, newAzurePostgresFlexServerFetcher},
 		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
 		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}

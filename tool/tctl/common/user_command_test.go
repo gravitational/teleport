@@ -163,6 +163,13 @@ func TestUserUpdate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "new GCP service accounts",
+			args: []string{"--set-gcp-service-accounts", "a1,a2,a3"},
+			wantTraits: map[string][]string{
+				constants.TraitGCPServiceAccounts: {"a1", "a2", "a3"},
+			},
+		},
 	}
 
 	for _, tc := range tests {

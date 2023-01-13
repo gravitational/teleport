@@ -54,7 +54,7 @@ func (f *azureManagedSQLServerFetcher) NewDatabaseFromServer(server *armsql.Mana
 
 	database, err := services.NewDatabaseFromAzureManagedSQLServer(server)
 	if err != nil {
-		log.Warnf("Could not convert Azure SQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
+		log.Warnf("Could not convert Azure Managed SQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
 		return nil
 	}
 
@@ -76,12 +76,12 @@ func (f *azureManagedSQLServerFetcher) isAvailable(server *armsql.ManagedInstanc
 		armsql.ManagedInstancePropertiesProvisioningStateRegistering,
 		armsql.ManagedInstancePropertiesProvisioningStateUnknown,
 		armsql.ManagedInstancePropertiesProvisioningStateUnrecognized:
-		return true
+		return false
 	case armsql.ManagedInstancePropertiesProvisioningStateCreated,
 		armsql.ManagedInstancePropertiesProvisioningStateRunning,
 		armsql.ManagedInstancePropertiesProvisioningStateSucceeded,
 		armsql.ManagedInstancePropertiesProvisioningStateUpdating:
-		return false
+		return true
 	default:
 		logrus.Warnf("Unknown status type: %q. Assuming Managed SQL Server %q is available.",
 			azure.StringVal(server.Properties.ProvisioningState),
