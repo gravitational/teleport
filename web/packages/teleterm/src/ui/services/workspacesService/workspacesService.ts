@@ -252,7 +252,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   restorePersistedState(): void {
     const persistedState = this.statePersistenceService.getWorkspacesState();
     const restoredWorkspaces = this.clustersService
-      .getClusters()
+      .getRootClusters()
       .reduce((workspaces, cluster) => {
         const persistedWorkspace = persistedState.workspaces[cluster.uri];
         const workspaceDefaultState = this.getWorkspaceDefaultState(

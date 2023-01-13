@@ -177,9 +177,16 @@ export interface DialogUsageData {
   onCancel(): void;
 }
 
+export interface DialogUserJobRole {
+  kind: 'user-job-role';
+  onSend(jobRole: string): void;
+  onCancel(): void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
   | DialogDocumentsReopen
   | DialogUsageData
+  | DialogUserJobRole
   | DialogNone;

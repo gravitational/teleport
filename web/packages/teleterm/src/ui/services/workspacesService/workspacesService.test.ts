@@ -24,7 +24,7 @@ describe('restoring workspace', () => {
       findRootClusterByResource: jest.fn(),
       findCluster: jest.fn(),
       findGateway: jest.fn(),
-      getClusters: () => [
+      getRootClusters: () => [
         {
           uri: options.clusterUri,
           name: 'Test cluster',

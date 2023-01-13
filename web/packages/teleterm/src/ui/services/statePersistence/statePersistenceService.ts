@@ -25,6 +25,10 @@ interface ShareFeedbackState {
   hasBeenOpened: boolean;
 }
 
+interface UsageReportingState {
+  askedForUserJobRole: boolean;
+}
+
 export type WorkspacesPersistedState = Omit<WorkspacesState, 'workspaces'> & {
   workspaces: Record<string, Omit<Workspace, 'accessRequests'>>;
 };
@@ -33,6 +37,7 @@ interface StatePersistenceState {
   connectionTracker: ConnectionTrackerState;
   workspacesState: WorkspacesPersistedState;
   shareFeedback: ShareFeedbackState;
+  usageReporting: UsageReportingState;
 }
 
 export class StatePersistenceService {
@@ -74,6 +79,18 @@ export class StatePersistenceService {
     return this.getState().shareFeedback;
   }
 
+  saveUsageReportingState(usageReporting: UsageReportingState): void {
+    const newState: StatePersistenceState = {
+      ...this.getState(),
+      usageReporting,
+    };
+    this.putState(newState);
+  }
+
+  getUsageReportingState(): UsageReportingState {
+    return this.getState().usageReporting;
+  }
+
   private getState(): StatePersistenceState {
     const defaultState: StatePersistenceState = {
       connectionTracker: {
@@ -84,6 +101,9 @@ export class StatePersistenceService {
       },
       shareFeedback: {
         hasBeenOpened: false,
+      },
+      usageReporting: {
+        askedForUserJobRole: false,
       },
     };
     return { ...defaultState, ...this._fileStorage.get('state') };

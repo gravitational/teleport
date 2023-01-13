@@ -21,18 +21,18 @@ export async function setUpUsageReporting(
   configService: ConfigService,
   modalsService: ModalsService
 ): Promise<void> {
-  if (configService.get('usageMetrics.enabled').metadata.isStored) {
+  if (configService.get('usageReporting.enabled').metadata.isStored) {
     return;
   }
   return new Promise(resolve => {
     modalsService.openRegularDialog({
       kind: 'usage-data',
       onAllow() {
-        configService.set('usageMetrics.enabled', true);
+        configService.set('usageReporting.enabled', true);
         resolve();
       },
       onDecline() {
-        configService.set('usageMetrics.enabled', false);
+        configService.set('usageReporting.enabled', false);
         resolve();
       },
       onCancel() {

@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { setUpUsageReporting } from 'teleterm/ui/services/usage';
+import {
+  askAboutUserJobRoleIfNeeded,
+  setUpUsageReporting,
+} from 'teleterm/ui/services/usage';
 import { IAppContext } from 'teleterm/ui/types';
 import { ConfigService } from 'teleterm/services/config';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
@@ -25,15 +28,17 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
  * where it blocks the rendering of the app.
  */
 export async function initUi(ctx: IAppContext): Promise<void> {
-  await setUpUsageReporting(
-    ctx.mainProcessClient.configService,
-    ctx.modalsService
+  const { configService } = ctx.mainProcessClient;
+
+  await setUpUsageReporting(configService, ctx.modalsService);
+  await askAboutUserJobRoleIfNeeded(
+    ctx.statePersistenceService,
+    configService,
+    ctx.modalsService,
+    ctx.usageService
   );
   ctx.workspacesService.restorePersistedState();
-  notifyAboutStoredConfigErrors(
-    ctx.mainProcessClient.configService,
-    ctx.notificationsService
-  );
+  notifyAboutStoredConfigErrors(configService, ctx.notificationsService);
 }
 
 function notifyAboutStoredConfigErrors(

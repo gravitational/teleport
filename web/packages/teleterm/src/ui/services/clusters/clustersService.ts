@@ -597,6 +597,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return [...this.state.clusters.values()];
   }
 
+  getRootClusters() {
+    return this.getClusters().filter(c => !c.leaf);
+  }
+
   getClusterSyncStatus(clusterUri: uri.ClusterUri) {
     const empty: SyncStatus = { status: '' };
     const dbs = this.state.dbsSyncStatus.get(clusterUri) || empty;

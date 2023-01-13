@@ -176,7 +176,7 @@ export class UsageService {
     prehogEventReq: PrehogEventReq
   ): Promise<void> {
     const isCollectingUsageMetricsEnabled = this.configService.get(
-      'usageMetrics.enabled'
+      'usageReporting.enabled'
     ).value;
 
     if (!isCollectingUsageMetricsEnabled) {

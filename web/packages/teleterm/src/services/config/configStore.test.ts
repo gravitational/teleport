@@ -11,19 +11,19 @@ beforeAll(() => {
 
 const schema = z.object({
   'fonts.monoFamily': z.string().default('Arial'),
-  'usageMetrics.enabled': z.boolean().default(false),
+  'usageReporting.enabled': z.boolean().default(false),
 });
 
 test('stored and default values are combined', () => {
   const fileStorage = createMockFileStorage();
-  fileStorage.put('usageMetrics.enabled', true);
+  fileStorage.put('usageReporting.enabled', true);
   const configStore = createConfigStore(schema, fileStorage);
 
   expect(configStore.getStoredConfigErrors()).toBeUndefined();
 
-  const usageMetricsEnabled = configStore.get('usageMetrics.enabled');
-  expect(usageMetricsEnabled.value).toBe(true);
-  expect(usageMetricsEnabled.metadata.isStored).toBe(true);
+  const usageReportingEnabled = configStore.get('usageReporting.enabled');
+  expect(usageReportingEnabled.value).toBe(true);
+  expect(usageReportingEnabled.metadata.isStored).toBe(true);
 
   const monoFontFamily = configStore.get('fonts.monoFamily');
   expect(monoFontFamily.value).toBe('Arial');
@@ -32,7 +32,7 @@ test('stored and default values are combined', () => {
 
 test('in case of invalid value a default one is returned', () => {
   const fileStorage = createMockFileStorage();
-  fileStorage.put('usageMetrics.enabled', 'abcde');
+  fileStorage.put('usageReporting.enabled', 'abcde');
   const configStore = createConfigStore(schema, fileStorage);
 
   expect(configStore.getStoredConfigErrors()).toStrictEqual([
@@ -41,13 +41,13 @@ test('in case of invalid value a default one is returned', () => {
       expected: 'boolean',
       received: 'string',
       message: 'Expected boolean, received string',
-      path: ['usageMetrics.enabled'],
+      path: ['usageReporting.enabled'],
     },
   ]);
 
-  const usageMetricsEnabled = configStore.get('usageMetrics.enabled');
-  expect(usageMetricsEnabled.value).toBe(false);
-  expect(usageMetricsEnabled.metadata.isStored).toBe(false);
+  const usageReportingEnabled = configStore.get('usageReporting.enabled');
+  expect(usageReportingEnabled.value).toBe(false);
+  expect(usageReportingEnabled.metadata.isStored).toBe(false);
 
   const monoFontFamily = configStore.get('fonts.monoFamily');
   expect(monoFontFamily.value).toBe('Arial');
@@ -58,9 +58,9 @@ test('calling set updated the value in store', () => {
   const fileStorage = createMockFileStorage();
   const configStore = createConfigStore(schema, fileStorage);
 
-  configStore.set('usageMetrics.enabled', true);
+  configStore.set('usageReporting.enabled', true);
 
-  const usageMetricsEnabled = configStore.get('usageMetrics.enabled');
-  expect(usageMetricsEnabled.value).toBe(true);
-  expect(usageMetricsEnabled.metadata.isStored).toBe(true);
+  const usageReportingEnabled = configStore.get('usageReporting.enabled');
+  expect(usageReportingEnabled.value).toBe(true);
+  expect(usageReportingEnabled.metadata.isStored).toBe(true);
 });

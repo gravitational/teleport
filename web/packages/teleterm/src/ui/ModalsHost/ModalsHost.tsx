@@ -25,6 +25,7 @@ import { Dialog } from 'teleterm/ui/services/modals';
 import ClusterLogout from '../ClusterLogout/ClusterLogout';
 
 import { UsageData } from './modals/UsageData';
+import { UserJobRole } from './modals/UserJobRole';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
@@ -86,7 +87,10 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'usage-data': {
       return (
         <UsageData
-          onCancel={handleClose}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
           onAllow={() => {
             handleClose();
             dialog.onAllow();
@@ -94,6 +98,20 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
           onDecline={() => {
             handleClose();
             dialog.onDecline();
+          }}
+        />
+      );
+    }
+    case 'user-job-role': {
+      return (
+        <UserJobRole
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+          onSend={jobRole => {
+            handleClose();
+            dialog.onSend(jobRole);
           }}
         />
       );

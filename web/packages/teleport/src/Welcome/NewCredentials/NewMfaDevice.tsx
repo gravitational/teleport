@@ -15,10 +15,10 @@
  */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Image, Link, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
+import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -89,14 +89,16 @@ export function NewMfaDevice(props: Props) {
     }
   }
 
-  function onSetMfaOption(index: number, validator: Validator) {
+  function onSetMfaOption(value: string, validator: Validator) {
     setOtp('');
     clearSubmitAttempt();
     validator.reset();
 
-    const mfaOpt = mfaOptions[index];
-    setMfaType(mfaOpt);
-    setDeviceName(getDefaultDeviceName(mfaOpt.value));
+    const mfaOpt = mfaOptions.find(option => option.value === value);
+    if (mfaOpt) {
+      setMfaType(mfaOpt);
+      setDeviceName(getDefaultDeviceName(mfaOpt.value));
+    }
   }
 
   const imgSrc =
@@ -132,21 +134,14 @@ export function NewMfaDevice(props: Props) {
             Two-Factor Method
           </Text>
           <Box mb={1}>
-            {mfaOptions.map((opt, index) => {
-              return (
-                <Radio
-                  key={index}
-                  onClick={() => onSetMfaOption(index, validator)}
-                >
-                  <input
-                    type="radio"
-                    checked={mfaType.value === opt.value}
-                    onChange={() => onSetMfaOption(index, validator)}
-                  />
-                  <label>{opt.label}</label>
-                </Radio>
-              );
-            })}
+            <RadioGroup
+              name="mfaType"
+              options={mfaOptions}
+              value={mfaType.value}
+              flexDirection="row"
+              gap="16px"
+              onChange={value => onSetMfaOption(value, validator)}
+            />
           </Box>
           <Flex
             flexDirection="column"
@@ -251,23 +246,6 @@ function getDefaultDeviceName(mfaType: Auth2faType) {
   }
   return '';
 }
-
-const Radio = styled.div`
-  display: inline-block;
-  margin-right: 16px;
-  cursor: pointer;
-
-  input {
-    cursor: pointer;
-    vertical-align: middle;
-    margin: 0 8px 0px 0;
-  }
-
-  label {
-    cursor: pointer;
-    vertical-align: middle;
-  }
-`;
 
 type Props = CredentialsProps &
   SliderProps & {
