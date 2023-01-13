@@ -199,7 +199,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 	}
 
 	// Remove all CAs
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA} {
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA} {
 		if err := a.DeleteCertAuthority(types.CertAuthID{Type: caType, DomainName: name}); err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -564,9 +564,12 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, vali
 
 // getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
 func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
-	var err error
+	var (
+		err                 error
+		databaseCASupported bool
+		openSSHCASupported  bool
+	)
 
-	databaseCASupported := false
 	if validateRequest.TeleportVersion != "" {
 		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
 		// cluster this field will be empty.
@@ -574,14 +577,22 @@ func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
 		}
+		openSSHCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.OpenSSHCAMinVersion)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
+		}
 	}
 
 	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
-
 	if databaseCASupported {
 		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
 		// as they don't understand it.
 		certTypes = append(certTypes, types.DatabaseCA)
+	}
+	if openSSHCASupported {
+		// OpenSSH CA was introduced in Teleport 12.0. Do not send it to older clusters
+		// as they don't understand it.
+		certTypes = append(certTypes, types.OpenSSHCA)
 	}
 
 	return certTypes, nil
