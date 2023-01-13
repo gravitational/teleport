@@ -90,10 +90,6 @@ func (c *Conn) ReadMessage() (Message, error) {
 	return m, trace.Wrap(err)
 }
 
-func (c *Conn) Write(b []byte) (int, error) {
-	return c.rwc.Write(b)
-}
-
 // WriteMessage sends a message to the connection.
 func (c *Conn) WriteMessage(m Message) error {
 	buf, err := m.Encode()
