@@ -1217,13 +1217,16 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 		NotAfter:  time.Now().Add(time.Hour),
 		DNSNames:  []string{"localhost", "127.0.0.1"},
 	}
-	tlsProxyCert, err := tlsCA.GenerateCertificate(certReq)
+	tlsProxyCertPEM, err := tlsCA.GenerateCertificate(certReq)
 	require.NoError(t, err)
 	clock := clockwork.NewFakeClockAt(time.Now())
 	jwtSigner, err := services.GetJWTSigner(proxyPriv, clusterName, clock)
 	require.NoError(t, err)
 
-	return tlsProxyCert, mockCAsGetter, jwtSigner
+	tlsProxyCertDER, err := tlsca.ParseCertificatePEM(tlsProxyCertPEM)
+	require.NoError(t, err)
+
+	return tlsProxyCertDER.Raw, mockCAsGetter, jwtSigner
 }
 
 func BenchmarkMux_ProxyV2Signature(b *testing.B) {
