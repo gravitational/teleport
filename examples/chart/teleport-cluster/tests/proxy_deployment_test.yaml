@@ -561,3 +561,17 @@ tests:
       - equal:
           path: spec.minReadySeconds
           value: null
+
+  - it: should set nodeSelector when set in values
+    template: proxy/deployment.yaml
+    set:
+      chartMode: scratch
+      clusterName: helm-lint.example.com
+      nodeSelector:
+        role: bastion
+        environment: security
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.nodeSelector
+      - matchSnapshot:
+          path: spec.template.spec

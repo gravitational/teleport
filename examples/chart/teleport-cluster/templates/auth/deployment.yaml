@@ -43,6 +43,9 @@ spec:
         {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
         app: {{ .Release.Name }}
     spec:
+{{- if $auth.nodeSelector }}
+      nodeSelector: {{- toYaml $auth.nodeSelector | nindent 8 }}
+{{- end }}
       affinity:
 {{- if $auth.affinity }}
   {{- if $auth.highAvailability.requireAntiAffinity }}
