@@ -275,9 +275,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MFADeviceDelete{
 			MFADeviceDelete: e,
 		}
-	case *DeviceTrust:
-		out.Event = &OneOf_DeviceTrust{
-			DeviceTrust: e,
+	case *DeviceEvent:
+		out.Event = &OneOf_DeviceEvent{
+			DeviceEvent: e,
 		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
