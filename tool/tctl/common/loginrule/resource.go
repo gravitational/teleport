@@ -83,7 +83,7 @@ func UnmarshalLoginRule(raw []byte) (*loginrulepb.LoginRule, error) {
 }
 
 // ProtoToResource converts a *loginrulepb.LoginRule into a *Resource which
-// implements types.Resource and can be marshalled to YAML or JSON in a
+// implements types.Resource and can be marshaled to YAML or JSON in a
 // human-friendly format.
 func ProtoToResource(rule *loginrulepb.LoginRule) *Resource {
 	r := &Resource{

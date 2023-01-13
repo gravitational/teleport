@@ -706,14 +706,14 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	return nil
 }
 
-func (cmd *ResourceCommand) createLoginRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	loginRuleClient := client.LoginRuleClient()
-	if cmd.IsForced() {
+	if rc.IsForced() {
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
