@@ -27,6 +27,8 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // MySQLPinger implements the DatabasePinger interface for the MySQL protocol.
@@ -47,17 +49,20 @@ func (p *MySQLPinger) Ping(ctx context.Context, ping PingParams) error {
 		nd.DialContext,
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		// convert the error from MySQL client since it can be wrapped in a "Causer".
+		// The MySQL engine in the agent already does this, but we need it here because
+		// the error is from the MySQL client.
+		return trace.Wrap(common.ConvertError(err))
 	}
 
 	defer func() {
 		if err := conn.Close(); err != nil {
-			logrus.WithError(err).Info("")
+			logrus.WithError(err).Info("failed to close connection in MySQLPinger.Ping")
 		}
 	}()
 
 	if err := conn.Ping(); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(common.ConvertError(err))
 	}
 
 	return nil
@@ -75,15 +80,30 @@ func (p *MySQLPinger) IsConnectionRefusedError(err error) bool {
 		case mysql.ER_HOST_NOT_PRIVILEGED,
 			mysql.ER_HOST_IS_BLOCKED:
 			return true
+		case mysql.ER_UNKNOWN_ERROR:
+			// check error substrings if the error code is unknown.
+		default:
+			return false
 		}
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "connection refused")
+	errMsg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(errMsg, "connection refused"):
+		return true
+	case strings.Contains(errMsg, "host"):
+		return strings.Contains(errMsg, "is blocked") || strings.Contains(errMsg, "is not allowed to connect")
+	}
+	return false
 }
 
 // IsInvalidDatabaseUserError checks whether the error is of type invalid database user.
 // This can happen when the user doesn't exist or the user was created with a cert
 // subject CN that does not match the user name.
 func (p *MySQLPinger) IsInvalidDatabaseUserError(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	var mErr *mysql.MyError
 	if errors.As(err, &mErr) {
 		switch mErr.Code {
@@ -91,22 +111,38 @@ func (p *MySQLPinger) IsInvalidDatabaseUserError(err error) bool {
 			mysql.ER_ACCESS_DENIED_NO_PASSWORD_ERROR,
 			mysql.ER_USERNAME:
 			return true
+		case mysql.ER_UNKNOWN_ERROR:
+			// check error substrings if the error code is unknown.
+		default:
+			return false
 		}
 	}
-	return false
+	errMsg := strings.ToLower(err.Error())
+	return strings.Contains(errMsg, "access denied for user") && !strings.Contains(errMsg, "to database")
 }
 
 // IsInvalidDatabaseNameError checks whether the error is of type invalid database name.
 // This can happen when the database doesn't exist or the user want not granted permission
 // to access that database in MySQL.
 func (p *MySQLPinger) IsInvalidDatabaseNameError(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	var mErr *mysql.MyError
 	if errors.As(err, &mErr) {
 		switch mErr.Code {
 		case mysql.ER_BAD_DB_ERROR,
 			mysql.ER_DBACCESS_DENIED_ERROR:
 			return true
+		case mysql.ER_UNKNOWN_ERROR:
+			// check error substrings if the error code is unknown.
+		default:
+			return false
 		}
 	}
-	return false
+	errMsg := strings.ToLower(err.Error())
+	isDeniedDB := strings.Contains(errMsg, "access denied for user") &&
+		strings.Contains(errMsg, "to database")
+	return isDeniedDB || strings.Contains(strings.ToLower(err.Error()), "unknown database")
 }
