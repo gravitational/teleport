@@ -34,22 +34,25 @@ For the sake of this RFD, I will define _delivering a secure image_ as
 > vulnerabilities in and of itself, in that it:
 >
 >  1. has the smallest footprint reasonably possible,
->  2. contains software of known provenance,
->  3. has no warnings or vulnerabilities flagged when run through a reputable 
->     scanner at the time of creation,
+>  2. contains software of reasonably known provenance,
+>  3. has no fixable, high-risk warnings or vulnerabilities flagged when run
+>     through a reputable scanner at the time of creation,
 >  4. flags vulnerabilities even after creation, either in Teleport itself or 
 >     a dependency, and
 >  5. is updated to resolve any discovered vulnerabilities in a timely fashion.
 
-For the purposes of this discussion, a "timely fashion" for updates is as per 
-the Teleport Vulnerability Management Policy:
+Where
+
+ * **reasonably known provenance** means that the software comes from either ourselves
+   or a known, reputable source.
+ * **a timely fashion** for updates is as per the Teleport Vulnerability Management Policy:
 
    | Severity | Resolution time |
-   |----------|---------------|
-   | Critical | 7 days        |
-   | High     | 30 days       |
-   | Moderate | 90 days       |
-   | Low      | ~180 days     |
+   |----------|-----------------|
+   | Critical | 7 days          |
+   | High     | 30 days         |
+   | Moderate | 90 days         |
+   | Low      | ~180 days       |
 
 ### Non-goals
 
@@ -92,7 +95,8 @@ on that image expires (i.e. falls out of our 3-version support window)
 
 ## Implementation Details
 
-## 1. Image construction
+**NOTE:** This section assumes an understanding of [RFD 73 "Public Image Registry"](./0073-public-image-registry.md).
+## 1. Distroless Images
 
 ### Teleport Image Requirements
 
@@ -102,7 +106,7 @@ Most Teleport dependencies are statically compiled into the `teleport` binary, g
 smaller set of runtime dependencies than you might imagine:
 
    1. Teleport
-   2. `GLIBC` >= 2.17
+   2. C Runtime libraries (e.g. `GLIBC` >= 2.17, `libgcc`, etc)
    3. `dumb-init` is required for correct signal and child processes handling
       inside a container.
    4. `libpam` (and its transitve dependencies) for PAM support 
@@ -154,7 +158,7 @@ reduce the flexibility of the build system.
 For the above reasons, Teleport images for public consumption must not be 
 built in such a shared environment.
 
-### Building the image
+### Building the image for a Release
 
 The image will be built from a multi-stage docker file, using build stages to download
 and unpack the required debian packages and copy them into place on the distroless 
@@ -183,7 +187,7 @@ ENTRYPOINT ["/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport
 > Also note that for the sake of clarity I'm only including one dependency package. 
 > In the real distribution there would be multiple packages required.
 
-### Alternative builders
+### A digression: Alternative builders
 
 As part of researching this RFD, I examined a couple of alternative ways to construct 
 the Teleport image. 
@@ -219,6 +223,16 @@ the Teleport image.
    automatically producting a SBOM as part of the construction process), but in the 
    end I rejected it because of the extra software included in the resulting images.
 
+### Smoke testing
+
+A smoke test is a smmple, quick test to assert basic functionality. We simply want to 
+find out if Teleport will even start in the environment contained by our container 
+image. While this is not _per se_ a security matter, using a distroless base image 
+means we have very little padding if an unexpected dependency finds its way into
+Teleport. 
+
+We want to stoip ourselves shipping garbage to our customers if at all possible.
+
 ### Image signing
 
 In order to allow our customers to validate our published Teleport images, 
@@ -238,43 +252,70 @@ More information keyless signing:
 
 ### Build-time scanning
 
-All Teleport images shall be scanned with [trivy](https://github.com/aquasecurity/trivy-action#using-trivy-with-github-code-scanning) 
-at build time, and if any high-risk vulnerabilities are found the build will be stopped.
+All Teleport images shall be scanned with [trivy](https://github.com/aquasecurity/trivy-action#using-trivy-with-github-code-scanning) immediately after build, and the 
+results will by uploaded to the GitHub Code Scanning service. From there, our Panther 
+SIEM can observe any alerts and instigate remedial action.
 
-### Image build process summary
+### Software Bill-of-Materials
+
+We can use `syft` to generate a SBOM and `cosign` to attach it to the resulting image. Any
+software components add to the image must be automatically discoverable by `syft` (for 
+example, making sure the package control file is included in `/var/lib/dpkg/status.d` 
+for Debian packages).
+
+### Release Build process summary
+
+This process describes how an image is built during a full Teleport release. 
 
 ```mermaid
 graph TD
     pull_base[Pull distroless<br/>base image]
     signature_valid?{is cosign<br/>signature valid?}
-    deb[/Teleport Debian Package<br/>from CI/]
-    df[/Dockerfile from repo/]
+    teleport_deb[/Teleport Debian Package<br/>from CI/]
+    third_party_debs[/Third party Debian packages<br/>from Debian package repository/]
+    df[/Dockerfile from<br/>Teleport git repository/]
     base[/Distroless base image/]
     candidate_image[/Candidate Telport image/]
-    push_internal[Push Candidate Image<br/>to internal ECR Registry]
+    smoke_test[Smoke test to see if<br/>Teleport starts in container image]
+    smoke_test_pass?{Smoke test<br/>passes?}
+    push_internal[Push Candidate Image<br/>to private ECR]
     trivy_scan[Scan Candidate Image<br/>with trivy]
     build[$ docker build ...] 
     upload_results[Upload scan results<br/>to GitHub Code Scanning]
-    bad_scan?{Does scan<br/>detect high-risk<br/>vulnerabilities?}
+
     fail_build[Fail the build]
-    sign_image[$ cosign ...]
+    sign_image[Sign Candidate Image<br/>with Cosign]
     promote_build[/Release engineer<br/>promotes build/]
-    promote_image[Candidate image<br/>becomes release image<br/>in Public ECR]
+    promote_image[Candidate Image, Signature & SBOM<br/>copied to Public ECR]
     build_ok?{Does all go well<br/>with the rest of<br/>the build?}
+    sbom[Generate SBOM with syft]
+    attach_sbom[Attach SBOM to<br/>Candidate Image with cosign]
     
     pull_base --> signature_valid?
-    signature_valid? -- yes --> base
+    signature_valid? -- yes --> base    
     signature_valid? -- no --> fail_build
-    deb --> build
+    teleport_deb --> build
+    third_party_debs --> build
     df --> build
-    base --> build
-    build --> sign_image --> candidate_image
-    candidate_image --> push_internal
+    base --> build    
+    build --> candidate_image
+
+    candidate_image --> smoke_test   
+    smoke_test --> smoke_test_pass?
+    smoke_test_pass? -- yes --> push_internal
+    smoke_test_pass? -- no --> fail_build
     push_internal --> trivy_scan
+    push_internal --> sbom
     trivy_scan --> upload_results 
-    upload_results --> bad_scan?
-    bad_scan? -- no --> build_ok?
-    bad_scan? -- yes --> fail_build
+    push_internal --> sign_image
+    sbom --> attach_sbom
+    upload_results --> code_scanning_alerts[(GitHub Code<br/>Scanning alerts)]
+    code_scanning_alerts --> panther[(Panther SIEM)]
+    
+    sign_image --> build_ok?
+    upload_results --> build_ok?
+    attach_sbom --> build_ok?
+    
     promote_build --> promote_image
     build_ok? -- yes --> promote_build
     build_ok? -- no --> fail_build
@@ -300,21 +341,23 @@ We have clients relying on the existing behaviour (and contents) of our images. 
 should treat releasing these distroless images as a compatibility break, and make 
 our customers aware of our intentions well in advance so that they can prepare.
 
-## 2. Scanning and monitoring the image
+## 2. Maintaininece 
 
-### Collecting the data 
+### Collecting data 
 
 We are already using the scanning tools built-in to AWS ECR, which periodically scans our 
 images and results of the scan into our Panther SIEM instance.
 
 To increase the size and quality of the vulnetrability database we scan with, we should 
-also use `trivy` for ongoing scans, in addition to the build-time scans described above. 
+also use `trivy` for ongoing scans of our published (i.e. public) images, in addition
+to the build-time scans described above. 
 
 Trivy's in a GHA integration should make it straightforward to run 
-workflow to repeatedly scan out published images.
+workflow to repeatedly scan our published images on a regular schedule.
 
-The output of the scan will be injected into the GitHub code scanning tab, and our 
-Panther instance can then ingest the alerts via the GitHub audit log.
+The output of the scan will be injected into the GitHub code scanning system. From there 
+the alerts can be picked up buy our Panther SIEM, which already integrates into our 
+GitHub account. 
 
 ### Reacting to alerts
 
@@ -322,3 +365,14 @@ Once the alert data is aggregated into Panther, we can configure events to lodge
 GitHub issues and/or alert the development team via Slack or e-mail. The development 
 team will be expected to resolve the issues as per the Teleport Vulnerability Management 
 Policy.
+
+### Periodic rebuilding
+
+Our current process rebuilds the docker images once a day, using the same 
+sources and build artifacts used in the original published release. This is 
+to ensure that any updates to the underlying base image are quickly and automatically 
+integrated into the released image. 
+
+We should continue rebuilding these images daily, but incorporate the same 
+supply chain checks as with the release builds descriobed above (e.g. verifying
+`cosign` signatures, generating SBOMs, etc)
