@@ -16,7 +16,7 @@ description: A tutorial for using Machine ID with GitHub Actions and Kubernetes
 GitHub Actions is a popular CI/CD platform that works as a part of the larger
 GitHub ecosystem.
 
-In this guide, we will use Teleport Machine ID and Kubernetes Access to allow a
+In this guide, you will use Teleport Machine ID and Kubernetes Access to allow a
 GitHub Actions workflow to securely connect to a Kubernetes cluster without the
 need for long-lived secrets.
 
@@ -44,7 +44,7 @@ repository.
 
 ## Step 2/4. Create a Machine ID bot
 
-With the join token for the GitHub Actions workflow created, we now need to
+With the join token for the GitHub Actions workflow created, you now need to
 create a Machine ID bot that the token will grant access to. A Machine ID bot is
 a special type of Teleport user designed for access by machines, and can
 authenticate using a join token rather than forms of authentication more
@@ -69,7 +69,7 @@ spec:
       '*': '*'
     kubernetes_groups:
       # This states that the `github-demo` group will be applied to your bot's
-      # requests to your Kubernetes cluster. In a later step, we will bind this
+      # requests to your Kubernetes cluster. In a later step, you will bind this
       # group to a Kubernetes role with a ClusterRoleBinding.
       - github-demo
   deny: {}
@@ -112,7 +112,7 @@ metadata:
   name: github-demo-group
 subjects:
   - kind: Group
-    # Note that this name field matches the group name we provided in the
+    # Note that this name field matches the group name you provided in the
     # Teleport role configuration.
     name: github-demo
     apiGroup: rbac.authorization.k8s.io
