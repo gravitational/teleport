@@ -73,7 +73,7 @@ instructions to add a package repository and install Teleport.
           https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=cloud.major_version=)" \
         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
         $ sudo apt-get update
-        $ sudo apt-get install teleport
+        $ sudo apt-get install teleport-ent
         ```
     </TabItem>
     <TabItem label="Amazon Linux 2/RHEL (RPM)">
@@ -86,7 +86,7 @@ instructions to add a package repository and install Teleport.
         # and the codename your distro was forked from instead of '$ID'
         $ sudo yum-config-manager \
             --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=cloud.major_version=)/teleport.repo")
-        $ sudo yum install teleport
+        $ sudo yum install teleport-ent
         ```
     </TabItem>
 </Tabs>
