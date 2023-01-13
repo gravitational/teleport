@@ -369,6 +369,10 @@ log:
 # Extra Kubernetes configuration #
 ##################################
 
+# nodeSelector to apply for pod assignment
+# https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+nodeSelector: {}
+
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 # NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also be used - you can only set one or the other.
@@ -468,3 +472,9 @@ tolerations: []
 # Timeouts for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 probeTimeoutSeconds: 1
+
+# Kubernetes termination grace period
+# https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#hook-handler-execution
+#
+# This should be greater than 30 seconds as pods are waiting 30 seconds in a preStop hook.
+terminationGracePeriodSeconds: 60

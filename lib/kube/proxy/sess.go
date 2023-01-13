@@ -867,7 +867,7 @@ func (s *session) join(p *party) error {
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
-			KubernetesCluster: s.ctx.kubeCluster,
+			KubernetesCluster: s.ctx.kubeClusterName,
 			KubernetesUsers:   []string{},
 			KubernetesGroups:  []string{},
 			KubernetesLabels:  s.ctx.kubeClusterLabels,
@@ -1173,7 +1173,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		State:             types.SessionState_SessionStatePending,
 		Hostname:          s.podName,
 		ClusterName:       s.ctx.teleportCluster.name,
-		KubernetesCluster: s.ctx.kubeCluster,
+		KubernetesCluster: s.ctx.kubeClusterName,
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
 		Login:             "root",

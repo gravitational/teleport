@@ -129,10 +129,11 @@ func TestWatcher(t *testing.T) {
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
 }
 
-// TestWatcherRDSDynamicResource RDS dynamic resource registration where the ResourceMatchers should be always
-// evaluated for the dynamic registered resources.
-func TestWatcherCloudDynamicResource(t *testing.T) {
-	var db1, db2, db3 *types.DatabaseV3
+// TestWatcherDynamicResource tests dynamic resource registration where the
+// ResourceMatchers should be always evaluated for the dynamic registered
+// resources.
+func TestWatcherDynamicResource(t *testing.T) {
+	var db1, db2, db3, db4 *types.DatabaseV3
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -180,17 +181,29 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
 	})
 
-	t.Run("cloud resource - no match", func(t *testing.T) {
-		// Create an RDS Cloud resource with a label that doesn't match resource matcher.
-		db3, err = makeCloudDatabase("db3", map[string]string{"group": "z"})
+	t.Run("discovery resource - no match", func(t *testing.T) {
+		// Created a discovery service created database resource that doesn't
+		// match any db service ResourceMatchers.
+		db3, err = makeDiscoveryDatabase("db3", map[string]string{"group": "z"}, withRDSURL)
 		require.NoError(t, err)
 		require.True(t, db3.IsRDS())
-
-		// The db3 DB RDS Cloud origin resource should properly register by the agent even if  DB labels don't match
-		// any ResourceMatchers. The RDS Cloud origin databases relays could fetchers that return only matching databases.
 		err = testCtx.authServer.CreateDatabase(ctx, db3)
 		require.NoError(t, err)
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db3})
+		// The db3 should not be registered by the agent due to ResourceMatchers mismatch:
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
+	})
+
+	t.Run("discovery resource - match", func(t *testing.T) {
+		// Created a discovery service created database resource that matches
+		// ResourceMatchers.
+		db4, err = makeDiscoveryDatabase("db4", map[string]string{"group": "a"}, withRDSURL)
+		require.NoError(t, err)
+		require.True(t, db4.IsRDS())
+
+		err = testCtx.authServer.CreateDatabase(ctx, db4)
+		require.NoError(t, err)
+		// The db4 service should be properly registered by the agent.
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4})
 	})
 }
 
@@ -212,6 +225,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 
 	reconcileCh := make(chan types.Databases)
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
+		// Keep ResourceMatchers as nil to disable resource matchers.
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
 		},
@@ -271,12 +285,10 @@ func makeDynamicDatabase(name string, labels map[string]string, opts ...makeData
 	}, opts...)
 }
 
-func makeCloudDatabase(name string, labels map[string]string) (*types.DatabaseV3, error) {
+func makeDiscoveryDatabase(name string, labels map[string]string, opts ...makeDatabaseOpt) (*types.DatabaseV3, error) {
 	return makeDatabase(name, labels, map[string]string{
 		types.OriginLabel: types.OriginCloud,
-	}, func(v3 *types.DatabaseSpecV3) {
-		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com:5432"
-	})
+	}, opts...)
 }
 
 type makeDatabaseOpt func(*types.DatabaseSpecV3)
