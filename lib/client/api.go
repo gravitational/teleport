@@ -498,25 +498,7 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
-	// Don't try to re-login when using an identity file / external identity.
-	if tc.SkipLocalAuth {
-		return trace.Wrap(fn())
-	}
-
-	relogin := func(err error) error {
-		log.Debugf("Activating relogin on %v.", err)
-
-		// check if the error is a private key policy error.
-		if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
-			// The current private key was rejected due to an unmet key policy requirement.
-			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
-			fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
-
-			// The current private key was rejected due to an unmet key policy requirement.
-			// Set the private key policy to the expected value and re-login.
-			tc.PrivateKeyPolicy = privateKeyPolicy
-		}
-
+	retryWithRelogin := func() error {
 		key, err := tc.Login(ctx)
 		if err != nil {
 			if trace.IsTrustError(err) {
@@ -538,15 +520,16 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 			log.Warningf("Failed to save profile: %v", err)
 			return trace.Wrap(err)
 		}
-		return nil
+
+		return trace.Wrap(fn())
 	}
 
+	// First check if we have existing, unexpired credentials.
 	_, profileErr := tc.ProfileStatus()
 	if profileErr != nil {
-		if err := relogin(profileErr); err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(fn())
+		log.Debugf("Activating relogin on %v.", profileErr)
+		err := retryWithRelogin()
+		return trace.Wrap(err)
 	}
 
 	fnErr := fn()
@@ -562,11 +545,20 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(fnErr)
 	}
 
-	if err := relogin(fnErr); err != nil {
-		return trace.Wrap(err)
+	// check if the error is a private key policy error.
+	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr); err == nil {
+		// The current private key was rejected due to an unmet key policy requirement.
+		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
+		fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
+
+		// The current private key was rejected due to an unmet key policy requirement.
+		// Set the private key policy to the expected value and re-login.
+		tc.PrivateKeyPolicy = privateKeyPolicy
 	}
 
-	return trace.Wrap(fn())
+	log.Debugf("Activating relogin on %v.", fnErr)
+	err := retryWithRelogin()
+	return trace.Wrap(err)
 }
 
 func IsErrorResolvableWithRelogin(err error) bool {
