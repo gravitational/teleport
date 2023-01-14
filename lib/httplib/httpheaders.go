@@ -19,6 +19,7 @@ limitations under the License.
 package httplib
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -88,6 +89,38 @@ func SetSameOriginIFrame(h http.Header) {
 func SetNoSniff(h http.Header) {
 	// Prevent web browsers from using content sniffing to discover a file’s MIME type
 	h.Set("X-Content-Type-Options", "nosniff")
+}
+
+// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
+func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
+	var cspValue = strings.Join([]string{
+		GetDefaultContentSecurityPolicy(),
+		// 'unsafe-inline' is required by CSS-in-JS to work
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob:",
+		"font-src 'self' data:",
+		fmt.Sprintf("connect-src 'self' %s", applicationURL),
+	}, ";")
+
+	h.Set("Content-Security-Policy", cspValue)
+}
+
+// GetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
+func GetDefaultContentSecurityPolicy() string {
+	return strings.Join([]string{
+		"default-src 'self'",
+		// specify CSP directives not covered by `default-src`
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+		// additional default restrictions
+		"object-src 'none'",
+	}, ";")
+}
+
+// SetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
+func SetDefaultContentSecurityPolicy(h http.Header) {
+	h.Set("Content-Security-Policy", GetDefaultContentSecurityPolicy())
 }
 
 // SetWebConfigHeaders sets headers for webConfig.js
