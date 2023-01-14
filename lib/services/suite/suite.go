@@ -136,6 +136,13 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			}},
 			TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
 		}
+	case types.OpenSSHCA:
+		ca.Spec.ActiveKeys = types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
+				PrivateKey: keyBytes,
+			}},
+		}
 	default:
 		panic("unknown CA type")
 	}
@@ -690,7 +697,7 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 
 	role := types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:      "role1",
 			Namespace: apidefaults.Namespace,

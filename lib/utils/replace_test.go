@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestSliceMatchesRegex(t *testing.T) {
@@ -69,6 +71,134 @@ func TestSliceMatchesRegex(t *testing.T) {
 			matches, err := SliceMatchesRegex(test.input, test.exprs)
 			test.assert(t, err)
 			require.Equal(t, test.matches, matches)
+		})
+	}
+}
+
+func TestKubeResourceMatchesRegex(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     types.KubernetesResource
+		resources []types.KubernetesResource
+		matches   bool
+		assert    require.ErrorAssertionFunc
+	}{
+		{
+			name: "input matches single resource",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input matches last resource",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "other_namespace",
+					Name:      "podname",
+				},
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "other_pod",
+				},
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input matches regex expression",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default-5",
+				Name:      "podname-5",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "defa*",
+					Name:      "^podname-[0-9]+$",
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input has no matchers",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "pod-name",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "^pod-[0-9]+$",
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+		},
+		{
+			name: "invalid regex expression",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default-5",
+				Name:      "podname-5",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "defa*",
+					Name:      "^podname-[0-+$",
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "resource with different kind",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      "other_type",
+					Namespace: "default",
+					Name:      "podname",
+				},
+			},
+			assert: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := KubeResourceMatchesRegex(tt.input, tt.resources)
+			tt.assert(t, err)
+			require.Equal(t, tt.matches, got)
 		})
 	}
 }

@@ -5399,6 +5399,13 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 				KubeGroups: kubeGroups,
 				KubeUsers:  kubeUsers,
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -5416,6 +5423,13 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 				KubeGroups: kubeGroups,
 				KubeUsers:  kubeUsers,
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -5434,6 +5448,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 		marshalValidPodList(t, w)
 	})
 	testKube := httptest.NewTLSServer(rt)
+
 	t.Cleanup(func() {
 		testKube.Close()
 	})
@@ -5824,6 +5839,8 @@ func TestCreateDatabase(t *testing.T) {
 	username := "someuser"
 	roleCreateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			DatabaseNames: []string{"name1"},
+			DatabaseUsers: []string{"user1"},
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabase,
 					[]string{types.VerbCreate}),
@@ -5853,6 +5870,12 @@ func TestCreateDatabase(t *testing.T) {
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
+				Labels: []ui.Label{
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
+					},
+				},
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -5867,6 +5890,10 @@ func TestCreateDatabase(t *testing.T) {
 					{
 						Name:  "env",
 						Value: "prod",
+					},
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
 					},
 				},
 			},
@@ -5945,6 +5972,21 @@ func TestCreateDatabase(t *testing.T) {
 		for _, label := range tt.req.Labels {
 			require.Contains(t, databaseLabels, label.Name, "label not found")
 			require.Equal(t, label.Value, databaseLabels[label.Name], "label exists but has unexpected value")
+		}
+
+		// Check response value:
+		if tt.expectedStatus == http.StatusOK {
+			result := ui.Database{}
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
+			require.Equal(t, result, ui.Database{
+				Name:          tt.req.Name,
+				Protocol:      tt.req.Protocol,
+				Type:          types.DatabaseTypeSelfHosted,
+				Labels:        tt.req.Labels,
+				Hostname:      "someuri",
+				DatabaseUsers: []string{"user1"},
+				DatabaseNames: []string{"name1"},
+			})
 		}
 	}
 }
@@ -7148,8 +7190,8 @@ func marshalRBACError(t *testing.T, w http.ResponseWriter) {
 func marshalValidPodList(t *testing.T, w http.ResponseWriter) {
 	result := &corev1.PodList{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "",
-			APIVersion: "",
+			Kind:       "PodList",
+			APIVersion: "v1",
 		},
 		ListMeta: metav1.ListMeta{
 			SelfLink:           "",

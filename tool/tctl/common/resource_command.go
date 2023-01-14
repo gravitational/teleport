@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -33,6 +34,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -41,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
@@ -112,6 +115,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindNode:                    rc.createNode,
 		types.KindOIDCConnector:           rc.createOIDCConnector,
 		types.KindSAMLConnector:           rc.createSAMLConnector,
+		types.KindLoginRule:               rc.createLoginRule,
 	}
 	rc.config = config
 
@@ -591,6 +595,7 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client auth.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	database.SetOrigin(types.OriginDynamic)
 	if err := client.CreateDatabase(ctx, database); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
@@ -700,6 +705,25 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	}
 	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
 	return nil
+}
+
+func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	loginRuleClient := client.LoginRuleClient()
+	if rc.IsForced() {
+		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
+			LoginRule: rule,
+		})
+		return trail.FromGRPC(err)
+	}
+	_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+		LoginRule: rule,
+	})
+	return trail.FromGRPC(err)
 }
 
 // Delete deletes resource by name
@@ -926,6 +950,15 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		} else {
 			fmt.Printf("%s has been deleted\n", rc.ref.Name)
 		}
+	case types.KindLoginRule:
+		loginRuleClient := client.LoginRuleClient()
+		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+			Name: rc.ref.Name,
+		})
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
+		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
 
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
@@ -1464,6 +1497,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 
 		return &databaseServiceCollection{databaseServices: databaseServices}, nil
+	case types.KindLoginRule:
+		loginRuleClient := client.LoginRuleClient()
+		if rc.ref.Name == "" {
+			fetch := func(token string) (*loginrulepb.ListLoginRulesResponse, error) {
+				resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
+					PageToken: token,
+				})
+				return resp, trail.FromGRPC(err)
+			}
+			var rules []*loginrulepb.LoginRule
+			resp, err := fetch("")
+			for ; err == nil; resp, err = fetch(resp.NextPageToken) {
+				rules = append(rules, resp.LoginRules...)
+				if resp.NextPageToken == "" {
+					break
+				}
+			}
+			return &loginRuleCollection{rules}, trace.Wrap(err)
+		}
+		rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+			Name: rc.ref.Name,
+		})
+		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
