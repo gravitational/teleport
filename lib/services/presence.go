@@ -38,6 +38,10 @@ type NodesGetter interface {
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
+	// Inventory is a subset of Presence dedicated to tracking the status of all
+	// teleport instances independent of any specific service.
+	Inventory
+
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
@@ -233,4 +237,10 @@ type Presence interface {
 
 	// ListResoures returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// PresenceInternal extends the Presence interface with auth-specific internal methods.
+type PresenceInternal interface {
+	Presence
+	InventoryInternal
 }

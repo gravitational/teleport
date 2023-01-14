@@ -73,8 +73,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
-					types.NewRule(types.KindLicense, RO()),
-					types.NewRule(types.KindDownload, RO()),
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -119,6 +118,7 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.VerbRead, types.VerbList},
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},

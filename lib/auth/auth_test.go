@@ -187,6 +187,7 @@ func newAuthSuite(t *testing.T) *testPack {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -2049,7 +2050,7 @@ func newTestServices(t *testing.T) Services {
 
 	return Services{
 		Trust:                local.NewCAService(bk),
-		Presence:             local.NewPresenceService(bk),
+		PresenceInternal:     local.NewPresenceService(bk),
 		Provisioner:          local.NewProvisioningService(bk),
 		Identity:             local.NewIdentityService(bk),
 		Access:               local.NewAccessService(bk),

@@ -1,8 +1,82 @@
 # Changelog
 
+## 11.2.1
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Added support for periodically reloading the proxy's TLS certificates [#20040](https://github.com/gravitational/teleport/pull/20040)
+* Improved desktop certificate generation by using the proper field for querying a user's SID [#20022](https://github.com/gravitational/teleport/pull/20022)
+* Updated the web UI to hide the trusted clusters screen for users who lack the appropriate role [#1494](https://github.com/gravitational/webapps/pull/1494/)
+* Fixed an issue resulting in an "invalid bearer token" message [#20102](https://github.com/gravitational/teleport/pull/#20102)
+* Fixed an issue preventing bots from using IAM joining [#20011](https://github.com/gravitational/teleport/pull/20011)
+* Fixed an issue where Machine ID Certificates did not respect the provided TTL when using IAM joining [#20001](https://github.com/gravitational/teleport/pull/20001)
+* Updated to Go 1.19.5 [#20084](https://github.com/gravitational/teleport/pull/20084)
+
+## 11.2.0
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+### Machine ID GitHub Actions
+
+In addition, we're happy to announce a set of GitHub Actions that you can use in
+your workflows to assist with accessing Teleport Resources in your CI/CD pipelines.
+
+Visit the individual repositories to find out more and see usage examples:
+
+- https://github.com/teleport-actions/setup
+- https://github.com/teleport-actions/auth
+- https://github.com/teleport-actions/auth-k8s
+
+For a more in-depth guide, see our refreshed documentation for using Teleport with
+GitHub Actions at https://goteleport.com/docs/machine-id/guides/github-actions/
+
+### Secure certificate mapping for Desktop Access
+
+Later this year, Windows will begin requiring a stronger mapping from a certificate
+to an Active Directory user. In anticipation of this change, Teleport 11.2.0 is compliant
+with the new requirements.
+
+*Warning:* This feature requires that Teleport's own service account also uses a strong
+mapping. In order to support this requirement, you must now set a new Security Identifier
+(`sid`) field in the LDAP configuration for your Windows Desktop Services. You can find
+the SID for your service account by running the following PowerShell snippet
+(replace `svc-teleport` with the name of the service account you are using):
+
+```
+Get-AdUser -Identity svc-teleport | Select SID
+```
+
+### Other improvements and bugfixes
+
+* Added an improved database joining flow in the web UI [#1487](https://github.com/gravitational/webapps/pull/1487)
+* Added support for secure certificate mapping for Windows desktop certificates [#19737](https://github.com/gravitational/teleport/pull/19737)
+* Fixed an issue with desktop directory sharing where large files could be corrupted [#1472](https://github.com/gravitational/webapps/pull/1472)
+* Fixed an issue where Desktop Access users may see a an error after ending a session [#1470](https://github.com/gravitational/webapps/pull/1470)
+* Fixed an issue preventing database agents from joining due to improperly formatted YAML [#19958](https://github.com/gravitational/teleport/pull/19958)
+* Updated the web UI to use session storage instead of local storage for Teleport's bearer token [#1470](https://github.com/gravitational/webapps/pull/1470)
+* Added rate limiting to SAML/OIDC routes [#19950](https://github.com/gravitational/teleport/pull/19950)
+* Fixed an issue connecting to leaf cluster desktops via reverse tunnel [#19945](https://github.com/gravitational/teleport/pull/19945)
+* Fixed a backwards compability issue with Database Access in 11.1.4 [#19940](https://github.com/gravitational/teleport/pull/19940)
+* Fixed an issue where access requests for Kubernetes clusters used improperly cached credentials [#19912](https://github.com/gravitational/teleport/pull/19912)
+* Added support for CentOS 7 in ARM64 builds [#19895](https://github.com/gravitational/teleport/pull/19895)
+* Added rate limiting to unauthenticated routes [#19869](https://github.com/gravitational/teleport/pull/19869)
+* Add suggested reviewers and requestable roles to Teleport Connect access requests [#19846](https://github.com/gravitational/teleport/pull/19846)
+* Fixed an issue listing all nodes with `tsh` [#19821](https://github.com/gravitational/teleport/pull/19821)
+* Made `gcp.credentialSecretName` optional in the Teleport Cluster Helm chart [#19803](https://github.com/gravitational/teleport/pull/19803)
+* Fixed an issue preventing audit events that exceed the maximum size limit from being logged [#19736](https://github.com/gravitational/teleport/pull/19736)
+* Fixed an issue preventing some users from being able to play desktop recordings [#19709](https://github.com/gravitational/teleport/pull/19709)
+* Added validation of AWS Account IDs when adding databases (#19638) [#19702](https://github.com/gravitational/teleport/pull/19702)
+* Added a new audit event for DynamoDB requests via Application Access [#19667](https://github.com/gravitational/teleport/pull/19667)
+* Added the ability to export `tsh` traces even when the Auth Server is not configured for tracing [#19583](https://github.com/gravitational/teleport/pull/19583)
+* Added support for linking Teleport Connect's embedded `tsh` binary for use outside of Teleport Connect [#1488](https://github.com/gravitational/webapps/pull/1488)
+
 ## 11.1.4
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
+
+*Note:* This release of Teleport contains an issue that affects backwards compatibility
+with Database Access agents. If you are a Database Access user we recommend skipping
+straight to version 11.2.0.
 
 ### [Critical] RBAC bypass in SSH TCP tunneling
 

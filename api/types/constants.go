@@ -280,6 +280,12 @@ const (
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
 
+	// KindInstance represents a teleport instance independent of any specific service.
+	KindInstance = "instance"
+
+	// KindLoginRule is a login rule resource.
+	KindLoginRule = "login_rule"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
