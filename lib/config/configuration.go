@@ -21,12 +21,10 @@ limitations under the License.
 package config
 
 import (
-	"bufio"
 	"crypto/x509"
 	"io"
 	stdlog "log"
 	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,14 +36,12 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -1695,193 +1691,6 @@ func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Tracing.CACerts = append(cfg.Tracing.CACerts, caCert)
 	}
 
-	return nil
-}
-
-// parseAuthorizedKeys parses keys in the authorized_keys format and
-// returns a types.CertAuthority.
-func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
-	pubkey, comment, _, _, err := ssh.ParseAuthorizedKey(bytes)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	comments, err := url.ParseQuery(comment)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	clusterName := comments.Get("clustername")
-	if clusterName == "" {
-		return nil, nil, trace.BadParameter("no clustername provided")
-	}
-
-	// create a new certificate authority
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.UserCA,
-		ClusterName: clusterName,
-		ActiveKeys: types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
-			}},
-		},
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(types.Allow, allowedLogins)
-	ca.AddRole(role.GetName())
-
-	return ca, role, nil
-}
-
-// parseKnownHosts parses keys in known_hosts format and returns a
-// types.CertAuthority.
-func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
-	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
-	if marker != "cert-authority" {
-		return nil, nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
-	}
-	if err != nil {
-		return nil, nil, trace.BadParameter("invalid public key")
-	}
-	teleportOpts, err := url.ParseQuery(comment)
-	if err != nil {
-		return nil, nil, trace.BadParameter("invalid key comment: '%s'", comment)
-	}
-	authType := types.CertAuthType(teleportOpts.Get("type"))
-	if authType != types.HostCA && authType != types.UserCA {
-		return nil, nil, trace.BadParameter("unsupported CA type: '%s'", authType)
-	}
-	if len(options) == 0 {
-		return nil, nil, trace.BadParameter("key without cluster_name")
-	}
-	const prefix = "*."
-	domainName := strings.TrimPrefix(options[0], prefix)
-
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        authType,
-		ClusterName: domainName,
-		ActiveKeys: types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PublicKey: ssh.MarshalAuthorizedKey(pubKey),
-			}},
-		},
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(types.Allow, apiutils.CopyStrings(allowedLogins))
-	ca.AddRole(role.GetName())
-
-	return ca, role, nil
-}
-
-// certificateAuthorityFormat parses bytes and determines if they are in
-// known_hosts format or authorized_keys format.
-func certificateAuthorityFormat(bytes []byte) (string, error) {
-	_, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
-	if err != nil {
-		_, _, _, _, _, err := ssh.ParseKnownHosts(bytes)
-		if err != nil {
-			return "", trace.BadParameter("unknown ca format")
-		}
-		return teleport.KnownHosts, nil
-	}
-	return teleport.AuthorizedKeys, nil
-}
-
-// parseCAKey parses bytes either in known_hosts or authorized_keys format
-// and returns a types.CertAuthority.
-func parseCAKey(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
-	caFormat, err := certificateAuthorityFormat(bytes)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	if caFormat == teleport.AuthorizedKeys {
-		return parseAuthorizedKeys(bytes, allowedLogins)
-	}
-	return parseKnownHosts(bytes, allowedLogins)
-}
-
-// readTrustedClusters parses the content of "trusted_clusters" YAML structure
-// and modifies Teleport 'conf' by adding "authorities" and "reverse tunnels"
-// to it
-func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error {
-	if len(clusters) == 0 {
-		return nil
-	}
-	// go over all trusted clusters:
-	for i := range clusters {
-		tc := &clusters[i]
-		// parse "allow_logins"
-		var allowedLogins []string
-		for _, login := range strings.Split(tc.AllowedLogins, ",") {
-			login = strings.TrimSpace(login)
-			if login != "" {
-				allowedLogins = append(allowedLogins, login)
-			}
-		}
-		// open the key file for this cluster:
-		log.Debugf("reading trusted cluster key file %s", tc.KeyFile)
-		if tc.KeyFile == "" {
-			return trace.Errorf("key_file is missing for a trusted cluster")
-		}
-		f, err := os.Open(tc.KeyFile)
-		if err != nil {
-			return trace.Errorf("reading trusted cluster keys: %v", err)
-		}
-		defer f.Close()
-		// read the keyfile for this cluster and get trusted CA keys:
-		var authorities []types.CertAuthority
-		var roles []types.Role
-		scanner := bufio.NewScanner(f)
-		for line := 0; scanner.Scan(); {
-			ca, role, err := parseCAKey(scanner.Bytes(), allowedLogins)
-			if err != nil {
-				return trace.BadParameter("%s:L%d. %v", tc.KeyFile, line, err)
-			}
-			if ca.GetType() == types.UserCA && len(allowedLogins) == 0 && len(tc.TunnelAddr) > 0 {
-				return trace.BadParameter("trusted cluster '%s' needs allow_logins parameter",
-					ca.GetClusterName())
-			}
-			authorities = append(authorities, ca)
-			if role != nil {
-				roles = append(roles, role)
-			}
-		}
-		conf.Auth.Authorities = append(conf.Auth.Authorities, authorities...)
-		conf.Auth.Roles = append(conf.Auth.Roles, roles...)
-		clusterName := authorities[0].GetClusterName()
-		// parse "tunnel_addr"
-		var tunnelAddresses []string
-		for _, ta := range strings.Split(tc.TunnelAddr, ",") {
-			ta := strings.TrimSpace(ta)
-			if ta == "" {
-				continue
-			}
-			addr, err := utils.ParseHostPortAddr(ta, defaults.SSHProxyTunnelListenPort)
-			if err != nil {
-				return trace.Wrap(err,
-					"Invalid tunnel address '%s' for cluster '%s'. Expect host:port format",
-					ta, clusterName)
-			}
-			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
-		}
-		if len(tunnelAddresses) > 0 {
-			rt, err := types.NewReverseTunnel(clusterName, tunnelAddresses)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			conf.ReverseTunnels = append(conf.ReverseTunnels, rt)
-		}
-	}
 	return nil
 }
 
