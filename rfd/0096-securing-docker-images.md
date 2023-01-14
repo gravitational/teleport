@@ -231,7 +231,7 @@ image. While this is not _per se_ a security matter, using a distroless base ima
 means we have very little padding if an unexpected dependency finds its way into
 Teleport. 
 
-We want to stoip ourselves shipping garbage to our customers if at all possible.
+We want to stop ourselves shipping garbage to our customers if at all possible.
 
 ### Image signing
 
@@ -374,5 +374,5 @@ to ensure that any updates to the underlying base image are quickly and automati
 integrated into the released image. 
 
 We should continue rebuilding these images daily, but incorporate the same 
-supply chain checks as with the release builds descriobed above (e.g. verifying
+supply chain checks as with the release builds described above (e.g. verifying
 `cosign` signatures, generating SBOMs, etc)
