@@ -26,13 +26,13 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type Keygen struct {
 	clock clockwork.Clock
-	*native.Keygen
+	*keygen.Keygen
 }
 
 // New creates a new key generator with defaults
@@ -42,7 +42,7 @@ func New() *Keygen {
 
 // NewWithClock creates a new key generator with the specified configuration
 func NewWithClock(clock clockwork.Clock) *Keygen {
-	inner := native.New(context.Background(), native.SetClock(clock))
+	inner := keygen.New(context.Background(), keygen.SetClock(clock))
 	return &Keygen{Keygen: inner, clock: clock}
 }
 
