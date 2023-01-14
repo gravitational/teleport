@@ -1,0 +1,183 @@
+---
+title: Server Access Access Controls
+description: Role-based access control (RBAC) for Teleport Server Access.
+---
+
+# Server Access Role-Based Access Control
+
+Role-based access control (or RBAC, for short) allows administrators to set up
+granular access policies for Linux servers connected to Teleport.
+
+An example of a policy could be, *""server administrators have access to
+everything, QA team and engineers have full access to staging servers, and
+engineers can gain temporary access to the production server in case of
+emergency"*.
+
+For a more general description of Teleport roles and examples see [RBAC](../access-controls/introduction.mdx), as
+this section focuses on configuring RBAC for Server Access.
+
+## Role configuration
+
+Teleport's "role" resource provides the following instruments for restricting
+server access:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: developer
+spec:
+  allow:
+    # The logins array defines the OS/UNIX logins a user is allowed to use.
+    # both strings and template variables are supported in this field
+    logins: [ubuntu, debian, '{{internal.logins}}']
+
+    # node_labels: a user with this role will be allowed to connect to
+    # SSH nodes, which labels match expressions below.
+    node_labels:
+      # literal strings:
+      'env': 'test'
+      # the wildcard ('*') means "any node"
+      '*': '*'
+      # a list of alternative options:
+      'region': ['us-west-1', 'eu-central-1']
+      # regular expressions start with ^ and end with $
+      # Teleport uses golang regexp syntax.
+      # of the list example above can be expressed as:
+      'reg': '^us-west-1|eu-central-1$'
+
+    # List of host groups the created user will be added to. Any that don't already exist are created.
+    host_groups: [ubuntu, nginx, other]
+
+    # Assign the user to the sudoers group
+    host_sudoers:
+    - 'ALL=(ALL) NOPASSWD: ALL'
+
+    # Deny access to the root user
+  deny:
+    logins:
+    - root
+
+  options:
+   # Automatically create the user if does not exist
+   # The user is deleted after the session ends if Teleport created the user. 
+    create_host_user: true
+```
+
+
+<Admonition
+  type="note"
+  title="Deny Rules"
+>
+  Deny rules will match greedily. In the example above, a server session
+  attempting to use "root" serveruser  account will be rejected.
+</Admonition>
+
+## Template variables
+
+Similar to other role fields, the Server related fields support templating variables.
+
+The `{{external.xyz}}` variables are replaced with values from external [SSO](../access-controls/sso.mdx)
+providers. For OIDC, they will be expanded with a value of an "xyz" claim; for
+SAML — with an "xyz" assertion value.
+
+For example, here is what a role may look like if you want to assign allowed
+server environment types from the user's Okta `environments` assertion:
+
+```yaml
+spec:
+  allow:
+    node_labels:
+    - env:  '{{external.environments}}'
+```
+
+The `{{internal.logins}}` variable permits sharing
+allowed server logins with remote clusters. They will be replaced
+with the respective properties of a remote user connecting from a root cluster.
+
+For example, suppose a user in the root cluster has the following role:
+
+```yaml
+spec:
+  allow:
+    logins: ["ubuntu"]
+```
+
+The role on the leaf cluster can be set up to use the user's allowed server
+accounts and names:
+
+```yaml
+spec:
+  allow:
+    logins: ["{{internal.logins}}"]
+```
+
+## Server role options
+
+The following options in a Teleport role apply to Server Access.
+
+```yaml
+spec:
+  allow:
+    #....
+  options:
+    # Controls whether this role supports auto provisioning of users.
+    create_host_user: true
+    # forward_agent controls whether SSH agent forwarding is allowed
+    forward_agent: true
+    # port_forwarding controls whether TCP port forwarding is allowed for SSH
+    port_forwarding: true
+    # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
+    # Defaults to true.
+    ssh_file_copy: false
+    # client_idle_timeout determines if SSH sessions to cluster nodes are
+    # forcefully terminated after no activity from a client (idle client).
+    # it overrides the global cluster setting. examples: "30m", "1h" or "1h30m"
+    client_idle_timeout: never
+    # Determines if the clients will be forcefully disconnected when their
+    # certificates expire in the middle of an active session.
+    # It overrides the global cluster setting.
+    disconnect_expired_cert: no
+    # max_sessions is total number of session channels that can be established
+    # across a single connection. Setting it to 10 matches OpenSSH default behavior.
+    max_sessions: 10
+    # Defines which events are recorded by the BPF-based session recorder.
+    enhanced_recording:
+    - command
+    - disk
+    - network
+    # permit_x11_forwarding allows users to use X11 forwarding with openssh
+    # clients and servers through the proxy
+    permit_x11_forwarding: true
+    # enterprise-only max_connections field sets a limit of concurrent sessions within a
+    # cluster. This setting slows down Teleport performance because it has to track
+    # connections cluster-wide.
+    max_connections: 2
+    # Define how Teleport deals with session recording failures, such as a full
+    # disk error. The value can be set to either `best_effort` or `strict`. If
+    # set to `strict`, the session will terminate immediately. If set to
+    # `best_effort`, the session won’t be terminated, and the recording will be
+    # disabled. The configuration is done per service (currently, only `ssh` is
+    # supported).
+    record_session:
+      # Optional: the default session recording mode to use when a
+      # protocol-specific mode is not set.
+      default: best_effort|strict
+      # Optional: Session recording mode for SSH sessions (Teleport Server
+      # Access). If not set, the value set on default will be used.
+      ssh: best_effort|strict
+    # enterprise-only: when enabled, the source IP that was used to log in is embedded in the SSH
+    # certificate, preventing a compromised certificate from being used on other
+    # devices. The default is false.
+    # Note: Source IP pinning is currently in Preview mode.
+    pin_source_ip: true
+    # Specify a list of names and associated values to be included in user SSH keys.
+    # The key type can only be "ssh" and the mode can only be "extension".
+    # The name and value fields can be arbitrary strings and the value field
+    # supports variable interpolation.
+    cert_extensions:
+     - type: ssh
+       mode: extension
+       name: login@github.com
+       value: "{{ external.github_login }}"
+```
