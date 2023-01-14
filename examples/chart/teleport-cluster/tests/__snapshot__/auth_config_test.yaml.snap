@@ -1,0 +1,1458 @@
+matches snapshot for acme-off.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-cluster-name
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-cluster-name
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for acme-on.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-acme-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-acme-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for acme-uri-staging.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-acme-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-acme-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-connector-name.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          connector_name: okta
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-disable-local.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: false
+          second_factor: "off"
+          type: github
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-locking-mode.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          locking_mode: strict
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-passwordless.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          connector_name: passwordless
+          local_auth: true
+          second_factor: webauthn
+          type: local
+          webauthn:
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-type-legacy.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: github
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-type.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: github
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-webauthn-legacy.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            attestation_allowed_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            attestation_denied_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-webauthn.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            attestation_allowed_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            attestation_denied_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for aws-dynamodb-autoscaling.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: true
+          continuous_backups: false
+          read_max_capacity: 100
+          read_min_capacity: 5
+          read_target_value: 50
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+          write_max_capacity: 100
+          write_min_capacity: 5
+          write_target_value: 50
+      version: v3
+matches snapshot for aws-ha-acme.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        labels:
+          env: aws
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+matches snapshot for aws-ha-antiaffinity.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        labels:
+          env: aws
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+matches snapshot for aws-ha-log.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        labels:
+          env: aws
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: DEBUG
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          - stdout://
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+matches snapshot for aws-ha.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        labels:
+          env: aws
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+matches snapshot for aws.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        labels:
+          env: aws
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+matches snapshot for existing-tls-secret-with-ca.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-cluster-name
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-cluster-name
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for existing-tls-secret.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-cluster-name
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-cluster-name
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for gcp-ha-acme.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-gcp-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-gcp-cluster
+        labels:
+          env: gcp
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
+      version: v3
+matches snapshot for gcp-ha-antiaffinity.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-gcp-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-gcp-cluster
+        labels:
+          env: gcp
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
+      version: v3
+matches snapshot for gcp-ha-log.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-gcp-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-gcp-cluster
+        labels:
+          env: gcp
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: DEBUG
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          - stdout://
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
+      version: v3
+matches snapshot for gcp.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-gcp-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-gcp-cluster
+        labels:
+          env: gcp
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
+      version: v3
+matches snapshot for initcontainers.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for kube-cluster-name.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-kube-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for log-basic.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-log-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-log-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: json
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for log-extra.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-log-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-log-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - level
+            - timestamp
+            - component
+            - caller
+            output: json
+          output: /var/lib/teleport/test.log
+          severity: DEBUG
+      version: v3
+matches snapshot for log-legacy.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-log-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-log-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: DEBUG
+      version: v3
+matches snapshot for priority-class-name.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for proxy-listener-mode-multiplex.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-proxy-listener-mode
+        enabled: true
+        proxy_listener_mode: multiplex
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-proxy-listener-mode
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for proxy-listener-mode-separate.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-proxy-listener-mode
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-proxy-listener-mode
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for public-addresses.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for separate-mongo-listener.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for separate-postgres-listener.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for service.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for session-recording.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+        session_recording: node-sync
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for standalone-customsize.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-standalone-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-standalone-cluster
+        labels:
+          env: standalone
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for standalone-existingpvc.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-standalone-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-standalone-cluster
+        labels:
+          env: standalone
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for tolerations.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+matches snapshot for version-override.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: test-cluster-name
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-cluster-name
+        labels:
+          env: test
+          version: 5.2.1
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for volumes.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: otp
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3

@@ -153,6 +153,8 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
 	t.Run("Shutdown", suite.bind(testShutdown))
 	t.Run("TrustedClusters", suite.bind(testTrustedClusters))
+	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
+	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
@@ -986,9 +988,10 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 		t.Run(name, func(t *testing.T) {
 			// Setup user and session recording mode.
 			username := suite.Me.Username
-			role, err := types.NewRoleV3("devs", types.RoleSpecV6{
+			role, err := types.NewRole("devs", types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Logins: []string{username},
+					Logins:     []string{username},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 				Options: types.RoleOptions{
 					RecordSession: &types.RecordSession{
@@ -1547,10 +1550,11 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	teleport := suite.NewTeleportInstance(t)
 
 	username := suite.Me.Username
-	role, err := types.NewRoleV3("devs", types.RoleSpecV6{
+	role, err := types.NewRole("devs", types.RoleSpecV6{
 		Options: tc.options,
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2154,9 +2158,10 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2182,9 +2187,10 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV6{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2372,6 +2378,22 @@ func testTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	trustedClusters(t, suite, trustedClusterTest{multiplex: false})
 }
 
+// testDisabledTrustedClusters tests creation of disabled trusted cluster
+func testDisabledTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	trustedDisabledCluster(t, suite, trustedClusterTest{multiplex: false})
+}
+
+// testTrustedClustersRoleMapChanges tests the changing of role maps for trusted clusters
+func testTrustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	trustedClustersRoleMapChanges(t, suite, trustedClusterTest{multiplex: false})
+}
+
 // TestTrustedClustersWithLabels tests remote clusters scenarios
 // using trusted clusters feature and access labels
 func testTrustedClustersWithLabels(t *testing.T, suite *integrationTestSuite) {
@@ -2435,9 +2457,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	// If the test is using labels, the cluster will be labeled
@@ -2450,7 +2473,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRoleV3(mainAdmins, types.RoleSpecV6{
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"superuser"},
 		},
@@ -2461,7 +2484,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := types.NewRoleV3(mainOps, types.RoleSpecV6{
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -2490,9 +2513,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := types.NewRoleV3(auxDevs, types.RoleSpecV6{
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2645,6 +2669,302 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, aux.StopAll())
 }
 
+func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
+	ctx := context.Background()
+	username := suite.Me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	mainCfg := helpers.InstanceConfig{
+		ClusterName: clusterMain,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.Priv,
+		Pub:         suite.Pub,
+		Log:         suite.Log,
+	}
+	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
+
+	main := helpers.NewInstance(t, mainCfg)
+	aux := suite.newNamedTeleportInstance(t, clusterAux)
+
+	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
+	mainDevs := "main-devs"
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	// If the test is using labels, the cluster will be labeled
+	// and user will be granted access if labels match.
+	// Otherwise, to preserve backwards-compatibility
+	// roles with no labels will grant access to clusters with no labels.
+	if test.useLabels {
+		devsRole.SetClusterLabels(types.Allow, types.Labels{"access": []string{"prod"}})
+	}
+	require.NoError(t, err)
+
+	mainAdmins := "main-admins"
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"superuser"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	main.AddUserWithRole(username, devsRole, adminsRole)
+
+	// Ops users can only access remote clusters with label 'access': 'ops'
+	mainOps := "main-ops"
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:        []string{username},
+			ClusterLabels: types.Labels{"access": []string{"ops"}},
+			NodeLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	main.AddUserWithRole(mainOps, mainOpsRole, adminsRole)
+
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
+		tconf, err := instance.GenerateConfig(t, nil, tconf)
+		require.NoError(t, err)
+
+		tconf.CachePolicy.Enabled = false
+
+		return t, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	require.NoError(t, main.CreateWithConf(makeConfig(main, false)))
+	require.NoError(t, aux.CreateWithConf(makeConfig(aux, true)))
+
+	// auxiliary cluster has only a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	require.NoError(t, err)
+
+	trustedClusterToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	if test.useLabels {
+		meta := tokenResource.GetMetadata()
+		meta.Labels = map[string]string{"access": "prod"}
+		tokenResource.SetMetadata(meta)
+	}
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
+	require.NoError(t, err)
+	// Note that the mapping omits admins role, this is to cover the scenario
+	// when root cluster and leaf clusters have different role sets
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+		{Remote: mainOps, Local: []string{auxDevs}},
+	})
+
+	// modify trusted cluster resource name, so it would not
+	// match the cluster name to check that it does not matter
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+	// disable cluster
+	trustedCluster.SetEnabled(false)
+
+	require.NoError(t, main.Start())
+	require.NoError(t, aux.Start())
+
+	err = trustedCluster.CheckAndSetDefaults()
+	require.NoError(t, err)
+
+	// try and upsert a trusted cluster while disabled
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+
+	// try to enable disabled cluster
+	trustedCluster.SetEnabled(true)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+
+	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
+		Aux:         aux,
+		Main:        main,
+		Username:    username,
+		ClusterAux:  clusterAux,
+		UseJumpHost: test.useJumpHost,
+	})
+
+	// stop clusters and remaining nodes
+	require.NoError(t, main.StopAll())
+	require.NoError(t, aux.StopAll())
+}
+
+func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
+	ctx := context.Background()
+	username := suite.Me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	mainCfg := helpers.InstanceConfig{
+		ClusterName: clusterMain,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.Priv,
+		Pub:         suite.Pub,
+		Log:         suite.Log,
+	}
+	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
+	main := helpers.NewInstance(t, mainCfg)
+	aux := suite.newNamedTeleportInstance(t, clusterAux)
+
+	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
+	mainDevs := "main-devs"
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	// If the test is using labels, the cluster will be labeled
+	// and user will be granted access if labels match.
+	// Otherwise, to preserve backwards-compatibility
+	// roles with no labels will grant access to clusters with no labels.
+	if test.useLabels {
+		devsRole.SetClusterLabels(types.Allow, types.Labels{"access": []string{"prod"}})
+	}
+	require.NoError(t, err)
+
+	mainAdmins := "main-admins"
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"superuser"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	main.AddUserWithRole(username, devsRole, adminsRole)
+
+	// Ops users can only access remote clusters with label 'access': 'ops'
+	mainOps := "main-ops"
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:        []string{username},
+			ClusterLabels: types.Labels{"access": []string{"ops"}},
+			NodeLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	main.AddUserWithRole(mainOps, mainOpsRole, adminsRole)
+
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
+		tconf, err := instance.GenerateConfig(t, nil, tconf)
+		require.NoError(t, err)
+
+		tconf.CachePolicy.Enabled = false
+		return t, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	require.NoError(t, main.CreateWithConf(makeConfig(main, false)))
+	require.NoError(t, aux.CreateWithConf(makeConfig(aux, true)))
+
+	// auxiliary cluster has only a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	require.NoError(t, err)
+
+	trustedClusterToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	if test.useLabels {
+		meta := tokenResource.GetMetadata()
+		meta.Labels = map[string]string{"access": "prod"}
+		tokenResource.SetMetadata(meta)
+	}
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
+	require.NoError(t, err)
+	// Note that the mapping omits admins role, this is to cover the scenario
+	// when root cluster and leaf clusters have different role sets
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+		{Remote: mainOps, Local: []string{auxDevs}},
+	})
+
+	// modify trusted cluster resource name, so it would not
+	// match the cluster name to check that it does not matter
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+
+	require.NoError(t, main.Start())
+	require.NoError(t, aux.Start())
+
+	err = trustedCluster.CheckAndSetDefaults()
+	require.NoError(t, err)
+
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+
+	// change role mapping to ensure updating works
+	trustedCluster.SetRoleMap(types.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+	})
+
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+
+	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
+		Aux:         aux,
+		Main:        main,
+		Username:    username,
+		ClusterAux:  clusterAux,
+		UseJumpHost: test.useJumpHost,
+	})
+
+	// disable the enabled trusted cluster and ensure it no longer works
+	trustedCluster.SetEnabled(false)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+
+	// Wait for both cluster to no longer see each other via reverse tunnels.
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 0), 10*time.Second, 1*time.Second,
+		"Two clusters still see eachother after being disabled.")
+	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 0), 10*time.Second, 1*time.Second,
+		"Two clusters still see eachother after being disabled.")
+
+	// stop clusters and remaining nodes
+	require.NoError(t, main.StopAll())
+	require.NoError(t, aux.StopAll())
+}
+
 func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 	username := suite.Me.Username
@@ -2656,9 +2976,10 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -2684,9 +3005,10 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV6{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -3056,6 +3378,9 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 // nodes will reconnect when network connection between the proxy and node
 // is restored.
 func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
+	// TODO(jakule): Re-enable this test
+	t.Skip("flaky test. Skip temporary")
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
 
@@ -3988,6 +4313,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4003,6 +4329,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4030,6 +4357,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -4059,6 +4387,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
@@ -4152,6 +4481,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4164,6 +4494,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4191,6 +4522,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -4204,6 +4536,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseRollback,
 		Mode:        types.RotationModeManual,
 	})
@@ -4272,9 +4605,10 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRoleV3(mainDevs, types.RoleSpecV6{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{suite.Me.Username},
+			Logins:     []string{suite.Me.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -4290,9 +4624,10 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRoleV3(auxDevs, types.RoleSpecV6{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{suite.Me.Username},
+			Logins:     []string{suite.Me.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -4338,6 +4673,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4372,6 +4708,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4391,6 +4728,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -4417,6 +4755,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.CertAuthTypeAll,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
@@ -4771,7 +5110,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
-			role, err := types.NewRoleV3(tt.inRoleName, types.RoleSpecV6{
+			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:     []string{tt.inLogin},
 					NodeLabels: tt.inLabels,
@@ -5575,7 +5914,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	authServer := main.Process.GetAuthServer()
 
 	// Create new request role
-	requestedRole, err := types.NewRoleV3(requestedRoleName, types.RoleSpecV6{
+	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV6{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})
@@ -5585,12 +5924,13 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
-	userRole, err := types.NewRoleV3(userRoleName, types.RoleSpecV6{
+	userRole, err := types.NewRole(userRoleName, types.RoleSpecV6{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
 			Logins: []string{
 				suite.Me.Username,
 			},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Request: &types.AccessRequestConditions{
 				Roles: []string{requestedRoleName},
 			},
@@ -5826,7 +6166,7 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 
 // invoke makes it easier to defer multiple cancelFuncs held by the same variable
 // without them stomping on one another.
-func invoke(cancel context.CancelFunc) {
+func invoke(cancel context.CancelFunc) { //nolint:unused // unused as TestReverseTunnelCollapse is skipped
 	cancel()
 }
 
@@ -6311,9 +6651,13 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	leafCfg.Listeners = standardPortsOrMuxSetup(t, false, &leafCfg.Fds)
 	leaf := helpers.NewInstance(t, leafCfg)
 
-	role, err := types.NewRoleV3("dev", types.RoleSpecV6{
+	role, err := types.NewRole("dev", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:           []string{username},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)

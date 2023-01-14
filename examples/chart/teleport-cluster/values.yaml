@@ -18,6 +18,28 @@ kubeClusterName: ""
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 
+# auth contains values specific for the auth pods
+# You can override chart-scoped values, for example
+# auth:
+#   postStart: ["curl", "http://hook"]
+#   imagePullPolicy: Always
+auth:
+  # auth.teleportConfig contains YAML teleport configuration for auth pods
+  # The configuration will be merged with the chart-generated configuration
+  # and will take precedence in case of conflict
+  teleportConfig: {}
+
+# proxy contains values specific for the proxy pods
+# You can override chart-scoped values, for example
+# auth:
+#   postStart: ["curl", "http://hook"]
+#   imagePullPolicy: Always
+proxy:
+  # proxy.teleportConfig contains YAML teleport configuration for proxy pods
+  # The configuration will be merged with the chart-generated configuration
+  # and will take precedence in case of conflict
+  teleportConfig: {}
+
 authentication:
   # Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.
   type: local
@@ -67,8 +89,12 @@ authentication:
 
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
-# Possible values are 'multiplex'
-proxyListenerMode: ""
+# 
+# WARNING: setting this value to 'multiplex' requires Teleport to terminate TLS itself.
+# TLS multiplexing is not supported when using ACM+NLB for TLS termination.
+#
+# Possible values are 'separate' and 'multiplex'
+proxyListenerMode: "separate"
 
 # Optional setting for configuring session recording.
 # See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
@@ -139,7 +165,6 @@ operator:
   #  limits:
   #    memory: "1Gi"
 
-
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 # Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
@@ -151,15 +176,39 @@ labels: {}
 
 # Mode to deploy the chart in. The default is "standalone". Options:
 # - "standalone": will deploy a Teleport container running auth and proxy services with a PersistentVolumeClaim for storage.
-# - "aws": will deploy a Teleport container running auth and proxy services using DynamoDB for backend/audit log storage and S3 for session recordings. (1)
-# - "gcp": will deploy a Teleport container running auth and proxy services using Firestore for backend/audit log storage and Google Cloud storage for session recordings. (2)
-# - "custom": will deploy a Teleport container using a teleport.yaml config file that you provide. (3)
+# - "aws": will deploy Teleport using DynamoDB for backend/audit log storage and S3 for session recordings. (1)
+# - "gcp": will deploy Teleport using Firestore for backend/audit log storage and Google Cloud storage for session recordings. (2)
+# - "scratch": will deploy Teleport containers but will not provide default configuration file. You must pass your own configuration. (3)
 # (1) To use "aws" mode, you must also configure the "aws" section below.
 # (2) To use "gcp" mode, you must also configure the "gcp" section below.
-# (3) When set to "custom", you must create a ConfigMap containing a 'teleport.yaml' key with an inline Teleport YAML config,
-#     give it the same name as the Helm release and place it in the chart namespace.
-#     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
+# (3) When set to "scratch", you must write the teleport configuration in auth.teleportConfig and proxy.teleportConfig.
 chartMode: standalone
+
+# validateConfigOnDeploy enables a Kubernetes job before install and upgrade that will verify
+# if the teleport.yaml configuration is valid and will block the deployment if it is not
+validateConfigOnDeploy: true
+
+# Whether the chart should create a Teleport ProvisionToken for the proxies to join the Teleport cluster.
+# Disabling this flag will cause the proxies not to be able to join the auth pods. In this case, the
+# Helm chart user is responsible for configuring working join_params on the proxy.
+createProxyToken: true
+
+# podMonitor controls the PodMonitor CR (from monitoring.coreos.com/v1)
+# This CRD is managed by the prometheus-operator and allows workload to
+# get monitored. To use this value, you need to run a `prometheus-operator`
+# in the cluster for this value to take effect.
+# See https://prometheus-operator.dev/docs/prologue/introduction/
+podMonitor:
+  # Whether the chart should deploy a PodMonitor.
+  # Disabled by default as it requires the PodMonitor CRD to be installed.
+  enabled: false
+  # additionalLabels to put on the PodMonitor.
+  # This is used to be selected by a specific prometheus instance.
+  # Defaults to {prometheus: default} which seems to be the common default prometheus selector
+  additionalLabels:
+    prometheus: default
+  # interval is the interval between two metrics scrapes. Defaults to 30s
+  interval: 30s
 
 ######################################################################
 # Persistence settings (only used in "standalone" and "custom" modes)
@@ -320,6 +369,10 @@ log:
 # Extra Kubernetes configuration #
 ##################################
 
+# nodeSelector to apply for pod assignment
+# https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+nodeSelector: {}
+
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 # NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also be used - you can only set one or the other.
@@ -419,3 +472,9 @@ tolerations: []
 # Timeouts for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 probeTimeoutSeconds: 1
+
+# Kubernetes termination grace period
+# https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#hook-handler-execution
+#
+# This should be greater than 30 seconds as pods are waiting 30 seconds in a preStop hook.
+terminationGracePeriodSeconds: 60
