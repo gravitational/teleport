@@ -5399,6 +5399,13 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 				KubeGroups: kubeGroups,
 				KubeUsers:  kubeUsers,
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -5416,6 +5423,13 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 				KubeGroups: kubeGroups,
 				KubeUsers:  kubeUsers,
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -5434,6 +5448,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 		marshalValidPodList(t, w)
 	})
 	testKube := httptest.NewTLSServer(rt)
+
 	t.Cleanup(func() {
 		testKube.Close()
 	})
@@ -5855,7 +5870,12 @@ func TestCreateDatabase(t *testing.T) {
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
-				Labels:   []ui.Label{},
+				Labels: []ui.Label{
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
+					},
+				},
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -5870,6 +5890,10 @@ func TestCreateDatabase(t *testing.T) {
 					{
 						Name:  "env",
 						Value: "prod",
+					},
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
 					},
 				},
 			},
@@ -7166,8 +7190,8 @@ func marshalRBACError(t *testing.T, w http.ResponseWriter) {
 func marshalValidPodList(t *testing.T, w http.ResponseWriter) {
 	result := &corev1.PodList{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "",
-			APIVersion: "",
+			Kind:       "PodList",
+			APIVersion: "v1",
 		},
 		ListMeta: metav1.ListMeta{
 			SelfLink:           "",

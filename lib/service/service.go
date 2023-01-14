@@ -2660,6 +2660,8 @@ func (process *TeleportProcess) initMetricsService() error {
 		}
 		log.Infof("Exited.")
 	})
+
+	process.BroadcastEvent(Event{Name: MetricsReady, Payload: nil})
 	return nil
 }
 
@@ -2816,6 +2818,8 @@ func (process *TeleportProcess) initTracingService() error {
 		}
 		process.log.Info("Exited.")
 	})
+
+	process.BroadcastEvent(Event{Name: TracingReady, Payload: nil})
 	return nil
 }
 
@@ -3394,7 +3398,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Client:    accessPoint,
 		},
 		AuthorityGetter: accessPoint,
-		Types:           []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+		Types: []types.CertAuthType{
+			types.HostCA,
+			types.UserCA,
+			types.DatabaseCA,
+			types.OpenSSHCA,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4118,7 +4127,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	})
 
 	return nil
-
 }
 
 func (process *TeleportProcess) getJWTSigner(ident *auth.Identity) (*jwt.Key, error) {
