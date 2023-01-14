@@ -1,4 +1,5 @@
 version: v1
 directories:
   - api/proto
+  - lib/teleterm/api/proto
   - proto

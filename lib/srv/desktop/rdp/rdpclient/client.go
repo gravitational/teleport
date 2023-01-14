@@ -63,6 +63,7 @@ package rdpclient
 #include <librdprs.h>
 */
 import "C"
+
 import (
 	"context"
 	"fmt"
