@@ -18,6 +18,8 @@ package database
 
 import (
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // PingParams contains the required fields necessary to test a Database Connection.
@@ -28,26 +30,26 @@ type PingParams struct {
 	Port int
 	// Username is the user to be used to login into the database.
 	Username string
-	// Database is the database name to be used to login into the database.
-	Database string
+	// DatabaseName is an optional database name to be used to login into the database.
+	DatabaseName string
 }
 
 // CheckAndSetDefaults validates and set the default values for the Ping.
-func (req *PingParams) CheckAndSetDefaults() error {
-	if req.Database == "" {
-		return trace.BadParameter("missing required parameter Database")
+func (p *PingParams) CheckAndSetDefaults(protocol string) error {
+	if protocol != defaults.ProtocolMySQL && p.DatabaseName == "" {
+		return trace.BadParameter("missing required parameter DatabaseName")
 	}
 
-	if req.Username == "" {
+	if p.Username == "" {
 		return trace.BadParameter("missing required parameter Username")
 	}
 
-	if req.Port == 0 {
+	if p.Port == 0 {
 		return trace.BadParameter("missing required parameter Port")
 	}
 
-	if req.Host == "" {
-		req.Host = "localhost"
+	if p.Host == "" {
+		p.Host = "localhost"
 	}
 
 	return nil

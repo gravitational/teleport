@@ -18,15 +18,22 @@ package db
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -160,6 +167,10 @@ func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels
 	if !ok {
 		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
+
+	if s.monitoredDatabases.isDiscoveryResource(database) {
+		s.cfg.discoveryResourceChecker.check(ctx, database)
+	}
 	return s.registerDatabase(ctx, database)
 }
 
@@ -188,13 +199,139 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 		return false
 	}
 
-	// In the case of CloudOrigin CloudHosted resources the matchers should be skipped.
-	if cloudOrigin(resource) && database.IsCloudHosted() {
+	// In the case of databases discovered by this database server, matchers
+	// should be skipped.
+	if s.monitoredDatabases.isCloud(database) {
 		return true // Cloud fetchers return only matching databases.
 	}
+
+	// Database resources created via CLI, API, or discovery service are
+	// filtered by resource matchers.
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
 }
 
-func cloudOrigin(r types.ResourceWithLabels) bool {
-	return r.Origin() == types.OriginCloud
+// discoveryResourceChecker defines an interface for checking database
+// resources created by the discovery service.
+type discoveryResourceChecker interface {
+	// check performs required checks on provided database resource before it
+	// gets registered.
+	check(ctx context.Context, database types.Database)
+}
+
+// cloudCredentialsChecker is a discoveryResourceChecker for validating cloud
+// credentials against the incoming discovery resources.
+type cloudCredentialsChecker struct {
+	cloudClients     clients.Clients
+	resourceMatchers []services.ResourceMatcher
+	log              *logrus.Entry
+	cache            *utils.FnCache
+}
+
+func newCloudCrednentialsChecker(ctx context.Context, cloudClients clients.Clients, resourceMatchers []services.ResourceMatcher) (discoveryResourceChecker, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:     10 * time.Minute,
+		Context: ctx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &cloudCredentialsChecker{
+		cloudClients:     cloudClients,
+		resourceMatchers: resourceMatchers,
+		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
+		cache:            cache,
+	}, nil
+}
+
+// check performs some quick checks to see whether this database agent can handle
+// the incoming database (likely created by discovery service), and logs a
+// warning with suggestions for this situation.
+func (c *cloudCredentialsChecker) check(ctx context.Context, database types.Database) {
+	if database.Origin() != types.OriginCloud {
+		return
+	}
+
+	switch {
+	case database.IsAWSHosted():
+		c.checkAWS(ctx, database)
+	case database.IsAzure():
+		c.checkAzure(ctx, database)
+	default:
+		c.log.Debugf("Database %q has unknown cloud type %q.", database.GetName(), database.GetType())
+	}
+}
+
+func (c *cloudCredentialsChecker) checkAWS(ctx context.Context, database types.Database) {
+	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
+		client, err := c.cloudClients.GetAWSSTSClient("")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return aws.GetIdentityWithClient(ctx, client)
+	})
+	if err != nil {
+		c.warn(err, database, "Failed to get AWS caller identity when checking a database created by the discovery service.")
+		return
+	}
+
+	meta := database.GetAWS()
+	if meta.AccountID != "" && meta.AccountID != identity.GetAccountID() {
+		c.warn(nil, database, fmt.Sprintf("The database agent's caller identity and discovered database %q have different AWS account IDs (%s vs %s).",
+			database.GetName(),
+			identity.GetAccountID(),
+			meta.AccountID,
+		))
+		return
+	}
+}
+
+func (c *cloudCredentialsChecker) checkAzure(ctx context.Context, database types.Database) {
+	allSubIDs, err := utils.FnCacheGet(ctx, c.cache, types.CloudAzure, func(ctx context.Context) ([]string, error) {
+		client, err := c.cloudClients.GetAzureSubscriptionClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return client.ListSubscriptionIDs(ctx)
+	})
+	if err != nil {
+		c.warn(err, database, "Failed to get Azure subscription IDs when checking a database created by the discovery service.")
+		return
+	}
+
+	rid, err := arm.ParseResourceID(database.GetAzure().ResourceID)
+	if err != nil {
+		c.log.Warnf("Failed to parse resource ID of database %q: %v.", database.GetName(), err)
+		return
+	}
+
+	if !slices.Contains(allSubIDs, rid.SubscriptionID) {
+		c.warn(nil, database, fmt.Sprintf("The discovered database %q is in a subscription (ID: %s) that the database agent does not have access to.",
+			database.GetName(),
+			rid.SubscriptionID,
+		))
+		return
+	}
+}
+
+func (c *cloudCredentialsChecker) warn(err error, database types.Database, msg string) {
+	log := c.log.WithField("database", database)
+	if err != nil {
+		log = log.WithField("error", err.Error())
+	}
+
+	logLevel := logrus.InfoLevel
+	if c.isWildcardMatcher() {
+		logLevel = logrus.WarnLevel
+	}
+	log.Logf(logLevel, "%s You can update \"db_service.resources\" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/database-access/reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.", msg)
+}
+
+func (c *cloudCredentialsChecker) isWildcardMatcher() bool {
+	if len(c.resourceMatchers) != 1 {
+		return false
+	}
+
+	wildcardLabels := c.resourceMatchers[0].Labels[types.Wildcard]
+	return len(wildcardLabels) == 1 && wildcardLabels[0] == types.Wildcard
 }
