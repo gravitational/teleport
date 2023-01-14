@@ -546,26 +546,27 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		if err := relogin(profileErr); err != nil {
 			return trace.Wrap(err)
 		}
-		return fn()
+		return trace.Wrap(fn())
 	}
 
-	err := fn()
-	if err == nil {
+	fnErr := fn()
+	if fnErr == nil {
 		return nil
 	}
 
-	if utils.IsPredicateError(err) {
-		return trace.Wrap(utils.PredicateError{Err: err})
+	if utils.IsPredicateError(fnErr) {
+		return trace.Wrap(utils.PredicateError{Err: fnErr})
 	}
 
-	if !IsErrorResolvableWithRelogin(err) {
+	if !IsErrorResolvableWithRelogin(fnErr) {
+		return trace.Wrap(fnErr)
+	}
+
+	if err := relogin(fnErr); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := relogin(profileErr); err != nil {
-		return trace.Wrap(err)
-	}
-	return fn()
+	return trace.Wrap(fn())
 }
 
 func IsErrorResolvableWithRelogin(err error) bool {
