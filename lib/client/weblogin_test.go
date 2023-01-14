@@ -36,69 +36,82 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 )
 
-func TestPlainHttpFallback(t *testing.T) {
+// TestHostCredentialsHttpFallback tests that HostCredentials requests (/v1/webapi/host/credentials/)
+// fall back to HTTP only if the address is a loopback and the insecure mode was set.
+func TestHostCredentialsHttpFallback(t *testing.T) {
 	testCases := []struct {
-		desc            string
-		path            string
-		handler         http.HandlerFunc
-		actionUnderTest func(ctx context.Context, addr string, insecure bool) error
+		desc     string
+		loopback bool
+		insecure bool
+		fallback bool
 	}{
 		{
-			desc: "HostCredentials",
-			path: "/v1/webapi/host/credentials",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.RequestURI != "/v1/webapi/host/credentials" {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(proto.Certs{})
-			},
-			actionUnderTest: func(ctx context.Context, addr string, insecure bool) error {
-				_, err := client.HostCredentials(ctx, addr, insecure, types.RegisterUsingTokenRequest{})
-				return err
-			},
+			desc:     "falls back to http if loopback and insecure",
+			loopback: true,
+			insecure: true,
+			fallback: true,
+		},
+		{
+			desc:     "does not fall back to http if loopback and secure",
+			loopback: true,
+			insecure: false,
+			fallback: false,
+		},
+		{
+			desc:     "does not fall back to http if non-loopback and insecure",
+			loopback: false,
+			insecure: true,
+			fallback: false,
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.desc, func(t *testing.T) {
-			ctx := context.Background()
+	for _, tc := range testCases {
+		// Start an http server (not https) so that the request only succeeds
+		// if the fallback occurs.
+		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+			if r.RequestURI != "/v1/webapi/host/credentials" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(proto.Certs{})
+		}
+		httpSvr, err := newServer(handler, tc.loopback)
+		require.NoError(t, err)
+		defer httpSvr.Close()
 
-			t.Run("Allowed on insecure & loopback", func(t *testing.T) {
-				httpSvr := httptest.NewServer(testCase.handler)
-				defer httpSvr.Close()
+		// Send the HostCredentials request.
+		ctx := context.Background()
+		_, err = client.HostCredentials(ctx, httpSvr.Listener.Addr().String(), tc.insecure, types.RegisterUsingTokenRequest{})
 
-				err := testCase.actionUnderTest(ctx, httpSvr.Listener.Addr().String(), true /* insecure */)
-				require.NoError(t, err)
-			})
-
-			t.Run("Denied on secure", func(t *testing.T) {
-				httpSvr := httptest.NewServer(testCase.handler)
-				defer httpSvr.Close()
-
-				err := testCase.actionUnderTest(ctx, httpSvr.Listener.Addr().String(), false /* secure */)
-				require.Error(t, err)
-			})
-
-			t.Run("Denied on non-loopback", func(t *testing.T) {
-				nonLoopbackSvr := httptest.NewUnstartedServer(testCase.handler)
-
-				// replace the test-supplied loopback listener with the first available
-				// non-loopback address
-				nonLoopbackSvr.Listener.Close()
-				l, err := net.Listen("tcp", "0.0.0.0:0")
-				require.NoError(t, err)
-				nonLoopbackSvr.Listener = l
-				nonLoopbackSvr.Start()
-				defer nonLoopbackSvr.Close()
-
-				err = testCase.actionUnderTest(ctx, nonLoopbackSvr.Listener.Addr().String(), true /* insecure */)
-				require.Error(t, err)
-			})
-		})
+		// If it should fallback, then no error should occur
+		// as the request will hit the running http server.
+		if tc.fallback {
+			require.NoError(t, err)
+		} else {
+			require.Error(t, err)
+		}
 	}
+}
+
+// newServer starts a new server that uses a loopback listener if `loopback`.
+func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error) {
+	srv := httptest.NewUnstartedServer(handler)
+
+	if !loopback {
+		// Replace the test-supplied loopback listener with the first available
+		// non-loopback address.
+		srv.Listener.Close()
+		l, err := net.Listen("tcp", "0.0.0.0:0")
+		if err != nil {
+			return nil, err
+		}
+		srv.Listener = l
+	}
+
+	srv.Start()
+	return srv, nil
 }
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {

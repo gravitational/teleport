@@ -1,0 +1,275 @@
+{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-auth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    app: {{ .Release.Name }}
+{{- if $auth.annotations.deployment }}
+  annotations: {{- toYaml $auth.annotations.deployment | nindent 4 }}
+{{- end }}
+spec:
+  replicas: {{ $auth.highAvailability.replicaCount }}
+{{- if and $replicated $auth.highAvailability.minReadySeconds }}
+  minReadySeconds: {{ $auth.highAvailability.minReadySeconds }}
+{{- end }}
+  strategy:
+{{- if $replicated }}
+    # some backends support a maximum amount of auth pods (e.g. DynamoDB),
+    # we don't want to exceed this during a rollout.
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+{{- else }}
+    # using a single replica can be because of a non-replicable storage or when applying upgrade migrations.
+    # In those cases, we don't want a rolling update.
+    type: Recreate
+{{- end }}
+  selector:
+    matchLabels: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/auth/config.yaml") . | sha256sum }}
+{{- if $auth.annotations.pod }}
+  {{- toYaml $auth.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
+        app: {{ .Release.Name }}
+    spec:
+{{- if $auth.nodeSelector }}
+      nodeSelector: {{- toYaml $auth.nodeSelector | nindent 8 }}
+{{- end }}
+      affinity:
+{{- if $auth.affinity }}
+  {{- if $auth.highAvailability.requireAntiAffinity }}
+    {{- fail "Cannot use highAvailability.requireAntiAffinity when affinity is also set in chart values - unset one or the other" }}
+  {{- end }}
+  {{- toYaml $auth.affinity | nindent 8 }}
+{{- else }}
+        podAntiAffinity:
+  {{- if $auth.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values:
+                      - {{ .Release.Name }}
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values:
+                      - proxy
+              topologyKey: "kubernetes.io/hostname"
+  {{- else if $replicated }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/instance
+                      operator: In
+                      values:
+                        - {{ .Release.Name }}
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - proxy
+                topologyKey: "kubernetes.io/hostname"
+  {{- end }}
+{{- end }}
+{{- if $auth.tolerations }}
+      tolerations: {{- toYaml $auth.tolerations | nindent 6 }}
+{{- end }}
+{{- if $auth.initContainers }}
+      initContainers:
+  {{- range $initContainer := $auth.initContainers }}
+    {{- if and (not $initContainer.resources) $auth.resources }}
+      {{- $_ := set $initContainer "resources" $auth.resources }}
+    {{- end }}
+    {{- list $initContainer | toYaml | nindent 8 }}
+    {{- /* Note: this will break if the user sets volumeMounts to its initContainer */}}
+          volumeMounts:
+    {{- if $auth.enterprise }}
+          - mountPath: /var/lib/license
+            name: "license"
+            readOnly: true
+    {{- end }}
+    {{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
+          - mountPath: /etc/teleport-secrets
+            name: "gcp-credentials"
+            readOnly: true
+    {{- end }}
+          - mountPath: /etc/teleport
+            name: "config"
+            readOnly: true
+          - mountPath: /var/lib/teleport
+            name: "data"
+    {{- if $auth.extraVolumeMounts }}
+      {{- toYaml $auth.extraVolumeMounts | nindent 10 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+      containers:
+      - name: "teleport"
+        image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
+        imagePullPolicy: {{ $auth.imagePullPolicy }}
+        {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
+        env:
+        {{- if (gt (len $auth.extraEnv) 0) }}
+          {{- toYaml $auth.extraEnv | nindent 8 }}
+        {{- end }}
+        {{- if $auth.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+        {{- end }}
+        {{- end }}
+        args:
+        - "--diag-addr=0.0.0.0:3000"
+        {{- if $auth.insecureSkipProxyTLSVerify }}
+        - "--insecure"
+        {{- end }}
+        {{- if $auth.createProxyToken }}
+        - "--apply-on-startup=/etc/teleport/apply-on-startup.yaml"
+        {{- end }}
+        {{- if $auth.extraArgs }}
+          {{- toYaml $auth.extraArgs | nindent 8 }}
+        {{- end }}
+        ports:
+        - name: diag
+          containerPort: 3000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to start
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to register
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+        lifecycle:
+          # waiting during preStop ensures no new request will hit the Terminating pod
+          # on clusters using kube-proxy (kube-proxy syncs the node iptables rules every 30s)
+          preStop:
+            exec:
+              command:
+                - teleport
+                - wait
+                - duration
+                - 30s
+{{- if $auth.postStart.command }}
+          postStart:
+            exec:
+              command: {{ toYaml $auth.postStart.command | nindent 14 }}
+{{- end }}
+{{- if $auth.resources }}
+        resources:
+  {{- toYaml $auth.resources | nindent 10 }}
+{{- end }}
+{{- if $auth.securityContext }}
+        securityContext: {{- toYaml $auth.securityContext | nindent 10 }}
+{{- end }}
+        volumeMounts:
+{{- if $auth.enterprise }}
+        - mountPath: /var/lib/license
+          name: "license"
+          readOnly: true
+{{- end }}
+{{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
+        - mountPath: /etc/teleport-secrets
+          name: "gcp-credentials"
+          readOnly: true
+{{- end }}
+{{- if $auth.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+{{- end }}
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{- if $auth.extraVolumeMounts }}
+  {{- toYaml $auth.extraVolumeMounts | nindent 8 }}
+{{- end }}
+{{- /* Operator uses '.Values' instead of '$auth' as it will likely be moved out of the auth pods */}}
+{{- if .Values.operator.enabled }}
+      - name: "operator"
+        image: '{{ .Values.operator.image }}:{{ include "teleport-cluster.version" . }}'
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+  {{- if .Values.operator.resources }}
+        resources: {{- toYaml .Values.operator.resources | nindent 10 }}
+  {{- end }}
+        volumeMounts:
+  {{- if .Values.tls.existingSecretName }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+  {{- end }}
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{ end }}
+      volumes:
+{{- if $auth.enterprise }}
+      - name: license
+        secret:
+          secretName: "license"
+{{- end }}
+{{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
+      - name: gcp-credentials
+        secret:
+          secretName: {{ $auth.gcp.credentialSecretName | quote }}
+{{- end }}
+{{- if $auth.tls.existingCASecretName }}
+      - name: teleport-tls-ca
+        secret:
+          secretName: {{ $auth.tls.existingCASecretName }}
+{{- end }}
+      - name: "config"
+        configMap:
+          name: {{ .Release.Name }}-auth
+      - name: "data"
+        {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws"))) }}
+        persistentVolumeClaim:
+          claimName: {{ if $auth.persistence.existingClaimName }}{{ $auth.persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- if $auth.extraVolumes }}
+  {{- toYaml $auth.extraVolumes | nindent 6 }}
+{{- end }}
+{{- if $auth.priorityClassName }}
+      priorityClassName: {{ $auth.priorityClassName }}
+{{- end }}
+      serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}

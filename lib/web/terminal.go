@@ -472,8 +472,10 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
+	// Always acquire single-use certificates from the root cluster, that's where
+	// both the user and their devices are registered.
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	stream, err := t.authProvider.GenerateUserSingleUseCerts(ctx)
+	stream, err := t.ctx.cfg.RootClient.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
