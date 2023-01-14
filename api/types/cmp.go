@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,38 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package types
 
 import (
 	"strings"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
-// CompareResources compares two resources by all significant fields.
-func CompareResources(resA, resB types.Resource) int {
-	equal := cmp.Equal(resA, resB,
-		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
-		cmpopts.EquateEmpty(),
-	)
-	if equal {
-		return Equal
-	}
-	return Different
-}
-
-// ignoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto
-// messages.
-func ignoreProtoXXXFields() cmp.Option {
-	return cmp.FilterPath(func(path cmp.Path) bool {
+// protoEqual returns true if provided proto messages are equal, ignoring the
+// XXX_* fields.
+func protoEqual(a, b proto.Message) bool {
+	return cmp.Equal(a, b, cmp.FilterPath(func(path cmp.Path) bool {
 		if field, ok := path.Last().(cmp.StructField); ok {
 			return strings.HasPrefix(field.Name(), "XXX_")
 		}
 		return false
-	}, cmp.Ignore())
+	}, cmp.Ignore()))
 }

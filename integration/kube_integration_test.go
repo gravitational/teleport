@@ -1475,7 +1475,7 @@ func kubeExec(kubeConfig *rest.Config, args kubeExecArgs) error {
 		Stderr: args.stderr,
 		Tty:    args.tty,
 	}
-	return executor.Stream(opts)
+	return executor.StreamWithContext(context.Background(), opts)
 }
 
 func kubeJoin(kubeConfig kubeProxyConfig, tc *client.TeleportClient, sessionID string) (*client.KubeSession, error) {

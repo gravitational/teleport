@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -179,7 +178,7 @@ func (c *LockV2) CheckAndSetDefaults() error {
 
 // IsEmpty returns true if none of the target's fields is set.
 func (t LockTarget) IsEmpty() bool {
-	return cmp.Equal(t, LockTarget{})
+	return protoEqual(&t, &LockTarget{})
 }
 
 // IntoMap returns the target attributes in the form of a map.
