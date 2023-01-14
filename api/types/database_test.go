@@ -125,3 +125,48 @@ func TestMySQLServerVersion(t *testing.T) {
 	database.SetMySQLServerVersion("8.0.1")
 	require.Equal(t, "8.0.1", database.GetMySQLServerVersion())
 }
+
+func TestAWSIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  AWS
+		assert require.BoolAssertionFunc
+	}{
+		{
+			name:   "true",
+			input:  AWS{},
+			assert: require.True,
+		},
+		{
+			name: "true with unrecognized bytes",
+			input: AWS{
+				XXX_unrecognized: []byte{66, 0},
+			},
+			assert: require.True,
+		},
+		{
+			name: "true with nested unrecognized bytes",
+			input: AWS{
+				Redshift: Redshift{
+					XXX_unrecognized: []byte{99, 0},
+				},
+			},
+			assert: require.True,
+		},
+		{
+			name: "false",
+			input: AWS{
+				Region: "us-west-1",
+			},
+			assert: require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assert(t, test.input.IsEmpty())
+		})
+	}
+}

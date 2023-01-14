@@ -27,14 +27,14 @@ windows_desktop_service:
     # The security identifier of the service account specified by the username
     # field above. This looks like a string starting with "S-".
     #
-    # An administrator with access to the domain controller can obtain this value
+    # Any AD user with permission to read user objects can obtain this value
     # by opening a PowerShell and running
     # ```
     # Get-AdUser -Identity $LDAP_USERNAME | Select SID
     # ```
     #
     # The value can be obtained over LDAP by constructing a query with the
-    # filter = (&(objectCategory=person)(objectClass=user)(name=$LDAP_USERNAME))
+    # filter = (&(objectCategory=person)(objectClass=user)(sAMAccountName=$LDAP_USERNAME))
     # and requesting the attribute = objectSid
     sid: '$LDAP_USER_SID'
     # You can skip LDAPS certificate verification by setting
