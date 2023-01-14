@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -602,67 +601,6 @@ func TestLabelParsing(t *testing.T) {
 			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
 		},
 	}, conf.CmdLabels)
-}
-
-func TestTrustedClusters(t *testing.T) {
-	err := readTrustedClusters(nil, nil)
-	require.NoError(t, err)
-
-	var conf service.Config
-	err = readTrustedClusters([]TrustedCluster{
-		{
-			AllowedLogins: "vagrant, root",
-			KeyFile:       "../../fixtures/trusted_clusters/cluster-a",
-			TunnelAddr:    "one,two",
-		},
-	}, &conf)
-	require.NoError(t, err)
-	authorities := conf.Auth.Authorities
-	require.Len(t, authorities, 2)
-	require.Equal(t, "cluster-a", authorities[0].GetClusterName())
-	require.Equal(t, types.HostCA, authorities[0].GetType())
-	require.Len(t, authorities[0].GetActiveKeys().SSH, 1)
-	require.Equal(t, "cluster-a", authorities[1].GetClusterName())
-	require.Equal(t, types.UserCA, authorities[1].GetType())
-	require.Len(t, authorities[1].GetActiveKeys().SSH, 1)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetActiveKeys().SSH[0].PublicKey)
-	require.NoError(t, err)
-
-	tunnels := conf.ReverseTunnels
-	require.Len(t, tunnels, 1)
-	require.Equal(t, "cluster-a", tunnels[0].GetClusterName())
-	require.Len(t, tunnels[0].GetDialAddrs(), 2)
-	require.Equal(t, "tcp://one:3024", tunnels[0].GetDialAddrs()[0])
-	require.Equal(t, "tcp://two:3024", tunnels[0].GetDialAddrs()[1])
-
-	// invalid data:
-	err = readTrustedClusters([]TrustedCluster{
-		{
-			AllowedLogins: "vagrant, root",
-			KeyFile:       "non-existing",
-			TunnelAddr:    "one,two",
-		},
-	}, &conf)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "reading trusted cluster keys")
-	err = readTrustedClusters([]TrustedCluster{
-		{
-			KeyFile:    "../../fixtures/trusted_clusters/cluster-a",
-			TunnelAddr: "one,two",
-		},
-	}, &conf)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "needs allow_logins parameter")
-	conf.ReverseTunnels = nil
-	err = readTrustedClusters([]TrustedCluster{
-		{
-			KeyFile:       "../../fixtures/trusted_clusters/cluster-a",
-			AllowedLogins: "vagrant",
-			TunnelAddr:    "",
-		},
-	}, &conf)
-	require.NoError(t, err)
-	require.Len(t, conf.ReverseTunnels, 0)
 }
 
 // TestFileConfigCheck makes sure we don't start with invalid settings.
@@ -1271,45 +1209,6 @@ func TestTunnelStrategy(t *testing.T) {
 			}
 			require.Equal(t, tc.tunnelStrategy, actualStrategy)
 		})
-	}
-}
-
-// TestParseKey ensures that keys are parsed correctly if they are in
-// authorized_keys format or known_hosts format.
-func TestParseKey(t *testing.T) {
-	tests := []struct {
-		inCABytes      []byte
-		outType        types.CertAuthType
-		outClusterName string
-	}{
-		// 0 - host ca in known_hosts format
-		{
-			[]byte(`@cert-authority *.foo ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCz+PzY6z2Xa1cMeiJqOH5BRpwY+PlS3Q6C4e3Yj8xjLW1zD3Cehm71zjsYmrpuFTmdylbcKB6CcM6Ft4YbKLG3PTLSKvCPTgfSBk8RCYX02PtOV5ixwa7xl5Gfhc1GRIheXgFO9IT+W9w9ube9r002AGpkMnRRtWAWiZHMGeJoaUoCsjDLDbWsQHj06pr7fD98c7PVcVzCKPTQpadXEP6sF8w417DvypHY1bYsvhRqHw9Njx6T3b9BM3bJ4QXgy18XuO5fCpLjKLsngLwSbqe/1IP4Q0zlUaNOTph3WnjeKJZO9yQeVX1cWDwY4Iz5lSHhsJnQD99hBDdw2RklHU0j type=host`),
-			types.HostCA,
-			"foo",
-		},
-		// 1 - user ca in known_hosts format (legacy)
-		{
-			[]byte(`@cert-authority *.bar ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfhrvzbHAHrukeDhLSzoXtpctiumao1MQElwhOeuzFRYwrGV/1L2gsx4OJk4ztXKOCpon1FB+dy2aJN0WIr/9qXg37D6K/XJhgDaSfW8cjpl72Lw8kknDpmgSSA3cTvzFNmXfw4DNT/klRwEw6MMrDmfT9QvaV2d35lSoMMeTZ1ilFeJqXdUkY+bgijLBQU5MUjZUfQfS3jpSxVD0DD9D1VbAE1nGSNyFqf34JxJmqJ3R5hfZqNfb9CWouv+uFF99tzOr7tnKM/sQMPGmJ5G+zjTaErNSSLiIU1iCwVKUpNFcGiR1lpOEET+neJVnEeqEqKv2ookkXaIdKjk1UKZEn type=user`),
-			types.UserCA,
-			"bar",
-		},
-		// 2 - user ca in authorized_keys format
-		{
-			[]byte(`cert-authority ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCiIxyz0ctsyQbKLpWVYNF+ZIOrF150Wma2GqkrOWZaOzu5NSnt9Hmp7DaIa2Gn8fh8+8vjP02qp3i43SDOlLyYSn05nJjEXaz7QGysgeppN8ayojl5dkOhA00ROpCl5HhS9cmga7fy1Uwy4jhxenNpfQ5ap0COQi3UrXPepaq8z+I4XQK//qFWnkgyD1VXCnRKXXiajOf3dShYJqLCgwYiViuFmzi2p3lysoYS5eRwTCKiyyBtlkUtpTAse455yGf3QCpe+UOBiJ/4AElxacDndtMkjjctHSPCiztnph1xej64vSy8C2nGsnPIK7RfiOzSEdd5hwva+wPLgNTcKXZz type=user&clustername=baz`),
-			types.UserCA,
-			"baz",
-		},
-	}
-
-	// run tests
-	for i, tt := range tests {
-		comment := fmt.Sprintf("Test %v", i)
-
-		ca, _, err := parseCAKey(tt.inCABytes, []string{"foo"})
-		require.NoError(t, err, comment)
-		require.Equal(t, ca.GetType(), tt.outType)
-		require.Equal(t, ca.GetClusterName(), tt.outClusterName)
 	}
 }
 
