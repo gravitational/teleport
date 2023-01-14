@@ -30,6 +30,8 @@ This guide introduces some of these common scenarios and how to interact with Te
 - One host running a Linux environment (such as Ubuntu 20.04, CentOS
   8.0, or Debian 10). This will serve as a Teleport Node.
 
+- The `jq` tool to process `JSON` output. This is available via common package managers.
+
 (!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/permission-warning.mdx!)
@@ -55,10 +57,22 @@ This guide introduces some of these common scenarios and how to interact with Te
 
 Next, create a join token so you can add the Node to your Teleport cluster.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 # Let's save the token to a file
-$ sudo tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+$ sudo tctl tokens add --type=node --format json | jq -r '.token'  > token.file
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+#Let's save the token to a file
+$ tctl tokens add --type=node  --format json | jq -r '.token' > token.file
+```
+
+</ScopedBlock>
 
 `--type=node` specifies that the Teleport Node will act and join as an SSH
 server.
@@ -76,41 +90,62 @@ the rights and access to read.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-Start the Node. Change `tele.example.com` to the address of your Teleport Proxy
+Configure and start the Node. Change `tele.example.com` to the address of your Teleport Proxy
 Service. Assign the `--token` flag to the path where you saved
 `token.file`.
 
 ```code
-# Join cluster
-$ sudo teleport start \
-   --roles=node \
+# Generate the Teleport configuration file defaulted at /etc/teleport.yaml
+$ sudo teleport node configure \
+   --labels=env=example \
    --token=/path/to/token.file \
-   --auth-server=tele.example.com:443
+   --proxy=tele.example.com:443 \
+   -o file
+# Start and join cluster
+$ sudo teleport start
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
-Start the Node. Change `mytenant.teleport.sh` to your Teleport Cloud tenant
+Configure and start the Node. Change `mytenant.teleport.sh` to your Teleport Cloud tenant
 address. Assign the `--token` flag to the path where you saved `token.file`.
 
 ```code
-# Join cluster
-$ sudo teleport start \
-   --roles=node \
+# Generate the Teleport configuration file defaulted at /etc/teleport.yaml
+$ sudo teleport node configure \
+   --labels=env=example \
    --token=/path/to/token.file \
-   --auth-server=mytenant.teleport.sh:443
+   --proxy=mytenant.teleport.sh:443 \
+   -o file
+# Start and join cluster
+$ sudo teleport start
 ```
 
 </ScopedBlock>
+
+Now that you have a node configured you can update the configuration
+as needed, stop and restart with `sudo teleport start`. See
+[Run Teleport as a Daemon](../management/admin/daemon.mdx) for running as a daemon using systemd.
 
 ### Access the Web UI
 
 Run the following command to create a user that can access the Teleport Web UI:
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 $ sudo tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+```
+
+</ScopedBlock>
 
 This will generate an initial login link where you can create a password and set up two-factor authentication for `tele-admin`.
 
@@ -212,27 +247,49 @@ which are used for establishing SSH connections:
    $ tsh ls
    ```
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
    In this example, the bastion host Node is located on the bottom line below:
 
    ```txt
    Node Name        Address        Labels
    ---------------- -------------- --------------------------------------
-   ip-172-31-35-170 ⟵ Tunnel
+   ip-172-31-35-170 ⟵ Tunnel       env=example, hostname=ip-172-31-35-170
    ip-172-31-41-144 127.0.0.1:3022 env=example, hostname=ip-172-31-41-144
    ```
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+   ```txt
+   Node Name        Address        Labels
+   ---------------- -------------- --------------------------------------
+   ip-172-31-35-170 ⟵ Tunnel       env=example, hostname=ip-172-31-41-144
+   ```
+</ScopedBlock>
 
 ### Connect to a Node
 
+<ScopedBlock scope={["oss", "enterprise"]}>
 `tele-admin` can SSH into the bastion host Node by running the following command locally:
 
 ```code
 # Use tsh to ssh into a Node
 $ tsh ssh root@ip-172-31-41-144
 ```
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+`tele-admin` can SSH into the Node by running the following command locally:
+
+```code
+# Use tsh to ssh into a Node
+$ tsh ssh root@ip-172-31-35-170
+```
+
+</ScopedBlock>
 
 Now, they can:
 
-- Connect to other Nodes in the cluster by using the appropriate IP address in the `tsh ssh` command.
+- Connect to other Nodes in the cluster by using the Node name in the `tsh ssh` command.
 - Traverse the Linux file system.
 - Execute desired commands.
 
@@ -277,6 +334,7 @@ Now, `tele-admin` has the ability to SSH into other Nodes within the cluster, tr
 
 ### Display the unified resource catalog
 
+<ScopedBlock scope={["oss", "enterprise"]}>
 Execute the following command within your bastion host console:
 
 ```code
@@ -289,9 +347,27 @@ This displays the unified resource catalog with all queried resources in one vie
 ```txt
 Nodename         UUID                                 Address        Labels
 ---------------- ------------------------------------ -------------- -------------------------------------
-ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747
+ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747                env=example,hostname=ip-172-31-41-170
 ip-172-31-41-144 f3d2a65f-3fa7-451d-b516-68d189ff9ae5 127.0.0.1:3022 env=example,hostname=ip-172-31-41-144
 ```
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+Execute the following command on your desktop:
+
+```code
+# List Nodes
+$ tctl nodes ls
+```
+
+This displays the unified resource catalog with all queried resources in one view:
+
+```txt
+Nodename         UUID                                 Address        Labels
+---------------- ------------------------------------ -------------- -------------------------------------
+ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747                env=example,hostname=ip-172-31-35-170
+```
+</ScopedBlock>
 
 Note the "Labels" column on the farthest side. `tele-admin` can query all resources with a shared label using the command:
 
