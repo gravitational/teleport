@@ -122,9 +122,6 @@ const (
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
-	// KindDatabaseService is a database service resource.
-	KindDatabaseService = "db_service"
-
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
@@ -282,6 +279,12 @@ const (
 	// KindUsageEvent is an external cluster usage event. Similar to
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
+
+	// KindInstance represents a teleport instance independent of any specific service.
+	KindInstance = "instance"
+
+	// KindLoginRule is a login rule resource.
+	KindLoginRule = "login_rule"
 
 	// V5 is the fifth version of resources.
 	V5 = "v5"

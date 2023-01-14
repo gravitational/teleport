@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -835,38 +836,43 @@ func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req prot
 	return a.authServer.UnstableAssertSystemRole(ctx, req)
 }
 
-func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) error {
+// RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
+// the auth server's main control logic. We also return the post-auth hello message back up to the grpcserver layer in order to
+// use it for metrics purposes.
+func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (proto.UpstreamInventoryHello, error) {
+	// this value gets set further down
+	var hello proto.UpstreamInventoryHello
+
 	// Ensure that caller is a teleport server
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
+		return hello, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
 
 	// wait for upstream hello
-	var upstreamHello proto.UpstreamInventoryHello
 	select {
 	case msg := <-ics.Recv():
 		switch m := msg.(type) {
 		case proto.UpstreamInventoryHello:
-			upstreamHello = m
+			hello = m
 		default:
-			return trace.BadParameter("expected upstream hello, got: %T", m)
+			return hello, trace.BadParameter("expected upstream hello, got: %T", m)
 		}
 	case <-ics.Done():
-		return trace.Wrap(ics.Error())
+		return hello, trace.Wrap(ics.Error())
 	case <-a.CloseContext().Done():
-		return trace.Errorf("auth server shutdown")
+		return hello, trace.Errorf("auth server shutdown")
 	}
 
 	// verify that server is creating stream on behalf of itself.
-	if upstreamHello.ServerID != role.GetServerID() {
-		return trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), upstreamHello.ServerID)
+	if hello.ServerID != role.GetServerID() {
+		return hello, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.ServerID)
 	}
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
 	// services that are unrecognized or unauthorized, rather than rejecting hellos that claim them.
 	var filteredServices []types.SystemRole
-	for _, service := range upstreamHello.Services {
+	for _, service := range hello.Services {
 		if !a.hasBuiltinRole(service) {
 			log.Warnf("Omitting service %q for control stream of instance %q (unknown or unauthorized).", service, role.GetServerID())
 			continue
@@ -874,9 +880,9 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		filteredServices = append(filteredServices, service)
 	}
 
-	upstreamHello.Services = filteredServices
+	hello.Services = filteredServices
 
-	return a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
+	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
@@ -895,6 +901,14 @@ func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.Inventory
 		return proto.InventoryPingResponse{}, trace.AccessDenied("requires builtin admin role")
 	}
 	return a.authServer.PingInventory(ctx, req)
+}
+
+func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
+	if err := a.action(apidefaults.Namespace, types.KindInstance, types.VerbList, types.VerbRead); err != nil {
+		return stream.Fail[types.Instance](trace.Wrap(err))
+	}
+
+	return a.authServer.GetInstances(ctx, filter)
 }
 
 func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
@@ -1321,7 +1335,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1404,8 +1418,6 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr.GetCluster(), mfaParams)
 	case types.DatabaseServer:
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
-	case types.DatabaseService:
-		return r.CheckAccess(rr, mfaParams)
 	case types.Database:
 		return r.CheckAccess(rr, mfaParams)
 	case types.Server:
@@ -1502,7 +1514,7 @@ func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -3960,30 +3972,6 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
-}
-
-// UpsertDatabaseService creates or updates a new DatabaseService resource.
-func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
-	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.UpsertDatabaseService(ctx, service)
-}
-
-// DeleteAllDatabaseServices removes all DatabaseService resources.
-func (a *ServerWithRoles) DeleteAllDatabaseServices(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllDatabaseServices(ctx)
-}
-
-// DeleteDatabaseService removes a specific DatabaseService resource.
-func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteDatabaseService(ctx, name)
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking

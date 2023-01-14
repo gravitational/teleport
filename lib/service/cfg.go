@@ -154,7 +154,7 @@ type Config struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Events is events service
 	Events types.Events
@@ -494,6 +494,10 @@ type ProxyConfig struct {
 
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
+
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration
 
 	// ACME is ACME protocol support config
 	ACME ACME
@@ -1325,6 +1329,8 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.

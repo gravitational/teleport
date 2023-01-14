@@ -29,6 +29,7 @@ import (
 func TestIntervalReset(t *testing.T) {
 	const iterations = 1_000
 	const duration = time.Millisecond * 666
+	t.Parallel()
 
 	var success, failure atomic.Uint64
 	var wg sync.WaitGroup
@@ -75,12 +76,11 @@ func TestIntervalReset(t *testing.T) {
 
 	wg.Wait()
 
-	t.Logf("success=%d, failure=%d", success.Load(), failure.Load())
-
-	require.True(t, success.Load() > failure.Load())
+	require.Greater(t, success.Load(), failure.Load())
 }
 
 func TestNewNoop(t *testing.T) {
+	t.Parallel()
 	i := NewNoop()
 	ch := i.Next()
 	select {

@@ -102,7 +102,7 @@ type InitConfig struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and heartbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
@@ -130,9 +130,6 @@ type InitConfig struct {
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
-
-	// DatabaseServices is a service that manages DatabaseService resources.
-	DatabaseServices services.DatabaseServices
 
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal

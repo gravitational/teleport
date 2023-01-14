@@ -52,6 +52,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -152,9 +153,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
-	if cfg.DatabaseServices == nil {
-		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
-	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
 	}
@@ -227,7 +225,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	services := &Services{
 		Trust:                 cfg.Trust,
-		Presence:              cfg.Presence,
+		PresenceInternal:      cfg.Presence,
 		Provisioner:           cfg.Provisioner,
 		Identity:              cfg.Identity,
 		Access:                cfg.Access,
@@ -237,7 +235,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Apps:                  cfg.Apps,
 		Kubernetes:            cfg.Kubernetes,
 		Databases:             cfg.Databases,
-		DatabaseServices:      cfg.DatabaseServices,
 		IAuditLog:             cfg.AuditLog,
 		Events:                cfg.Events,
 		WindowsDesktops:       cfg.WindowsDesktops,
@@ -267,7 +264,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Cache:           services,
 		keyStore:        keyStore,
 		getClaimsFun:    getClaims,
-		inventory:       inventory.NewController(cfg.Presence),
+		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
@@ -308,7 +305,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 type Services struct {
 	services.Trust
-	services.Presence
+	services.PresenceInternal
 	services.Provisioner
 	services.Identity
 	services.Access
@@ -318,7 +315,6 @@ type Services struct {
 	services.Apps
 	services.Kubernetes
 	services.Databases
-	services.DatabaseServices
 	services.WindowsDesktops
 	services.SessionTrackerService
 	services.Enforcer
@@ -2627,15 +2623,93 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
+	const pingAttempt = "ping-attempt"
+	const pingSuccess = "ping-success"
+	const maxAttempts = 16
 	stream, ok := a.inventory.GetControlStream(req.ServerID)
 	if !ok {
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	d, err := stream.Ping(ctx)
+	id := insecurerand.Uint64()
+
+	if !req.ControlLog {
+		// this ping doesn't pass through the control log, so just execute it immediately.
+		d, err := stream.Ping(ctx, id)
+		return proto.InventoryPingResponse{
+			Duration: d,
+		}, trace.Wrap(err)
+	}
+
+	// matchEntry is used to check if our log entry has been included
+	// in the control log.
+	matchEntry := func(entry types.InstanceControlLogEntry) bool {
+		return entry.Type == pingAttempt && entry.ID == id
+	}
+
+	var included bool
+	for i := 1; i <= maxAttempts; i++ {
+		stream.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
+			// check if we've already successfully included the ping entry
+			if ref.LastHeartbeat != nil {
+				if slices.IndexFunc(ref.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
+					included = true
+					return
+				}
+			}
+
+			// if the entry pending already, we just need to wait
+			if slices.IndexFunc(ref.QualifiedPendingControlLog, matchEntry) >= 0 {
+				return
+			}
+
+			// either this is the first iteration, or the pending control log was reset.
+			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+				Type: pingAttempt,
+				ID:   id,
+				Time: time.Now(),
+			})
+			stream.HeartbeatInstance()
+			return
+		})
+
+		if included {
+			// entry appeared in control log
+			break
+		}
+
+		// pause briefly, then re-sync our state. note that this strategy is not scalable. control log usage is intended only
+		// for periodic operations. control-log based pings are a mechanism for testing/debugging only, hence the use of a
+		// simple sleep loop.
+		select {
+		case <-time.After(time.Millisecond * 100 * time.Duration(i)):
+		case <-stream.Done():
+			return proto.InventoryPingResponse{}, trace.Errorf("control stream closed during ping attempt")
+		case <-ctx.Done():
+			return proto.InventoryPingResponse{}, trace.Wrap(ctx.Err())
+		}
+	}
+
+	if !included {
+		return proto.InventoryPingResponse{}, trace.LimitExceeded("failed to include ping %d in control log for instance %q (max attempts exceeded)", id, req.ServerID)
+	}
+
+	d, err := stream.Ping(ctx, id)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
+
+	stream.VisitInstanceState(func(_ inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
+		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+			Type: pingSuccess,
+			ID:   id,
+			Labels: map[string]string{
+				"duration": d.String(),
+			},
+		})
+		return
+	})
+	stream.HeartbeatInstance()
 
 	return proto.InventoryPingResponse{
 		Duration: d,

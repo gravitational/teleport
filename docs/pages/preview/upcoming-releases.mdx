@@ -8,65 +8,38 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### 11.2
+### Teleport 11.3
 
-#### Add support for x509 integration for self-hosted Microsoft SQL Server
-
-Teleport Database Access will add the ability to configure Microsoft SQL Server
-access to accept X.509 authentication instead of keytab credentials.
-
-#### ARM64 support for CentOS 7
-
-ARM64 (AWS Graviton) binaries have been updated to support CentOS 7.
-
-#### Signed macOS tarball archives
-
-Teleport macOS binaries will be signed and notarized and no longer prompt the
-user to accept unsigned binaries.
-
-#### Graceful handling expired database certificates in Teleport Connect
-
-Teleport Connect will detect when database certificates expire and prompt the
-user to log in again to refresh their credentials.
-
-#### Fixed per-session MFA when used with `disconnect_expired_cert`
-
-Teleport can automatically disconnect user sessions when their certificates
-expire, but this functionality previously conflicted with per-session MFA and
-required per-session MFA to be disabled. With Teleport 11.2 you’ll be able to
-run with both of these settings enabled for increased security.
-
-#### Improved database joining flow in the Web UI
-
-Teleport Access Manager in the Web UI will support adding self-hosted
-PostgreSQL and RDS databases.
-
-| Version          | Date               | Description                |
-|------------------|--------------------|----------------------------|
-| Release          | January 6th, 2022  | Good to go for production. |
-
-### 11.3
-
-- Dropping support for SHA1
 - Adding support for claim rewriting with Login Rules
+- Adding support for Moderated Sessions to the Web UI
 
-#### Script-based Upgrades
-
-Teleport will add the ability to upload installation scripts which can then be
-remotely pushed to upgrade hosts.
-
-| Version          | Date                | Description                |
-|------------------|---------------------|----------------------------|
-| Release          | January 27th, 2023  | Good to go for production. |
+| Version          | Date                | Description                      |
+|------------------|---------------------|----------------------------------|
+| Release          | January 27th, 2023  | Good to go for production.       |
 
 ### Teleport 12
 
 Teleport 12 will focus on support for additional cloud providers (GCP and Azure),
 Device Trust, improved resource onboarding, and non-AD support for Desktop Access.
 
-| Version          | Date          | Description                      |
-|------------------|---------------|----------------------------------|
-| Release          | February 3rd, 2023  | Good to go for production. |
+- Device Trust Preview
+- Non-AD support for Desktop Access
+- Per-pod RBAC for Kubernetes Access
+- GCP CLI support for Application Access
+- Azure CLI support for Application Access
+- Support for more databases in Database Access
+  - AWS DynamoDB
+  - AWS Redshift Serverless
+  - AWS RDS Proxy for PostgreSQL/MySQL
+  - Azure SQLServer Auto Discovery
+  - Azure Flexible Servers
+- Refactored Helm charts
+- Dropping support for SHA1 in Server Access
+- All macOS binaries will be signed and notarized
+
+| Version          | Date               | Description                      |
+|------------------|--------------------|----------------------------------|
+| Release          | February 6th, 2023 | Good to go for production.       |
 
 ## Teleport Cloud
 
