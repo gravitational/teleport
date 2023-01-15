@@ -715,9 +715,16 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
 - [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
-- [ ] Verify AWS console access.
+- [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh aws` commands.
+- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh app login`.
+  - [ ] Can interact with Azure using `tsh az` commands.
+  - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
+- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh app login`.
+  - [ ] Can interact with GCP using `tsh gcloud` commands.
+  - [ ] Can interact with Google Cloud Storage using `tsh gsutil` commands.
+  - [ ] Can interact with GCP/GCS using a combination of `tsh proxy gcloud` and `gcloud`/`gsutil` commands.
 - [ ] Verify dynamic registration.
   - [ ] Can register a new app using `tctl create`.
   - [ ] Can update registered app using `tctl create -f`.
