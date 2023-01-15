@@ -225,7 +225,7 @@ the Teleport image.
 
 ### Smoke testing
 
-A smoke test is a smmple, quick test to assert basic functionality. We simply want to 
+A smoke test is a simple, quick test to assert basic functionality. We simply want to 
 find out if Teleport will even start in the environment contained by our container 
 image. While this is not _per se_ a security matter, using a distroless base image 
 means we have very little padding if an unexpected dependency finds its way into
