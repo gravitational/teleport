@@ -198,6 +198,12 @@ type AccessChecker interface {
 	// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
 	// for resource X appear"?). Most callers should use CheckAccessToRule instead.
 	GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error
+
+	// CheckAccessToNode checks login access to a given node.
+	CheckLoginAccessToNode(r types.Server, login string, mfa AccessMFAParams) error
+
+	// CheckSessionJoinAccess checks if the identity has access to join the given session.
+	CheckSessionJoinAccess(session types.SessionTracker, mode types.SessionParticipantMode) error
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -205,6 +211,8 @@ type AccessChecker interface {
 // host SSH certificate, TLS certificate, or user information stored in the
 // backend.
 type AccessInfo struct {
+	// Name is the username of the identity.
+	Name string
 	// Roles is the list of cluster local roles for the identity.
 	Roles []string
 	// AccessPolicies is the list of cluster local access policies for the identity.
@@ -382,6 +390,68 @@ func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace strin
 	return blendAccessDecision(hasStandardAccess, predicate.AccessUndecided)
 }
 
+// CheckSessionJoinAccess checks if the identity has access to join the given session.
+func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, mode types.SessionParticipantMode) error {
+	// TODO(joel): grab owner here
+	owner := &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	}
+
+	var participants []string
+	for _, p := range session.GetParticipants() {
+		participants = append(participants, p.User)
+	}
+
+	decision, err := a.PredicateAccessChecker.CheckSessionJoinAccess(&predicate.Session{
+		Owner:        owner,
+		Participants: participants,
+	}, &predicate.JoinSession{
+		Mode: string(mode),
+	}, &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if decision == predicate.AccessAllowed {
+		return nil
+	}
+
+	return trace.AccessDenied("access denied to join session %v", session.GetSessionID())
+}
+
+// CheckLoginAccessToNode checks login access to a given node.
+func (a *accessChecker) CheckLoginAccessToNode(r types.Server, login string, mfa AccessMFAParams) error {
+	if err := a.checkAllowedResources(r); err != nil {
+		return trace.Wrap(err)
+	}
+
+	hasStandardAccess, err := a.RoleSet.checkAccess(r, mfa)
+	if !trace.IsAccessDenied(err) {
+		return trace.Wrap(err)
+	}
+
+	hasPredicateAccess, err := a.PredicateAccessChecker.CheckLoginAccessToNode(&predicate.Node{
+		Hostname: r.GetHostname(),
+		Address:  r.GetAddr(),
+		Labels:   r.GetAllLabels(),
+	}, &predicate.AccessNode{Login: login}, &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return blendAccessDecision(hasPredicateAccess, hasStandardAccess)
+}
+
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
 // the AccessChecker is allowed to access. An empty or nil list indicates that
 // there are no resource-specific restrictions.
@@ -414,6 +484,8 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 	}
 
 	return &AccessInfo{
+		// TODO(joel): is this correct?
+		Name:               cert.ValidPrincipals[0],
 		Roles:              roles,
 		AccessPolicies:     accessPolicies,
 		Traits:             traits,
@@ -466,6 +538,7 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMa
 	}
 
 	return &AccessInfo{
+		Name:  cert.ValidPrincipals[0],
 		Roles: roles,
 		// TODO(joel): this will be resolved later after speccing out policy mapping further
 		AccessPolicies:     unmappedAccessPolicies,
@@ -501,6 +574,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 	}
 
 	return &AccessInfo{
+		Name:               identity.Username,
 		Roles:              roles,
 		AccessPolicies:     identity.AccessPolicies,
 		Traits:             traits,
@@ -551,6 +625,7 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	allowedResourceIDs := identity.AllowedResourceIDs
 
 	return &AccessInfo{
+		Name:  identity.Username,
 		Roles: roles,
 		// TODO(joel): this will be resolved later after speccing out policy mapping further
 		AccessPolicies:     identity.AccessPolicies,
@@ -568,6 +643,7 @@ func AccessInfoFromUser(user types.User) *AccessInfo {
 	accessPolicies := user.GetAccessPolicies()
 	traits := user.GetTraits()
 	return &AccessInfo{
+		Name:           user.GetName(),
 		Roles:          roles,
 		AccessPolicies: accessPolicies,
 		Traits:         traits,
