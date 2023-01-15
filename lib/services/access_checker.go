@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/predicate"
-	tpredicate "github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -203,7 +202,7 @@ type AccessChecker interface {
 	CheckLoginAccessToNode(r types.Server, login string, mfa AccessMFAParams) error
 
 	// CheckSessionJoinAccess checks if the identity has access to join the given session.
-	CheckSessionJoinAccess(session types.SessionTracker, mode types.SessionParticipantMode) error
+	CheckSessionJoinAccess(session types.SessionTracker, sessionOwner *predicate.User, mode types.SessionParticipantMode) error
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -343,7 +342,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 		return trace.Wrap(err)
 	}
 
-	return blendAccessDecision(decision, tpredicate.AccessUndecided)
+	return blendAccessDecision(decision, predicate.AccessUndecided)
 }
 
 // CheckAccessToRule checks if the identity has access in the given
@@ -392,21 +391,14 @@ func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace strin
 
 // CheckSessionJoinAccess checks if the identity has access to join the given session.
 // TODO(joel): integrate moderated sessions checker for joining
-func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, mode types.SessionParticipantMode) error {
-	// TODO(joel): grab owner here
-	owner := &predicate.User{
-		Name:     a.info.Name,
-		Policies: a.info.AccessPolicies,
-		Traits:   a.info.Traits,
-	}
-
+func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, sessionOwner *predicate.User, mode types.SessionParticipantMode) error {
 	var participants []string
 	for _, p := range session.GetParticipants() {
 		participants = append(participants, p.User)
 	}
 
 	decision, err := a.PredicateAccessChecker.CheckSessionJoinAccess(&predicate.Session{
-		Owner:        owner,
+		Owner:        sessionOwner,
 		Participants: participants,
 	}, &predicate.JoinSession{
 		Mode: string(mode),

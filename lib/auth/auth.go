@@ -3442,10 +3442,10 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Check RBAC against all matching nodes and return the first error.
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
-			err := checker.CheckAccess(
+			err := checker.CheckLoginAccessToNode(
 				n,
+				t.Node.Login,
 				services.AccessMFAParams{},
-				services.NewLoginMatcher(t.Node.Login),
 			)
 
 			// Ignore other errors; they'll be caught on the real access attempt.

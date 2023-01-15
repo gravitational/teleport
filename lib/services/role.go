@@ -2041,9 +2041,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		additionalDeniedMessage = "Confirm database user and name."
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
-	case types.KindNode:
-		getRoleLabels = types.Role.GetNodeLabels
-		additionalDeniedMessage = "Confirm SSH login."
 	case types.KindKubernetesCluster:
 		getRoleLabels = types.Role.GetKubernetesLabels
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
