@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package services
 
 import (
 	"fmt"
@@ -26,7 +26,6 @@ import (
 	"github.com/vulcand/predicate"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -129,7 +128,7 @@ func (e *SessionAccessEvaluator) matchesPredicate(ctx *SessionAccessContext, req
 		return false, nil
 	}
 
-	parser, err := services.NewWhereParser(ctx)
+	parser, err := NewWhereParser(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

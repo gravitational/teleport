@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -462,7 +461,7 @@ type session struct {
 	// serverCtx is used to control clean up of internal resources
 	serverCtx context.Context
 
-	access auth.SessionAccessEvaluator
+	access services.SessionAccessEvaluator
 
 	tracker *SessionTracker
 
@@ -532,7 +531,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
 		serverCtx:                      scx.srv.Context(),
-		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser),
+		access:                         services.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser),
 		scx:                            scx,
 		presenceEnabled:                scx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
 		io:                             NewTermManager(),
@@ -1351,15 +1350,15 @@ func (s *session) checkPresence() error {
 	return nil
 }
 
-func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
-	var participants []auth.SessionAccessContext
+func (s *session) checkIfStart() (bool, services.PolicyOptions, error) {
+	var participants []services.SessionAccessContext
 
 	for _, party := range s.parties {
 		if party.ctx.Identity.TeleportUser == s.initiator {
 			continue
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, services.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
 			Roles:    party.ctx.Identity.AccessChecker.Roles(),
 			Mode:     party.mode,
@@ -1368,7 +1367,7 @@ func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 
 	shouldStart, policyOptions, err := s.access.FulfilledFor(participants)
 	if err != nil {
-		return false, auth.PolicyOptions{}, trace.Wrap(err)
+		return false, services.PolicyOptions{}, trace.Wrap(err)
 	}
 
 	return shouldStart, policyOptions, nil
@@ -1472,13 +1471,13 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	if ctx.Identity.TeleportUser != s.initiator {
-		accessContext := auth.SessionAccessContext{
+		accessContext := services.SessionAccessContext{
 			Username: ctx.Identity.TeleportUser,
 			Roles:    ctx.Identity.AccessChecker.Roles(),
 		}
 
 		modes := s.access.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, mode) {
+		if !services.SliceContainsMode(modes, mode) {
 			return nil, trace.AccessDenied("insufficient permissions to join session %v", s.id)
 		}
 

@@ -367,8 +367,7 @@ func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, res
 		Id:      strconv.FormatInt(r.GetResourceID(), 10),
 		Verb:    verb,
 	}, &predicate.User{
-		// TODO(joel): grab username
-		Name:     "",
+		Name:     a.info.Name,
 		Policies: a.info.AccessPolicies,
 		Traits:   a.info.Traits,
 	})
@@ -379,7 +378,12 @@ func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, res
 	return blendAccessDecision(hasPredicateAccess, hasStandardAccess)
 }
 
-// TODO(joel): check with predicate here
+// GuessIfAccessIsPossible guesses if access is possible for an entire category
+// of resources.
+// It responds the question: "is it possible that there is a resource of this
+// kind that the current user can access?".
+// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+// for resource X appear"?). Most callers should use CheckAccessToRule instead.
 func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
 	hasStandardAccess, err := a.RoleSet.guessIfAccessIsPossible(ctx, namespace, resource, verb, silent)
 	if !trace.IsAccessDenied(err) {
@@ -397,7 +401,7 @@ func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, ses
 		participants = append(participants, p.User)
 	}
 
-	decision, err := a.PredicateAccessChecker.CheckSessionJoinAccess(&predicate.Session{
+	predicateDecision, err := a.PredicateAccessChecker.CheckSessionJoinAccess(&predicate.Session{
 		Owner:        sessionOwner,
 		Participants: participants,
 	}, &predicate.JoinSession{
@@ -411,11 +415,7 @@ func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, ses
 		return trace.Wrap(err)
 	}
 
-	if decision == predicate.AccessAllowed {
-		return nil
-	}
-
-	return trace.AccessDenied("access denied to join session %v", session.GetSessionID())
+	return blendAccessDecision(predicate.AccessUndecided, predicateDecision)
 }
 
 // CheckLoginAccessToNode checks login access to a given node.

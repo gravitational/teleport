@@ -298,8 +298,8 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		return true
 	}
 
-	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
+	evaluator := services.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
+	modes := evaluator.CanJoin(services.SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
 	return len(modes) != 0
 }
 
@@ -1381,7 +1381,7 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 		hasK8SRequirePolicy := func() bool {
 			for _, role := range roles {
 				for _, policy := range role.GetSessionRequirePolicies() {
-					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
+					if services.ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
 						return true
 					}
 				}
@@ -1389,7 +1389,7 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 			return false
 		}
 
-		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
+		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*services.MinSupportedModeratedSessionsVersion)) {
 			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
 		}
 	}

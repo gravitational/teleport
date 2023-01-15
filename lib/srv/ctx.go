@@ -663,7 +663,7 @@ func (c *ServerContext) CheckSFTPAllowed() error {
 
 	// ensure moderated session policies allow starting an unattended session
 	policySets := c.Identity.AccessChecker.SessionPolicySets()
-	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	checker := services.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
 		return trace.Wrap(err)
