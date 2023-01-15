@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth/predicate/partial"
+	"github.com/gravitational/teleport/lib/predicate/partial"
 	"github.com/gravitational/trace"
 )
 
