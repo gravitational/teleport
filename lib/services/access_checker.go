@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -217,6 +218,9 @@ type accessChecker struct {
 	// to search-based access requests) will be implemented by
 	// accessChecker.
 	RoleSet
+
+	// PredicateAccessChecker is embedded to allow access checking via access policy resources.
+	*predicate.PredicateAccessChecker
 }
 
 // NewAccessChecker returns a new AccessChecker which can be used to check
@@ -234,10 +238,17 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	policies, err := FetchAccessPoliciesList(info.AccessPolicies, access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &accessChecker{
-		info:         info,
-		localCluster: localCluster,
-		RoleSet:      roleSet,
+		info:                   info,
+		localCluster:           localCluster,
+		RoleSet:                roleSet,
+		PredicateAccessChecker: predicate.NewPredicateAccessChecker(policies),
 	}, nil
 }
 

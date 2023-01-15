@@ -731,6 +731,22 @@ func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, 
 
 // FetchRoleList fetches roles by their names, applies the traits to role
 // variables, and returns the list
+func FetchAccessPoliciesList(policyNames []string, access RoleGetter) ([]types.AccessPolicy, error) {
+	var policies []types.AccessPolicy
+
+	for _, policyName := range policyNames {
+		policy, err := access.GetAccessPolicy(context.TODO(), policyName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		policies = append(policies, policy)
+	}
+
+	return policies, nil
+}
+
+// FetchRoleList fetches roles by their names, applies the traits to role
+// variables, and returns the list
 func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
 	var roles []types.Role
 
