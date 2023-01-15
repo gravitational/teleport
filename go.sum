@@ -82,8 +82,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.1 h1:Oj853U9kG+RLTCQXpjvOnrv
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.1/go.mod h1:eWRD7oawr1Mu1sLCawqVc0CUiF43ia3qQMxLscsKQ9w=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1 h1:H3g2mkmu105ON0c/Gqx3Bm+bzoIijLom8LmV9Gjn7X0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1/go.mod h1:EAc3kjhZf9soch7yLID8PeKcE6VfKvQTllSBHYVdXd8=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.2.0 h1:3L+gX5ssCABAToH0VQ64/oNz7rr+ShW+2sB+sonzIlY=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.2.0/go.mod h1:4gUds0dEPFIld6DwHfbo0cLBljyIyI5E5ciPb5MLi3Q=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.3.0 h1:CnbZujgaLD2TDpp3mm1/naVAvPjvg5nnaG3YyxwsJdM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.3.0/go.mod h1:ne/R0Tm3u/2avpRZFZTS+DldZ3C/5bNN6P4kkl24fRs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal v1.1.1 h1:BZOe7ExNYNGmapT91ZUrxtMYsqVljMxTHEnwjOdG7pk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.0.0 h1:3AMzl6OaajsEhmlQJBxZviy1jq5HNrQSRHlS87acXb4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.0.0/go.mod h1:yFGqqJ4W/nOViqHDfuwmjyJtZXLmmMoHN0DNPCigKUE=
@@ -289,7 +289,6 @@ github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSV
 github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 h1:rtAn27wIbmOGUs7RIbVgPEjb31ehTVniDwPGXyMxm5U=
 github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
-github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f h1:lBNOc5arjvs8E5mO2tbpBpLoyyu8B6e44T7hJy6potg=
 github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
 github.com/cpuguy83/go-md2man v1.0.10/go.mod h1:SmD6nW6nTyfqj6ABTjUi3V3JVMnlJmwcJI5acqYI6dE=
 github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
