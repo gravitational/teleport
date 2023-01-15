@@ -391,6 +391,7 @@ func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace strin
 }
 
 // CheckSessionJoinAccess checks if the identity has access to join the given session.
+// TODO(joel): integrate moderated sessions checker for joining
 func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, mode types.SessionParticipantMode) error {
 	// TODO(joel): grab owner here
 	owner := &predicate.User{
