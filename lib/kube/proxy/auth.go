@@ -177,6 +177,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 		transportConfig: transportConfig,
 		targetAddr:      targetAddr,
 		kubeClient:      client,
+		clientRestCfg:   clientCfg,
 	}, nil
 }
 
