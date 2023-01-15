@@ -24,8 +24,10 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	tpredicate "github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -185,15 +187,19 @@ func HasV5Role(roles []types.Role) bool {
 
 // CanJoin returns the modes a user has access to join a session with.
 // If the list is empty, the user doesn't have access to join the session at all.
-func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
+func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) tpredicate.AccessDecision {
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
 	if !HasV5Role(user.Roles) {
-		return preAccessControlsModes(e.kind)
+		if slices.Contains(preAccessControlsModes(e.kind), user.Mode) {
+			return tpredicate.AccessAllowed
+		}
+
+		return tpredicate.AccessUndecided
 	}
 
 	// Session owners can always join their own sessions.
 	if user.Username == e.owner {
-		return []types.SessionParticipantMode{types.SessionPeerMode, types.SessionModeratorMode, types.SessionObserverMode}
+		return tpredicate.AccessAllowed
 	}
 
 	var modes []types.SessionParticipantMode
@@ -212,7 +218,11 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.Sess
 		}
 	}
 
-	return modes
+	if slices.Contains(modes, user.Mode) {
+		return tpredicate.AccessAllowed
+	}
+
+	return tpredicate.AccessUndecided
 }
 
 func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticipantMode) bool {

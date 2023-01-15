@@ -394,12 +394,18 @@ func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace strin
 }
 
 // CheckSessionJoinAccess checks if the identity has access to join the given session.
-// TODO(joel): integrate moderated sessions checker for joining
 func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, sessionOwner *predicate.User, mode types.SessionParticipantMode) error {
 	var participants []string
 	for _, p := range session.GetParticipants() {
 		participants = append(participants, p.User)
 	}
+
+	evaluator := NewSessionAccessEvaluator(session.GetHostPolicySets(), session.GetSessionKind(), session.GetHostUser())
+	standardDecision := evaluator.CanJoin(SessionAccessContext{
+		Username: a.info.Name,
+		Roles:    a.RoleSet,
+		Mode:     mode,
+	})
 
 	predicateDecision, err := a.PredicateAccessChecker.CheckSessionJoinAccess(&predicate.Session{
 		Owner:        sessionOwner,
@@ -415,7 +421,7 @@ func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, ses
 		return trace.Wrap(err)
 	}
 
-	return blendAccessDecision(predicate.AccessUndecided, predicateDecision)
+	return blendAccessDecision(standardDecision, predicateDecision)
 }
 
 // CheckLoginAccessToNode checks login access to a given node.
