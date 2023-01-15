@@ -52,7 +52,7 @@ require (
 	github.com/go-piv/piv-go v1.10.0
 	github.com/go-redis/redis/v9 v9.0.0-rc.1 // replaced
 	github.com/go-webauthn/webauthn v0.5.0
-	github.com/gobuffalo/flect v0.3.0
+	github.com/gobuffalo/flect v1.0.0
 	github.com/gocql/gocql v1.3.1
 	github.com/gofrs/flock v0.8.1
 	github.com/gogo/protobuf v1.3.2 // replaced
@@ -212,7 +212,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
