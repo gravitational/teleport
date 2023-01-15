@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/predicate"
+	tpredicate "github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -188,6 +190,14 @@ type AccessChecker interface {
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
+
+	// GuessIfAccessIsPossible guesses if access is possible for an entire category
+	// of resources.
+	// It responds the question: "is it possible that there is a resource of this
+	// kind that the current user can access?".
+	// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+	// for resource X appear"?). Most callers should use CheckAccessToRule instead.
+	GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -262,6 +272,20 @@ func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet 
 	}
 }
 
+// blendAccessDecision combines two access decisions into one using the following rule logic:
+// 1. If either decision is AccessDenied, the result is denial.
+// 2. If both decisions are AccessUndecided, the result is denial.
+// 3. If one decision is AccessAllowed and the other is AccessUndecided, the result is allow.
+// 4. If both decisions are AccessAllowed, the result is allow.
+func blendAccessDecision(a, b predicate.AccessDecision) error {
+	// Allow access if at least one checks pass AND no one responds with an explicity deny. Access if granted if one allows and the other is undecided.
+	if a != predicate.AccessDenied && b != predicate.AccessDenied && (b == predicate.AccessAllowed || a == predicate.AccessAllowed) {
+		return nil
+	}
+
+	return trace.AccessDenied("access denied")
+}
+
 func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	if len(a.info.AllowedResourceIDs) == 0 {
 		// certificate does not contain a list of specifically allowed
@@ -305,7 +329,57 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.RoleSet.checkAccess(r, mfa, matchers...))
+
+	decision, err := a.RoleSet.checkAccess(r, mfa, matchers...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return blendAccessDecision(decision, tpredicate.AccessUndecided)
+}
+
+// CheckAccessToRule checks if the identity has access in the given
+// namespace to the specified resource and verb.
+// silent controls whether the access violations are logged.
+func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	hasStandardAccess, err := a.RoleSet.checkAccessToRule(ctx, namespace, resource, verb, silent)
+	if !trace.IsAccessDenied(err) {
+		return trace.Wrap(err)
+	}
+
+	r, err := ctx.GetResource()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	hasPredicateAccess, err := a.PredicateAccessChecker.CheckAccessToResource(&predicate.Resource{
+		Kind:    r.GetKind(),
+		SubKind: r.GetSubKind(),
+		Version: r.GetVersion(),
+		Name:    r.GetName(),
+		Id:      strconv.FormatInt(r.GetResourceID(), 10),
+		Verb:    verb,
+	}, &predicate.User{
+		// TODO(joel): grab username
+		Name:     "",
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return blendAccessDecision(hasPredicateAccess, hasStandardAccess)
+}
+
+// TODO(joel): check with predicate here
+func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	hasStandardAccess, err := a.RoleSet.guessIfAccessIsPossible(ctx, namespace, resource, verb, silent)
+	if !trace.IsAccessDenied(err) {
+		return trace.Wrap(err)
+	}
+
+	return blendAccessDecision(hasStandardAccess, predicate.AccessUndecided)
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
