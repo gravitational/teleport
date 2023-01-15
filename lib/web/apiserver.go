@@ -2623,7 +2623,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
-			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
+			sessions = append(sessions, trackerToLegacySession(tracker, site.GetName()))
 		}
 	}
 
@@ -2850,50 +2850,25 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	httplib.SetNoCacheHeaders(w.Header())
 
-	var site reversetunnel.RemoteSite
 	onError := func(err error) {
 		h.log.WithError(err).Debug("Unable to retrieve session chunk.")
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
 	}
 
-	// authenticate first:
-	ctx, err := h.AuthenticateRequest(w, r, true)
-	if err != nil {
-		h.log.WithError(err).Warn("Failed to authenticate.")
-		// clear session just in case if the authentication request is not valid
-		ClearSession(w)
-		onError(trace.Wrap(err))
-		return
-	}
-
-	// get the site interface:
-	siteName := p.ByName("site")
-	if siteName == currentSiteShortcut {
-		res, err := h.cfg.ProxyClient.GetClusterName()
-		if err != nil {
-			onError(trace.Wrap(err))
-			return
-		}
-		siteName = res.GetClusterName()
-	}
-	proxy, err := h.ProxyWithRoles(ctx)
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
-	site, err = proxy.GetSite(siteName)
+	// authenticate first
+	sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
 
-	// get the session:
+	// get the session
 	sid, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
-	clt, err := ctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -3106,32 +3081,56 @@ type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // or a remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.AuthenticateRequest(w, r, true)
-		if err != nil {
-			h.log.WithError(err).Warn("Failed to authenticate.")
-			return nil, trace.Wrap(err)
-		}
-
-		clusterName := p.ByName("site")
-		if clusterName == currentSiteShortcut {
-			res, err := h.cfg.ProxyClient.GetClusterName()
-			if err != nil {
-				h.log.WithError(err).Warn("Failed to query cluster name.")
-				return nil, trace.Wrap(err)
-			}
-			clusterName = res.GetClusterName()
-		}
-
-		site, err := h.getSite(ctx, clusterName)
+		sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, ctx, site)
+		return fn(w, r, p, sctx, site)
 	})
 }
 
-func (h *Handler) getSite(ctx *SessionContext, clusterName string) (reversetunnel.RemoteSite, error) {
+// authenticateRequestWithCluster ensures that a request is authenticated
+// to this proxy, returning the *SessionContext (same as AuthenticateRequest),
+// and also grabs the RemoteSite (which can represent this local cluster or a
+// remote trusted cluster) as specified by the ":site" url parameter.
+func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnel.RemoteSite, error) {
+	sctx, err := h.AuthenticateRequest(w, r, true)
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to authenticate.")
+		return nil, nil, trace.Wrap(err)
+	}
+
+	site, err := h.getSiteByParams(sctx, p)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return sctx, site, nil
+}
+
+// getSiteByParams gets the RemoteSite (which can represent this local cluster or a
+// remote trusted cluster) as specified by the ":site" url parameter.
+func (h *Handler) getSiteByParams(sctx *SessionContext, p httprouter.Params) (reversetunnel.RemoteSite, error) {
+	clusterName := p.ByName("site")
+	if clusterName == currentSiteShortcut {
+		res, err := h.cfg.ProxyClient.GetClusterName()
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to query cluster name.")
+			return nil, trace.Wrap(err)
+		}
+		clusterName = res.GetClusterName()
+	}
+
+	site, err := h.getSiteByClusterName(sctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return site, nil
+}
+
+func (h *Handler) getSiteByClusterName(ctx *SessionContext, clusterName string) (reversetunnel.RemoteSite, error) {
 	proxy, err := h.ProxyWithRoles(ctx)
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get proxy with roles.")
@@ -3164,7 +3163,7 @@ type clusterClientProvider struct {
 // UserClientForCluster returns a client to the local or remote cluster
 // identified by clusterName and is authenticated with the identity of the user.
 func (r clusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
-	site, err := r.h.getSite(r.ctx, clusterName)
+	site, err := r.h.getSiteByClusterName(r.ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3184,15 +3183,15 @@ type ClusterClientHandler func(http.ResponseWriter, *http.Request, httprouter.Pa
 // the path or multiple clusters may need to be accessed from a single handler.
 func (h *Handler) WithClusterClientProvider(fn ClusterClientHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.AuthenticateRequest(w, r, true)
+		sctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		g := clusterClientProvider{
 			h:   h,
-			ctx: ctx,
+			ctx: sctx,
 		}
-		return fn(w, r, p, ctx, g)
+		return fn(w, r, p, sctx, g)
 	})
 }
 
@@ -3290,11 +3289,11 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 // WithAuth ensures that a request is authenticated.
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.AuthenticateRequest(w, r, true)
+		sctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return fn(w, r, p, ctx)
+		return fn(w, r, p, sctx)
 	})
 }
 
