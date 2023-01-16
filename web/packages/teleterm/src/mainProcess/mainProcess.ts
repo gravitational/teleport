@@ -13,11 +13,12 @@ import {
 } from 'electron';
 import { wait } from 'shared/utils/wait';
 
-import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
+import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
+import Logger from 'teleterm/logger';
 
 import {
   ConfigService,
@@ -62,8 +63,8 @@ export default class MainProcess {
   }
 
   dispose() {
+    this.killTshdProcess();
     this.sharedProcess.kill('SIGTERM');
-    this.tshdProcess.kill('SIGTERM');
     const processesExit = Promise.all([
       promisifyProcessExit(this.tshdProcess),
       promisifyProcessExit(this.sharedProcess),
@@ -316,6 +317,33 @@ export default class MainProcess {
         copyright: `Copyright © ${new Date().getFullYear()} Gravitational, Inc.`,
       });
     }
+  }
+
+  /**
+   * On Windows, where POSIX signals do not exist, the only way to gracefully
+   * kill a process is to send Ctrl-Break to its console. This task is done by
+   * `tsh daemon stop` program. On Unix, the standard `SIGTERM` signal is sent.
+   */
+  private killTshdProcess() {
+    if (this.settings.platform === 'win32') {
+      this.tshdProcess.kill('SIGTERM');
+      return;
+    }
+
+    const logger = new Logger('Daemon stop');
+    const daemonStop = spawn(
+      this.settings.tshd.binaryPath,
+      ['daemon', 'stop', `--pid=${this.tshdProcess.pid}`],
+      {
+        windowsHide: true,
+        timeout: 2_000,
+      }
+    );
+    daemonStop.on('error', error => {
+      logger.error('daemon stop process failed to start', error);
+    });
+    daemonStop.stderr.setEncoding('utf-8');
+    daemonStop.stderr.on('data', logger.error);
   }
 }
 
