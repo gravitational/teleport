@@ -58,7 +58,8 @@ var (
 				0x64, 0x65, 0x6e, 0x69, 0x65, 0x64, // message
 			},
 		},
-		message: "denied",
+		Code:    1105,
+		Message: "denied",
 	}
 
 	sampleErrorWithSQLStatePacket = &Error{
@@ -72,7 +73,8 @@ var (
 				0x64, 0x65, 0x6e, 0x69, 0x65, 0x64, // message
 			},
 		},
-		message: "denied",
+		Code:    1105,
+		Message: "denied",
 	}
 
 	sampleQuitPacket = &Quit{
