@@ -70,7 +70,7 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 		testGatewayCertRenewal(t, pack, creds, databaseURI)
 	})
 	t.Run("adding root cluster", func(t *testing.T) {
-		t.Parallel()
+		// t.Parallel()
 
 		testAddingRootCluster(t, pack, creds)
 	})
@@ -234,6 +234,7 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	require.Empty(t, clusters)
 
 	addedCluster, err := daemonService.AddCluster(context.Background(), pack.Root.Cluster.Config.Proxy.WebAddr.Addr)
+	t.Logf("full error: %#v", err)
 	require.NoError(t, err)
 
 	clusters, err = daemonService.ListRootClusters(context.Background())
