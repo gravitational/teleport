@@ -51,9 +51,8 @@ by which the Auth Server decides whether or not to allow a bot or node to join.
 To create a token, we can write the resource's YAML to a file on disk, and then
 use `tctl` to apply it.
 
-Create a file named `tokenconfig.yaml` and insert the following contents,
-ensuring that you replace `$ORGANIZATION_ID` and `$CONTEXT_ID` with the values
-from step 1.
+Create a file named `tokenconfig.yaml`, ensuring that you replace
+`$ORGANIZATION_ID` and `$CONTEXT_ID` with the values from step 1.
 
 ```yaml
 kind: token
@@ -124,9 +123,10 @@ could be replaced with pushing new configuration or binaries over SSH.
 
 Open your Git repository and create a directory called `.circleci`. Then open
 a file called `config.yml` and insert the following configuration. Replace
-`tele.example.com:443` with the public-facing address of your Teleport Proxy.
-Replace `my-node` with the name of the Teleport node that you wish to connect
-to and replace `ci-user` with the login you configured in step 3.
+`tele.example.com:443` with the public-facing address of your Teleport Proxy or
+cloud tenant (e.g. `example.teleport.sh`). Replace `my-node` with the name of
+the Teleport node that you wish to connect to and replace `ci-user` with the
+login you configured in step 3.
 
 ```yaml
 # See: https://circleci.com/docs/2.0/configuration-reference
