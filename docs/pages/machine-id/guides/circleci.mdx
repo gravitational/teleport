@@ -30,7 +30,7 @@ control.
 - A node that is a part of the Teleport cluster with
 [Server Access](https://goteleport.com/docs/server-access/introduction/) and a
 user you want to grant access to. In this guide, we will use `my-node` and
-`ci-user` respectively.
+`ci-user` respectively, replace these with values appropriate to your setup.
 - A CircleCI project connected to a Git repository you can push to.
 
 ## Step 1/4. Configure CircleCI
@@ -87,9 +87,6 @@ In order to allow your CircleCI workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
 by which the Auth Server decides whether or not to allow a bot or node to join.
 
-To create a token, we can write the resource's YAML to a file on disk, and then
-use `tctl` to apply it.
-
 Create a file named `tokenconfig.yaml`, ensuring that you replace
 `$ORGANIZATION_ID` and `$CONTEXT_ID` with the values from step 1.
 
@@ -121,7 +118,7 @@ configuration later.
 - `spec.roles` defines which roles that this token will grant access to. The
 value of `[Bot]` states that this token grants access to a Machine ID bot.
 - `spec.join_method` defines the join method the token is applicable for. Since
-this guide only focuses on CircleCI, we will set this to to `circleci`.
+this guide only focuses on CircleCI, you will set this to to `circleci`.
 - `spec.circleci.allow` is used to set rules for what CircleCI runs will be able
 to authenticate by using the token.
 
