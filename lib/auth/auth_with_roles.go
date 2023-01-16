@@ -4311,18 +4311,18 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		return trace.Wrap(err)
 	}
 
-	ap, err := a.authServer.GetAuthPreference(ctx)
+	authPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := a.context.MFAParams(ap.GetRequireMFAType())
+	state := a.context.GetAccessState(authPref)
 	for _, kube := range s.GetKubernetesClusters() {
 		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
+		if err := a.context.Checker.CheckAccess(k8sV3, state); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}

@@ -188,9 +188,10 @@ type AccessChecker interface {
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
 
-	// MFAParams returns MFA params for the given use given their roles, the cluster
-	// auth preference, and whether mfa has been verified.
-	MFAParams(authPrefMFARequirement types.RequireMFAType) AccessState
+	// GetAccessState returns the AccessState for the user given their roles, the
+	// cluster auth preference, and whether MFA and the user's device were
+	// verified.
+	GetAccessState(authPref types.AuthPreference) AccessState
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy

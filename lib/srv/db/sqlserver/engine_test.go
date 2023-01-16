@@ -242,8 +242,8 @@ func (m *mockChecker) CheckAccess(r services.AccessCheckable, state services.Acc
 	return nil
 }
 
-func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessState {
-	if authPrefMFARequirement.IsSessionMFARequired() {
+func (m *mockChecker) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
 		return services.AccessState{
 			MFARequired: services.MFARequiredAlways,
 		}

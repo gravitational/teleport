@@ -565,17 +565,17 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 		return nil
 	}
 
-	ap, err := h.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := h.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := accessChecker.MFAParams(ap.GetRequireMFAType())
-	_, mfaParams.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	state := accessChecker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
 		h.c.Server.GetInfo(),
-		mfaParams,
+		state,
 		services.NewLoginMatcher(osUser),
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",

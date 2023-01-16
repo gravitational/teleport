@@ -919,7 +919,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -949,10 +949,10 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 		})
 	}
 
-	mfaParams := authContext.MFAParams(ap.GetRequireMFAType())
+	state := authContext.GetAccessState(authPref)
 	err = authContext.Checker.CheckAccess(
 		app,
-		mfaParams,
+		state,
 		matchers...)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)

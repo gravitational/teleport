@@ -1165,12 +1165,12 @@ func (set RoleSet) PinSourceIP() bool {
 	return false
 }
 
-// MFAParams returns MFA params for the given user given their roles, the cluster
-// auth preference, and whether mfa has been verified.
-func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params AccessState) {
+// GetAccessState returns the AccessState for the user given their roles, the
+// cluster auth preference, and whether MFA and the user's device were verified.
+func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 	// per-session MFA is overridden by hardware key PIV touch requirement.
 	// check if the auth pref or any roles have this option.
-	if authPrefRequirement == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+	if authPref.GetRequireMFAType() == types.RequireMFAType_HARDWARE_KEY_TOUCH {
 		return AccessState{MFARequired: MFARequiredNever}
 	}
 	for _, role := range set {
@@ -1180,7 +1180,7 @@ func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params A
 	}
 
 	// MFA is always required according to the cluster auth pref.
-	if authPrefRequirement.IsSessionMFARequired() {
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
 		return AccessState{MFARequired: MFARequiredAlways}
 	}
 

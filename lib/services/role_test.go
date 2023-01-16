@@ -1022,17 +1022,22 @@ func TestCheckAccessToServer(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				RequireMFAType: tc.authPrefMFARequireType,
+			})
+			require.NoError(t, err, "NewAuthPreference failed")
+
 			var set RoleSet
 			for i := range tc.roles {
 				set = append(set, tc.roles[i])
 			}
 			for j, check := range tc.checks {
 				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
-				mfaParams := set.MFAParams(tc.authPrefMFARequireType)
-				mfaParams.MFAVerified = tc.mfaVerified
+				state := set.GetAccessState(authPref)
+				state.MFAVerified = tc.mfaVerified
 				err := set.checkAccess(
 					check.server,
-					mfaParams,
+					state,
 					NewLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, comment)
@@ -2790,8 +2795,8 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		access bool
 	}
 	testCases := []struct {
-		name      string
-		roles     RoleSet
+		name   string
+		roles  RoleSet
 		access []access
 		state  AccessState
 	}{
@@ -4598,7 +4603,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 	}
 
 	for _, test := range []struct {
-		name      string
+		name    string
 		roleSet RoleSet
 		state   AccessState
 		checks  []check
@@ -5822,7 +5827,7 @@ func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailabl
 	require.Equal(t, []string{"defaultTraitLogin"}, roleSet[0].GetLogins(types.Allow))
 }
 
-func TestMFAParams(t *testing.T) {
+func TestRoleSet_GetAccessState(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		roleMFARequireTypes    []types.RequireMFAType
@@ -5928,13 +5933,19 @@ func TestMFAParams(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				RequireMFAType: tc.authPrefMFARequireType,
+			})
+			require.NoError(t, err, "NewAuthPreference failed")
+
 			var set RoleSet
 			for _, roleRequirement := range tc.roleMFARequireTypes {
 				set = append(set, newRole(func(r *types.RoleV6) {
 					r.Spec.Options.RequireMFAType = roleRequirement
 				}))
 			}
-			require.Equal(t, tc.expectState, set.MFAParams(tc.authPrefMFARequireType))
+			require.Equal(t, tc.expectState, set.GetAccessState(authPref))
 		})
 	}
 }

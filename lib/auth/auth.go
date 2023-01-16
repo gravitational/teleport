@@ -3861,12 +3861,12 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.MFARequired {
+	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
 	case services.MFARequiredNever:
