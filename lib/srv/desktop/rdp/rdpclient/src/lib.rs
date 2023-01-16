@@ -797,7 +797,7 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
 }
 
 pub fn encode_png(dest: &mut Vec<u8>, width: u16, height: u16, mut data: Vec<u8>) {
-    swap(&mut data);
+    convert_bgra_to_rgba(&mut data);
 
     let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
     encoder.set_compression(png::Compression::Fast);
@@ -816,12 +816,12 @@ pub fn encode_png(dest: &mut Vec<u8>, width: u16, height: u16, mut data: Vec<u8>
 ///
 /// Also, always force Alpha value to 100% (opaque). On some Windows
 /// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
-fn swap(data: &mut Vec<u8>) {
-    let mut i = 0;
-    while i < data.len() {
-        (data[i], data[i + 2], data[i + 3]) = (data[i + 2], data[i], 255);
-        i += 4;
-    }
+fn convert_bgra_to_rgba(data: &mut [u8]) {
+    data.chunks_exact_mut(4).for_each(|chunk| {
+        chunk.swap(0, 2);
+        // set alpha to 100% opaque
+        chunk[3] = 255
+    });
 }
 
 impl Drop for CGOBitmap {
