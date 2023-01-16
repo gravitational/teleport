@@ -68,12 +68,16 @@ spec:
       # cluster.
       '*': '*'
     kubernetes_groups:
-      # This states that the `github-demo` group will be applied to your bot's
-      # requests to your Kubernetes cluster. In a later step, you will bind this
-      # group to a Kubernetes role with a ClusterRoleBinding.
+      # This group will be attached to requests made by users with this role
+      # to the Kubernetes API. Configure a cluster role binding that binds this 
+      # group to a Kubernetes cluster role to grant privileges to this Teleport 
+      # role in the Kubernetes cluster.
       - github-demo
   deny: {}
 ```
+
+Note the value provided in `kubernetes_groups`. In a later step, you will bind
+this group to a Kubernetes role with a cluster role binding.
 
 Apply this to your Teleport cluster:
 
@@ -112,8 +116,9 @@ metadata:
   name: github-demo-group
 subjects:
   - kind: Group
-    # Note that this name field matches the group name you provided in the
-    # Teleport role configuration.
+    # Name field should match the group configured in the 
+    # `allow.kubernetes_groups` of a role belonging to the user you wish to
+    # grant access to.
     name: github-demo
     apiGroup: rbac.authorization.k8s.io
 roleRef:
