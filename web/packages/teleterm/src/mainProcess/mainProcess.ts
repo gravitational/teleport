@@ -325,7 +325,7 @@ export default class MainProcess {
    * `tsh daemon stop` program. On Unix, the standard `SIGTERM` signal is sent.
    */
   private killTshdProcess() {
-    if (this.settings.platform === 'win32') {
+    if (this.settings.platform !== 'win32') {
       this.tshdProcess.kill('SIGTERM');
       return;
     }
