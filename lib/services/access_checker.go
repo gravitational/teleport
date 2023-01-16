@@ -44,7 +44,7 @@ type AccessChecker interface {
 	Roles() []types.Role
 
 	// CheckAccess checks access to the specified resource.
-	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
+	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -190,7 +190,7 @@ type AccessChecker interface {
 
 	// MFAParams returns MFA params for the given use given their roles, the cluster
 	// auth preference, and whether mfa has been verified.
-	MFAParams(authPrefMFARequirement types.RequireMFAType) AccessMFAParams
+	MFAParams(authPrefMFARequirement types.RequireMFAType) AccessState
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
@@ -303,11 +303,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
-func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.RoleSet.checkAccess(r, mfa, matchers...))
+	return trace.Wrap(a.RoleSet.checkAccess(r, state, matchers...))
 }
 
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured

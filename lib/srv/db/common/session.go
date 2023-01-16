@@ -59,8 +59,8 @@ func (c *Session) String() string {
 }
 
 // MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
-func (c *Session) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+func (c *Session) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessState {
 	params := c.Checker.MFAParams(authPrefMFARequirement)
-	params.Verified = c.Identity.MFAVerified != ""
+	params.MFAVerified = c.Identity.MFAVerified != ""
 	return params
 }

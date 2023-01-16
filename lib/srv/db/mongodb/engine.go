@@ -195,7 +195,7 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	// Legacy OP_KILL_CURSORS command doesn't contain database information.
 	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
 		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
+			services.AccessState{MFAVerified: true},
 			&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	}
 	// Do not allow certain commands that deal with authentication.
@@ -209,7 +209,7 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	}
 	// Otherwise authorize the command against allowed databases.
 	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-		services.AccessMFAParams{Verified: true},
+		services.AccessState{MFAVerified: true},
 		role.DatabaseRoleMatchers(
 			defaults.ProtocolMongoDB,
 			sessionCtx.DatabaseUser,
