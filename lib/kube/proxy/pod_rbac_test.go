@@ -731,7 +731,6 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			requestID := kubetypes.UID(uuid.NewString())
-			t.Parallel()
 			// generate a kube client with user certs for auth
 			client, _ := testCtx.genTestKubeClientTLSCert(
 				t,
