@@ -24,12 +24,12 @@ require (
 	github.com/alicebob/miniredis/v2 v2.30.0
 	github.com/aquasecurity/libbpfgo v0.2.5-libbpf-0.7.0
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.44.175
+	github.com/aws/aws-sdk-go v1.44.180
 	github.com/aws/aws-sdk-go-v2 v1.17.3
 	github.com/aws/aws-sdk-go-v2/config v1.18.8
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.8
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.21
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.77.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.78.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.0
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.1.0
