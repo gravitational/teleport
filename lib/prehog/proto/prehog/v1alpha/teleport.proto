@@ -96,6 +96,77 @@ message UIRecoveryCodesPrintClickEvent {
   string user_name = 1;
 }
 
+// Contains common metadata for Discover related events.
+message DiscoverMetadata {
+  // Uniquely identifies Discover wizard "session". Will allow to correlate
+  // events within the same Discover wizard run. Can be UUIDv4.
+  string id = 1;
+
+  // anonymized
+  string username = 2;
+}
+
+// Represents a resource type.
+enum DiscoverResource {
+  DISCOVER_RESOURCE_UNSPECIFIED = 0;
+  DISCOVER_RESOURCE_SERVER = 1;
+  DISCOVER_RESOURCE_KUBERNETES = 2;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED = 3;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED = 4;
+  DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED = 5;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_RDS = 6;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_RDS = 7;
+  DISCOVER_RESOURCE_APPLICATION_HTTP = 8;
+  DISCOVER_RESOURCE_APPLICATION_TCP = 9;
+  DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
+}
+
+// Contains common metadata identifying resource type being added.
+message DiscoverResourceMetadata {
+  // Resource type that is being added.
+  DiscoverResource resource = 1;
+}
+
+// Represents a Discover Step outcome.
+enum DiscoverStatus {
+  DISCOVER_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  DISCOVER_STATUS_SUCCESS = 1;
+  // The system skipped the step.
+  // For example:
+  // When setting up a Database and there's already a Database Service proxying the DB.
+  // In this case the Database Agent installation is skipped.
+  DISCOVER_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  DISCOVER_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  DISCOVER_STATUS_ABORTED = 4;
+}
+
+// Contains fields that track a particular step outcome, for example connection
+// test failed or succeeded, or user aborted the step.
+message DiscoverStepStatus {
+  // Indicates the step outcome.
+  DiscoverStatus status = 1;
+  // Contains error details in case of Error Status.
+  // We have to be careful to not include any identifyable infomation like server addresses here.
+  string error = 2;
+}
+
+// Emitted when the wizard opens.
+message UIDiscoverStartedEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverStepStatus status = 2;
+}
+
+// Emitted when user selected resource type to add and proceeded to the next
+// step.
+message UIDiscoverResourceSelectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -118,6 +189,9 @@ message SubmitEventRequest {
     UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 14;
     UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 15;
     UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 16;
+
+    UIDiscoverStartedEvent ui_discover_started_event = 17;
+    UIDiscoverResourceSelectionEvent ui_discover_resource_selection_event = 18;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
