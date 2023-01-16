@@ -229,7 +229,10 @@ func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 		return PNG2Frame{}, trace.Wrap(err)
 	}
 
-	b := make([]byte, 1+4+pngLength+16)
+	// Allocate buffer that will fit PNG2Frame message
+	// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#27---png-frame-2
+	// message type (1) + png length (4) + left, right, top, bottom (4 x 4) + data => 21 + data
+	b := make([]byte, 21+pngLength)
 	b[0] = byte(TypePNG2Frame)
 
 	binary.BigEndian.PutUint32(b[1:5], pngLength)
