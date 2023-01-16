@@ -40,8 +40,6 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 	tagsByARN := map[string][]*redshiftserverless.Tag{
 		aws.StringValue(workgroupProd.WorkgroupArn): libcloudaws.LabelsToTags[redshiftserverless.Tag](envProdLabels),
 		aws.StringValue(workgroupDev.WorkgroupArn):  libcloudaws.LabelsToTags[redshiftserverless.Tag](envDevLabels),
-		aws.StringValue(endpointProd.EndpointArn):   libcloudaws.LabelsToTags[redshiftserverless.Tag](envProdLabels),
-		aws.StringValue(endpointDev.EndpointArn):    libcloudaws.LabelsToTags[redshiftserverless.Tag](envDevLabels),
 	}
 
 	workgroupNotAvailable := mocks.RedshiftServerlessWorkgroup("wg-creating", "us-east-1")
