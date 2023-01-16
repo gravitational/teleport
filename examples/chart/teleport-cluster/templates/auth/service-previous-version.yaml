@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-auth-old
+  name: {{ include "teleport-cluster.auth.previousVersionServiceName" . }}
   namespace: {{ .Release.Namespace }}
   labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
 spec:
@@ -13,4 +13,19 @@ spec:
   publishNotReadyAddresses: true
   selector:
     {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}
-    teleport.dev/majorVersion: {{ sub (include "teleport-cluster.majorVersion" . | atoi ) 1 | quote }}
+    teleport.dev/majorVersion: {{ include "teleport-cluster.previousMajorVersion" . | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teleport-cluster.auth.currentVersionServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+spec:
+  # This is a headless service. Resolving it will return the list of all auth pods running the current major version
+  clusterIP: "None"
+  # Publishing not ready addresses ensures that unhealthy or terminating pods are still accounted for
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}
+    teleport.dev/majorVersion: {{ include "teleport-cluster.majorVersion" . | quote }}

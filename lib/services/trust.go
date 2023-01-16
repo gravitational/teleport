@@ -68,4 +68,7 @@ type Trust interface {
 	// DeactivateCertAuthority moves a CertAuthority from the normal list to
 	// the deactivated list.
 	DeactivateCertAuthority(id types.CertAuthID) error
+
+	// UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
+	UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error
 }
