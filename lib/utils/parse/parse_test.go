@@ -59,6 +59,11 @@ func TestVariable(t *testing.T) {
 			err:   trace.BadParameter(""),
 		},
 		{
+			title: "incomplete variables are not allowed",
+			in:    `{{internal}}`,
+			err:   trace.BadParameter(""),
+		},
+		{
 			title: "no curly bracket suffix",
 			in:    "{{internal.foo",
 			err:   trace.BadParameter(""),
@@ -66,6 +71,11 @@ func TestVariable(t *testing.T) {
 		{
 			title: "too many levels of nesting in the variable",
 			in:    "{{internal.foo.bar}}",
+			err:   trace.BadParameter(""),
+		},
+		{
+			title: "too many levels of nesting in the variable with property",
+			in:    `{{internal.foo["bar"]}}`,
 			err:   trace.BadParameter(""),
 		},
 		{

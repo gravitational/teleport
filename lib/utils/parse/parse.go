@@ -248,6 +248,7 @@ const (
 func parse(exprStr string) (Expr, error) {
 	parser, err := predicate.NewParser(predicate.Def{
 		GetIdentifier: buildVarExpr,
+		GetProperty:   buildVarExprFromProperty,
 		Functions: map[string]interface{}{
 			EmailLocalFnName:     buildEmailLocalExpr,
 			RegexpReplaceFnName:  buildRegexpReplaceExpr,
@@ -268,5 +269,10 @@ func parse(exprStr string) (Expr, error) {
 	if !ok {
 		panic(fmt.Sprintf("unexpected parser result type %T (this is a bug)", result))
 	}
+
+	if err := validateExpr(expr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return expr, nil
 }

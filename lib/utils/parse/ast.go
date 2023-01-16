@@ -48,7 +48,7 @@ type StringLitExpr struct {
 	value string
 }
 
-// VarExpr encodes a variable expression with the form "namespace.name".
+// VarExpr encodes a variable expression with the form "literal.literal" or "literal[string]"
 type VarExpr struct {
 	namespace string
 	name      string
@@ -230,22 +230,84 @@ func stringListMap(input any, f func(string) (string, error)) ([]string, error) 
 }
 
 // buildVarExpr builds a VarExpr.
+//
+// If the initial input is something like
+//   - "literal.literal", then a complete VarExpr is returned;
+//   - "literal", the an incomplete VarExpr (i.e. with an empty name) is returned,
+//     hoping that the literal is part of a "literal[string]".
+//
+// Otherwise, an error is returned.
 func buildVarExpr(fields []string) (any, error) {
-	if len(fields) != 2 {
+	switch len(fields) {
+	case 2:
+		// If the initial input was "literal.literal",
+		// then return the complete variable.
+		if err := validateNamespace(fields[0]); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &VarExpr{namespace: fields[0], name: fields[1]}, nil
+	case 1:
+		// If the initial input was just "literal",
+		// then return an incomplete variable.
+		// Since we cannot detect that the expression contains an
+		// incomplete variable while parsing, validateExpr is called
+		// after parsing to ensure that no variable is incomplete.
+		if err := validateNamespace(fields[0]); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &VarExpr{namespace: fields[0], name: ""}, nil
+	default:
 		return nil, trace.BadParameter(
 			"found variable %q with %d fields, expected 2",
 			strings.Join(fields, "."),
 			len(fields),
 		)
 	}
-	switch fields[0] {
-	case LiteralNamespace, teleport.TraitInternalPrefix, teleport.TraitExternalPrefix:
-		return &VarExpr{namespace: fields[0], name: fields[1]}, nil
-	default:
+}
+
+// buildVarExprFromProperty builds a VarExpr from a property that has
+// an incomplete VarExpr as map value and a string as a map key.
+func buildVarExprFromProperty(mapVal any, mapKey any) (any, error) {
+	// Validate that the map value is a variable.
+	varExpr, ok := mapVal.(*VarExpr)
+	if !ok {
 		return nil, trace.BadParameter(
-			"found variable %q with namespace %q, expected one of: %q, %q, %q",
-			strings.Join(fields, "."),
-			fields[0],
+			"found an invalid property without map value literal: %v",
+			mapVal,
+		)
+	}
+
+	// Validate that the variable is incomplete (i.e. does not yet have a name).
+	if varExpr.name != "" {
+		return nil, trace.BadParameter(
+			"found an invalid property without map value literal: %s",
+			varExpr,
+		)
+	}
+
+	// Validate that the map key is a string.
+	name, ok := mapKey.(string)
+	if !ok {
+		return nil, trace.BadParameter(
+			"found an invalid property without map key string: %T",
+			mapKey,
+		)
+	}
+
+	// Set variable name.
+	varExpr.name = name
+	return varExpr, nil
+}
+
+// validateNamespace validates that only certain variable namespaces are allowed.
+func validateNamespace(namespace string) error {
+	switch namespace {
+	case LiteralNamespace, teleport.TraitInternalPrefix, teleport.TraitExternalPrefix:
+		return nil
+	default:
+		return trace.BadParameter(
+			"found namespace %q, expected one of: %q, %q, %q",
+			namespace,
 			LiteralNamespace,
 			teleport.TraitInternalPrefix,
 			teleport.TraitExternalPrefix,
@@ -394,4 +456,32 @@ func newRegexp(raw string, escape bool) (*regexp.Regexp, error) {
 		)
 	}
 	return re, nil
+}
+
+// validateExpr validates that the expression does not contain any
+// incomplete variable.
+func validateExpr(expr Expr) error {
+	switch v := expr.(type) {
+	case *StringLitExpr:
+		return nil
+	case *VarExpr:
+		// Check that the variable is complete (i.e. that it has a name).
+		if v.name == "" {
+			return trace.BadParameter(
+				"found variable %q with 1 field, expected 2",
+				v.namespace,
+			)
+		}
+		return nil
+	case *EmailLocalExpr:
+		return validateExpr(v.email)
+	case *RegexpReplaceExpr:
+		return validateExpr(v.source)
+	case *RegexpMatchExpr:
+		return nil
+	case *RegexpNotMatchExpr:
+		return nil
+	default:
+		panic(fmt.Sprintf("unhandled expression %T (this is a bug)", expr))
+	}
 }
