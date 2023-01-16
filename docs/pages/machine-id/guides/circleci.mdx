@@ -13,6 +13,14 @@ description: A tutorial for using Machine ID with CircleCI
   Machine ID for CircleCI is available starting from Teleport `v11.1`.
 </Details>
 
+In this guide, you will use Teleport Machine ID to allow a CircleCI job to
+securely connect to a Teleport SSH node without the need for long-lived secrets.
+
+This mitigates the risk of long-lived secrets such as passwords or SSH private
+keys being exfiltrated from your CircleCI organization and provides many of
+the other benefits of Teleport such as auditing and finely-grained access
+control.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
