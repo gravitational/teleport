@@ -88,22 +88,22 @@ func (e *VarExpr) String() string {
 
 // String is the string representation of EmailLocalExpr.
 func (e *EmailLocalExpr) String() string {
-	return fmt.Sprintf("%s.%s(%s)", EmailNamespace, EmailLocalFnName, e.email)
+	return fmt.Sprintf("%s(%s)", EmailLocalFnName, e.email)
 }
 
 // String is the string representation of RegexpReplaceExpr.
 func (e *RegexpReplaceExpr) String() string {
-	return fmt.Sprintf("%s.%s(%s, %q, %q)", RegexpNamespace, RegexpReplaceFnName, e.source, e.re, e.replacement)
+	return fmt.Sprintf("%s(%s, %q, %q)", RegexpReplaceFnName, e.source, e.re, e.replacement)
 }
 
 // String is the string representation of RegexpMatchExpr.
 func (e *RegexpMatchExpr) String() string {
-	return fmt.Sprintf("%s.%s(%q)", RegexpNamespace, RegexpMatchFnName, e.re.String())
+	return fmt.Sprintf("%s(%q)", RegexpMatchFnName, e.re.String())
 }
 
 // String is the string representation of RegexpNotMatchExpr.
 func (e *RegexpNotMatchExpr) String() string {
-	return fmt.Sprintf("%s.%s(%q)", RegexpNamespace, RegexpNotMatchFnName, e.re.String())
+	return fmt.Sprintf("%s(%q)", RegexpNotMatchFnName, e.re.String())
 }
 
 // Kind indicates the StringLitExpr kind.
@@ -159,16 +159,14 @@ func (e *EmailLocalExpr) Evaluate(ctx EvaluateContext) (any, error) {
 	return stringListMap(input, func(email string) (string, error) {
 		if email == "" {
 			return "", trace.BadParameter(
-				"found empty \"%s.%s\" argument",
-				EmailNamespace,
+				"found empty %q argument",
 				EmailLocalFnName,
 			)
 		}
 		addr, err := mail.ParseAddress(email)
 		if err != nil {
 			return "", trace.BadParameter(
-				"failed to parse \"%s.%s\" argument %q: %s",
-				EmailNamespace,
+				"failed to parse %q argument %q: %s",
 				EmailLocalFnName,
 				email,
 				err,
@@ -177,8 +175,7 @@ func (e *EmailLocalExpr) Evaluate(ctx EvaluateContext) (any, error) {
 		parts := strings.SplitN(addr.Address, "@", 2)
 		if len(parts) != 2 {
 			return "", trace.BadParameter(
-				"could not find local part in \"%s.%s\" argument %q, %q",
-				EmailNamespace,
+				"could not find local part in %q argument %q, %q",
 				EmailLocalFnName,
 				email,
 				addr.Address,
@@ -232,13 +229,8 @@ func stringListMap(input any, f func(string) (string, error)) ([]string, error) 
 	return out, nil
 }
 
-// buildStringLit builds a StringLitExpr.
-func buildStringLit(value string) (Expr, error) {
-	return &StringLitExpr{value: value}, nil
-}
-
 // buildVarExpr builds a VarExpr.
-func buildVarExpr(fields []string) (Expr, error) {
+func buildVarExpr(fields []string) (any, error) {
 	if len(fields) != 2 {
 		return nil, trace.BadParameter(
 			"found variable %q with %d fields, expected 2",
@@ -261,134 +253,58 @@ func buildVarExpr(fields []string) (Expr, error) {
 	}
 }
 
-// buildCallExpr builds one of the following:
-// - EmailLocalExpr
-// - RegexpReplaceExpr
-// - RegexpMatchExpr
-// - RegexpNotMatchExpr
-func buildCallExpr(fields []string, args []Expr) (Expr, error) {
-	if len(fields) != 2 {
-		return nil, trace.BadParameter(
-			"found function %q with %d fields, expected 2",
-			strings.Join(fields, "."),
-			len(fields),
-		)
-	}
-	switch fields[0] {
-	case EmailNamespace:
-		return buildEmailExpr(fields[1], args)
-	case RegexpNamespace:
-		return buildRegexpExpr(fields[1], args)
-	default:
-		return nil, trace.BadParameter(
-			"found function %q with namespace %q, expected one of: %q, %q",
-			strings.Join(fields, "."),
-			fields[0],
-			EmailNamespace,
-			RegexpNamespace,
-		)
-	}
-}
-
-// buildEmailExpr builds one of the following:
-// - EmailLocalExpr
-func buildEmailExpr(name string, args []Expr) (Expr, error) {
-	switch name {
-	case EmailLocalFnName:
-		return buildEmailLocalExpr(args)
-	default:
-		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with name %q, expected one of: %q",
-			EmailNamespace,
-			name,
-			name,
-			EmailLocalFnName,
-		)
-	}
-}
-
 // buildEmailLocalExpr builds a EmailLocalExpr.
-func buildEmailLocalExpr(args []Expr) (Expr, error) {
-	if len(args) != 1 {
-		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with %d arguments, expected 1",
-			EmailNamespace,
-			EmailLocalFnName,
-			len(args),
-		)
-	}
-
+func buildEmailLocalExpr(emailArg any) (Expr, error) {
 	// Validate first argument.
-	if args[0].Kind() != reflect.String {
+	var email Expr = nil
+	switch v := emailArg.(type) {
+	case string:
+		email = &StringLitExpr{value: v}
+	case Expr:
+		if v.Kind() == reflect.String {
+			email = v
+		}
+	}
+	if email == nil {
 		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with argument that does not evaluate to a string",
-			EmailNamespace,
+			"found function %q with 1st argument that does not evaluate to a string",
 			EmailLocalFnName,
 		)
 	}
-
-	return &EmailLocalExpr{email: args[0]}, nil
-}
-
-// buildRegexpExpr builds one of the following:
-// - RegexpReplaceExpr
-// - RegexpMatchExpr
-// - RegexpNotMatchExpr
-func buildRegexpExpr(name string, args []Expr) (Expr, error) {
-	switch name {
-	case RegexpReplaceFnName:
-		return buildRegexpReplaceExpr(args)
-	case RegexpMatchFnName:
-		return buildRegexpMatchExpr(args)
-	case RegexpNotMatchFnName:
-		return buildRegexpNotMatchExpr(args)
-	default:
-		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with name %q, expected one of: %q, %q, %q",
-			RegexpNamespace,
-			name,
-			name,
-			RegexpReplaceFnName,
-			RegexpMatchFnName,
-			RegexpNotMatchFnName,
-		)
-	}
+	return &EmailLocalExpr{email: email}, nil
 }
 
 // buildRegexpReplaceExpr builds a RegexpReplaceExpr.
-func buildRegexpReplaceExpr(args []Expr) (Expr, error) {
-	if len(args) != 3 {
-		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with %d arguments, expected 3",
-			RegexpNamespace,
-			RegexpReplaceFnName,
-			len(args),
-		)
-	}
-
+func buildRegexpReplaceExpr(sourceArg, matchArg, replacementArg any) (Expr, error) {
 	// Validate first argument.
-	if args[0].Kind() != reflect.String {
+	var source Expr = nil
+	switch v := sourceArg.(type) {
+	case string:
+		source = &StringLitExpr{value: v}
+	case Expr:
+		if v.Kind() == reflect.String {
+			source = v
+		}
+	}
+	if source == nil {
 		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with 1st argument that does not evaluate to a string",
-			RegexpNamespace,
+			"found function %q with 1st argument that does not evaluate to a string",
 			RegexpReplaceFnName,
 		)
 	}
 
 	// Validate second argument.
-	match, ok := args[1].(*StringLitExpr)
+	match, ok := matchArg.(string)
 	if !ok {
 		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with 2nd argument that is not a string",
-			RegexpNamespace,
+			"found function %q with 2nd argument that is not a string",
 			RegexpReplaceFnName,
 		)
 	}
-	re, err := regexp.Compile(match.value)
+	re, err := regexp.Compile(match)
 	if err != nil {
 		return nil, trace.BadParameter(
-			"failed to parse \"%s.%s\" 2nd argument regexp %q: %v",
-			RegexpNamespace,
+			"failed to parse %q 2nd argument regexp %q: %v",
 			RegexpReplaceFnName,
 			match,
 			err,
@@ -396,16 +312,15 @@ func buildRegexpReplaceExpr(args []Expr) (Expr, error) {
 	}
 
 	// Validate third argument.
-	replacement, ok := args[2].(*StringLitExpr)
+	replacement, ok := replacementArg.(string)
 	if !ok {
 		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with 3rd argument that is not a string",
-			RegexpNamespace,
+			"found function %q with 3rd argument that is not a string",
 			RegexpReplaceFnName,
 		)
 	}
 
-	return &RegexpReplaceExpr{source: args[0], re: re, replacement: replacement.value}, nil
+	return &RegexpReplaceExpr{source: source, re: re, replacement: replacement}, nil
 }
 
 // buildRegexpMatchExprFromLit builds a RegexpMatchExpr from a string literal.
@@ -418,52 +333,41 @@ func buildRegexpMatchExprFromLit(raw string) (Expr, error) {
 }
 
 // buildRegexpMatchExpr builds a RegexpMatchExpr.
-func buildRegexpMatchExpr(args []Expr) (Expr, error) {
-	match, err := buildRegexpMatchFnExpr(RegexpMatchFnName, args)
+func buildRegexpMatchExpr(matchArg any) (Expr, error) {
+	re, err := buildRegexpMatchFnExpr(RegexpMatchFnName, matchArg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &RegexpMatchExpr{re: match}, nil
+	return &RegexpMatchExpr{re: re}, nil
 }
 
 // buildRegexpNotMatchExpr builds a RegexpNotMatchExpr.
-func buildRegexpNotMatchExpr(args []Expr) (Expr, error) {
-	notMatch, err := buildRegexpMatchFnExpr(RegexpNotMatchFnName, args)
+func buildRegexpNotMatchExpr(matchArg any) (Expr, error) {
+	re, err := buildRegexpMatchFnExpr(RegexpNotMatchFnName, matchArg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &RegexpNotMatchExpr{re: notMatch}, nil
+	return &RegexpNotMatchExpr{re: re}, nil
 }
 
-func buildRegexpMatchFnExpr(functionName string, args []Expr) (*regexp.Regexp, error) {
-	if len(args) != 1 {
-		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with %d arguments, expected 1",
-			RegexpNamespace,
-			functionName,
-			len(args),
-		)
-	}
-
+func buildRegexpMatchFnExpr(functionName string, matchArg any) (*regexp.Regexp, error) {
 	// Validate first argument.
 	// For now, only support a single match expression. In the future, we could
 	// consider handling variables and transforms by propagating user traits to
 	// the matching logic. For example
 	// `{{regexp.match(external.allowed_env_trait)}}`.
-	arg, ok := args[0].(*StringLitExpr)
+	match, ok := matchArg.(string)
 	if !ok {
 		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with 1st argument that is not a string, no variables and transformations are allowed",
-			RegexpNamespace,
+			"found function %q with 1st argument that is not a string, no variables and transformations are allowed",
 			functionName,
 		)
 	}
 
-	re, err := newRegexp(arg.value, false)
+	re, err := newRegexp(match, false)
 	if err != nil {
 		return nil, trace.BadParameter(
-			"found function \"%s.%s\" with 1st argument that is not a valid regexp: %s",
-			RegexpNamespace,
+			"found function %q with 1st argument that is not a valid regexp: %s",
 			functionName,
 			err,
 		)

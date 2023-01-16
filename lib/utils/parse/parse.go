@@ -20,16 +20,13 @@ package parse
 
 import (
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
 )
 
 // Expression is a string expression template
@@ -237,146 +234,39 @@ const (
 	// LiteralNamespace is a namespace for Expressions that always return
 	// static literal values.
 	LiteralNamespace = "literal"
-	// EmailNamespace is a function namespace for email functions
-	EmailNamespace = "email"
 	// EmailLocalFnName is a name for email.local function
-	EmailLocalFnName = "local"
-	// RegexpNamespace is a function namespace for regexp functions.
-	RegexpNamespace = "regexp"
+	EmailLocalFnName = "email.local"
 	// RegexpMatchFnName is a name for regexp.match function.
-	RegexpMatchFnName = "match"
+	RegexpMatchFnName = "regexp.match"
 	// RegexpNotMatchFnName is a name for regexp.not_match function.
-	RegexpNotMatchFnName = "not_match"
+	RegexpNotMatchFnName = "regexp.not_match"
 	// RegexpReplaceFnName is a name for regexp.replace function.
-	RegexpReplaceFnName = "replace"
+	RegexpReplaceFnName = "regexp.replace"
 )
 
-// maxASTDepth is the maximum depth of the AST that func walk will traverse.
-// The limit exists to protect against DoS via malicious inputs.
-const maxASTDepth = 1000
-
+// parse uses predicate in order to parse the expression.
 func parse(exprStr string) (Expr, error) {
-	parsedExpr, err := parser.ParseExpr(exprStr)
+	parser, err := predicate.NewParser(predicate.Def{
+		GetIdentifier: buildVarExpr,
+		Functions: map[string]interface{}{
+			EmailLocalFnName:     buildEmailLocalExpr,
+			RegexpReplaceFnName:  buildRegexpReplaceExpr,
+			RegexpMatchFnName:    buildRegexpMatchExpr,
+			RegexpNotMatchFnName: buildRegexpNotMatchExpr,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, err := parser.Parse(exprStr)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse: %q, error: %s", exprStr, err)
 	}
-	expr, err := walk(parsedExpr, 0)
-	return expr, trace.Wrap(err)
-}
 
-// walk will walk the ast tree and create our own ast.
-func walk(node ast.Node, depth int) (Expr, error) {
-	if depth > maxASTDepth {
-		return nil, trace.LimitExceeded("expression exceeds the maximum allowed depth")
-	}
-
-	switch e := node.(type) {
-	case *ast.CallExpr:
-		fields, args, err := parseCallExpr(e, depth)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return buildCallExpr(fields, args)
-	case *ast.IndexExpr:
-		fields, err := parseIndexExpr(e)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return buildVarExpr(fields)
-	case *ast.SelectorExpr:
-		fields, err := parseSelectorExpr(e, depth, []string{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return buildVarExpr(fields)
-	case *ast.Ident:
-		return buildVarExpr([]string{e.Name})
-	case *ast.BasicLit:
-		value, err := getStringLit(e)
-		if err != nil {
-			return nil, trace.BadParameter("unexpected literal: %s", err)
-		}
-		return buildStringLit(value)
-	default:
-		return nil, trace.BadParameter("%T is not supported", e)
-	}
-}
-
-func parseCallExpr(e *ast.CallExpr, depth int) ([]string, []Expr, error) {
-	var fields []string
-	switch call := e.Fun.(type) {
-	case *ast.Ident:
-		fields = append(fields, call.Name)
-	case *ast.SelectorExpr:
-		// Selector expression looks like email.local(parameter)
-		namespace, err := getIdentifier(call.X)
-		if err != nil {
-			return nil, nil, trace.BadParameter("unexpected namespace in selector: %s", err)
-		}
-		fields = append(fields, namespace, call.Sel.Name)
-	default:
-		return nil, nil, trace.BadParameter("unexpected function type %T", e.Fun)
-	}
-
-	args := make([]Expr, 0, len(e.Args))
-	for i := range e.Args {
-		arg, err := walk(e.Args[i], depth+1)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		args = append(args, arg)
-	}
-	return fields, args, nil
-}
-
-func parseSelectorExpr(e *ast.SelectorExpr, depth int, fields []string) ([]string, error) {
-	if depth > maxASTDepth {
-		return nil, trace.LimitExceeded("expression exceeds the maximum allowed depth")
-	}
-	fields = append([]string{e.Sel.Name}, fields...)
-	switch l := e.X.(type) {
-	case *ast.SelectorExpr:
-		return parseSelectorExpr(l, depth+1, fields)
-	case *ast.Ident:
-		fields = append([]string{l.Name}, fields...)
-		return fields, nil
-	default:
-		return nil, trace.BadParameter("unsupported selector type: %T", l)
-	}
-}
-
-func parseIndexExpr(e *ast.IndexExpr) ([]string, error) {
-	namespace, err := getIdentifier(e.X)
-	if err != nil {
-		return nil, trace.BadParameter("unexpected namespace in index: %s", err)
-	}
-	name, err := getStringLit(e.Index)
-	if err != nil {
-		return nil, trace.BadParameter("unexpected name in index: %s", err)
-	}
-	return []string{namespace, name}, nil
-}
-
-func getIdentifier(e ast.Node) (string, error) {
-	v, ok := e.(*ast.Ident)
+	expr, ok := result.(Expr)
 	if !ok {
-		return "", trace.BadParameter("expected identifier, got: %T", e)
+		panic(fmt.Sprintf("unexpected parser result type %T (this is a bug)", result))
 	}
-	return v.Name, nil
-}
-
-func getStringLit(e ast.Node) (string, error) {
-	v, ok := e.(*ast.BasicLit)
-	if !ok {
-		return "", trace.BadParameter("expected identifier, got: %T", e)
-	}
-	if v.Kind != token.STRING {
-		return "", trace.BadParameter("expected string literal")
-	}
-
-	value, err := strconv.Unquote(v.Value)
-	if err != nil {
-		return "", trace.BadParameter("failed to unquote string literal: %s, error: %s", v.Value, err)
-	}
-	return value, nil
+	return expr, nil
 }
