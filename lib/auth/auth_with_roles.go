@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -298,9 +299,25 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		return true
 	}
 
-	evaluator := services.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(services.SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
-	return len(modes) != 0
+	owner, err := a.authServer.GetUser(tracker.GetHostUser(), false)
+	if err != nil {
+		return false
+	}
+
+	ownerInfo := &predicate.User{
+		Name:     owner.GetName(),
+		Policies: owner.GetAccessPolicies(),
+		Traits:   owner.GetTraits(),
+	}
+
+	// TODO(joel): use a custom path to avoid this wasteful loop
+	for _, mode := range []types.SessionParticipantMode{types.SessionPeerMode, types.SessionObserverMode, types.SessionObserverMode} {
+		if a.context.Checker.CheckSessionJoinAccess(tracker, ownerInfo, mode) == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 const (

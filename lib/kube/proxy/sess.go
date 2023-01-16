@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/services"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -763,8 +764,7 @@ func (s *session) join(p *party) error {
 			Roles:    roles,
 		}
 
-		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !services.SliceContainsMode(modes, p.Mode) {
+		if s.accessEvaluator.CanJoin(accessContext) != predicate.AccessAllowed {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
 	}

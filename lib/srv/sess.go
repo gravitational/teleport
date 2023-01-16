@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -1470,22 +1471,20 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 }
 
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
-	if ctx.Identity.TeleportUser != s.initiator {
-		accessContext := services.SessionAccessContext{
-			Username: ctx.Identity.TeleportUser,
-			Roles:    ctx.Identity.AccessChecker.Roles(),
-		}
+	initiatorInfo := &predicate.User{
+		Name:     s.initiator,
+		Policies: s.scx.Identity.AccessChecker.AccessPolicies(),
+		Traits:   s.scx.Identity.AccessChecker.Traits(),
+	}
 
-		modes := s.access.CanJoin(accessContext)
-		if !services.SliceContainsMode(modes, mode) {
-			return nil, trace.AccessDenied("insufficient permissions to join session %v", s.id)
-		}
+	if ctx.Identity.AccessChecker.CheckSessionJoinAccess(s.tracker.tracker, initiatorInfo, mode) != nil {
+		return nil, trace.AccessDenied("insufficient permissions to join session %v", s.id)
+	}
 
-		if s.presenceEnabled {
-			_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
-			if err != nil {
-				return nil, trace.WrapWithMessage(err, "failed to send MFA presence request")
-			}
+	if s.presenceEnabled {
+		_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "failed to send MFA presence request")
 		}
 	}
 

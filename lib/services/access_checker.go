@@ -44,6 +44,12 @@ type AccessChecker interface {
 	// Roles returns the list underlying roles this AccessChecker is based on.
 	Roles() []types.Role
 
+	// AccessPolicies returns the list of underlying policies this AccessChecker is based on.
+	AccessPolicies() []string
+
+	// Traits returns the list of underlying traits this AccessChecker is based on.
+	Traits() map[string][]string
+
 	// CheckAccess checks access to the specified resource.
 	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
@@ -291,6 +297,16 @@ func blendAccessDecision(a, b predicate.AccessDecision) error {
 	}
 
 	return trace.AccessDenied("access denied")
+}
+
+// AccessPolicies returns the list of underlying policies this AccessChecker is based on.
+func (a *accessChecker) AccessPolicies() []string {
+	return a.info.AccessPolicies
+}
+
+// Traits returns the list of underlying traits this AccessChecker is based on.
+func (a *accessChecker) Traits() map[string][]string {
+	return a.info.Traits
 }
 
 func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
