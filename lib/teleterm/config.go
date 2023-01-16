@@ -27,6 +27,8 @@ import (
 type Config struct {
 	// Addr is the bind address for the server
 	Addr string
+	// PrehogAddr is the URL where prehog events should be submitted.
+	PrehogAddr string
 	// ShutdownSignals is the set of captured signals that cause server shutdown.
 	ShutdownSignals []os.Signal
 	// HomeDir is the directory to store cluster profiles
@@ -52,6 +54,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Addr == "" {
 		return trace.BadParameter("missing network address")
+	}
+
+	if c.PrehogAddr == "" {
+		return trace.BadParameter("missing prehog address")
 	}
 
 	addr, err := utils.ParseAddr(c.Addr)

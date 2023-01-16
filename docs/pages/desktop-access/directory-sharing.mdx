@@ -157,31 +157,7 @@ Create the role:
 $ tctl create -f role.yaml
 ```
 
-Retrieve the role for the Teleport user you want to modify and save their role
-definition in `user.yaml`. Here we assume the user is called `myser`:
-
-```code
-$ tctl get user/myuser > user.yaml
-```
-
-Edit `user.yaml` to add the new role:
-
-```diff
-spec:
-  - access
-  - editor
-  - auditor
-+ - no-sharing
-  status:
-    is_locked: false
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f role.yaml
-$ tctl create -f user.yaml
-```
+(!docs/pages/includes/add-role-to-user.mdx role="no-sharing"!)
 
 ## Next steps
 
@@ -223,6 +199,6 @@ Web UI. Based on these messages, the Teleport Web UI advertises information
 about—or performs modifications on—the shared directory.
 
 You can read more about TDP in [Teleport RFD
-37](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-file-system-sharing.md)
+37](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md)
 and how Directory Sharing uses it in [RFD
 67](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md).

@@ -298,7 +298,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		InsecureSkipVerify: a.cf.InsecureSkipVerify,
 		ParentContext:      a.cf.Context,
 		SNI:                address.Host(),
-		AWSCredentials:     cred,
+		HTTPMiddleware:     &alpnproxy.AWSAccessMiddleware{AWSCredentials: cred},
 		Certs:              []tls.Certificate{appCerts},
 	})
 	if err != nil {
@@ -309,7 +309,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 	}
 
 	go func() {
-		if err := a.localALPNProxy.StartAWSAccessProxy(a.cf.Context); err != nil {
+		if err := a.localALPNProxy.StartHTTPAccessProxy(a.cf.Context); err != nil {
 			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
 		}
 	}()
@@ -420,7 +420,7 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 }
 
 func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

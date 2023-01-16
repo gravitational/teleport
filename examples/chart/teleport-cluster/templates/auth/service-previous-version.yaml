@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teleport-cluster.auth.previousVersionServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+spec:
+  # This is a headless service. Resolving it will return the list of all auth pods running the previous major version
+  # Proxies should not connect to auth pods from the previous major version
+  # Proxy rollout should be held until this headLessService does not match pods anymore.
+  clusterIP: "None"
+  # Publishing not ready addresses ensures that unhealthy or terminating pods are still accounted for
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}
+    teleport.dev/majorVersion: {{ include "teleport-cluster.previousMajorVersion" . | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teleport-cluster.auth.currentVersionServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+spec:
+  # This is a headless service. Resolving it will return the list of all auth pods running the current major version
+  clusterIP: "None"
+  # Publishing not ready addresses ensures that unhealthy or terminating pods are still accounted for
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}
+    teleport.dev/majorVersion: {{ include "teleport-cluster.majorVersion" . | quote }}

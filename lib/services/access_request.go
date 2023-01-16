@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/vulcand/predicate"
 	"golang.org/x/exp/slices"
 
@@ -33,6 +34,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
@@ -109,16 +112,21 @@ func (r *RequestIDs) IsEmpty() bool {
 	return len(r.AccessRequests) < 1
 }
 
-// DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
-type DynamicAccessCore interface {
-	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+// AccessRequestGetter defines the interface for fetching access request resources.
+type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// GetPluginData loads all plugin data matching the supplied filter.
 	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
+}
+
+// DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
+type DynamicAccessCore interface {
+	AccessRequestGetter
+	// CreateAccessRequest stores a new access request.
+	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+	// DeleteAccessRequest deletes an access request.
+	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// UpdatePluginData updates a per-resource PluginData entry.
 	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
@@ -143,11 +151,11 @@ type DynamicAccessOracle interface {
 
 // CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
 // to load relevant resources.
-func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt RequestValidatorGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
 	// requires that the validator be configured for variable expansion.
-	v, err := NewRequestValidator(ctx, clt, req.User, ExpandVars(req.SuggestedReviewers))
+	v, err := NewRequestValidator(ctx, clock, clt, req.User, ExpandVars(req.SuggestedReviewers))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -528,7 +536,6 @@ ProcessReviews:
 
 		// If we hit any denial thresholds, short-circuit immediately
 		for i, t := range thresholds {
-
 			if counts[i].denial >= t.Deny && t.Deny != 0 {
 				denied = true
 				break ProcessReviews
@@ -848,7 +855,6 @@ func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGett
 }
 
 func (c *ReviewPermissionChecker) push(role types.Role) error {
-
 	allow, deny := role.GetAccessReviewConditions(types.Allow), role.GetAccessReviewConditions(types.Deny)
 
 	var err error
@@ -873,6 +879,7 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
+	clock         clockwork.Clock
 	getter        RequestValidatorGetter
 	user          types.User
 	requireReason bool
@@ -894,13 +901,14 @@ type RequestValidator struct {
 }
 
 // NewRequestValidator configures a new RequestValidor for the specified user.
-func NewRequestValidator(ctx context.Context, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
+func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
 	user, err := getter.GetUser(username, false)
 	if err != nil {
 		return RequestValidator{}, trace.Wrap(err)
 	}
 
 	m := RequestValidator{
+		clock:  clock,
 		getter: getter,
 		user:   user,
 	}
@@ -931,7 +939,7 @@ func NewRequestValidator(ctx context.Context, getter RequestValidatorGetter, use
 
 // Validate validates an access request and potentially modifies it depending on how
 // the validator was configured.
-func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest) error {
+func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
 	if m.user.GetName() != req.GetUser() {
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
@@ -1021,8 +1029,110 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		if len(req.GetSuggestedReviewers()) == 0 {
 			req.SetSuggestedReviewers(apiutils.Deduplicate(m.SuggestedReviewers))
 		}
+
+		now := m.clock.Now().UTC()
+
+		// Calculate expiration time of the Access Request (how long it
+		// will await approval).
+		ttl, err := m.requestTTL(ctx, identity, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetExpiry(now.Add(ttl))
+
+		// Calculate expiration time of the elevated certificate that will
+		// be issued if the Access Request is approved.
+		ttl, err = m.sessionTTL(ctx, identity, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetAccessExpiry(now.Add(ttl))
 	}
+
 	return nil
+}
+
+// requestTTL calculates the TTL of the Access Request (how long it will await
+// approval).
+func (m *RequestValidator) requestTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
+	// If no expiration provided, use default.
+	expiry := r.Expiry()
+	if expiry.IsZero() {
+		expiry = m.clock.Now().UTC().Add(defaults.PendingAccessDuration)
+	}
+
+	if expiry.Before(m.clock.Now().UTC()) {
+		return 0, trace.BadParameter("invalid request TTL: Access Request can not be created in the past")
+	}
+
+	ttl, err := m.truncateTTL(ctx, identity, expiry, r.GetRoles())
+	if err != nil {
+		return 0, trace.BadParameter("invalid request TTL: %v", err)
+	}
+
+	// Before returning the TTL, validate that the value requested was smaller
+	// than the maximum value allowed. Used to return a sensible error to the
+	// user.
+	requestedTTL := expiry.Sub(m.clock.Now().UTC())
+	if !r.Expiry().IsZero() && requestedTTL > ttl {
+		return 0, trace.BadParameter("invalid request TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), ttl.Round(time.Minute))
+	}
+
+	return ttl, nil
+}
+
+// sessionTTL calculates the TTL of the elevated certificate that will be issued
+// if the Access Request is approved.
+func (m *RequestValidator) sessionTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
+	ttl, err := m.truncateTTL(ctx, identity, r.GetAccessExpiry(), r.GetRoles())
+	if err != nil {
+		return 0, trace.BadParameter("invalid session TTL: %v", err)
+	}
+
+	// Before returning the TTL, validate that the value requested was smaller
+	// than the maximum value allowed. Used to return a sensible error to the
+	// user.
+	requestedTTL := r.GetAccessExpiry().Sub(m.clock.Now().UTC())
+	if !r.GetAccessExpiry().IsZero() && requestedTTL > ttl {
+		return 0, trace.BadParameter("invalid session TTL: %v greater than maximum allowed (%v)", requestedTTL.Round(time.Minute), ttl.Round(time.Minute))
+	}
+
+	return ttl, nil
+}
+
+// truncateTTL will truncate given expiration by identity expiration and
+// shortest session TTL of any role.
+func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Identity, expiry time.Time, roles []string) (time.Duration, error) {
+	ttl := apidefaults.MaxCertDuration
+
+	// Reduce by remaining TTL on requesting certificate (identity).
+	identityTTL := identity.Expires.Sub(m.clock.Now())
+	if identityTTL > 0 && identityTTL < ttl {
+		ttl = identityTTL
+	}
+
+	// Reduce TTL further if expiration time requested is shorter than that
+	// identity.
+	expiryTTL := expiry.Sub(m.clock.Now())
+	if expiryTTL > 0 && expiryTTL < ttl {
+		ttl = expiryTTL
+	}
+
+	// Loop over the roles requested by the user and reduce certificate TTL
+	// further. Follow the typical Teleport RBAC pattern of strictest setting
+	// wins.
+	for _, roleName := range roles {
+		role, err := m.getter.GetRole(ctx, roleName)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		roleTTL := time.Duration(role.GetOptions().MaxSessionTTL)
+		if roleTTL > 0 && roleTTL < ttl {
+			ttl = roleTTL
+		}
+	}
+
+	return ttl, nil
 }
 
 // GetRequestableRoles gets the list of all existent roles which the user is
@@ -1283,12 +1393,12 @@ func ExpandVars(expand bool) ValidateRequestOption {
 // *statically assigned* roles. If expandRoles is true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
-func ValidateAccessRequestForUser(ctx context.Context, getter RequestValidatorGetter, req types.AccessRequest, opts ...ValidateRequestOption) error {
-	v, err := NewRequestValidator(ctx, getter, req.GetUser(), opts...)
+func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, req types.AccessRequest, identity tlsca.Identity, opts ...ValidateRequestOption) error {
+	v, err := NewRequestValidator(ctx, clock, getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(v.Validate(ctx, req))
+	return trace.Wrap(v.Validate(ctx, req, identity))
 }
 
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
@@ -1483,6 +1593,57 @@ func roleAllowsResource(
 }
 
 type ListResourcesRequestOption func(*proto.ListResourcesRequest)
+
+func GetResourceDetails(ctx context.Context, clusterName string, lister ResourceLister, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
+	var nodeIDs []types.ResourceID
+	for _, resourceID := range ids {
+		if resourceID.Kind != types.KindNode {
+			// The only detail we want, for now, is the server hostname, so we
+			// can skip all other resource kinds as a minor optimization.
+			continue
+		}
+		nodeIDs = append(nodeIDs, resourceID)
+	}
+
+	withExtraRoles := func(req *proto.ListResourcesRequest) {
+		req.UseSearchAsRoles = true
+		req.UsePreviewAsRoles = true
+	}
+
+	resources, err := GetResourcesByResourceIDs(ctx, lister, nodeIDs, withExtraRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result := make(map[string]types.ResourceDetails)
+	for _, resource := range resources {
+		hn, ok := resource.(interface{ GetHostname() string })
+		if !ok {
+			continue
+		}
+		id := types.ResourceID{
+			ClusterName: clusterName,
+			Kind:        resource.GetKind(),
+			Name:        resource.GetName(),
+		}
+		result[types.ResourceIDToString(id)] = types.ResourceDetails{
+			Hostname: hn.GetHostname(),
+		}
+	}
+
+	return result, nil
+}
+
+func GetNodeResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
+	resourceIDsByCluster := make(map[string][]types.ResourceID)
+	for _, resourceID := range r.GetRequestedResourceIDs() {
+		if resourceID.Kind != types.KindNode {
+			continue
+		}
+		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
+	}
+	return resourceIDsByCluster
+}
 
 func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)

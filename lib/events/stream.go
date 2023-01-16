@@ -47,6 +47,10 @@ const (
 	// Int64Size is a constant for 64 bit integer byte size
 	Int64Size = 8
 
+	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
+	// per stream
+	ConcurrentUploadsPerStream = 1
+
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
 
@@ -99,7 +103,7 @@ func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
 		cfg.MinUploadBytes = MinUploadPartSizeBytes
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	return nil
 }
@@ -210,10 +214,10 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter MinUploadBytes")
 	}
 	if cfg.InactivityFlushPeriod == 0 {
-		cfg.InactivityFlushPeriod = defaults.InactivityFlushPeriod
+		cfg.InactivityFlushPeriod = InactivityFlushPeriod
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -382,14 +386,19 @@ func (s *ProtoStream) Done() <-chan struct{} {
 
 // EmitAuditEvent emits a single audit event to the stream
 func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	messageSize := event.Size()
+	if messageSize > MaxProtoMessageSizeBytes {
+		switch v := event.(type) {
+		case messageSizeTrimmer:
+			event = v.TrimToMaxSize(MaxProtoMessageSizeBytes)
+		default:
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+		}
+	}
+
 	oneof, err := apievents.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	messageSize := oneof.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
 	}
 
 	start := time.Now()
@@ -737,8 +746,8 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			if retry == nil {
 				var rerr error
 				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
-					Step: defaults.NetworkRetryDuration,
-					Max:  defaults.NetworkBackoffDuration,
+					Step: NetworkRetryDuration,
+					Max:  NetworkBackoffDuration,
 				})
 				if rerr != nil {
 					activeUpload.setError(rerr)

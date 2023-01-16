@@ -35,10 +35,14 @@ import (
 )
 
 const (
-	secretIdentifierName   = "state"
-	namespaceEnv           = "KUBE_NAMESPACE"
+	secretIdentifierName = "state"
+	// NamespaceEnv is the env variable defined by the Helm chart that contains the
+	// namespace value.
+	NamespaceEnv = "KUBE_NAMESPACE"
+	// ReleaseNameEnv is the env variable defined by the Helm chart that contains the
+	// release name value.
+	ReleaseNameEnv         = "RELEASE_NAME"
 	teleportReplicaNameEnv = "TELEPORT_REPLICA_NAME"
-	releaseNameEnv         = "RELEASE_NAME"
 )
 
 // InKubeCluster detemines if the agent is running inside a Kubernetes cluster and has access to
@@ -48,7 +52,7 @@ func InKubeCluster() bool {
 	_, _, err := kubeutils.GetKubeClient("")
 
 	return err == nil &&
-		len(os.Getenv(namespaceEnv)) > 0 &&
+		len(os.Getenv(NamespaceEnv)) > 0 &&
 		len(os.Getenv(teleportReplicaNameEnv)) > 0
 }
 
@@ -113,7 +117,7 @@ func New() (*Backend, error) {
 
 // NewWithClient returns a new instance of Kubernetes Secret identity backend storage with the provided client.
 func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
-	for _, env := range []string{teleportReplicaNameEnv, namespaceEnv} {
+	for _, env := range []string{teleportReplicaNameEnv, NamespaceEnv} {
 		if len(os.Getenv(env)) == 0 {
 			return nil, trace.BadParameter("environment variable %q not set or empty", env)
 		}
@@ -121,14 +125,14 @@ func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
 
 	return NewWithConfig(
 		Config{
-			Namespace: os.Getenv(namespaceEnv),
+			Namespace: os.Getenv(NamespaceEnv),
 			SecretName: fmt.Sprintf(
 				"%s-%s",
 				os.Getenv(teleportReplicaNameEnv),
 				secretIdentifierName,
 			),
 			ReplicaName: os.Getenv(teleportReplicaNameEnv),
-			ReleaseName: os.Getenv(releaseNameEnv),
+			ReleaseName: os.Getenv(ReleaseNameEnv),
 			KubeClient:  restClient,
 		},
 	)
@@ -283,7 +287,6 @@ func (b *Backend) genSecretObject() *corev1.Secret {
 		},
 		Data: map[string][]byte{},
 	}
-
 }
 
 func generateSecretAnnotations(namespace, releaseNameEnv string) map[string]string {

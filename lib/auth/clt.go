@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -304,11 +305,7 @@ func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
 func (c *Client) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
-	caType := "all"
-	if req.Type != "" {
-		caType = string(req.Type)
-	}
-	_, err := c.PostJSON(ctx, c.Endpoint("authorities", caType, "rotate"), req)
+	_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
 	return trace.Wrap(err)
 }
 
@@ -405,6 +402,11 @@ func (c *Client) ActivateCertAuthority(id types.CertAuthID) error {
 
 // DeactivateCertAuthority not implemented: can only be called locally.
 func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateUserCARoleMap not implemented: can only be called locally.
+func (c *Client) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -873,13 +875,13 @@ func (c *Client) GenerateHostCert(
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), ValidateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *oidcAuthRawResponse
+	var rawResponse *OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1274,15 +1276,11 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 }
 
 // ResumeAuditStream resumes existing audit stream.
-// This is a wrapper on the grpc endpoint and is deprecated.
-// DELETE IN 7.0.0
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
 }
 
 // CreateAuditStream creates new audit stream.
-// This is a wrapper on the grpc endpoint and is deprecated.
-// DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
@@ -1343,6 +1341,14 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) GetLicense(ctx context.Context) (string, error) {
+	return c.APIClient.GetLicense(ctx)
+}
+
+func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
+	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
 }
 
 // WebService implements features used by Web UI clients
@@ -1579,6 +1585,7 @@ type ClientI interface {
 	services.Restrictions
 	services.Apps
 	services.Databases
+	services.DatabaseServices
 	services.Kubernetes
 	services.WindowsDesktops
 	WebService
@@ -1596,6 +1603,12 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	DevicesClient() devicepb.DeviceTrustServiceClient
+
+	// LoginRuleClient returns a client to the Login Rule gRPC service.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	LoginRuleClient() loginrulepb.LoginRuleServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -1677,4 +1690,13 @@ type ClientI interface {
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
+
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+
+	// GetLicense returns the license used to start Teleport Enterprise
+	GetLicense(ctx context.Context) (string, error)
+
+	// ListReleases returns a list of Teleport Enterprise releases
+	ListReleases(ctx context.Context) ([]*types.Release, error)
 }

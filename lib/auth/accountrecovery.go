@@ -173,7 +173,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			continue
 		}
 		codeMatch = true
-		// Mark matched token as used in backend so it can't be used again.
+		// Mark matched token as used in backend, so it can't be used again.
 		recovery.GetCodes()[i].IsUsed = true
 		if err := s.UpsertRecoveryCodes(ctx, user, recovery); err != nil {
 			log.Error(trace.DebugReport(err))
@@ -187,9 +187,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			Type: events.RecoveryCodeUsedEvent,
 			Code: events.RecoveryCodeUseSuccessCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: user,
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, user),
 		Status: apievents.Status{
 			Success: true,
 		},
@@ -554,9 +552,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 			Type: events.RecoveryCodeGeneratedEvent,
 			Code: events.RecoveryCodesGenerateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, username),
 	}); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{"user": username}).Warn("Failed to emit recovery tokens generate event.")
 	}
@@ -570,8 +566,8 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (s *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if !modules.GetModules().Features().Cloud {
-		return trace.AccessDenied("account recovery is only available for enterprise cloud")
+	if !modules.GetModules().Features().RecoveryCodes {
+		return trace.AccessDenied("account recovery is only available for Teleport enterprise")
 	}
 
 	authPref, err := s.GetAuthPreference(ctx)

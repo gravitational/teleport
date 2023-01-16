@@ -20,9 +20,7 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math"
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 
@@ -100,85 +98,6 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	s.mockEmitter = &eventstest.MockEmitter{}
 	s.a.emitter = s.mockEmitter
 	return &s
-}
-
-func TestPasswordTimingAttack(t *testing.T) {
-	t.Parallel()
-
-	s := setupPasswordSuite(t)
-	username := "foo"
-	password := "barbaz"
-
-	err := s.a.UpsertPassword(username, []byte(password))
-	require.NoError(t, err)
-
-	type res struct {
-		exists  bool
-		elapsed time.Duration
-		err     error
-	}
-
-	// Run multiple password checks in parallel, for both existing and
-	// non-existing user. This should ensure that there's always contention and
-	// that both checking paths are subject to it together.
-	//
-	// This should result in timing results being more similar to each other
-	// and reduce test flakiness.
-	wg := sync.WaitGroup{}
-	resCh := make(chan res)
-	// Create a barrier, so no more than 5 checks run at the same time.
-	syncChan := make(chan struct{}, 5)
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() {
-			syncChan <- struct{}{}
-
-			defer wg.Done()
-			start := time.Now()
-			err := s.a.checkPasswordWOToken(username, []byte(password))
-			resCh <- res{
-				exists:  true,
-				elapsed: time.Since(start),
-				err:     err,
-			}
-			<-syncChan
-		}()
-		wg.Add(1)
-		go func() {
-			syncChan <- struct{}{}
-
-			defer wg.Done()
-			start := time.Now()
-			err := s.a.checkPasswordWOToken("blah", []byte(password))
-			resCh <- res{
-				exists:  false,
-				elapsed: time.Since(start),
-				err:     err,
-			}
-			<-syncChan
-		}()
-	}
-	go func() {
-		wg.Wait()
-		close(resCh)
-	}()
-
-	var elapsedExists, elapsedNotExists time.Duration
-	for r := range resCh {
-		if r.exists {
-			require.NoError(t, r.err)
-			elapsedExists += r.elapsed
-		} else {
-			require.Error(t, r.err)
-			elapsedNotExists += r.elapsed
-		}
-	}
-
-	// Get the relative percentage difference in runtimes of password check
-	// with real and non-existent users. It should be <10%.
-	diffFraction := math.Abs(1.0 - (float64(elapsedExists) / float64(elapsedNotExists)))
-	require.True(t, diffFraction < 0.1,
-		"elapsed difference (%v%%) greater than 10%%", 100*diffFraction)
 }
 
 func TestUserNotFound(t *testing.T) {

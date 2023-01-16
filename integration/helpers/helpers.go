@@ -28,20 +28,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // CommandOptions controls how the SSH command is built.
@@ -206,7 +216,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
 	_, err = identityfile.Write(identityfile.WriteConfig{
@@ -266,4 +276,157 @@ func MustGetCurrentUser(t *testing.T) *user.User {
 	user, err := user.Current()
 	require.NoError(t, err)
 	return user
+}
+
+func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service.Database) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+	defer cancel()
+
+	for {
+		all, err := authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+
+		// Count how many input "dbs" are registered.
+		var registered int
+		for _, db := range dbs {
+			for _, a := range all {
+				if a.GetName() == db.Name {
+					registered++
+					break
+				}
+			}
+		}
+
+		if registered == len(dbs) {
+			return
+		}
+
+		select {
+		case <-time.After(500 * time.Millisecond):
+		case <-ctx.Done():
+			require.Fail(t, "database servers not registered after 10s")
+		}
+	}
+}
+
+// MakeTestServers starts an Auth and a Proxy Service.
+// Besides those processes, it also returns a provision token which can be used to add other services.
+func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *service.TeleportProcess, provisionToken string) {
+	provisionToken = uuid.NewString()
+	var err error
+	// Set up a test auth server.
+	//
+	// We need this to get a random port assigned to it and allow parallel
+	// execution of this test.
+	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.Hostname = "localhost"
+	cfg.DataDir = t.TempDir()
+	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
+	cfg.Auth.ListenAddr.Addr = NewListener(t, service.ListenerAuth, &cfg.FileDescriptors)
+	cfg.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
+			Expires: time.Now().Add(time.Minute),
+			Token:   provisionToken,
+		}},
+	})
+	require.NoError(t, err)
+	cfg.SSH.Enabled = false
+	cfg.Auth.Enabled = true
+	cfg.Proxy.Enabled = false
+	cfg.Log = utils.NewLoggerForTests()
+
+	auth, err = service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, auth.Start())
+
+	t.Cleanup(func() {
+		require.NoError(t, auth.Close())
+		require.NoError(t, auth.Wait())
+	})
+
+	// Wait for proxy to become ready.
+	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
+	// in reality, the auth server should start *much* sooner than this.  we use a very large
+	// timeout here because this isn't the kind of problem that this test is meant to catch.
+	require.NoError(t, err, "auth server didn't start after 30s")
+
+	authAddr, err := auth.AuthAddr()
+	require.NoError(t, err)
+
+	// Set up a test proxy service.
+	cfg = service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.Hostname = "localhost"
+	cfg.DataDir = t.TempDir()
+
+	cfg.SetAuthServerAddress(*authAddr)
+	cfg.SetToken(provisionToken)
+	cfg.SSH.Enabled = false
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.ReverseTunnelListenAddr.Addr = NewListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)
+	cfg.Proxy.WebAddr.Addr = NewListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)
+	cfg.Proxy.PublicAddrs = []utils.NetAddr{
+		cfg.Proxy.WebAddr,
+	}
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Log = utils.NewLoggerForTests()
+
+	proxy, err = service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, proxy.Start())
+
+	t.Cleanup(func() {
+		require.NoError(t, proxy.Close())
+		require.NoError(t, proxy.Wait())
+	})
+
+	// Wait for proxy to become ready.
+	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
+	require.NoError(t, err, "proxy web server didn't start after 10s")
+
+	return auth, proxy, provisionToken
+}
+
+// MakeTestDatabaseServer creates a Database Service
+// It receives the Proxy Address, a Token (to join the cluster) and a list of Datbases
+func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...service.Database) (db *service.TeleportProcess) {
+	// Proxy uses self-signed certificates in tests.
+	lib.SetInsecureDevMode(true)
+
+	cfg := service.MakeDefaultConfig()
+	cfg.Hostname = "localhost"
+	cfg.DataDir = t.TempDir()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.SetAuthServerAddress(proxyAddr)
+	cfg.SetToken(token)
+	cfg.SSH.Enabled = false
+	cfg.Auth.Enabled = false
+	cfg.Databases.Enabled = true
+	cfg.Databases.Databases = dbs
+	cfg.Databases.ResourceMatchers = resMatchers
+	cfg.Log = utils.NewLoggerForTests()
+
+	db, err := service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, db.Start())
+
+	t.Cleanup(func() {
+		assert.NoError(t, db.Close())
+	})
+
+	// Wait for database agent to start.
+	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
+	require.NoError(t, err, "database server didn't start after 10s")
+
+	return db
 }

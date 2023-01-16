@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -71,17 +72,9 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := windowsDesktopAndServiceCollection{
-		desktops: []windowsDesktopAndService{},
+	coll := windowsDesktopCollection{
+		desktops: desktops,
 		verbose:  c.verbose,
-	}
-	for _, desktop := range desktops {
-		ds, err := client.GetWindowsDesktopService(ctx, desktop.GetHostID())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		coll.desktops = append(coll.desktops,
-			windowsDesktopAndService{desktop: desktop, service: ds})
 	}
 	switch c.format {
 	case teleport.Text:
@@ -94,3 +87,11 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) e
 		return trace.BadParameter("unknown format %q", c.format)
 	}
 }
+
+var desktopMessageTemplate = template.Must(template.New("desktop").Parse(`The invite token: {{.token}}
+This token will expire in {{.minutes}} minutes.
+
+This token enables Desktop Access.  See https://goteleport.com/docs/desktop-access/
+for detailed information on configuring Teleport Desktop Access with this token.
+
+`))

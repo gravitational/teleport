@@ -27,12 +27,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
 type ResourceCollection interface {
@@ -745,6 +747,7 @@ func (c *windowsDesktopServiceCollection) writeText(w io.Writer) error {
 
 type windowsDesktopCollection struct {
 	desktops []types.WindowsDesktop
+	verbose  bool
 }
 
 func (c *windowsDesktopCollection) resources() (r []types.Resource) {
@@ -755,22 +758,28 @@ func (c *windowsDesktopCollection) resources() (r []types.Resource) {
 }
 
 func (c *windowsDesktopCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"UUID", "Address"})
-	for _, desktop := range c.desktops {
-		t.AddRow([]string{desktop.GetName(), desktop.GetAddr()})
+	var rows [][]string
+	for _, d := range c.desktops {
+		labels := stripInternalTeleportLabels(c.verbose, d.GetAllLabels())
+		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
+	}
+	headers := []string{"Name", "Address", "AD Domain", "Labels"}
+	var t asciitable.Table
+	if c.verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
-type windowsDesktopAndService struct {
-	desktop types.WindowsDesktop
-	service types.WindowsDesktopService
+func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.desktops)
 }
 
-type windowsDesktopAndServiceCollection struct {
-	desktops []windowsDesktopAndService
-	verbose  bool
+func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
+	return utils.WriteJSON(w, c.desktops)
 }
 
 func stripInternalTeleportLabels(verbose bool, labels map[string]string) string {
@@ -783,32 +792,6 @@ func stripInternalTeleportLabels(verbose bool, labels map[string]string) string 
 		}
 	}
 	return types.LabelsAsString(labels, nil)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeText(w io.Writer) error {
-	var rows [][]string
-	for _, d := range c.desktops {
-		labels := stripInternalTeleportLabels(c.verbose, d.desktop.GetAllLabels())
-		rows = append(rows, []string{d.service.GetHostname(), d.desktop.GetAddr(),
-			d.desktop.GetDomain(), labels, d.service.GetTeleportVersion()})
-	}
-	headers := []string{"Host", "Address", "AD Domain", "Labels", "Version"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.desktops)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, c.desktops)
 }
 
 type tokenCollection struct {
@@ -945,4 +928,78 @@ func (c *installerCollection) writeText(w io.Writer) error {
 		}
 	}
 	return nil
+}
+
+type databaseServiceCollection struct {
+	databaseServices []types.DatabaseService
+}
+
+func (c *databaseServiceCollection) resources() (r []types.Resource) {
+	for _, service := range c.databaseServices {
+		r = append(r, service)
+	}
+	return r
+}
+
+func databaseResourceMatchersToString(in []*types.DatabaseResourceMatcher) string {
+	resourceMatchersStrings := make([]string, 0, len(in))
+
+	for _, resMatcher := range in {
+		if resMatcher == nil || resMatcher.Labels == nil {
+			continue
+		}
+
+		labelsString := make([]string, 0, len(*resMatcher.Labels))
+		for key, values := range *resMatcher.Labels {
+			if key == types.Wildcard {
+				labelsString = append(labelsString, "<all databases>")
+				continue
+			}
+			labelsString = append(labelsString, fmt.Sprintf("%v=%v", key, values))
+		}
+
+		resourceMatchersStrings = append(resourceMatchersStrings, fmt.Sprintf("(Labels: %s)", strings.Join(labelsString, ",")))
+	}
+	return strings.Join(resourceMatchersStrings, ",")
+}
+
+// writeText formats the DatabaseServices into a table and writes them into w.
+// Example:
+//
+// Name                                 Resource Matchers
+// ------------------------------------ --------------------------------------
+// a6065ee9-d5ee-4555-8d47-94a78625277b (Labels: <all databases>)
+// d4e13f2b-0a55-4e0a-b363-bacfb1a11294 (Labels: env=[prod],aws-tag=[xyz abc])
+func (c *databaseServiceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Resource Matchers"})
+
+	for _, dbService := range c.databaseServices {
+		t.AddRow([]string{
+			dbService.GetName(), databaseResourceMatchersToString(dbService.GetResourceMatchers()),
+		})
+	}
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type loginRuleCollection struct {
+	rules []*loginrulepb.LoginRule
+}
+
+func (l *loginRuleCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Priority"})
+	for _, rule := range l.rules {
+		t.AddRow([]string{rule.Metadata.Name, strconv.FormatInt(int64(rule.Priority), 10)})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (l *loginRuleCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(l.rules))
+	for i, rule := range l.rules {
+		resources[i] = loginrule.ProtoToResource(rule)
+	}
+	return resources
 }

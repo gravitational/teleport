@@ -499,6 +499,8 @@ func buildMacArtifactsStep(workspacePath string, b buildType, toolchainConfig to
 			"ARCH":              {raw: b.arch},
 			"WORKSPACE_DIR":     {raw: workspacePath},
 			"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
+			"APPLE_USERNAME":    {fromSecret: "APPLE_USERNAME"},
+			"APPLE_PASSWORD":    {fromSecret: "APPLE_PASSWORD"},
 		},
 		Commands: darwinBuildCommands(toolchainConfig, artifactConfig),
 	}
@@ -557,8 +559,6 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			// available.
 			// https://www.electron.build/code-signing
 			`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
-
-			`export DEBUG="electron-*"`,
 		)
 
 		if artifactConfig == binariesWithConnect {
