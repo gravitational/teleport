@@ -58,7 +58,7 @@ Create a file named `tokenconfig.yaml`, ensuring that you replace
 kind: token
 version: v2
 metadata:
-  name: circleci-token
+  name: circleci-demo
   expires: "2100-01-01T00:00:00Z"
 spec:
   roles: [Bot]
@@ -149,7 +149,7 @@ jobs:
           command: |
             tbot start \
               --auth-server=tele.example.com:443 \
-              --join-method=circleci --token=circleci-token \
+              --join-method=circleci --token=circleci-demo \
               --oneshot \
               --destination-dir=./certs \
               --data-dir=/tmp/tbot-data
