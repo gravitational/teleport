@@ -213,8 +213,8 @@ the Teleport image.
 
  * **[apko](https://github.com/chainguard-dev/apko)**: Apko is a tool for quickly 
    building minimalist, reproducible Alpine linux images, using a declarative 
-   format. While I found the tool verly neat, the images it generates are still closer 
-   to a "debug" Distroless image. 
+   format. While I found the tool to be very neat, the images it generates are 
+   still closer to a "debug" Distroless image. 
 
    Using `apko` would also require us to build an Alpine linux package for Teleport 
    to integrate it nto the build.
