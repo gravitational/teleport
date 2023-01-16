@@ -341,8 +341,6 @@ type CLIConf struct {
 	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
 	// proxy instead of an HTTPS proxy.
 	AWSEndpointURLMode bool
-	// KeyStore is the path to a Java KeyStore.
-	KeyStore string
 
 	// AzureIdentity is Azure identity that will be used for Azure CLI access.
 	AzureIdentity string
@@ -450,7 +448,6 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 	if c.cmdRunner != nil {
 		return trace.Wrap(c.cmdRunner(cmd))
 	}
-	log.Debugf("Running command: %v", cmd)
 	return trace.Wrap(cmd.Run())
 }
 
@@ -707,7 +704,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
-	proxyAWS.Flag("keystore", "Path to a Java KeyStore. If specified, the local CA will be imported to this KeyStore.").StringVar(&cf.KeyStore)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
 	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)

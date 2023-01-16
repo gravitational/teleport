@@ -17,10 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -346,71 +344,6 @@ func (a *awsApp) startLocalForwardProxy(port string) error {
 		}
 	}()
 	return nil
-}
-
-// SetupKeyStore installs local CA to the specified Java KeyStore.
-func (a *awsApp) SetupKeyStore(keystore string) error {
-	aliasName := fmt.Sprintf("teleport-%v-%v", a.profile.Cluster, a.appName)
-
-	// Print info like alias name in case user wants to manually update the
-	// KeyStore. Use new lines between keytool commands as it may prompt user
-	// for password or print some outputs.
-	fmt.Fprintln(a.cf.Stdout(), "KeyStore path: ", keystore)
-	fmt.Fprintln(a.cf.Stdout(), "Local CA path: ", a.profile.AppLocalCAPath(a.appName))
-	fmt.Fprintln(a.cf.Stdout(), "Alias name   : ", aliasName)
-	fmt.Fprintln(a.cf.Stdout())
-
-	// Try a "delete" first, otherwise "import" will fail if alias already exists.
-	fmt.Fprintln(a.cf.Stdout(), "Deleting local CA from keystore.")
-	if err := a.deleteLocalCAFromKeyStore(keystore, aliasName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintln(a.cf.Stdout())
-	fmt.Fprintln(a.cf.Stdout(), "Installing local CA to keystore.")
-
-	if err := a.installLocalCAToKeyStore(keystore, aliasName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintln(a.cf.Stdout())
-	return nil
-}
-
-func (a *awsApp) deleteLocalCAFromKeyStore(keystore, aliasName string) error {
-	cmd := exec.Command(
-		"keytool", "-noprompt", "-delete",
-		"-alias", aliasName,
-		"-keystore", keystore,
-	)
-
-	// keytool writes error messages to stdout, but we capture both stdout and
-	// stderr just in case.
-	var capture bytes.Buffer
-	captureWriter := utils.NewSyncWriter(&capture)
-	cmd.Stdout = io.MultiWriter(a.cf.Stdout(), captureWriter)
-	cmd.Stderr = io.MultiWriter(a.cf.Stderr(), captureWriter)
-	cmd.Stdin = a.cf.Stdin()
-
-	err := a.cf.RunCommand(cmd)
-	if err != nil && !strings.Contains(capture.String(), fmt.Sprintf("Alias <%s> does not exist", aliasName)) {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (a *awsApp) installLocalCAToKeyStore(keystore, aliasName string) error {
-	cmd := exec.Command(
-		"keytool", "-noprompt", "-import",
-		"-alias", aliasName,
-		"-keystore", keystore,
-		"-file", a.profile.AppLocalCAPath(a.appName),
-	)
-	cmd.Stdout = a.cf.Stdout()
-	cmd.Stderr = a.cf.Stderr()
-	cmd.Stdin = a.cf.Stdin()
-
-	return trace.Wrap(a.cf.RunCommand(cmd))
 }
 
 func printAWSRoles(roles awsutils.Roles) {

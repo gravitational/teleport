@@ -47,14 +47,8 @@ func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 }
 
 func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
-	// It's found that some AWS clients may have slightly different signing
-	// logic than the Go SDK. For example, the Java SDK v1 includes the
-	// "Use-Agent" header when signing but the Go SDK explicitly excludes this
-	// header. To workaround, only AccessKeyID from the signature is verified
-	// here. A new UUID should be generated as the AccessKeyID per tsh command
-	// for better security.
-	if err := aws.VerifyAWSAccessKeyID(req, m.AWSCredentials); err != nil {
-		m.Log.WithError(err).Error("AWS AccessKeyID verification failed.")
+	if err := aws.VerifyAWSSignature(req, m.AWSCredentials); err != nil {
+		m.Log.WithError(err).Error("AWS signature verification failed.")
 		rw.WriteHeader(http.StatusForbidden)
 		return true
 	}
