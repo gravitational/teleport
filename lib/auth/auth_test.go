@@ -259,7 +259,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Create the user.
-	_, role, err := CreateUserAndRole(s.a, user, []string{user})
+	userObj, role, err := CreateUserAndRole(s.a, user, []string{user})
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
@@ -267,6 +267,14 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	role.SetKubeUsers(types.Allow, []string{user})
 	role.SetKubeGroups(types.Allow, []string{"system:masters"})
 	err = s.a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Give the user a policy.
+	policy := types.NewAccessPolicy("myPolicy", types.AccessPolicySpecV1{})
+	userObj.SetAccessPolicies([]string{policy.GetName()})
+	err = s.a.CreateAccessPolicy(ctx, policy)
+	require.NoError(t, err)
+	err = s.a.UpsertUser(userObj)
 	require.NoError(t, err)
 
 	kg := testauthority.New()
@@ -297,6 +305,12 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	require.Equal(t, gotTLSCert.PublicKey, inCryptoPub)
+
+	// Verify TLS cert contains access policies.
+	ident, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, []string{policy.GetName()}, ident.AccessPolicies)
+
 	wantID := tlsca.Identity{
 		Username:         user,
 		Groups:           []string{role.GetName()},
@@ -307,6 +321,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
 		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		AccessPolicies:   []string{policy.GetName()},
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -340,6 +355,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		AccessPolicies:    []string{policy.GetName()},
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -386,6 +402,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		AccessPolicies:    []string{policy.GetName()},
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -420,6 +437,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		AccessPolicies:    []string{policy.GetName()},
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -463,6 +481,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		AccessPolicies:    []string{policy.GetName()},
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -497,6 +516,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		AccessPolicies:    []string{policy.GetName()},
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
