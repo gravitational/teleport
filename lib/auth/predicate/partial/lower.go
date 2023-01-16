@@ -154,7 +154,7 @@ func lowerBinary(ctx *ctx, node *ast.BinaryExpr) (z3.Value, error) {
 			return x.(z3.Int).Eq(y.(z3.Int)), nil
 		case z3.KindBool:
 			return x.(z3.Bool).Eq(y.(z3.Bool)), nil
-		case z3.KindString:
+		case z3.KindSequence:
 			return x.(z3.String).Eq(y.(z3.String)), nil
 		default:
 			return nil, trace.BadParameter("type %v does not support equals", ty)
@@ -279,7 +279,7 @@ func lowerIdent(ctx *ctx, node *ast.Ident) (z3.Value, error) {
 	case "true":
 		return ctx.def.FromBool(true), nil
 	case "false":
-		return ctx.def.FromBool(true), nil
+		return ctx.def.FromBool(false), nil
 	default:
 		return ctx.resolve([]string{node.Name})
 	}
@@ -301,23 +301,42 @@ func lowerCallExpr(ctx *ctx, node *ast.CallExpr) (z3.Value, error) {
 		return nil, trace.BadParameter("expected basic lit function name, got %T", node.Fun)
 	}
 
-	// TODO(joel): impl additional functions
+	var fnGen func(*z3.Context) (z3.FuncDecl, error)
 	switch fn.Name {
 	case "upper":
-		upper, err := builtinUpper(ctx.def)
-		if err != nil {
-			return nil, err
-		}
-
-		return upper.Apply(args...), nil
+		fnGen = builtinUpper
 	case "lower":
-		lower, err := builtinLower(ctx.def)
-		if err != nil {
-			return nil, err
-		}
-
-		return lower.Apply(args...), nil
+		fnGen = builtinLower
+	case "split":
+		fnGen = builtinSplit
+	case "contains":
+		fnGen = builtinStringListContains
+	case "append":
+		fnGen = builtinStringListAppend
+	case "array":
+		fnGen = builtinStringListArray(len(args))
+	case "replace":
+		fnGen = builtinReplace
+	case "len":
+		fnGen = builtinLenString
+	case "string_list_len":
+		fnGen = builtinLenStringList
+	case "regex":
+		fnGen = builtinRegex
+	case "matches":
+		fnGen = builtinMatches
+	case "contains_regex":
+		fnGen = builtinContainsRegex
+	case "first":
+		fnGen = builtinFirst
 	default:
 		return nil, trace.BadParameter("unknown function %v", fn.Name)
 	}
+
+	decl, err := fnGen(ctx.def)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return decl.Apply(args...), nil
 }

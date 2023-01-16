@@ -42,20 +42,67 @@ func TestSolverIntEq(t *testing.T) {
 	require.Equal(t, "7", x[0].String())
 }
 
+type testSolverFnCase struct {
+	expr     string
+	ty       Type
+	solution string
+}
+
 // TestSolverFn tests custom functions
 func TestSolverFn(t *testing.T) {
-	state := NewSolver()
-	x, err := state.PartialSolveForAll(context.Background(), constraint("upper(x) == \"BANANA\""), func(s []string) any {
-		return nil
-	}, "x", TypeString, 2)
-
-	require.NoError(t, err)
-
-	s := make([]string, len(x))
-	for i, v := range x {
-		s[i] = v.String()
+	testCases := []testSolverFnCase{
+		{
+			expr:     "upper(x) == \"BANANA\"",
+			ty:       TypeString,
+			solution: "\"BananA\"",
+		},
+		{
+			expr:     "lower(x) == \"banana\"",
+			ty:       TypeString,
+			solution: "\"baNaNa\"",
+		},
+		{
+			expr:     "split(\"host.name\", \".\", true) == x",
+			ty:       TypeString,
+			solution: "\"host\"",
+		},
+		{
+			expr:     "split(\"host.name\", \".\", false) == x",
+			ty:       TypeString,
+			solution: "\"name\"",
+		},
+		{
+			expr:     "split(upper(\"host.name\"), \".\", true) == x",
+			ty:       TypeString,
+			solution: "\"HOST\"",
+		},
+		{
+			expr:     "string_list_len(array(\"pizza\", \"party\")) == x",
+			ty:       TypeInt,
+			solution: "2",
+		},
+		{
+			expr:     "contains(array(\"pizza\", \"party\"), \"pizza\") == x",
+			ty:       TypeBool,
+			solution: "true",
+		},
+		{
+			expr:     "contains(array(\"pizza\", \"party\"), \"burger\") == x",
+			ty:       TypeBool,
+			solution: "false",
+		},
 	}
-	require.ElementsMatch(t, []string{"\"BananA\"", "\"BAnanA\""}, s)
+
+	state := NewSolver()
+	for _, c := range testCases {
+		x, err := state.PartialSolveForAll(context.Background(), constraint(c.expr), func(s []string) any {
+			return nil
+		}, "x", c.ty, 1)
+
+		require.NoError(t, err)
+		require.Len(t, x, 1)
+		require.Equal(t, c.solution, x[0].String())
+	}
 }
 
 // TestSolverStringExpMultiSolution tests solving against a string equality expression with two solutions.
