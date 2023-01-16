@@ -175,27 +175,20 @@ func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error
 		return nil, trace.Wrap(err)
 	}
 
-	if restrictedSession.Enabled {
-		// Load network BPF modules only when required.
-		s.conn, err = startConn(*config.NetworkBufferSize)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-			"disk=%v, network=%v), restricted session (bufferSize=%v) "+
-			"and cgroup mount path: %v. Took %v.",
-			*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
-			restrictedSession.EventsBufferSize,
-			s.CgroupPath, time.Since(start))
-
-		go s.processNetworkEvents()
-	} else {
-		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-			"disk=%v) and cgroup mount path: %v. Took %v.",
-			*s.CommandBufferSize, *s.DiskBufferSize, s.CgroupPath,
-			time.Since(start))
+	// Load network BPF modules only when required.
+	s.conn, err = startConn(*config.NetworkBufferSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+		"disk=%v, network=%v), restricted session (bufferSize=%v) "+
+		"and cgroup mount path: %v. Took %v.",
+		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
+		restrictedSession.EventsBufferSize,
+		s.CgroupPath, time.Since(start))
+
+	go s.processNetworkEvents()
 
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
