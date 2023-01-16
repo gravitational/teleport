@@ -229,10 +229,14 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 		daemonService.Stop()
 	})
 
+	clusters, err := daemonService.ListRootClusters(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, clusters)
+
 	addedCluster, err := daemonService.AddCluster(context.Background(), pack.Root.Cluster.Config.Proxy.WebAddr.Addr)
 	require.NoError(t, err)
 
-	clusters, err := daemonService.ListRootClusters(context.Background())
+	clusters, err = daemonService.ListRootClusters(context.Background())
 	require.NoError(t, err)
 
 	clusterURIs := make([]uri.ResourceURI, 0, len(clusters))
