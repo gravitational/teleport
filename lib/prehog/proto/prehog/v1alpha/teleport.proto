@@ -186,6 +186,91 @@ message UIDiscoverResourceSelectionEvent {
   DiscoverStepStatus status = 3;
 }
 
+// UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
+// For SSH this is the Teleport 'install-node' script.
+//
+// For Kubernetes this is the teleport-agent helm chart installation.
+//
+// For Database Access this step is the installation of the teleport 'install-db' script.
+// It can be skipped if the cluster already has a Database Service capable of proxying the database.
+message UIDiscoverDeployServiceEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDatabaseRegisterEvent is emitted when a user registers a database resource
+// and goes to the next step.
+message UIDiscoverDatabaseRegisterEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDatabaseConfigureMTLSEvent is emitted when a user configures mutual TLS for self-hosted database
+// and goes to the next step.
+message UIDiscoverDatabaseConfigureMTLSEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDesktopActiveDirectoryToolsInstallEvent is emitted when the user is asked to run the install Active Directory tools script.
+// This happens on the Desktop flow.
+message UIDiscoverDesktopActiveDirectoryToolsInstallEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDesktopActiveDirectoryConfigureEvent is emitted when the user is asked to run the Configure Active Directory script.
+// This happens on the Desktop flow.
+message UIDiscoverDesktopActiveDirectoryConfigureEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverAutoDiscoveredResourcesEvent is emitted when the user is presented with the list of auto discovered resources.
+// resources_count field must contain the number of discovered resources when the user leaves the screen.
+message UIDiscoverAutoDiscoveredResourcesEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+  int64 resources_count = 4;
+}
+
+// UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user configured IAM for RDS database
+// and proceeded to the next step.
+message UIDiscoverDatabaseConfigureIAMPolicyEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverPrincipalsConfigureEvent emitted on "Setup Access" screen when user has updated their principals
+// and proceeded to the next step.
+message UIDiscoverPrincipalsConfigureEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverTestConnectionEvent emitted on the "Test Connection" screen
+// when the user clicked tested connection to their resource.
+message UIDiscoverTestConnectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverCompletedEvent is emitted when user completes the Discover wizard.
+message UIDiscoverCompletedEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -221,6 +306,17 @@ message SubmitEventRequest {
     // db/app/desktop events). The structures are the same, however, so we don't
     // need a new message type.
     SessionStartEvent session_start_v2 = 20;
+
+    UIDiscoverDeployServiceEvent ui_discover_deploy_service_event = 21;
+    UIDiscoverDatabaseRegisterEvent ui_discover_database_register_event = 22;
+    UIDiscoverDatabaseConfigureMTLSEvent ui_discover_database_configure_mtls_event = 23;
+    UIDiscoverDesktopActiveDirectoryToolsInstallEvent ui_discover_desktop_active_directory_tools_install_event = 24;
+    UIDiscoverDesktopActiveDirectoryConfigureEvent ui_discover_desktop_active_directory_configure_event = 25;
+    UIDiscoverAutoDiscoveredResourcesEvent ui_discover_auto_discovered_resources_event = 26;
+    UIDiscoverDatabaseConfigureIAMPolicyEvent ui_discover_database_configure_iam_policy_event = 27;
+    UIDiscoverPrincipalsConfigureEvent ui_discover_principals_configure_event = 28;
+    UIDiscoverTestConnectionEvent ui_discover_test_connection_event = 29;
+    UIDiscoverCompletedEvent ui_discover_completed_event = 30;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

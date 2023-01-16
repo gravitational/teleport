@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	prehogv1 "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/usagereporter"
@@ -472,6 +471,117 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDeployServiceEvent:
+		ret := &UsageUIDiscoverDeployServiceEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent:
+		ret := &UsageUIDiscoverDatabaseRegisterEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseRegisterEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseRegisterEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent:
+		ret := &UsageUIDiscoverDatabaseConfigureMTLSEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent:
+		ret := &UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent:
+		ret := &UsageUIDiscoverDesktopActiveDirectoryConfigureEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent:
+		ret := &UsageUIDiscoverAutoDiscoveredResourcesEvent{
+			Metadata:       discoverMetadataToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Metadata, identityUsername),
+			Resource:       discoverResourceToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Resource),
+			Status:         discoverStatusToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Status),
+			ResourcesCount: e.UiDiscoverAutoDiscoveredResourcesEvent.ResourcesCount,
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent:
+		ret := &UsageUIDiscoverDatabaseConfigureIAMPolicyEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent:
+		ret := &UsageUIDiscoverPrincipalsConfigureEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverTestConnectionEvent:
+		ret := &UsageUIDiscoverTestConnectionEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverTestConnectionEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverTestConnectionEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverTestConnectionEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverCompletedEvent:
+		ret := &UsageUIDiscoverCompletedEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverCompletedEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverCompletedEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverCompletedEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
@@ -481,7 +591,7 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 // anonymized with the cluster name.
 type TeleportUsageReporter struct {
 	// usageReporter is an actual reporter that batches and sends events
-	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitEventRequest]
+	usageReporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest]
 	// anonymizer is the anonymizer used for filtered audit events.
 	anonymizer utils.Anonymizer
 	// clusterName is the cluster's name, used for anonymization and as an event
@@ -504,7 +614,7 @@ func (t *TeleportUsageReporter) Run(ctx context.Context) {
 	t.usageReporter.Run(ctx)
 }
 
-func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.SubmitFunc[prehogapi.SubmitEventRequest]) (*TeleportUsageReporter, error) {
+func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.SubmitFunc[prehogv1.SubmitEventRequest]) (*TeleportUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
@@ -521,7 +631,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 
 	clock := clockwork.NewRealClock()
 
-	reporter := usagereporter.NewUsageReporter[prehogapi.SubmitEventRequest](&usagereporter.Options[prehogapi.SubmitEventRequest]{
+	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1.SubmitEventRequest]{
 		Log:           log,
 		Submit:        submitter,
 		MinBatchSize:  usageReporterMinBatchSize,
@@ -541,7 +651,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 	}, nil
 }
 
-func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (usagereporter.SubmitFunc[prehogapi.SubmitEventRequest], error) {
+func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (usagereporter.SubmitFunc[prehogv1.SubmitEventRequest], error) {
 	tlsConfig := &tls.Config{
 		// Self-signed test licenses may not have a proper issuer and won't be
 		// used if just passed in via Certificates, so we'll use this to
@@ -579,8 +689,8 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 
 	client := prehogclient.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
-	return func(reporter *usagereporter.UsageReporter[prehogapi.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogapi.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogapi.SubmitEventRequest], error) {
-		var failed []*usagereporter.SubmittedEvent[prehogapi.SubmitEventRequest]
+	return func(reporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest], error) {
+		var failed []*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest]
 		var errors []error
 
 		// Note: the backend doesn't support batching at the moment.
