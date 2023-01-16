@@ -17,11 +17,12 @@ description: A tutorial for using Machine ID with CircleCI
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
+(!docs/pages/includes/tctl.mdx!)
+
 - A node that is a part of the Teleport cluster with
 [Server Access](https://goteleport.com/docs/server-access/introduction/) and a
 user you want to grant access to. In this guide, we will use `my-node` and
 `ci-user` respectively.
-- A local workstation with `tsh` access to the cluster.
 - A CircleCI project connected to a Git repository you can push to.
 
 ## Step 1/4. Configure CircleCI
@@ -35,12 +36,42 @@ organization and create a CircleCI context.
 Open CircleCI and navigate to "Organization settings" from the navbar.
 You should be presented with an interface titled "Overview" with a section
 called "Organization ID". Note this value down and substitute `$ORGANIZATION_ID`
-in configuration examples provided in this guide with that value.
+in configuration examples with this.
 
 ### Create a Context
 
-// TODO: Explain what a CircleCI context is and how to make one, named
-`teleport-access`.
+CircleCI has an organization level concept called
+["contexts"](https://circleci.com/docs/contexts/). Contexts allow an
+organization to configure a series of secrets that should be exposed to a
+workflow job, and can control which actors are allowed to trigger jobs
+associated with a context.
+
+The contexts that a workflow job has been assigned are also encoded in the
+identity token that CircleCI creates for the job. This makes them an ideal way
+of Teleport determining which CircleCI jobs should be granted access to the
+Teleport cluster.
+
+In this example, you will create a CircleCI context named `teleport-access`.
+You will then grant this context access to your Teleport cluster.
+
+To create the CircleCI context, open up "Organization settings" in CircleCI
+and navigate to "Contexts". Click "Create Context" and provide `teleport-access`
+as the name of the context you wish to create. You may substitute this value
+for a string that makes more sense to your organization, but ensure in future
+steps of this guide that you replace `teleport-access` with your value.
+
+Select the context you have just created, you will now be on a page that allows
+you to configure the context. You will need to determine the ID of the context
+to use when configuring Teleport. This value can be found in the URL of the
+context settings page.
+
+E.G:
+`https://app.circleci.com/settings/organization/github/gravitational/contexts/00000000-0000-0000-0000-000000000000`
+
+In this case, the context ID is: `00000000-0000-0000-0000-000000000000`
+
+Note this value down and substitute `$CONTEXT_ID` in configuration examples
+with this.
 
 ## Step 2/4. Create the join token for CircleCI
 
@@ -109,7 +140,7 @@ to complete its tasks.
 Use `tctl` to create the bot:
 
 ```code
-$ tctl bots add circleci-demo --roles=access --logins=ci-user --token=circleci-token
+$ tctl bots add circleci-demo --roles=access --logins=ci-user --token=circleci-demo
 ```
 
 ## Step 4/4. Configure CircleCI workflow
@@ -174,7 +205,17 @@ ensure that no errors are emitted.
 SSH into `my-node` and confirm that a file has been created in ci-user's home
 directory named `circle_run_log` with a link to the build in CircleCI.
 
+## A note on security implications and risk
+
+Once `tbot start` has been used in a job, all successive steps in that job will
+have access to the credentials that have been produced by `tbot`. Break your
+workflow down into multiple jobs to reduce the amount of steps that have access
+to these credentials.
+
+Ensure that the role you assign to your CircleCI bot has access to only the
+resources in your Teleport cluster that your CI/CD needs to interact with.
+
 ## Further steps
 
-For more informatiom about CircleCI itself, read
+For more information about CircleCI itself, read
 [their documentation](https://circleci.com/docs/).
