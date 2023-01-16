@@ -256,7 +256,7 @@ func buildVarExpr(fields []string) (any, error) {
 // buildEmailLocalExpr builds a EmailLocalExpr.
 func buildEmailLocalExpr(emailArg any) (Expr, error) {
 	// Validate first argument.
-	var email Expr = nil
+	var email Expr
 	switch v := emailArg.(type) {
 	case string:
 		email = &StringLitExpr{value: v}
@@ -277,7 +277,7 @@ func buildEmailLocalExpr(emailArg any) (Expr, error) {
 // buildRegexpReplaceExpr builds a RegexpReplaceExpr.
 func buildRegexpReplaceExpr(sourceArg, matchArg, replacementArg any) (Expr, error) {
 	// Validate first argument.
-	var source Expr = nil
+	var source Expr
 	switch v := sourceArg.(type) {
 	case string:
 		source = &StringLitExpr{value: v}
