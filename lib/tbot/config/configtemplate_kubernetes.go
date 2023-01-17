@@ -80,7 +80,6 @@ func (t *TemplateKubernetes) Describe(destination bot.Destination) []FileDescrip
 // kubeconfig.
 type kubernetesStatus struct {
 	clusterAddr           string
-	proxyAddr             string
 	teleportClusterName   string
 	kubernetesClusterName string
 	tlsServerName         string
@@ -231,7 +230,6 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 
 	status := &kubernetesStatus{
 		clusterAddr:           kubeAddr,
-		proxyAddr:             authPong.ProxyPublicAddr,
 		credentials:           key,
 		teleportClusterName:   clusterName.GetClusterName(),
 		kubernetesClusterName: destination.KubernetesCluster.ClusterName,
