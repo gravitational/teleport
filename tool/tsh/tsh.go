@@ -1193,7 +1193,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 			err = trace.BadParameter("command %q not configured", command)
 		}
 	}
-	fmt.Printf("%#v", err)
 
 	if trace.IsNotImplemented(err) {
 		return handleUnimplementedError(ctx, err, cf)
