@@ -90,9 +90,14 @@ func TestHandler_getToken(t *testing.T) {
 					cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
 						generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
 							clock := state.(clockwork.FakeClock)
-							clock.Advance(getTokenTimeout)
 
+							// advance time by getTokenTimeout
+							clock.Advance(getTokenTimeout)
+							// block for 2*getTokenTimeout; effectively forever, since clock won't advance more than getTokenTimeout.
 							clock.Sleep(getTokenTimeout * 2)
+
+							require.Fail(t, "this line should never be executed")
+
 							return nil, trace.BadParameter("bad param foo")
 						},
 					}),
