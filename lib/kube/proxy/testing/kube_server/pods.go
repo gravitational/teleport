@@ -18,7 +18,6 @@ package kubeserver
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -102,7 +101,6 @@ func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p http
 func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	namespace := p.ByName("podNamespace")
 	name := p.ByName("podName")
-	fmt.Println(namespace, name)
 	deleteOpts, err := parseDeleteCollectionBody(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
