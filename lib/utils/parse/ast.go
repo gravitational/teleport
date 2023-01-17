@@ -272,7 +272,7 @@ func buildVarExprFromProperty(mapVal any, mapKey any) (any, error) {
 	varExpr, ok := mapVal.(*VarExpr)
 	if !ok {
 		return nil, trace.BadParameter(
-			"found an invalid property without map value literal: %v",
+			"found invalid map value: %v",
 			mapVal,
 		)
 	}
@@ -280,7 +280,7 @@ func buildVarExprFromProperty(mapVal any, mapKey any) (any, error) {
 	// Validate that the variable is incomplete (i.e. does not yet have a name).
 	if varExpr.name != "" {
 		return nil, trace.BadParameter(
-			"found an invalid property without map value literal: %s",
+			"found invalid map value that is not a literal: %s",
 			varExpr,
 		)
 	}
@@ -289,7 +289,7 @@ func buildVarExprFromProperty(mapVal any, mapKey any) (any, error) {
 	name, ok := mapKey.(string)
 	if !ok {
 		return nil, trace.BadParameter(
-			"found an invalid property without map key string: %T",
+			"found invalid map key that is not a string: %T",
 			mapKey,
 		)
 	}
