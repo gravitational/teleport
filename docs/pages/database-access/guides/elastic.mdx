@@ -17,6 +17,8 @@ This guide will help you to configure secured access to an Elasticsearch databas
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - A self-hosted Elasticsearch database. Elastic Cloud [does not support client certificates](https://www.elastic.co/guide/en/cloud/current/ec-restrictions.html#ec-restrictions-security), which are required for setting up Database Access.
 
 - A host where you will run the Teleport Database Service. If you are already running the Teleport
@@ -26,13 +28,9 @@ This guide will help you to configure secured access to an Elasticsearch databas
 
   See [Installation](../../installation.mdx) for details.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Install and configure Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
 ### Set up the Teleport Database Service
 

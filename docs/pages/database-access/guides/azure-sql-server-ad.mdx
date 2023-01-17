@@ -34,20 +34,18 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - SQL Server running on Azure.
 - The Teleport Database Service running on an Azure virtual instance.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
-## Step 1/9. Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/9. Create a Teleport user
+## Step 1/8. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/9. Enable the SQL Server Azure Active Directory integration
+## Step 2/8. Enable the SQL Server Azure Active Directory integration
 
 If you have it enabled, you can go to the next step.
 
@@ -62,7 +60,7 @@ login to SQL Server.
 
 ![Azure SQL Server Azure Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
-## Step 4/9. Configure IAM permissions for Teleport
+## Step 3/8. Configure IAM permissions for Teleport
 
 The Teleport Database Service needs Azure IAM permissions to:
 - Discover and register SQL Server instances.
@@ -123,7 +121,7 @@ with your own subscription id:
 
 ![Create JSON role](../../../img/database-access/guides/sqlserver/create-role-from-json.png)
 
-## Step 5/9. Configure virtual machine identities
+## Step 4/8. Configure virtual machine identities
 
 In the Teleport Database Service virtual machine's **Identity**
 section, enable the system assigned identity. This is used by Teleport to access
@@ -163,7 +161,7 @@ created:
 
 ![Azure Virtual machine user managed identities page](../../../img/database-access/guides/sqlserver/azure-attach-managed-identity-vm.png)
 
-## Step 6/9. Enable managed identities login on SQL Server
+## Step 5/8. Enable managed identities login on SQL Server
 
 Azure AD SQL Server integration uses database-level authentication (contained
 users), meaning we must create a user for our identities on each database we
@@ -186,7 +184,7 @@ the user as a member of the `db_datareader` role:
 ALTER ROLE db_datareader ADD MEMBER [sqlserver-identity];
 ```
 
-## Step 7/9. Create a Database Service configuration
+## Step 6/8. Create a Database Service configuration
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -219,7 +217,7 @@ The command will generate a Database Service configuration with Azure SQL
 Server auto-discovery enabled in the `eastus` region and place it at the
 `/etc/teleport.yaml` location.
 
-## Step 8/9. Start Teleport Database Service
+## Step 7/8. Start Teleport Database Service
 
 Start the Database Service:
 
@@ -236,7 +234,7 @@ $ teleport start --config=/etc/teleport.yaml
   Service.
 </Admonition>
 
-## Step 9/9. Connect
+## Step 8/8. Connect
 
 Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
