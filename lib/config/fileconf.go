@@ -503,7 +503,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 
 		for _, region := range matcher.Regions {
 			if !slices.Contains(regions, region) {
-				return trace.BadParameter("discovery service type does not support region %q; supported regions are: %v",
+				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
 					region, regions)
 			}
 		}
