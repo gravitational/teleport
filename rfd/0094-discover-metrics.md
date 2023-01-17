@@ -95,17 +95,17 @@ message DiscoverMetadata {
 
 // Represents a resource type that is being added.
 enum DiscoverResource {
-  DISCOVER_RESOURCE_UNSPECIFIED = 0;
-  DISCOVER_RESOURCE_SERVER = 1;
-  DISCOVER_RESOURCE_KUBERNETES = 2;
-  DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED = 3;
-  DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED = 4;
-  DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED = 5;
-  DISCOVER_RESOURCE_DATABASE_POSTGRES_RDS = 6;
-  DISCOVER_RESOURCE_DATABASE_MYSQL_RDS = 7;
-  DISCOVER_RESOURCE_APPLICATION_HTTP = 8;
-  DISCOVER_RESOURCE_APPLICATION_TCP = 9;
-  DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
+  UNSPECIFIED = 0;
+  SERVER = 1;
+  KUBERNETES = 2;
+  DATABASE_POSTGRES_SELF_HOSTED = 3;
+  DATABASE_MYSQL_SELF_HOSTED = 4;
+  DATABASE_MONGODB_SELF_HOSTED = 5;
+  DATABASE_POSTGRES_RDS = 6;
+  DATABASE_MYSQL_RDS = 7;
+  APPLICATION_HTTP = 8;
+  APPLICATION_TCP = 9;
+  WINDOWS_DESKTOP = 10;
 }
 
 // Contains common metadata identifying resource type being added.
@@ -116,18 +116,18 @@ message DiscoverResourceMetadata {
 
 // Represents a Discover step outcome.
 enum DiscoverStatus {
-  DISCOVER_STATUS_UNSPECIFIED = 0;
+  UNSPECIFIED = 0;
   // The user tried to complete the action and it succeeded.
-  DISCOVER_STATUS_SUCCESS = 1;
+  SUCCESS = 1;
   // The system skipped the step.
   // For example:
   // When setting up a Database and there's already a Database Service proxying the DB.
   // In this case the Database Agent installation is skipped.
-  DISCOVER_STATUS_SKIPPED = 2;
+  SKIPPED = 2;
   // The user tried to complete the action and it failed.
-  DISCOVER_STATUS_ERROR = 3;
+  ERROR = 3;
   // The user did not complete the action and left the wizard.
-  DISCOVER_STATUS_ABORTED = 4;
+  ABORTED = 4;
 }
 
 // Contains fields that track a particular step outcome, for example connection
