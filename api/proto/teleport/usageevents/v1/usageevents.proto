@@ -79,14 +79,14 @@ message UIRecoveryCodesPrintClickEvent {
   string username = 1;
 }
 
-// Contains common metadata for Discover related events.
+// DiscoverMetadata contains common metadata for Discover related events.
 message DiscoverMetadata {
   // Uniquely identifies Discover wizard "session". Will allow to correlate
   // events within the same Discover wizard run. Can be UUIDv4.
   string id = 1;
 }
 
-// Represents a resource type.
+// DiscoverResource represents a resource type.
 enum DiscoverResource {
   DISCOVER_RESOURCE_UNSPECIFIED = 0;
   DISCOVER_RESOURCE_SERVER = 1;
@@ -101,13 +101,13 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
 }
 
-// Contains common metadata identifying resource type being added.
+// DiscoverResourceMetadata contains common metadata identifying resource type being added.
 message DiscoverResourceMetadata {
   // Resource type that is being added.
   DiscoverResource resource = 1;
 }
 
-// Represents a Discover Step outcome.
+// DiscoverStatus represents a Discover Step outcome.
 enum DiscoverStatus {
   DISCOVER_STATUS_UNSPECIFIED = 0;
   // The user tried to complete the action and it succeeded.
@@ -123,8 +123,8 @@ enum DiscoverStatus {
   DISCOVER_STATUS_ABORTED = 4;
 }
 
-// Contains fields that track a particular step outcome, for example connection
-// test failed or succeeded, or user aborted the step.
+// DiscoverStepStatus contains fields that track a particular step outcome,
+// for example connection test failed or succeeded, or user aborted the step.
 message DiscoverStepStatus {
   // Indicates the step outcome.
   DiscoverStatus status = 1;
@@ -133,14 +133,14 @@ message DiscoverStepStatus {
   string error = 2;
 }
 
-// Emitted when the wizard opens.
+// UIDiscoverStartedEvent is emitted when the wizard opens.
 message UIDiscoverStartedEvent {
   DiscoverMetadata metadata = 1;
   DiscoverStepStatus status = 2;
 }
 
-// Emitted when user selected resource type to add and proceeded to the next
-// step.
+// UIDiscoverResourceSelectionEvent is emitted when user selected resource type to add
+// and proceeded to the next step.
 message UIDiscoverResourceSelectionEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;

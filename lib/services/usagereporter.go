@@ -266,7 +266,7 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 func discoverMetadataToPrehog(u *usageevents.DiscoverMetadata, identityUsername string) *prehogv1.DiscoverMetadata {
 	return &prehogv1.DiscoverMetadata{
 		Id:       u.Id,
-		Username: identityUsername,
+		UserName: identityUsername,
 	}
 }
 
@@ -343,7 +343,7 @@ func (u *UsageUIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1.Sub
 			UiDiscoverStartedEvent: &prehogv1.UIDiscoverStartedEvent{
 				Metadata: &prehogv1.DiscoverMetadata{
 					Id:       u.Metadata.Id,
-					Username: a.AnonymizeString(u.Metadata.Username),
+					UserName: a.AnonymizeString(u.Metadata.UserName),
 				},
 				Status: u.Status,
 			},
@@ -373,7 +373,7 @@ func (u *UsageUIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) pr
 			UiDiscoverResourceSelectionEvent: &prehogv1.UIDiscoverResourceSelectionEvent{
 				Metadata: &prehogv1.DiscoverMetadata{
 					Id:       u.Metadata.Id,
-					Username: a.AnonymizeString(u.Metadata.Username),
+					UserName: a.AnonymizeString(u.Metadata.UserName),
 				},
 				Resource: u.Resource,
 				Status:   u.Status,

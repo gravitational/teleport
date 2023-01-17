@@ -39,7 +39,8 @@ type DiscoverEventData struct {
 }
 
 // ToUsageEvent converts a discoverEventData into a v1.UsageEventOneOf.
-// This is mostly copying data around, except for Enum properties, which are
+// This is mostly copying data around, except for Enum properties.
+// Enum props are converted from its string representation to its int32 values.
 func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf, error) {
 	metadata := &v1.DiscoverMetadata{
 		Id: d.ID,

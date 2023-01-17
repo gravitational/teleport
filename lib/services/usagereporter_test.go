@@ -52,7 +52,7 @@ func TestConvertUsageEvent(t *testing.T) {
 				UiDiscoverStartedEvent: &prehogv1.UIDiscoverStartedEvent{
 					Metadata: &prehogv1.DiscoverMetadata{
 						Id:       "someid",
-						Username: expectedAnonymizedUserString,
+						UserName: expectedAnonymizedUserString,
 					},
 					Status: &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
@@ -73,7 +73,7 @@ func TestConvertUsageEvent(t *testing.T) {
 				UiDiscoverResourceSelectionEvent: &prehogv1.UIDiscoverResourceSelectionEvent{
 					Metadata: &prehogv1.DiscoverMetadata{
 						Id:       "someid",
-						Username: expectedAnonymizedUserString,
+						UserName: expectedAnonymizedUserString,
 					},
 					Resource: &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
 					Status:   &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
