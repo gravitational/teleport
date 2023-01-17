@@ -538,11 +538,11 @@ func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
 func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy utils.NetAddr, id *auth.Identity) (auth.ClientI, error) {
 	var tlsConfig *tls.Config
 	var err error
-	if fips {
-		tlsConfig, err = id.TLSConfig(defaults.FIPSCipherSuites)
-	} else {
-		tlsConfig, err = id.TLSConfig(nil /* cipherSuites */)
+	var cipherSuites []uint16
+	if !fips {
+		cipherSuites = defaults.FIPSCipherSuites
 	}
+	tlsConfig, err = id.TLSConfig(cipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -650,21 +650,21 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		return trace.Wrap(err)
 	}
 
-	cas, err := client.GetCertAuthorities(ctx, types.UserCA, false)
+	cas, err := client.GetCertAuthorities(ctx, types.OpenSSHCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var userCA []byte
+	var openSSHCA []byte
 	for _, ca := range cas {
 		for _, key := range ca.GetActiveKeys().SSH {
-			userCA = append(userCA, key.PublicKey...)
-			userCA = append(userCA, byte('\n'))
+			openSSHCA = append(openSSHCA, key.PublicKey...)
+			openSSHCA = append(openSSHCA, byte('\n'))
 		}
 	}
 
 	fmt.Printf("Writing Teleport keys to %s\n", clf.OpenSSHKeysPath)
-	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs, userCA); err != nil {
+	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs, openSSHCA); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -682,12 +682,12 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 }
 
 const (
-	teleportKey    = "teleport"
-	teleportCert   = "teleport-cert.pub"
-	teleportUserCA = "teleport_user_ca.pub"
+	teleportKey       = "teleport"
+	teleportCert      = "teleport-cert.pub"
+	teleportOpenSSHCA = "teleport_user_ca.pub"
 )
 
-func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs, userCA []byte) error {
+func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs, openSSHCA []byte) error {
 	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportKey), private, 0600); err != nil {
 		return trace.Wrap(err)
 	}
@@ -696,7 +696,7 @@ func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs, userCA 
 		return trace.Wrap(err)
 	}
 
-	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportUserCA), userCA, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportOpenSSHCA), openSSHCA, 0600); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -716,6 +716,8 @@ func checkSSHDConfigAlreadyUpdated(sshdConfigPath string) error {
 	}
 	return nil
 }
+
+const sshdBinary = "sshd"
 
 func updateSSHDConfig(keyDir, sshdConfigPath string) error {
 	// has to write to the beginning of the sshd_config file as
@@ -755,7 +757,7 @@ HostCertificate %s
 		return trace.Wrap(err)
 	}
 
-	cmd := exec.Command("sshd", "-t", "-f", sshdConfigTmp.Name())
+	cmd := exec.Command(sshdBinary, "-t", "-f", sshdConfigTmp.Name())
 	if err := cmd.Run(); err != nil {
 		return trace.Wrap(err, "teleport generated an invalid ssh config file, not writing")
 	}
