@@ -1796,7 +1796,7 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 
 	for _, resourceID := range resourceIDs {
 		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
-			splits := strings.SplitN(resourceID.SubResourceName, "/", 3)
+			splits := strings.Split(resourceID.SubResourceName, "/")
 			if len(splits) != 2 {
 				return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
 			}
