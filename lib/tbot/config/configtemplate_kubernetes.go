@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -86,23 +85,54 @@ type kubernetesStatus struct {
 	credentials           *client.Key
 }
 
-func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.PingResponse) (string, int, error) {
-	addr := proxyPong.Proxy.Kube.PublicAddr
-	if addr == "" {
-		addr = authPong.ProxyPublicAddr
+func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.PingResponse) (clusterAddr string, serverName string, err error) {
+	if !proxyPong.Proxy.Kube.Enabled {
+		return "", "", trace.BadParameter(
+			"proxy does not support kubernetes access",
+		)
 	}
 
-	if addr == "" {
-		return "", 0, trace.BadParameter(
-			"Teleport server reported no usable public proxy address")
+	host := ""
+	port := 0
+	// Switch statement here denotes a rough preference in which of the many
+	// different values returned in the proxy ping response should be used :)
+	//
+	// TODO(strideynet): It would be awesome if the proxy ping response returned
+	// a single value for the client to use here rather than clients trying to
+	// make this decision.
+	switch {
+	case proxyPong.Proxy.TLSRoutingEnabled:
+		// When using TLS routing, we should just use the web public addr
+		// and fallback to web_listen_addr.
+		addr = "set this to web proxy"
+	case proxyPong.Proxy.Kube.PublicAddr != "":
+		// Use this value verbatim
+		addr, err := utils.SplitHostPort(proxyPong.Proxy.Kube.PublicAddr)
+	case proxyPong.Proxy.Kube.ListenAddr != "":
+		// Replace 0.0.0.0 or [::] with address from public web address.
+		addr = proxyPong.Proxy.Kube.ListenAddr
+	default:
+		// Default to public addr with default kube port
 	}
 
-	parsed, err := utils.ParseAddr(addr)
-	if err != nil {
-		return "", 0, trace.Wrap(err, "invalid proxy address")
+	// Now we need to determine a TLS server name to use if TLS routing is
+	// enabled.
+	serverName = ""
+	if proxyPong.Proxy.TLSRoutingEnabled {
+		serverName = fmt.Sprintf(
+			"%s%s", constants.KubeTeleportProxyALPNPrefix, host,
+		)
+		// If the host is an IP, ensure we use constants.APIDomain in its place
+		if net.ParseIP(host) != nil {
+			serverName = fmt.Sprintf(
+				"%s%s",
+				constants.KubeTeleportProxyALPNPrefix,
+				constants.APIDomain,
+			)
+		}
 	}
 
-	return parsed.Host(), parsed.Port(defaults.KubeListenPort), nil
+	return fmt.Sprintf("https://%s:%d", host, port), serverName, nil
 }
 
 // generateKubeConfig creates a Kubernetes config object with the given cluster
@@ -197,19 +227,9 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 		return trace.Wrap(err)
 	}
 
-	host, port, err := getKubeProxyHostPort(authPong, proxyPong)
+	clusterAddr, tlsServerName, err := getKubeProxyHostPort(authPong, proxyPong)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	kubeAddr := fmt.Sprintf("https://%s:%d", host, port)
-
-	// Next, determine the TLS routing config (if any)
-	// Note: derived from tool/tsh/kube.go; this impl should defer to it for
-	// future changes.
-	serverName := fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, host)
-	isIPFormat := net.ParseIP(host) != nil
-	if host == "" || isIPFormat {
-		serverName = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	}
 
 	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
@@ -229,14 +249,11 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 	}
 
 	status := &kubernetesStatus{
-		clusterAddr:           kubeAddr,
+		clusterAddr:           clusterAddr,
+		tlsServerName:         tlsServerName,
 		credentials:           key,
 		teleportClusterName:   clusterName.GetClusterName(),
 		kubernetesClusterName: destination.KubernetesCluster.ClusterName,
-	}
-
-	if proxyPong.Proxy.TLSRoutingEnabled {
-		status.tlsServerName = serverName
 	}
 
 	cfg, err := generateKubeConfig(t, status, destinationDir.Path)

@@ -3650,7 +3650,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 			} else {
 				tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
 			}
-		// If neither PublicAddr nor TunnelAddr are passed, use the web
+		// If neither PublicAddr nor ListenAddr are passed, use the web
 		// interface hostname with default k8s port as a guess.
 		default:
 			webProxyHost, _ := tc.WebProxyHostPort()
