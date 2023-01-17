@@ -22,12 +22,12 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.19.4
+GOLANG_VERSION ?= go1.19.5
 
 NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.66.0
+RUST_VERSION ?= 1.66.1
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -431,17 +431,17 @@ release-arm64: buildbox-arm
 # #############################################################################
 
 #
-# The `release-oss` and `release-enterprise` make targets are for building OSS 
+# The `release-oss` and `release-enterprise` make targets are for building OSS
 # and Enterprise releases from GitHub actions. These make targets execute in a
 # container based on a caller-supplied `BUILDBOX` image.
 #
 # Unlike the other release targets, these release targets do not attempt to
-# automatically construct the buildbox image at build time - the build box 
-# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the 
+# automatically construct the buildbox image at build time - the build box
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the
 # make command line
 #
-# Separating the construction of build environment from the actual build itself 
-# allows us to use the appropriate GHA actions to pre-build the buildbox 
+# Separating the construction of build environment from the actual build itself
+# allows us to use the appropriate GHA actions to pre-build the buildbox
 # image, so that the image construction works nicely with GHA.
 #
 
