@@ -27,7 +27,7 @@ This guide will help you to:
   to learn more about your options, and how to set up Teleport.
 - AWS account with DynamoDB databases.
 - IAM permissions to create IAM roles.
-- `aws` Command Line Interface (CLI) tool installed in PATH.
+- `aws` Command Line Interface (CLI) tool installed in `$PATH`.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database Service.
   This guide assumes an EC2 instance when creating and applying IAM roles, and
   must be adjusted accordingly for custom configurations.
@@ -42,9 +42,9 @@ one of our [getting started guides](../getting-started.mdx) or try our Teleport
 Database Access [interactive learning track](https://play.instruqt.com/teleport/invite/imz8g1n1xzru).
 </Admonition>
 
-We will assume your Teleport cluster is accessible at `teleport.example.com` and
-`*.teleport.example.com`. You can substitute the address of your Teleport Proxy
-Service. (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
+We will assume your Teleport cluster is accessible at `teleport.example.com`.
+You can substitute the address of your Teleport Proxy Service. (For Teleport Cloud
+customers, this will be similar to `mytenant.teleport.sh`.)
 
 <Admonition type="note" title="Example Access Control">
 This guide provides an example configuration of IAM access roles as a model,
@@ -124,7 +124,7 @@ listing the IAM role ARN created in the previous step. Create a file called
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: aws-dynamodb-access
 spec:
