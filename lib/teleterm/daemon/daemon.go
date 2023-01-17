@@ -575,13 +575,11 @@ func (s *Service) Stop() {
 		gateway.Close()
 	}
 
-	s.usageReporter.GracefulStop()
+	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*5)
+	defer cancel()
 
-	select {
-	case <-s.usageReporter.Closer.C:
-		s.cfg.Log.Info("Gracefully stopped usage reporter.")
-	case <-time.After(time.Second * 5):
-		s.cfg.Log.Info("Gracefully stopping usage reporter timed out.")
+	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
