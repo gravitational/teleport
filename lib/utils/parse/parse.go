@@ -267,7 +267,7 @@ func parse(exprStr string) (Expr, error) {
 
 	expr, ok := result.(Expr)
 	if !ok {
-		panic(fmt.Sprintf("unexpected parser result type %T (this is a bug)", result))
+		return nil, trace.BadParameter("failed to parse: %q, unexpected parser result type %T", exprStr, result)
 	}
 
 	if err := validateExpr(expr); err != nil {
