@@ -102,7 +102,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	}
 	return &http.Client{
 		Transport: otelhttp.NewTransport(
-			proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
+			proxy.NewHTTPRoundTripper(&transport, nil),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
 		),
 		Timeout: cfg.Timeout,

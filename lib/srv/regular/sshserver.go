@@ -349,6 +349,14 @@ func (s *Server) Close() error {
 
 // Shutdown performs graceful shutdown
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop heart beating immediately to prevent active connections
+	// from making the server appear alive and well.
+	if s.heartbeat != nil {
+		if err := s.heartbeat.Close(); err != nil {
+			s.Warningf("Failed to close heartbeat: %v", err)
+		}
+	}
+
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
 	s.close()
