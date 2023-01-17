@@ -38,7 +38,7 @@ windows_desktop_service:
     # ```
     #
     # The value can be obtained over LDAP by constructing a query with the
-    # filter = (&(objectCategory=person)(objectClass=user)(name=$LDAP_USERNAME))
+    # filter = (&(objectCategory=person)(objectClass=user)(sAMAccountName=$LDAP_USERNAME))
     # and requesting the attribute = objectSid
     sid: '$LDAP_USER_SID'
     # You can skip LDAPS certificate verification by setting

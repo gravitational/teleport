@@ -141,6 +141,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	cfg.WebProxyAddr = webProxyAddress
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
+	cfg.ClientStore = client.NewFSClientStore(s.Dir)
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 
 	profileName := parseName(webProxyAddress)
@@ -221,10 +222,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		}
 
 		if err := clusterClient.LoadKeyForCluster(status.Cluster); err != nil {
-			s.Log.WithError(err).Infof("Could not load key for %s into the local agent.", status.Cluster)
-			if !trace.IsNotImplemented(err) && !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
+			return nil, trace.Wrap(err)
 		}
 	}
 	if err != nil && !trace.IsNotFound(err) {

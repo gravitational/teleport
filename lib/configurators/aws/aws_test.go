@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -50,6 +49,12 @@ func TestAWSIAMDocuments(t *testing.T) {
 
 	unknownIdentity, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:ec2/example-ec2")
 	require.NoError(t, err)
+
+	sortStringsTrans := cmp.Transformer("SortStrings", func(in []string) []string {
+		out := append([]string(nil), in...) // Copy input to avoid mutating it
+		sort.Strings(out)
+		return out
+	})
 
 	tests := map[string]struct {
 		returnError        bool
@@ -500,7 +505,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Discovery: config.Discovery{
 					AWSMatchers: []config.AWSMatcher{
 						{
-							Types:   []string{constants.AWSServiceTypeEC2},
+							Types:   []string{services.AWSMatcherEC2},
 							Regions: []string{"eu-central-1"},
 							Tags:    map[string]utils.Strings{"*": []string{"*"}},
 							InstallParams: &config.InstallParams{
@@ -624,7 +629,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource", "sts:AssumeRole"},
 				},
 			},
 		},
@@ -652,7 +657,49 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource", "sts:AssumeRole"},
+				},
+			},
+		},
+		"AWS Keyspaces static databases": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{{
+						Name:     "keyspaces-1",
+						Protocol: "cassandra",
+						AWS: config.DatabaseAWS{
+							AccountID: "123456789012",
+						},
+					}},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"sts:AssumeRole"},
+				},
+			},
+		},
+		"DynamoDB static databases": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{{
+						Name:     "dynamodb-1",
+						Protocol: "dynamodb",
+						AWS: config.DatabaseAWS{
+							Region: "us-west-1",
+						},
+					}},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"sts:AssumeRole"},
 				},
 			},
 		},
@@ -660,8 +707,8 @@ func TestAWSIAMDocuments(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policy, policyErr := buildPolicyDocument(test.flags, test.fileConfig, test.target)
-			boundary, boundaryErr := buildPolicyBoundaryDocument(test.flags, test.fileConfig, test.target)
+			policy, policyErr := buildPolicyDocument(test.flags, test.fileConfig, test.target, false)
+			boundary, boundaryErr := buildPolicyDocument(test.flags, test.fileConfig, test.target, true)
 
 			if test.returnError {
 				require.Error(t, policyErr)
@@ -669,15 +716,158 @@ func TestAWSIAMDocuments(t *testing.T) {
 				return
 			}
 
-			sortStringsTrans := cmp.Transformer("SortStrings", func(in []string) []string {
-				out := append([]string(nil), in...) // Copy input to avoid mutating it
-				sort.Strings(out)
-				return out
-			})
+			require.NoError(t, policyErr)
+			require.NoError(t, boundaryErr)
 			require.Empty(t, cmp.Diff(test.statements, policy.Document.Statements, sortStringsTrans))
 			require.Empty(t, cmp.Diff(test.boundaryStatements, boundary.Document.Statements, sortStringsTrans))
 		})
 	}
+
+	t.Run("discovery service", func(t *testing.T) {
+		tests := map[string]struct {
+			fileConfig *config.FileConfig
+			statements []*awslib.Statement
+		}{
+			"RDS": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
+					},
+				},
+			},
+			"RDS Proxy": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+					},
+				},
+			},
+			"Redshift": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"redshift:DescribeClusters"},
+					},
+				},
+			},
+			"Redshift Serverless": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					},
+				},
+			},
+			"ElastiCache": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"elasticache:ListTagsForResource", "elasticache:DescribeReplicationGroups", "elasticache:DescribeCacheClusters", "elasticache:DescribeCacheSubnetGroups"},
+					},
+				},
+			},
+			"MemoryDB": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"memorydb:ListTags", "memorydb:DescribeClusters", "memorydb:DescribeSubnetGroups"},
+					},
+				},
+			},
+			"multiple": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
+							{Types: []string{services.AWSMatcherRedshift, services.AWSMatcherRDS, services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"redshift:DescribeClusters"},
+					},
+				},
+			},
+		}
+
+		// For discovery service, currently the same statements are generated
+		// for both the inline policy and the boundary policy.
+		for name, test := range tests {
+			t.Run(name, func(t *testing.T) {
+				for _, boundary := range []bool{true, false} {
+					t.Run(fmt.Sprintf("boundary %v", boundary), func(t *testing.T) {
+						policy, policyErr := buildPolicyDocument(configurators.BootstrapFlags{DiscoveryService: true}, test.fileConfig, roleTarget, boundary)
+						require.NoError(t, policyErr)
+						require.Empty(t, cmp.Diff(test.statements, policy.Document.Statements, sortStringsTrans))
+					})
+				}
+
+			})
+		}
+	})
 }
 
 func TestAWSPolicyCreator(t *testing.T) {
