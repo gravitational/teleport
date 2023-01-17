@@ -63,6 +63,23 @@ func Match(ctx context.Context, authClient Getter, fn Matcher) ([]types.AppServe
 	return as, nil
 }
 
+// MatchOne will match a single AppServer with the provided matcher function.
+// If no AppServer are matched, it will return an error.
+func MatchOne(ctx context.Context, authClient Getter, fn Matcher) (types.AppServer, error) {
+	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, server := range servers {
+		if fn(server) {
+			return server, nil
+		}
+	}
+
+	return nil, trace.NotFound("couldn't match any types.AppServer")
+}
+
 // Matcher allows matching on different properties of an application.
 type Matcher func(types.AppServer) bool
 

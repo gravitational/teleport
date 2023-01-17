@@ -165,6 +165,10 @@ type webSuiteConfig struct {
 	authPreferenceSpec *types.AuthPreferenceSpecV2
 
 	disableDiskBasedRecording bool
+
+	// Custom "PreflightConnection" function. Can be used to avoid dialing app
+	// services.
+	PreflightConnection preflightAppConnectionFunc
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -433,6 +437,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ProxySettings:                   &mockProxySettings{},
 		SessionControl:                  proxySessionController,
 		Router:                          router,
+		ServeAppChecker:                 cfg.PreflightConnection,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
@@ -3780,9 +3785,11 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		FQDNHint:    "panel.example.com",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
+		ResolveAppParams: ResolveAppParams{
+			FQDNHint:    "panel.example.com",
+			PublicAddr:  "panel.example.com",
+			ClusterName: "localhost",
+		},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
@@ -3824,9 +3831,11 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 		// Create application session
 		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 		_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-			FQDNHint:    application.publicAddr,
-			PublicAddr:  application.publicAddr,
-			ClusterName: "localhost",
+			ResolveAppParams: ResolveAppParams{
+				FQDNHint:    application.publicAddr,
+				PublicAddr:  application.publicAddr,
+				ClusterName: "localhost",
+			},
 		})
 		require.NoError(t, err)
 	}
@@ -4352,9 +4361,11 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4363,8 +4374,10 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: without FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4373,7 +4386,9 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint: "panel.example.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: "panel.example.com",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4382,41 +4397,51 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Invalid request: only public address",
 			inCreateRequest: &CreateAppSessionRequest{
-				PublicAddr: "panel.example.com",
+				ResolveAppParams: ResolveAppParams{
+					PublicAddr: "panel.example.com",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid request: only cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					ClusterName: "localhost",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid application",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "invalid.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "invalid.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "example.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "example.com",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Malicious request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com@malicious.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com@malicious.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4425,7 +4450,9 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Malicious request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint: "panel.example.com@malicious.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: "panel.example.com@malicious.com",
+				},
 			},
 			outError: require.Error,
 		},
@@ -4458,6 +4485,80 @@ func TestCreateAppSession(t *testing.T) {
 			require.Equal(t, response.CookieValue, sess.GetName())
 			require.NotEmpty(t, response.SubjectCookieValue, "every session should create a secret token")
 			require.Equal(t, response.SubjectCookieValue, sess.GetBearerToken())
+		})
+	}
+}
+
+func TestCreateAppSessionPreflightConnection(t *testing.T) {
+	t.Parallel()
+
+	validApp, err := types.NewAppV3(types.Metadata{
+		Name: "valid",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "valid.example.com",
+	})
+	require.NoError(t, err)
+
+	invalidApp, err := types.NewAppV3(types.Metadata{
+		Name: "invalid",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "invalid.example.com",
+	})
+	require.NoError(t, err)
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		PreflightConnection: func(_ context.Context, identity *tlsca.Identity) error {
+			// Can only serve "validApp".
+			if identity.RouteToApp.PublicAddr == validApp.GetPublicAddr() {
+				return nil
+			}
+
+			return trace.ConnectionProblem(nil, "offline AppServer")
+		},
+	})
+
+	for _, app := range []*types.AppV3{validApp, invalidApp} {
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+		require.NoError(t, err)
+	}
+
+	pack := s.authPack(t, "foo@example.com")
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	require.NoError(t, err)
+	var sessionCookie SessionCookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc       string
+		publicAddr string
+		expectErr  require.ErrorAssertionFunc
+	}{
+		{
+			desc:       "request to application that can be served",
+			publicAddr: validApp.GetPublicAddr(),
+			expectErr:  require.NoError,
+		},
+		{
+			desc:       "request to application that cannot be served",
+			publicAddr: invalidApp.GetPublicAddr(),
+			expectErr:  require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+			_, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
+				PreflightConnection: true,
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: tc.publicAddr,
+				},
+			})
+			tc.expectErr(t, err)
 		})
 	}
 }

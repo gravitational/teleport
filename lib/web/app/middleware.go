@@ -64,6 +64,12 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 // redirectToLauncher redirects to the proxy web's app launcher if the public
 // address of the proxy is set.
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
+	// When handling requests with certificate, redirecting to launcher won't
+	// have any effect. Instead, return an error right away.
+	if HasClientCert(r) {
+		return trace.BadParameter("redirecting to launcher when using client certificate is not valid")
+	}
+
 	if h.c.WebPublicAddr == "" {
 		// The error below tends to be swallowed by the Web UI, so log a warning for
 		// admins as well.
