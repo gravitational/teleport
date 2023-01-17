@@ -74,8 +74,13 @@ func TestForwarder_getToken(t *testing.T) {
 						}
 					}
 
+					// advance time by getTokenTimeout
 					clock.Advance(getTokenTimeout)
+					// block for 2*getTokenTimeout; effectively forever, since clock won't advance more than getTokenTimeout.
 					clock.Sleep(getTokenTimeout * 2)
+
+					require.Fail(t, "this line should never be executed")
+
 					return &azcore.AccessToken{Token: "foobar"}, nil
 				},
 			},
