@@ -96,7 +96,7 @@ func NewExpression(value string) (*Expression, error) {
 // The returned error is trace.NotFound in case the expression contains a variable
 // and this variable is not found on any trait, nil in case of success,
 // and BadParameter otherwise.
-func (e *Expression) Interpolate(varValidation func(namespace string, name string) error, traits map[string][]string) ([]string, error) {
+func (e *Expression) Interpolate(varValidation func(namespace, name string) error, traits map[string][]string) ([]string, error) {
 	ctx := EvaluateContext{
 		VarValue: func(v VarExpr) ([]string, error) {
 			if err := varValidation(v.namespace, v.name); err != nil {
