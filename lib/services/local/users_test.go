@@ -18,7 +18,9 @@ package local_test
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"testing"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -844,4 +847,56 @@ func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
 	infoGet, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID")
 	require.NoError(t, err)
 	require.Equal(t, &info, infoGet)
+}
+
+func TestIdentityService_AttestationDataCrud(t *testing.T) {
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name             string
+		pubKeyPEM        string
+		expectPubKeyHash string
+	}{
+		{
+			name: "standard public key",
+			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCep78YgY5I8RrvhE5zra4k1hx
+JZoZL1NsgqBz/f49OZsck24rcxurnC0lKAJmSGtKZrv54E/XZuPtatUkrXtIFKC6
+shHLLAc/LAVtDX2/E/aLgM0srYtt1/kku9H1C9+Ou7RzOIdblRkNMYcbUOhKBNld
+AnYsqjU9/7IaQSp8DwIDAQAB
+-----END PUBLIC KEY-----`,
+			expectPubKeyHash: "SHA256:/Z80tk8akmlzrvQ7X6yde5LQb0KwrujOL/hhVrRns/k",
+		}, {
+			name: "public key with // in hash",
+			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCwh1y2u/z8Rm4jD51oawtI00NO
+yHPtEsk3AcetyxYXM5jXAZuQBJwFoxQa3tlJoumigfVEsdYhETu1zwJLZhjgmYOp
+eKMx+eKGKvDF73w1Kfap+JrGA2d1+XtPfNZkmcjYThe+GY0yfinnIwcjd+lmqCqb
+Tirv9LjajEBxUnuV+wIDAQAB
+-----END PUBLIC KEY-----`,
+			expectPubKeyHash: "SHA256:iykzh6jD+JW2tHDhj3iEkKTlkAslashslash7vVcwOK/sTtaMEc",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, _ := pem.Decode([]byte(tc.pubKeyPEM))
+			require.NotNil(t, p)
+			pubDer := p.Bytes
+
+			attestationData := &keys.AttestationData{
+				PublicKeyDER:     pubDer,
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+			}
+
+			err := identity.UpsertKeyAttestationData(ctx, attestationData, time.Hour)
+			require.NoError(t, err)
+
+			pub, err := x509.ParsePKIXPublicKey(pubDer)
+			require.NoError(t, err)
+
+			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pub)
+			require.NoError(t, err)
+			require.Equal(t, attestationData, retrievedAttestationData)
+		})
+	}
 }
