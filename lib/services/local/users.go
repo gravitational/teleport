@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -1446,14 +1447,13 @@ func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestat
 		return trace.Wrap(err)
 	}
 
-	sshPub, err := ssh.NewPublicKey(pub)
+	keyFingerprint, err := attestedKeyFingerprint(pub)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	key := ssh.FingerprintSHA256(sshPub)
 	item := backend.Item{
-		Key:     backend.Key(attestationsPrefix, key),
+		Key:     backend.Key(attestationsPrefix, keyFingerprint),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(ttl),
 	}
@@ -1470,13 +1470,12 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey c
 		return nil, trace.BadParameter("missing parameter publicKey")
 	}
 
-	sshPub, err := ssh.NewPublicKey(publicKey)
+	keyFingerprint, err := attestedKeyFingerprint(publicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key := ssh.FingerprintSHA256(sshPub)
-	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
+	item, err := s.Get(ctx, backend.Key(attestationsPrefix, keyFingerprint))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("hardware key attestation not found")
@@ -1489,6 +1488,21 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey c
 		return nil, trace.Wrap(err)
 	}
 	return &resp, nil
+}
+
+func attestedKeyFingerprint(pub crypto.PublicKey) (string, error) {
+	sshPub, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	key := ssh.FingerprintSHA256(sshPub)
+
+	// The SHA256 hash may contain "//", which is a forbidden pattern for database keys.
+	// We replace this pattern with "slashslash" so that we can insert the key without losing data.
+	key = strings.ReplaceAll(key, "//", "slashslash")
+
+	return key, nil
 }
 
 const (
