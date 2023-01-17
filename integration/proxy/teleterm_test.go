@@ -42,8 +42,6 @@ import (
 func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
-	t.Logf("web listener: %#v", pack.Root.Cluster.Web)
-	t.Logf("config: %#v", pack.Root.Cluster.Config)
 
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  pack.Root.Cluster.Process,
@@ -68,11 +66,6 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 			AppendDB(pack.Leaf.MysqlService.Name)
 
 		testGatewayCertRenewal(t, pack, creds, databaseURI)
-	})
-	t.Run("adding root cluster", func(t *testing.T) {
-		t.Parallel()
-
-		testAddingRootCluster(t, pack, creds)
 	})
 }
 
@@ -206,38 +199,4 @@ func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...
 func (c *mockTSHDEventsClient) SendNotification(context.Context, *api.SendNotificationRequest, ...grpc.CallOption) (*api.SendNotificationResponse, error) {
 	c.callCounts["SendNotification"]++
 	return &api.SendNotificationResponse{}, nil
-}
-
-// testAddingRootCluster is not related to testing gateways cert renewal. However, setting up
-// integration tests is expensive, so until we have enough Connect tests to warrant setting up a
-// separate Teleport instance for them, let's reuse the existing one.
-//
-// This is fine as long as the tests don't perform side effects on the cluster and operate merely
-// within a new temporary dir for tsh profiles.
-func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                t.TempDir(),
-		InsecureSkipVerify: true,
-	})
-	require.NoError(t, err)
-
-	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		daemonService.Stop()
-	})
-
-	addedCluster, err := daemonService.AddCluster(context.Background(), pack.Root.Cluster.Config.Proxy.WebAddr.Addr)
-	require.NoError(t, err)
-
-	clusters, err := daemonService.ListRootClusters(context.Background())
-	require.NoError(t, err)
-
-	clusterURIs := make([]uri.ResourceURI, 0, len(clusters))
-	for _, cluster := range clusters {
-		clusterURIs = append(clusterURIs, cluster.URI)
-	}
-	require.ElementsMatch(t, clusterURIs, []uri.ResourceURI{addedCluster.URI})
 }

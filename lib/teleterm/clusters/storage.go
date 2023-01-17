@@ -162,12 +162,6 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(ravicious): It looks like the resulting profile name is different when calling SaveProfile
-	// on cfg vs clusterClient. See the failing integration test after changing the line below to use
-	// clusterClient.
-	//
-	// Investigate which approach is the correct one and make sure that changing it doesn't break the
-	// app.
 	if err := cfg.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
