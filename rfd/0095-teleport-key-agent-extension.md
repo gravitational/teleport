@@ -91,7 +91,7 @@ SSH Agent forwarding comes with an inherent security risk. When a user does `ssh
 
 The primary redeeming security principle for forwarded SSH channels is that forwarded keys cannot outlive the original session. This means that once the user who called `ssh -A` exits out of their session, no agent keys remain usable on the remote machine, and no sensitive data could have been exfiltrated to outlive the session. We'll call this security principle "session contingency" in this RFD.
 
-We can follow this same framework to forward a user's certificates and agent key without exposing their actual private key, only an interface to send the forwarded agent cryptographic challenges. This would allow users to forward their certificates and agent keys relatively safely to be used in a remote session and guarantee that malicious users cannot exfiltrate their `~/.tsh` and impersonate them. These forwarded keys could be used for any `tsh` and `tctl` request, or more generally, any Teleport API request.
+We must follow this same framework to forward a user's certificates and agent key without exposing their actual private key, instead only exposing an interface to send the forwarded agent cryptographic challenges. This would allow users to forward their certificates and agent keys relatively safely to be used in a remote session and guarantee that malicious users cannot exfiltrate their `~/.tsh` and impersonate them. These forwarded keys could be used for any `tsh` and `tctl` request, or more generally, any Teleport API request.
 
 #### Other concerns
 
@@ -192,7 +192,9 @@ The resulting signature will be returned alongside the signing algorithm used.
         string          signature format
         byte[]          signature blob
 
-Hash name should be the stringified representation of a golang `crypto.Hash` value. For example, `SHA-1`, `SHA-256`, or `SHA-512`.
+Hash name should be the stringified representation of a golang `crypto.Hash` value. We support all hashes currently supported by the go `crypto` libary, excluding those that are deprecated:
+
+`SHA-224`, `SHA-256`, `SHA-384`, `SHA-512`, `SHA3-224`, `SHA3-256`, `SHA3-384`, `SHA3-512`, `SHA-512/224`, `SHA-512/256`, `BLAKE2s-256`, `BLAKE2b-256`, `BLAKE2b-384`, `BLAKE2b-512`
 
 Salt length can be empty for algorithms that don't use a salt, or a positive integer for those that do (such as `RSAPSS`). Salt length can also be set to `auto` to automatically use the largest salt length possible during signing, which can be auto-detected during verification.
 
@@ -228,7 +230,9 @@ If we were to enable this functionality, we would need to do one or both of the 
 
 1) Make this feature opt-in, with a new forwarding option. e.g. `ForwardAgent local-all`
 
-2) Implement agent restrictions similar to [OpenSSH's agent restrictions](https://www.openssh.com/agent-restrict.html#:~:text=Agent%20restriction%20in%20OpenSSH). This would be a more sophisticated approach that would provide a way to limit how forwarded keys can be used. This option would warrant a separate RFD.
+2) Provide adequate warnings to the user to inform them of the increased security risk, through documentation and or client logs.
+
+3) Implement agent restrictions similar to [OpenSSH's agent restrictions](https://www.openssh.com/agent-restrict.html#:~:text=Agent%20restriction%20in%20OpenSSH). This would be a more sophisticated approach that would provide a way to limit how forwarded keys can be used. This option would warrant a separate RFD.
 
 #### Kubernetes
 
