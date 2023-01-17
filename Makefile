@@ -898,31 +898,14 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
-	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-import-path || true
 
-# This rule updates the api module path to be in sync with the current api release version.
-# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
-#
-# It will immediately fail if:
-#  1. A suffix is present in the version - e.g. "v7.0.0-alpha"
-#  2. The major version suffix in the api module path hasn't changed. e.g:
-#    - v7.0.0 -> v7.1.0 - both use version suffix "/v7" - github.com/gravitational/teleport/api/v7
-#    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
-#
-# Note: any build flags needed to compile go files (such as build tags) should be provided below.
-.PHONY: update-api-import-path
-update-api-import-path:
-	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam desktop_access_rdp linux"
-	$(MAKE) grpc
-
-# make tag - prints a tag to use with git for the current version
+# make update-tag - tags (and pushes) the current version
 # 	To put a new release on Github:
 # 		- bump VERSION variable
 # 		- run make setver
 # 		- commit changes to git
-# 		- build binaries with 'make release'
-# 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
+# 		- build binaries with `make release`
+# 		- run `make update-tag`
 .PHONY: update-tag
 update-tag:
 	@test $(VERSION)

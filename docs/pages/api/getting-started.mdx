@@ -54,7 +54,7 @@ Set up a new [Go module](https://golang.org/doc/tutorial/create-module) and impo
 ```code
 $ mkdir client-demo && cd client-demo
 $ go mod init client-demo
-$ go get github.com/gravitational/teleport/api/client
+$ go get github.com/gravitational/teleport/api/v(=teleport.major_version=)@v(=teleport.version=)
 ```
 
 Create a file called `main.go`, modifying the `Addrs` strings as needed:
@@ -66,13 +66,13 @@ import (
 	"context"
 	"log"
 
-	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/v(=teleport.major_version=)"
 )
 
 func main() {
 	ctx := context.Background()
 
-	clt, err := client.New(ctx, client.Config{
+	clt, err := api.New(ctx, api.Config{
 		Addrs: []string{
 			// Teleport Cloud customers should use <tenantname>.teleport.sh
 			"tele.example.com:443",
@@ -80,8 +80,8 @@ func main() {
 			"tele.example.com:3024",
 			"tele.example.com:3080",
  		},
-		Credentials: []client.Credentials{
-			client.LoadProfile("", ""),
+		Credentials: []api.Credentials{
+			api.LoadProfile("", ""),
 		},
 	})
 
