@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -69,6 +70,9 @@ type AuthCommand struct {
 	dbService                  string
 	dbName                     string
 	dbUser                     string
+	windowsUser                string
+	windowsDomain              string
+	windowsSID                 string
 	signOverwrite              bool
 	jksPassword                string
 
@@ -126,13 +130,16 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
 	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
 	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
+	a.authSign.Flag("windows-user", `Window user placed on the identity file. Only used when --format is set to "windows"`).StringVar(&a.windowsUser)
+	a.authSign.Flag("windows-domain", `Active Directory domain for which this cert is valid. Only used when --format is set to "windows"`).StringVar(&a.windowsDomain)
+	a.authSign.Flag("windows-sid", `Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"`).StringVar(&a.windowsSID)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
 		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
-	a.authRotate.Flag("type", "Certificate authority to rotate, rotates host, user and database CA by default").StringVar(&a.rotateType)
+	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).EnumVar(&a.rotateType, getCertAuthTypes()...)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 
 	a.authLS = auth.Command("ls", "List connected auth servers")
@@ -159,7 +166,7 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	return true, trace.Wrap(err)
 }
 
-var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows", "db"}
+var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows", "db", "openssh"}
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
@@ -225,6 +232,8 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 		return a.generateDatabaseKeys(ctx, clusterAPI)
 	case identityfile.FormatSnowflake:
 		return a.generateSnowflakeKey(ctx, clusterAPI)
+	case identityfile.FormatWindows:
+		return a.generateWindowsCert(ctx, clusterAPI)
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
@@ -234,6 +243,55 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	default:
 		return trace.BadParameter("--user or --host must be specified")
 	}
+}
+
+func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.ClientI) error {
+	var missingFlags []string
+	if len(a.windowsUser) == 0 {
+		missingFlags = append(missingFlags, "--windows-user")
+	}
+	if len(a.windowsDomain) == 0 {
+		missingFlags = append(missingFlags, "--windows-domain")
+	}
+	if len(missingFlags) > 0 {
+		return trace.BadParameter("the following flags are missing: %v",
+			strings.Join(missingFlags, ", "))
+	}
+
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+		Username:           a.windowsUser,
+		Domain:             a.windowsDomain,
+		ActiveDirectorySID: a.windowsSID,
+		TTL:                a.genTTL,
+		ClusterName:        cn.GetClusterName(),
+		LDAPConfig:         windows.LDAPConfig{Domain: a.windowsDomain},
+		AuthClient:         clusterAPI,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = identityfile.Write(identityfile.WriteConfig{
+		OutputPath: a.output,
+		Key: &client.Key{
+			// the godocs say the map key is the desktop server name,
+			// but in this case we're just generating a cert that's not
+			// specific to a particular desktop
+			WindowsDesktopCerts: map[string][]byte{a.windowsUser: certDER},
+		},
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
@@ -276,6 +334,13 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
 func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.ClientI) error {
+	if a.rotateType == "" {
+		return trace.BadParameter("required flag --type not provided; previous versions defaulted to --type=all which is deprecated and will be removed in a future version")
+	}
+	if a.rotateType == string(types.CertAuthTypeAll) {
+		fmt.Println("\033[0;31mNOTICE:\033[0m --type=all will be deprecated in a future version")
+	}
+
 	req := auth.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
@@ -843,4 +908,13 @@ func getDatabaseServer(ctx context.Context, clientAPI auth.ClientI, dbName strin
 	}
 
 	return nil, trace.NotFound("database %q not found", dbName)
+}
+
+func getCertAuthTypes() []string {
+	t := make([]string, 0, len(types.CertAuthTypes)+1)
+	for _, at := range types.CertAuthTypes {
+		t = append(t, string(at))
+	}
+	t = append(t, string(types.CertAuthTypeAll))
+	return t
 }
