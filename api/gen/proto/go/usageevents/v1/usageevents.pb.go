@@ -22,7 +22,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// Represents a resource type.
+// DiscoverResource represents a resource type.
 type DiscoverResource int32
 
 const (
@@ -75,7 +75,7 @@ func (DiscoverResource) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_94cf2ca1c69fd564, []int{0}
 }
 
-// Represents a Discover Step outcome.
+// DiscoverStatus represents a Discover Step outcome.
 type DiscoverStatus int32
 
 const (
@@ -571,7 +571,7 @@ func (m *UIRecoveryCodesPrintClickEvent) GetUsername() string {
 	return ""
 }
 
-// Contains common metadata for Discover related events.
+// DiscoverMetadata contains common metadata for Discover related events.
 type DiscoverMetadata struct {
 	// Uniquely identifies Discover wizard "session". Will allow to correlate
 	// events within the same Discover wizard run. Can be UUIDv4.
@@ -621,7 +621,7 @@ func (m *DiscoverMetadata) GetId() string {
 	return ""
 }
 
-// Contains common metadata identifying resource type being added.
+// DiscoverResourceMetadata contains common metadata identifying resource type being added.
 type DiscoverResourceMetadata struct {
 	// Resource type that is being added.
 	Resource             DiscoverResource `protobuf:"varint,1,opt,name=resource,proto3,enum=teleport.usageevents.v1.DiscoverResource" json:"resource,omitempty"`
@@ -670,8 +670,8 @@ func (m *DiscoverResourceMetadata) GetResource() DiscoverResource {
 	return DiscoverResource_DISCOVER_RESOURCE_UNSPECIFIED
 }
 
-// Contains fields that track a particular step outcome, for example connection
-// test failed or succeeded, or user aborted the step.
+// DiscoverStepStatus contains fields that track a particular step outcome,
+// for example connection test failed or succeeded, or user aborted the step.
 type DiscoverStepStatus struct {
 	// Indicates the step outcome.
 	Status DiscoverStatus `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.usageevents.v1.DiscoverStatus" json:"status,omitempty"`
@@ -730,7 +730,7 @@ func (m *DiscoverStepStatus) GetError() string {
 	return ""
 }
 
-// Emitted when the wizard opens.
+// UIDiscoverStartedEvent is emitted when the wizard opens.
 type UIDiscoverStartedEvent struct {
 	Metadata             *DiscoverMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Status               *DiscoverStepStatus `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
@@ -786,8 +786,8 @@ func (m *UIDiscoverStartedEvent) GetStatus() *DiscoverStepStatus {
 	return nil
 }
 
-// Emitted when user selected resource type to add and proceeded to the next
-// step.
+// UIDiscoverResourceSelectionEvent is emitted when user selected resource type to add
+// and proceeded to the next step.
 type UIDiscoverResourceSelectionEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
