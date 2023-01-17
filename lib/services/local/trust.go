@@ -293,6 +293,43 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	return cas, nil
 }
 
+// UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
+func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
+	key := backend.Key(authoritiesPrefix, string(types.UserCA), name)
+	if !activated {
+		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), name)
+	}
+
+	actualItem, err := s.Get(ctx, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	actual.SetRoleMap(roleMap)
+
+	newValue, err := services.MarshalCertAuthority(actual)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newItem := backend.Item{
+		Key:     key,
+		Value:   newValue,
+		Expires: actual.Expiry(),
+	}
+	_, err = s.CompareAndSwap(ctx, *actualItem, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("cluster %v settings have been updated, try again", name)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const (
 	authoritiesPrefix = "authorities"
 	deactivatedPrefix = "deactivated"

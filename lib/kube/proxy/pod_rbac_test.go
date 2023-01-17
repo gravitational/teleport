@@ -46,7 +46,6 @@ import (
 )
 
 func TestListPodRBAC(t *testing.T) {
-	t.Parallel()
 	const (
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"
@@ -578,7 +577,6 @@ func (f *fakeResponseWriter) Write(b []byte) (int, error) {
 }
 
 func TestDeletePodCollectionRBAC(t *testing.T) {
-	t.Parallel()
 	const (
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"
@@ -731,8 +729,8 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			requestID := kubetypes.UID(uuid.NewString())
 			t.Parallel()
+			requestID := kubetypes.UID(uuid.NewString())
 			// generate a kube client with user certs for auth
 			client, _ := testCtx.genTestKubeClientTLSCert(
 				t,
