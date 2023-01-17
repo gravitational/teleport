@@ -6,21 +6,21 @@ plugins:
   # protoc itself may be the latest one.
   # $ go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
   - name: go
-    out: api/protogen/golang
+    out: lib/teleterm/api/protogen/golang
     opt:
       - plugins=grpc
       - paths=source_relative
 
   - name: js
-    out: api/protogen/js
+    out: lib/teleterm/api/protogen/js
     opt:
       - import_style=commonjs,binary
 
   - name: grpc
-    out: api/protogen/js
+    out: lib/teleterm/api/protogen/js
     opt: grpc_js
     path: grpc_tools_node_protoc_plugin
 
   - name: ts
-    out: api/protogen/js
+    out: lib/teleterm/api/protogen/js
     opt: "service=grpc-node"
