@@ -490,31 +490,40 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 // at least one value in case if return value is nil
 func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) {
 	// Extract the variable from the role variable.
-	variable, err := parse.NewExpression(val)
+	expr, err := parse.NewExpression(val)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// verify that internal traits match the supported variables
-	if variable.Namespace() == teleport.TraitInternalPrefix {
-		switch variable.Name() {
-		case constants.TraitLogins, constants.TraitWindowsLogins,
-			constants.TraitKubeGroups, constants.TraitKubeUsers,
-			constants.TraitDBNames, constants.TraitDBUsers,
-			constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-			constants.TraitGCPServiceAccounts, teleport.TraitJWT:
-		default:
-			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
+	varValidation := func(namespace string, name string) error {
+		// verify that internal traits match the supported variables
+		if namespace == teleport.TraitInternalPrefix {
+			switch name {
+			case constants.TraitLogins, constants.TraitWindowsLogins,
+				constants.TraitKubeGroups, constants.TraitKubeUsers,
+				constants.TraitDBNames, constants.TraitDBUsers,
+				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
+				constants.TraitGCPServiceAccounts, teleport.TraitJWT:
+			default:
+				return trace.BadParameter("unsupported variable %q", name)
+			}
 		}
+		// TODO: return a not found error if the variable namespace is not
+		// the namespace of `traits`.
+		// If e.g. the `traits` belong to the "internal" namespace (as the
+		// validation above suggests), and "foo" is a key in `traits`, then
+		// "external.foo" will return the value of "internal.foo". This is
+		// incorrect, and a not found error should be returned instead.
+		// This would be similar to the var validation done in getPAMConfig
+		// (lib/srv/ctx.go).
+		return nil
 	}
-
-	// If the variable is not found in the traits, skip it.
-	interpolated, err := variable.Interpolate(traits)
-	if trace.IsNotFound(err) || len(interpolated) == 0 {
-		return nil, trace.NotFound("variable %q not found in traits", variable.Name())
-	}
+	interpolated, err := expr.Interpolate(varValidation, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(interpolated) == 0 {
+		return nil, trace.NotFound("variable interpolation result is empty")
 	}
 	return interpolated, nil
 }
@@ -2099,6 +2108,63 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 
 type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
+}
+
+// NewKubeResourcesMatcher creates a new KubeResourcesMatcher matcher that
+// matches a role against any Kubernetes Resource specified.
+// It also keeps track of the resources that did not match any of user's roles and
+// that shouldn't be included in the resource ids because the user is not allowed
+// to request them.
+func NewKubeResourcesMatcher(resources []types.KubernetesResource) *KubeResourcesMatcher {
+	matcher := &KubeResourcesMatcher{
+		resources:     resources,
+		unmatchedReqs: map[string]struct{}{},
+	}
+	for _, name := range resources {
+		matcher.unmatchedReqs[name.ClusterResource()] = struct{}{}
+	}
+	return matcher
+}
+
+// KubeResourcesMatcher matches a role against any Kubernetes Resource specified.
+// It also keeps track of the resources that did not match any of user's roles and
+// that shouldn't be included in the resource ids because the user is not allowed
+// to request them.
+type KubeResourcesMatcher struct {
+	resources     []types.KubernetesResource
+	unmatchedReqs map[string]struct{}
+}
+
+// Match matches a Kubernetes resource against provided role and condition.
+func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	var finalResult bool
+	for _, pod := range m.resources {
+		result, err := utils.KubeResourceMatchesRegex(pod, role.GetKubeResources(condition))
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if result {
+			delete(m.unmatchedReqs, pod.ClusterResource())
+			finalResult = true
+		}
+	}
+	return finalResult, nil
+}
+
+// String returns the matcher's string representation.
+func (m *KubeResourcesMatcher) String() string {
+	return fmt.Sprintf("KubeResourcesMatcher(Resources=%v)", m.resources)
+}
+
+// Unmatched returns the Kubernetes Resource request access that that didn't
+// match with any `search_as_roles` kubernetes resources.
+func (m *KubeResourcesMatcher) Unmatched() []string {
+	unmatched := make([]string, 0, len(m.unmatchedReqs))
+	for k := range m.unmatchedReqs {
+		unmatched = append(unmatched, k)
+	}
+	return unmatched
 }
 
 // KubernetesResourceMatcher matches a role against a Kubernetes Resource.

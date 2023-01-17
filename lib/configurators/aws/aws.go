@@ -167,6 +167,7 @@ var (
 			"redshift-serverless:GetEndpointAccess",
 			"redshift-serverless:GetWorkgroup",
 		},
+		boundary: []string{"sts:AssumeRole"},
 	}
 	// elastiCacheActions contains IAM actions for services.AWSMatcherElastiCache.
 	elastiCacheActions = databaseActions{
@@ -194,6 +195,14 @@ var (
 			"memorydb:UpdateUser",
 		},
 		requireSecretsManager: true,
+	}
+	// awsKeyspacesActions contains IAM actions for static AWS Keyspaces databases.
+	awsKeyspacesActions = databaseActions{
+		boundary: []string{"sts:AssumeRole"},
+	}
+	// dynamodbActions contains IAM actions for static AWS DynamoDB databases.
+	dynamodbActions = databaseActions{
+		boundary: []string{"sts:AssumeRole"},
 	}
 )
 
@@ -505,7 +514,7 @@ func policiesTarget(flags configurators.BootstrapFlags, accountID string, partit
 
 // buildPolicyDocument builds the policy document.
 func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity, boundary bool) (*awslib.Policy, error) {
-	var statements []*awslib.Statement
+	policyDoc := awslib.NewPolicyDocument()
 	policyDescription := databasePolicyDescription
 	policyName := flags.PolicyName
 
@@ -517,7 +526,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 		policyDescription = discoveryServicePolicyDescription
 
 		if isEC2AutoDiscoveryEnabled(flags, fileConfig) {
-			statements = append(statements, buildEC2AutoDiscoveryStatements()...)
+			policyDoc.EnsureStatements(buildEC2AutoDiscoveryStatements()...)
 		}
 	}
 
@@ -542,12 +551,18 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 	if hasMemoryDBDatabases(flags, fileConfig) {
 		allActions = append(allActions, memoryDBActions)
 	}
+	if hasAWSKeyspacesDatabases(flags, fileConfig) {
+		allActions = append(allActions, awsKeyspacesActions)
+	}
+	if hasDynamoDBDatabases(flags, fileConfig) {
+		allActions = append(allActions, dynamodbActions)
+	}
 
 	for _, dbActions := range allActions {
 		if flags.DiscoveryService {
-			statements = append(statements, dbActions.buildStatementForDiscovery())
+			policyDoc.EnsureStatements(dbActions.buildStatementForDiscovery())
 		} else {
-			statements = append(statements, dbActions.buildStatement(boundary))
+			policyDoc.EnsureStatements(dbActions.buildStatement(boundary))
 
 			// Skip these for discovery service.
 			requireSecretsManager = requireSecretsManager || dbActions.requireSecretsManager
@@ -557,7 +572,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 
 	// For databases that need to access SecretsManager (and KMS).
 	if requireSecretsManager {
-		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
+		policyDoc.EnsureStatements(buildSecretsManagerStatements(fileConfig, target)...)
 	}
 	// For databases that need to edit IAM user/role policy.
 	if requireIAMEdit {
@@ -566,14 +581,14 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 			return nil, trace.Wrap(err)
 		}
 
-		statements = append(statements, targetStatements...)
+		policyDoc.EnsureStatements(targetStatements...)
 	}
 
 	return awslib.NewPolicy(
 		policyName,
 		policyDescription,
 		defaultPolicyTags,
-		awslib.NewPolicyDocument(statements...),
+		policyDoc,
 	), nil
 }
 
@@ -709,6 +724,30 @@ func hasMemoryDBDatabases(flags configurators.BootstrapFlags, fileConfig *config
 		findEndpointIs(fileConfig, awsutils.IsMemoryDBEndpoint)
 }
 
+// hasAWSKeyspacesDatabases checks if the agent needs permission for AWS Keyspaces.
+func hasAWSKeyspacesDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
+	// There is no auto discovery for AWS Keyspaces.
+	if flags.DiscoveryService {
+		return false
+	}
+
+	return findDatabaseIs(fileConfig, func(database *config.Database) bool {
+		return database.Protocol == defaults.ProtocolCassandra && database.AWS.AccountID != ""
+	})
+}
+
+// hasDynamoDBDatabases checks if the agent needs permission for AWS DynamoDB.
+func hasDynamoDBDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
+	// There is no auto discovery for AWS DynamoDB.
+	if flags.DiscoveryService {
+		return false
+	}
+
+	return findDatabaseIs(fileConfig, func(database *config.Database) bool {
+		return database.Protocol == defaults.ProtocolDynamoDB
+	})
+}
+
 // isAutoDiscoveryEnabledForMatcher returns true if provided AWS matcher type
 // is found.
 func isAutoDiscoveryEnabledForMatcher(matcherType string, matchers []config.AWSMatcher) bool {
@@ -725,8 +764,16 @@ func isAutoDiscoveryEnabledForMatcher(matcherType string, matchers []config.AWSM
 // findEndpointIs returns true if provided check returns true for any static
 // endpoint.
 func findEndpointIs(fileConfig *config.FileConfig, endpointIs func(string) bool) bool {
+	return findDatabaseIs(fileConfig, func(database *config.Database) bool {
+		return endpointIs(database.URI)
+	})
+}
+
+// findDatabaseIs returns true if provided check returns true for any static
+// database config.
+func findDatabaseIs(fileConfig *config.FileConfig, is func(*config.Database) bool) bool {
 	for _, database := range fileConfig.Databases.Databases {
-		if endpointIs(database.URI) {
+		if is(database) {
 			return true
 		}
 	}
