@@ -1,5 +1,36 @@
 # Changelog
 
+## 10.3.12
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Updated Go to 1.19.5 [#20085](https://github.com/gravitational/teleport/pull/20085)
+* Updated Rust to 1.66.0 [#19769](https://github.com/gravitational/teleport/pull/19769)
+* Improved the graceful shutdown procedure when there are active sessions [#20224](https://github.com/gravitational/teleport/pull/20224)
+* Updated the authentication flow for application access [#20166](https://github.com/gravitational/teleport/pull/20166)
+* Updated the proxy to use the cache for periodic operations [#20154](https://github.com/gravitational/teleport/pull/20154)
+* Upated `tsh` to set extra proxy headers in all HTTP requests [#20111](https://github.com/gravitational/teleport/pull/20111)
+* Added support for periodically reloading the proxy's TLS certificates [#20041](https://github.com/gravitational/teleport/pull/20041)
+* Improved `tsh recordings ls` options and added better error messages [#19955](https://github.com/gravitational/teleport/pull/19955)
+* Added support for CentOS 7 in ARM64 builds [#19896](https://github.com/gravitational/teleport/pull/19896)
+* Added rate limiting to unauthenticated routes [#19870](https://github.com/gravitational/teleport/pull/19870)
+* Made `gcp.credentialSecretName` optional in the Teleport Cluster Helm chart [#19804](https://github.com/gravitational/teleport/pull/19804)
+* Added support for secure certificate mapping for Windows desktop certificates [#19801](https://github.com/gravitational/teleport/pull/19801)
+* Added the ability to export tsh traces even when the Auth Server is not configured for tracing [#19582](https://github.com/gravitational/teleport/pull/19582)
+* Improved desktop error messages for server-initiated disconnects [#19547](https://github.com/gravitational/teleport/pull/19547)
+* Fixed an issue with desktop directory sharing where large files could be corrupted [#1473](https://github.com/gravitational/webapps/pull/1473)
+* Fixed an issue preventing per-session MFA from working with leaf clusters [#20239](https://github.com/gravitational/teleport/pull/20239)
+* Fixed an issue that resulted in an user account database error message when closing SSH sessions [#20160](https://github.com/gravitational/teleport/pull/20160)
+* Fixed an issue preventing kubernetes agents from respecting `max_kubernetes_connections [#20205](https://github.com/gravitational/teleport/pull/20205)
+* Fixed an issue where Machine ID Certificates did not respect the provided TTL when using IAM joining [#20000](https://github.com/gravitational/teleport/pull/20000)
+* Fixed an issue connecting to leaf cluster desktops via reverse tunnel [#19946](https://github.com/gravitational/teleport/pull/19946)
+* Fixed a goroutine leak in Kubernetes Access [#19764](https://github.com/gravitational/teleport/pull/19764)
+* Fixed an issue where access requests for Kubernetes clusters used improperly cached credentials  [#19913](https://github.com/gravitational/teleport/pull/19913)
+* Fixed an issue listing all nodes with tsh [#19822](https://github.com/gravitational/teleport/pull/19822)
+* Fixed an issue preventing audit events that exceed the maximum size limit from being logged [#19738](https://github.com/gravitational/teleport/pull/19738)
+* Fixed an issue preventing some users from being able to play desktop recordings [#19708](https://github.com/gravitational/teleport/pull/19708)
+* Fixed an issue with RDS auto-discovery failing to start in some cases [#18618](https://github.com/gravitational/teleport/pull/18618)
+
 ## 10.3.11
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
