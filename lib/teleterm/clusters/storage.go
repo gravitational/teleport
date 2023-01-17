@@ -139,7 +139,6 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 
 	cfg := client.MakeDefaultConfig()
 	cfg.WebProxyAddr = webProxyAddress
-	s.Log.Debugf("cfg.WebProxyAddr: %v", cfg.WebProxyAddr)
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
 	cfg.ClientStore = client.NewFSClientStore(s.Dir)
@@ -153,12 +152,11 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	}
 
 	// verify that cluster is reachable
-	pingResponse, err := clusterClient.Ping(ctx)
+	_, err = clusterClient.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.Log.Debugf("ping response: %#v", pingResponse)
-	s.Log.Debugf("Getting web config from %v", clusterClient.WebProxyAddr)
+	s.Log.Debug("Getting web config")
 	webConfig, err := clusterClient.GetWebConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

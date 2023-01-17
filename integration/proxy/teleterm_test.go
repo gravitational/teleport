@@ -42,8 +42,6 @@ import (
 func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
-	t.Logf("web listener: %#v", pack.Root.Cluster.Web)
-	t.Logf("config: %#v", pack.Root.Cluster.Config)
 
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  pack.Root.Cluster.Process,
