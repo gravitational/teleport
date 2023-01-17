@@ -221,7 +221,7 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 func discoverMetadataToPrehog(u *usageevents.DiscoverMetadata, identityUsername string) *prehogv1.DiscoverMetadata {
 	return &prehogv1.DiscoverMetadata{
 		Id:       u.Id,
-		Username: identityUsername,
+		UserName: identityUsername,
 	}
 }
 
@@ -248,7 +248,7 @@ func validateDiscoverResourceMetadata(u *prehogv1.DiscoverResourceMetadata) erro
 		return trace.BadParameter("resource is required")
 	}
 
-	if u.Resource == prehogapi.DiscoverResource_DISCOVER_RESOURCE_UNSPECIFIED {
+	if u.Resource == prehogv1.DiscoverResource_DISCOVER_RESOURCE_UNSPECIFIED {
 		return trace.BadParameter("invalid resource")
 	}
 
@@ -267,7 +267,7 @@ func validateDiscoverStatus(u *prehogv1.DiscoverStepStatus) error {
 		return trace.BadParameter("status is required")
 	}
 
-	if u.Status == prehogapi.DiscoverStatus_DISCOVER_STATUS_UNSPECIFIED {
+	if u.Status == prehogv1.DiscoverStatus_DISCOVER_STATUS_UNSPECIFIED {
 		return trace.BadParameter("invalid status.status")
 	}
 
@@ -298,7 +298,7 @@ func (u *UsageUIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1.Sub
 			UiDiscoverStartedEvent: &prehogv1.UIDiscoverStartedEvent{
 				Metadata: &prehogv1.DiscoverMetadata{
 					Id:       u.Metadata.Id,
-					Username: a.AnonymizeString(u.Metadata.Username),
+					UserName: a.AnonymizeString(u.Metadata.UserName),
 				},
 				Status: u.Status,
 			},
@@ -328,7 +328,7 @@ func (u *UsageUIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) pr
 			UiDiscoverResourceSelectionEvent: &prehogv1.UIDiscoverResourceSelectionEvent{
 				Metadata: &prehogv1.DiscoverMetadata{
 					Id:       u.Metadata.Id,
-					Username: a.AnonymizeString(u.Metadata.Username),
+					UserName: a.AnonymizeString(u.Metadata.UserName),
 				},
 				Resource: u.Resource,
 				Status:   u.Status,
