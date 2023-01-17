@@ -20,14 +20,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
-	"os"
-
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"net"
+	"os"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -85,44 +83,42 @@ type kubernetesStatus struct {
 	credentials           *client.Key
 }
 
-func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.PingResponse) (clusterAddr string, serverName string, err error) {
-	if !proxyPong.Proxy.Kube.Enabled {
+func determineClusterAddr(
+	proxyPong *webclient.PingResponse,
+) (clusterAddr string, tlsServerName string, err error) {
+	proxyCfg := proxyPong.Proxy
+	if !proxyCfg.Kube.Enabled {
 		return "", "", trace.BadParameter(
 			"proxy does not support kubernetes access",
 		)
 	}
 
-	host := ""
-	port := 0
-	// Switch statement here denotes a rough preference in which of the many
-	// different values returned in the proxy ping response should be used :)
-	//
-	// TODO(strideynet): It would be awesome if the proxy ping response returned
-	// a single value for the client to use here rather than clients trying to
-	// make this decision.
-	switch {
-	case proxyPong.Proxy.TLSRoutingEnabled:
-		// When using TLS routing, we should just use the web public addr
-		// and fallback to web_listen_addr.
-		addr = "set this to web proxy"
-	case proxyPong.Proxy.Kube.PublicAddr != "":
-		// Use this value verbatim
-		addr, err := utils.SplitHostPort(proxyPong.Proxy.Kube.PublicAddr)
-	case proxyPong.Proxy.Kube.ListenAddr != "":
-		// Replace 0.0.0.0 or [::] with address from public web address.
-		addr = proxyPong.Proxy.Kube.ListenAddr
-	default:
-		// Default to public addr with default kube port
-	}
+	// When working with ping response, it is safe to assume addresses include a
+	// port as the Teleport config loader will apply default values as part
+	// of loading.
 
-	// Now we need to determine a TLS server name to use if TLS routing is
-	// enabled.
-	serverName = ""
-	if proxyPong.Proxy.TLSRoutingEnabled {
-		serverName = fmt.Sprintf(
+	// When TLS routing is in use, we direct Kubernetes requests to the proxy
+	// public_addr
+	if proxyCfg.TLSRoutingEnabled {
+		addr := proxyCfg.SSH.PublicAddr
+		if addr == "" {
+			return "",
+				"",
+				trace.BadParameter(
+					"tls routing enabled but proxy has no public_addr configured",
+				)
+		}
+
+		host, port, err := utils.SplitHostPort(addr)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+
+		serverName := fmt.Sprintf(
 			"%s%s", constants.KubeTeleportProxyALPNPrefix, host,
 		)
 		// If the host is an IP, ensure we use constants.APIDomain in its place
+		// for the tlsServerName
 		if net.ParseIP(host) != nil {
 			serverName = fmt.Sprintf(
 				"%s%s",
@@ -130,9 +126,57 @@ func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.Pin
 				constants.APIDomain,
 			)
 		}
+
+		return fmt.Sprintf("https://%s:%s", host, port), serverName, nil
 	}
 
-	return fmt.Sprintf("https://%s:%d", host, port), serverName, nil
+	// For non-tls-routing scenarios, we try falling back over several config
+	// options
+	host := ""
+	port := ""
+	switch {
+	// if kube_public_addr is configured, use as is.
+	case proxyCfg.Kube.PublicAddr != "":
+		host, port, err = utils.SplitHostPort(proxyPong.Proxy.Kube.PublicAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+	// if kube_listen_addr is configured, and is a valid IP, use as is.
+	// if its a generic listen address (e.g 0.0.0.0) copy the host from
+	// public_addr, but use the port from kube_listen_addr
+	case proxyCfg.Kube.ListenAddr != "":
+		listenerHost, listenerPort, err := utils.SplitHostPort(
+			proxyCfg.Kube.ListenAddr,
+		)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+
+		// 0.0.0.0 or [::]
+		if net.ParseIP(listenerHost).IsUnspecified() {
+			if proxyCfg.SSH.PublicAddr == "" {
+				return "", "", trace.BadParameter(
+					"no public_addr or kube_public_addr configured",
+				)
+			}
+			webPublicAddrHost, _, err := utils.SplitHostPort(
+				proxyCfg.SSH.PublicAddr,
+			)
+			if err != nil {
+				return "", "", trace.Wrap(err)
+			}
+			port = listenerPort
+			host = webPublicAddrHost
+		} else {
+			host, port = listenerHost, listenerPort
+		}
+	default:
+		return "", "", trace.BadParameter(
+			"neither kube_public_addr or kube_listen_addr configured",
+		)
+	}
+
+	return fmt.Sprintf("https://%s:%s", host, port), "", nil
 }
 
 // generateKubeConfig creates a Kubernetes config object with the given cluster
@@ -216,18 +260,13 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 		return trace.BadParameter("destination %s must be a directory", dest)
 	}
 
-	// Ping the auth server and proxy to resolve connection addresses.
-	authPong, err := bot.AuthPing(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Ping the proxy to resolve connection addresses.
 	proxyPong, err := bot.ProxyPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clusterAddr, tlsServerName, err := getKubeProxyHostPort(authPong, proxyPong)
+	clusterAddr, tlsServerName, err := determineClusterAddr(proxyPong)
 	if err != nil {
 		return trace.Wrap(err)
 	}

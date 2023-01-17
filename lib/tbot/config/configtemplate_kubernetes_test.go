@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"context"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,4 +78,25 @@ func TestTemplateKubernetesRender(t *testing.T) {
 	require.Equal(
 		t, string(golden.GetNamed(t, "kubeconfig.yaml")), string(kubeconfigBytes),
 	)
+}
+
+func TestKubernetesDetermineClusterAddr(t *testing.T) {
+	tests := []struct {
+		name      string
+		proxyPong *webclient.PingResponse
+
+		wantClusterAddr   string
+		wantTLSServerName string
+	}{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clusterAddr, tlsServerName, err := determineClusterAddr(
+				tt.proxyPong,
+			)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantClusterAddr, clusterAddr)
+			require.Equal(t, tt.wantTLSServerName, tlsServerName)
+		})
+	}
 }
