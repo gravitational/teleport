@@ -182,7 +182,7 @@ func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig.ServerName = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
+	tlsConfig.ServerName = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	return tlsConfig, nil
 }
 
