@@ -2110,6 +2110,63 @@ type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
 }
 
+// NewKubeResourcesMatcher creates a new KubeResourcesMatcher matcher that
+// matches a role against any Kubernetes Resource specified.
+// It also keeps track of the resources that did not match any of user's roles and
+// that shouldn't be included in the resource ids because the user is not allowed
+// to request them.
+func NewKubeResourcesMatcher(resources []types.KubernetesResource) *KubeResourcesMatcher {
+	matcher := &KubeResourcesMatcher{
+		resources:     resources,
+		unmatchedReqs: map[string]struct{}{},
+	}
+	for _, name := range resources {
+		matcher.unmatchedReqs[name.ClusterResource()] = struct{}{}
+	}
+	return matcher
+}
+
+// KubeResourcesMatcher matches a role against any Kubernetes Resource specified.
+// It also keeps track of the resources that did not match any of user's roles and
+// that shouldn't be included in the resource ids because the user is not allowed
+// to request them.
+type KubeResourcesMatcher struct {
+	resources     []types.KubernetesResource
+	unmatchedReqs map[string]struct{}
+}
+
+// Match matches a Kubernetes resource against provided role and condition.
+func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	var finalResult bool
+	for _, pod := range m.resources {
+		result, err := utils.KubeResourceMatchesRegex(pod, role.GetKubeResources(condition))
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if result {
+			delete(m.unmatchedReqs, pod.ClusterResource())
+			finalResult = true
+		}
+	}
+	return finalResult, nil
+}
+
+// String returns the matcher's string representation.
+func (m *KubeResourcesMatcher) String() string {
+	return fmt.Sprintf("KubeResourcesMatcher(Resources=%v)", m.resources)
+}
+
+// Unmatched returns the Kubernetes Resource request access that that didn't
+// match with any `search_as_roles` kubernetes resources.
+func (m *KubeResourcesMatcher) Unmatched() []string {
+	unmatched := make([]string, 0, len(m.unmatchedReqs))
+	for k := range m.unmatchedReqs {
+		unmatched = append(unmatched, k)
+	}
+	return unmatched
+}
+
 // KubernetesResourceMatcher matches a role against a Kubernetes Resource.
 // Kind is must be stricly equal but namespace and name allow wildcards.
 type KubernetesResourceMatcher struct {
