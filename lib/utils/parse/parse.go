@@ -103,7 +103,6 @@ func (e *Expression) Interpolate(varValidation func(namespace string, name strin
 				return nil, trace.Wrap(err)
 			}
 
-			// TODO: here we don't validate the namespace. is that ok?
 			values, ok := traits[v.name]
 			if !ok {
 				return nil, trace.BadParameter("variable not found: %s", v)

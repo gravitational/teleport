@@ -508,7 +508,14 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				return trace.BadParameter("unsupported variable %q", name)
 			}
 		}
-		// TODO: which namespace values are allowed? here we're allowing all.
+		// TODO: return a not found error if the variable namespace is not
+		// the namespace of `traits`.
+		// If e.g. the `traits` belong to the "internal" namespace (as the
+		// validation above suggests), and "foo" is a key in `traits`, then
+		// "external.foo" will return the value of "internal.foo". This is
+		// incorrect, and a not found error should be returned instead.
+		// This would be similar to the var validation done in getPAMConfig
+		// (lib/srv/ctx.go).
 		return nil
 	}
 	interpolated, err := expr.Interpolate(varValidation, traits)
