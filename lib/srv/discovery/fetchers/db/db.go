@@ -41,12 +41,22 @@ var (
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
-		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
-		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
+		services.AzureMatcherMySQL:     {newAzureMySQLFetcher, newAzureMySQLFlexServerFetcher},
+		services.AzureMatcherPostgres:  {newAzurePostgresFetcher, newAzurePostgresFlexServerFetcher},
 		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
 		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
 )
+
+// IsAWSMatcherType checks if matcher type is a valid AWS matcher.
+func IsAWSMatcherType(matcherType string) bool {
+	return len(makeAWSFetcherFuncs[matcherType]) > 0
+}
+
+// IsAzureMatcherType checks if matcher type is a valid Azure matcher.
+func IsAzureMatcherType(matcherType string) bool {
+	return len(makeAzureFetcherFuncs[matcherType]) > 0
+}
 
 // MakeAWSFetchers creates new AWS database fetchers.
 func MakeAWSFetchers(clients cloud.AWSClients, matchers []services.AWSMatcher) (result []common.Fetcher, err error) {

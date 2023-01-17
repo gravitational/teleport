@@ -257,7 +257,7 @@ type FindDevicesResponse struct {
 
 	// Devices that matched the search.
 	// The number of resulting devices is expected to be low and may be
-	// artifically capped by the server otherwise.
+	// artificially capped by the server otherwise.
 	Devices []*Device `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
 }
 
@@ -363,7 +363,8 @@ type ListDevicesRequest struct {
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// Specifices which fields of the resource should be returned in the response.
+	// Specifies which fields of the resource should be returned in the response.
+	// Defaults to DEVICE_VIEW_LIST.
 	View DeviceView `protobuf:"varint,3,opt,name=view,proto3,enum=teleport.devicetrust.v1.DeviceView" json:"view,omitempty"`
 }
 

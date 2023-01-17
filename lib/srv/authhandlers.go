@@ -333,8 +333,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				Code: events.AuthAttemptFailureCode,
 			},
 			UserMetadata: apievents.UserMetadata{
-				Login: conn.User(),
-				User:  teleportUser,
+				Login:         conn.User(),
+				User:          teleportUser,
+				TrustedDevice: eventDeviceMetadataFromCert(cert),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),

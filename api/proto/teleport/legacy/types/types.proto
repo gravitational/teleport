@@ -492,6 +492,8 @@ message Azure {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redis,omitempty"
   ];
+  // IsFlexiServer is true if the database is an Azure Flexible server.
+  bool IsFlexiServer = 4 [(gogoproto.jsontag) = "is_flexi_server,omitempty"];
 }
 
 // AzureRedis contains Azure Cache for Redis specific database metadata.
@@ -2025,6 +2027,12 @@ message ResourceID {
   string Kind = 2 [(gogoproto.jsontag) = "kind"];
   // Name is the name of the specific resource.
   string Name = 3 [(gogoproto.jsontag) = "name"];
+  // SubResourceName is the resource belonging to resource identified by "Name"
+  // that the user is allowed to access to.
+  // When granting access to a subresource, access to other resources is limited.
+  // Currently it just supports resources of Kind=pod and the format is the following
+  // "<kube_namespace>/<kube_pod>".
+  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -2273,6 +2281,12 @@ message RoleOptions {
 
   // RequireMFAType is the type of MFA requirement enforced for this user.
   RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+
+  // DeviceTrustMode is the device authorization mode used for the resources
+  // associated with the role.
+  // See DeviceTrust.Mode.
+  // Reserved for future use, not yet used by Teleport.
+  string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
 }
 
 message RecordSession {
@@ -2431,6 +2445,9 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_resources,omitempty"
   ];
+
+  // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
+  repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -4194,6 +4211,9 @@ message WindowsDesktopSpecV3 {
   string Domain = 2 [(gogoproto.jsontag) = "domain"];
   // HostID is the ID of the host the Windows Desktop Service proxying the desktop.
   string HostID = 3 [(gogoproto.jsontag) = "host_id"];
+  // NonAD marks this desktop as a standalone host that is
+  // not joined to an Active Directory domain.
+  bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
 }
 
 // RegisterUsingTokenRequest is a request to register with the auth server using

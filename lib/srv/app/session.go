@@ -205,8 +205,13 @@ func (s *Server) withAWSSigner(_ context.Context, sess *sessionChunk, _ *tlsca.I
 	return nil
 }
 
-func (s *Server) withAzureForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+func (s *Server) withAzureHandler(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
 	sess.handler = s.azureHandler
+	return nil
+}
+
+func (s *Server) withGCPHandler(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	sess.handler = s.gcpHandler
 	return nil
 }
 

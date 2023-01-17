@@ -63,6 +63,8 @@ type Application interface {
 	IsAWSConsole() bool
 	// IsAzureCloud returns true if this app represents Azure Cloud instance.
 	IsAzureCloud() bool
+	// IsGCP returns true if this app represents GCP instance.
+	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// GetProtocol returns the application protocol.
@@ -240,6 +242,11 @@ func (a *AppV3) IsAWSConsole() bool {
 // IsAzureCloud returns true if this app is Azure Cloud instance.
 func (a *AppV3) IsAzureCloud() bool {
 	return a.Spec.Cloud == CloudAzure
+}
+
+// IsGCP returns true if this app is GCP instance.
+func (a *AppV3) IsGCP() bool {
+	return a.Spec.Cloud == CloudGCP
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.

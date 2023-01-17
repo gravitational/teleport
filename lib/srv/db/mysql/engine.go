@@ -69,7 +69,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) er
 
 // SendError sends an error to connected client in the MySQL understandable format.
 func (e *Engine) SendError(err error) {
-	if writeErr := e.proxyConn.WriteError(err); writeErr != nil {
+	if writeErr := e.proxyConn.WriteError(trace.Unwrap(err)); writeErr != nil {
 		e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
 	}
 }
@@ -240,9 +240,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Azure requires database login to be <user>@<server-name> e.g.
-		// alice@mysql-server-name.
-		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
+		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
 	}
 
 	// Use default net dialer unless it is already initialized.
