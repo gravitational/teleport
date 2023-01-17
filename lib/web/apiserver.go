@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -103,6 +104,10 @@ const (
 
 var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
+// preflightAppConnectionFunc defines a function used to preflight application
+// connections.
+type preflightAppConnectionFunc func(context.Context, *tlsca.Identity) error
+
 // Handler is HTTP web proxy handler
 type Handler struct {
 	log logrus.FieldLogger
@@ -114,6 +119,7 @@ type Handler struct {
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
+	preflightAppConnection  preflightAppConnectionFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -232,6 +238,10 @@ type Config struct {
 
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
+
+	// ServeAppChecker is a function that checks if the proxy can handle
+	// application requests.
+	ServeAppChecker preflightAppConnectionFunc
 }
 
 type APIHandler struct {
@@ -280,10 +290,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
-		cfg:             cfg,
-		log:             newPackageLogger(),
-		clock:           clockwork.NewRealClock(),
-		ClusterFeatures: cfg.ClusterFeatures,
+		cfg:                    cfg,
+		log:                    newPackageLogger(),
+		clock:                  clockwork.NewRealClock(),
+		ClusterFeatures:        cfg.ClusterFeatures,
+		preflightAppConnection: cfg.ServeAppChecker,
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -447,6 +458,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if h.preflightAppConnection == nil {
+			h.preflightAppConnection = appHandler.PreflightConnection
 		}
 	}
 

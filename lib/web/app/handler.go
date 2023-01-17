@@ -257,6 +257,30 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	return nil
 }
 
+// PreflightConnection establishes a connection to a AppServer that can handle
+// application requests. Can be used to ensure the proxy can handle application
+// requests before they arrive.
+func (h *Handler) PreflightConnection(ctx context.Context, identity *tlsca.Identity) error {
+	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	accessPoint, err := clusterClient.CachingAccessPoint()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// At least on AppServer needs to be present to serve the requests. Using
+	// MatchOne can reduce the amount of work required by the app matcher by not
+	// dialing every AppServer.
+	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, identity))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // handleForward forwards the request to the application service.
 func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session *session) error {
 	session.fwd.ServeHTTP(w, r)
@@ -275,8 +299,15 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 		return
 	}
 
+	// If renewing the session fails, we should do the same for when the
+	// request authentication fails (defined in the "withAuth" middle). This is
+	// done to have a consistent UX to when launching an application.
 	session, err := h.renewSession(req)
 	if err != nil {
+		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return

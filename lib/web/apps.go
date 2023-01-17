@@ -78,14 +78,22 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	}, nil
 }
 
-type GetAppFQDNRequest resolveAppParams
+type GetAppFQDNRequest ResolveAppParams
 
 type GetAppFQDNResponse struct {
 	// FQDN is application FQDN.
 	FQDN string `json:"fqdn"`
 }
 
-type CreateAppSessionRequest resolveAppParams
+// CreateAppSessionRequest respresents the payload present when creating
+// application sessions.
+type CreateAppSessionRequest struct {
+	ResolveAppParams
+	// PreflightConnection when set the proxy preflight a connection to an
+	// AppServer, ensuring it can handle the request. If the preflight fails,
+	// the session is not created and it returns an error.
+	PreflightConnection bool `json:"preflight_connection"`
+}
 
 type CreateAppSessionResponse struct {
 	// CookieValue is the application session cookie value.
@@ -121,7 +129,7 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	result, err := h.resolveApp(r.Context(), authClient, proxy, resolveAppParams(req))
+	result, err := h.resolveApp(r.Context(), authClient, proxy, ResolveAppParams(req))
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
@@ -154,7 +162,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	result, err := h.resolveApp(r.Context(), authClient, proxy, resolveAppParams(req))
+	result, err := h.resolveApp(r.Context(), authClient, proxy, ResolveAppParams(req.ResolveAppParams))
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
@@ -195,6 +203,22 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Ensuring proxy can handle the connection is an optional step.
+	if h.preflightAppConnection != nil && req.PreflightConnection {
+		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", identity.RouteToApp.Name)
+		err := h.preflightAppConnection(r.Context(), identity)
+		if err != nil {
+			deleteSessionErr := authClient.DeleteAppSession(r.Context(), types.DeleteAppSessionRequest{
+				SessionID: ws.GetName(),
+			})
+			if deleteSessionErr != nil {
+				h.log.WithError(err).Error("Failed to delete app session")
+			}
+
+			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try requesting again. If the issue persists, verify if the Application Services are connected to Teleport.")
+		}
 	}
 
 	userMetadata := identity.GetUserMetadata()
@@ -245,7 +269,7 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string)
 	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
 }
 
-type resolveAppParams struct {
+type ResolveAppParams struct {
 	// FQDNHint indicates (tentatively) the fully qualified domain name of the application.
 	FQDNHint string `json:"fqdn"`
 
@@ -271,7 +295,7 @@ type resolveAppResult struct {
 	App types.Application
 }
 
-func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
+func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, params ResolveAppParams) (*resolveAppResult, error) {
 	var (
 		server         types.AppServer
 		appClusterName string
