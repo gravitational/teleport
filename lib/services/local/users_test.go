@@ -849,7 +849,7 @@ func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
 	require.Equal(t, &info, infoGet)
 }
 
-func TestIdentityService_AttestationDataCrud(t *testing.T) {
+func TestIdentityService_UpsertKeyAttestationData(t *testing.T) {
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 	ctx := context.Background()
 
@@ -866,16 +866,14 @@ JZoZL1NsgqBz/f49OZsck24rcxurnC0lKAJmSGtKZrv54E/XZuPtatUkrXtIFKC6
 shHLLAc/LAVtDX2/E/aLgM0srYtt1/kku9H1C9+Ou7RzOIdblRkNMYcbUOhKBNld
 AnYsqjU9/7IaQSp8DwIDAQAB
 -----END PUBLIC KEY-----`,
-			expectPubKeyHash: "SHA256:/Z80tk8akmlzrvQ7X6yde5LQb0KwrujOL/hhVrRns/k",
 		}, {
-			name: "public key with // in hash",
+			name: "public key with // in standard hash",
 			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCwh1y2u/z8Rm4jD51oawtI00NO
 yHPtEsk3AcetyxYXM5jXAZuQBJwFoxQa3tlJoumigfVEsdYhETu1zwJLZhjgmYOp
 eKMx+eKGKvDF73w1Kfap+JrGA2d1+XtPfNZkmcjYThe+GY0yfinnIwcjd+lmqCqb
 Tirv9LjajEBxUnuV+wIDAQAB
 -----END PUBLIC KEY-----`,
-			expectPubKeyHash: "SHA256:iykzh6jD+JW2tHDhj3iEkKTlkAslashslash7vVcwOK/sTtaMEc",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -889,14 +887,14 @@ Tirv9LjajEBxUnuV+wIDAQAB
 			}
 
 			err := identity.UpsertKeyAttestationData(ctx, attestationData, time.Hour)
-			require.NoError(t, err)
+			require.NoError(t, err, "UpsertKeyAttestationData failed")
 
 			pub, err := x509.ParsePKIXPublicKey(pubDer)
-			require.NoError(t, err)
+			require.NoError(t, err, "ParsePKIXPublicKey failed")
 
 			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pub)
-			require.NoError(t, err)
-			require.Equal(t, attestationData, retrievedAttestationData)
+			require.NoError(t, err, "GetKeyAttestationData failed")
+			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
 		})
 	}
 }
