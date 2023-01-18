@@ -251,10 +251,10 @@ spec:
         secret:
           secretName: "license"
 {{- end }}
-{{- if (eq .Values.chartMode "gcp") }}
+{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp")  }}
       - name: gcp-credentials
         secret:
-          secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}
+          secretName: {{ .Values.gcp.credentialSecretName }}
 {{- end }}
 {{- if .Values.highAvailability.certManager.enabled }}
       - name: teleport-tls

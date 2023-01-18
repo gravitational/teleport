@@ -23,13 +23,13 @@ import (
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
-	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-
 	wan "github.com/duo-labs/webauthn/webauthn"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // RegistrationIdentity represents the subset of Identity methods used by

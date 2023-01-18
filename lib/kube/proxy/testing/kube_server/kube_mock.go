@@ -28,25 +28,23 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"golang.org/x/net/http2"
-
-	v1 "k8s.io/api/authorization/v1"
-	"k8s.io/apiserver/pkg/util/wsstream"
-	"k8s.io/client-go/tools/remotecommand"
-
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
+	v1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	"k8s.io/apiserver/pkg/util/wsstream"
+	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -491,7 +489,7 @@ WaitForStreams:
 		case <-expired:
 			return nil, trace.BadParameter("timed out waiting for client to create streams")
 		case <-connContext.Done():
-			return nil, trace.BadParameter("onnectoin has dropped, exiting")
+			return nil, trace.BadParameter("connection has dropped, exiting")
 		}
 	}
 

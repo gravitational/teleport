@@ -21,9 +21,10 @@ import (
 	"crypto/rsa"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConvertToPPK(t *testing.T) {

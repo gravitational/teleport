@@ -27,16 +27,16 @@ import (
 	"sync"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -384,14 +384,19 @@ func (s *ProtoStream) Done() <-chan struct{} {
 
 // EmitAuditEvent emits a single audit event to the stream
 func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	messageSize := event.Size()
+	if messageSize > MaxProtoMessageSizeBytes {
+		switch v := event.(type) {
+		case messageSizeTrimmer:
+			event = v.TrimToMaxSize(MaxProtoMessageSizeBytes)
+		default:
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+		}
+	}
+
 	oneof, err := apievents.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	messageSize := oneof.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
 	}
 
 	start := time.Now()

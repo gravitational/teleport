@@ -33,13 +33,13 @@ import (
 	"unicode"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 )
 
 type LoggingPurpose int
@@ -244,7 +244,7 @@ func formatCertError(err error) string {
 	}
 
 	var certInvalidErr x509.CertificateInvalidError
-	if errors.As(err, &x509.CertificateInvalidError{}) {
+	if errors.As(err, &certInvalidErr) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.

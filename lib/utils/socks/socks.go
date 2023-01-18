@@ -23,10 +23,10 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 var log = logrus.WithFields(logrus.Fields{

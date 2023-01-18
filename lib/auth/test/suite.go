@@ -21,6 +21,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -29,11 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
-
-	"golang.org/x/crypto/ssh"
-
-	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
 )
 
 type AuthSuite struct {

@@ -19,8 +19,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestMarshalMapConsistency ensures serialized byte comparisons succeed

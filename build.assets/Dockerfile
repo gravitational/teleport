@@ -18,30 +18,35 @@ RUN apt-get update && \
 # libudev-zero replaces systemd's libudev
 RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    make install-static
+    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
+    make install-static && \
+    make clean
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.1 && \
     cd libcbor && \
+    [ "$(git rev-parse HEAD)" = '5c1bb892c94b6ae2ef99e3c6673d5e0857242f38' ] && \
     cmake \
-        -DCBOR_CUSTOM_ALLOC=ON \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DWITH_EXAMPLES=OFF . && \
     make && \
-    make install
+    make install && \
+    make clean
 
 # Install libfido2.
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
+    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
     make && \
-    make install
+    make install  && \
+    make clean
 
 FROM ubuntu:18.04 AS buildbox
 
@@ -146,6 +151,9 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0
      cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
+# Install GCI
+RUN go install github.com/daixiang0/gci@v0.7.0
+
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
@@ -179,7 +187,7 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.10.0" && \
+    VERSION="1.12.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
@@ -226,11 +234,11 @@ COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.11.0 \
+    /usr/local/lib/libfido2.so.1.12.0 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
-    ln -s libfido2.so.1.11.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /

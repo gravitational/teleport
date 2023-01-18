@@ -28,6 +28,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -262,6 +264,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Give the role some k8s principals too.
 	role.SetKubeUsers(types.Allow, []string{user})
 	role.SetKubeGroups(types.Allow, []string{"system:masters"})
+
 	err = s.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
@@ -1163,6 +1166,118 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	})
 }
 
+func TestGenerateUserCertIPPinning(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	s := newAuthSuite(t)
+
+	ctx := context.Background()
+
+	const pinnedUser = "pinnedUser"
+	const unpinnedUser = "unpinnedUser"
+	pass := []byte("abc123")
+
+	// Create the user without IP pinning
+	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser})
+	require.NoError(t, err)
+	err = s.a.UpsertPassword(unpinnedUser, pass)
+	require.NoError(t, err)
+
+	// Create the user with IP pinning enabled
+	_, pinnedRole, err := CreateUserAndRole(s.a, pinnedUser, []string{pinnedUser})
+	require.NoError(t, err)
+	err = s.a.UpsertPassword(pinnedUser, pass)
+	require.NoError(t, err)
+	options := pinnedRole.GetOptions()
+	options.PinSourceIP = true
+	pinnedRole.SetOptions(options)
+
+	keygen := testauthority.New()
+	_, pub, err := keygen.GetNewKeyPairFromPool()
+	require.NoError(t, err)
+
+	err = s.a.UpsertRole(ctx, pinnedRole)
+	require.NoError(t, err)
+
+	findTLSClientIP := func(names []pkix.AttributeTypeAndValue) any {
+		for _, name := range names {
+			if name.Type.Equal(tlsca.ClientIPASN1ExtensionOID) {
+				return name.Value
+			}
+		}
+		return nil
+	}
+
+	testCases := []struct {
+		desc       string
+		user       string
+		clientIP   string
+		wantPinned bool
+	}{
+		{desc: "no client ip, not pinned", user: unpinnedUser, clientIP: "", wantPinned: false},
+		{desc: "client ip, not  pinned", user: unpinnedUser, clientIP: "1.2.3.4", wantPinned: false},
+		{desc: "client ip, pinned", user: pinnedUser, clientIP: "1.2.3.4", wantPinned: true},
+		{desc: "no client ip, pinned", user: pinnedUser, clientIP: "", wantPinned: true},
+	}
+
+	baseAuthRequest := AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Pass: &PassCreds{Password: pass},
+		},
+		TTL:            time.Hour,
+		PublicKey:      pub,
+		RouteToCluster: s.clusterName.GetClusterName(),
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			authRequest := baseAuthRequest
+			authRequest.AuthenticateUserRequest.Username = tt.user
+			if tt.clientIP != "" {
+				authRequest.ClientMetadata = &ForwardedClientMetadata{
+					RemoteAddr: tt.clientIP,
+				}
+			}
+			resp, err := s.a.AuthenticateSSHUser(ctx, authRequest)
+			if tt.wantPinned && tt.clientIP == "" {
+				require.ErrorContains(t, err, "source IP pinning is enabled but client IP is unknown")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, resp.Username, tt.user)
+
+			sshCert, err := sshutils.ParseCertificate(resp.Cert)
+			require.NoError(t, err)
+
+			tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+			require.NoError(t, err)
+
+			tlsClientIP := findTLSClientIP(tlsCert.Subject.Names)
+			sshClientIP, sshClientIPOK := sshCert.Extensions[teleport.CertExtensionClientIP]
+			sshCriticalAddress, sshCriticalAddressOK := sshCert.CriticalOptions["source-address"]
+
+			if tt.clientIP != "" {
+				require.NotNil(t, tlsClientIP, "client IP not found on TLS cert")
+				require.Equal(t, tlsClientIP, tt.clientIP, "TLS ClientIP mismatch")
+
+				require.True(t, sshClientIPOK, "SSH ClientIP extension not present")
+				require.Equal(t, tt.clientIP, sshClientIP, "SSH ClientIP mismatch")
+			} else {
+				require.Nil(t, tlsClientIP, "client IP unexpectedly found on TLS cert")
+
+				require.False(t, sshClientIPOK, "client IP unexpectedly found on SSH cert")
+			}
+
+			if tt.wantPinned {
+				require.True(t, sshCriticalAddressOK, "source address not found on SSH cert")
+				require.Equal(t, tt.clientIP+"/32", sshCriticalAddress, "SSH source address mismatch")
+			} else {
+				require.False(t, sshCriticalAddressOK, "source address unexpectedly found on SSH cert")
+			}
+		})
+	}
+}
+
 func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1740,6 +1855,24 @@ func TestAddMFADeviceSync(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:       "invalid device name length",
+			deviceName: strings.Repeat("A", mfaDeviceNameMaxLen+1),
+			wantErr:    true,
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
+				require.NoError(t, err)
+
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					TokenID:        privExToken.GetName(),
+					NewDeviceName:  deviceName,
+					NewMFAResponse: webauthnRes,
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1747,7 +1880,8 @@ func TestAddMFADeviceSync(t *testing.T) {
 			res, err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
 			switch {
 			case tc.wantErr:
-				require.True(t, trace.IsAccessDenied(err))
+				expectedErr := trace.IsAccessDenied(err) || trace.IsBadParameter(err)
+				require.True(t, expectedErr)
 			default:
 				require.NoError(t, err)
 				require.Equal(t, tc.deviceName, res.GetDevice().GetName())

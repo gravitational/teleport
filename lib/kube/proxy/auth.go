@@ -14,6 +14,7 @@
 
 package proxy
 
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"crypto/tls"
@@ -22,17 +23,12 @@ import (
 	"net/http"
 	"net/url"
 
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/transport"
-
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -40,6 +36,10 @@ import (
 	// support for popular hosting providers and minimizing attack surface.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/azure"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/transport"
+
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 )
 
 // kubeCreds contain authentication-related fields from kubeconfig.

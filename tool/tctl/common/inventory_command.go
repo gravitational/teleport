@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
 )
 
 // InventoryCommand implements the `tctl inventory` family of commands.

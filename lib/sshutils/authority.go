@@ -17,10 +17,10 @@ limitations under the License.
 package sshutils
 
 import (
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // GetCheckers returns public keys that can be used to check cert authorities

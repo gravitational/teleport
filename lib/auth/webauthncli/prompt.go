@@ -22,9 +22,10 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"github.com/gravitational/trace"
 )
 
 // DefaultPrompt is a default implementation for LoginPrompt and

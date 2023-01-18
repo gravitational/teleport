@@ -21,12 +21,12 @@ import (
 	"crypto/x509"
 
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-
 	wan "github.com/duo-labs/webauthn/webauthn"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // curveP256CBOR is the constant for the P-256 curve in CBOR.

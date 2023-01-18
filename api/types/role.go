@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -838,8 +838,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 
 // String returns the human readable representation of a role.
 func (r *RoleV5) String() string {
-	return fmt.Sprintf("Role(Name=%v,Options=%v,Allow=%+v,Deny=%+v)",
-		r.GetName(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
+	options, _ := json.Marshal(r.Spec.Options)
+	return fmt.Sprintf("Role(Name=%v,Options=%q,Allow=%+v,Deny=%+v)",
+		r.GetName(), string(options), r.Spec.Allow, r.Spec.Deny)
 }
 
 // IsEmpty returns true if conditions are unspecified

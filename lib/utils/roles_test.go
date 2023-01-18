@@ -17,8 +17,9 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type RolesTestSuite struct {

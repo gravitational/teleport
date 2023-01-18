@@ -22,9 +22,10 @@ import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 func TestCredentialAssertionResponse_json(t *testing.T) {

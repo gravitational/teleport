@@ -20,9 +20,10 @@ import (
 	"context"
 	"crypto/tls"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/trace"
 )
 
 // GetGCPRequireSSL requests settings for the project/instance in session from GCP

@@ -15,10 +15,10 @@
 package peer
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // serverMetrics represents a collection of metrics for a proxy peer server

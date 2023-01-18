@@ -31,9 +31,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Due to thread safety design in glibc we must serialize all access to the accounting database.
@@ -83,21 +83,11 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
-	if utmpPath == "" {
-		utmpPath = utmpFilePath
-	}
+	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
 	// Convert Go strings into C strings that we can pass over ffi.
 	cUtmpPath := C.CString(utmpPath)
 	defer C.free(unsafe.Pointer(cUtmpPath))
 
-	if wtmpPath == "" {
-		// Check where wtmp is located.
-		if utils.FileExists(wtmpFilePath) {
-			wtmpPath = wtmpFilePath
-		} else {
-			wtmpPath = wtmpAltFilePath
-		}
-	}
 	cWtmpPath := C.CString(wtmpPath)
 	defer C.free(unsafe.Pointer(cWtmpPath))
 
@@ -155,17 +145,14 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
+	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
+
 	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char
-	var cWtmpPath *C.char
-	if len(utmpPath) > 0 {
-		cUtmpPath = C.CString(utmpPath)
-		defer C.free(unsafe.Pointer(cUtmpPath))
-	}
-	if len(wtmpPath) > 0 {
-		cWtmpPath = C.CString(wtmpPath)
-		defer C.free(unsafe.Pointer(cWtmpPath))
-	}
+	cUtmpPath := C.CString(utmpPath)
+	defer C.free(unsafe.Pointer(cUtmpPath))
+	cWtmpPath := C.CString(wtmpPath)
+	defer C.free(unsafe.Pointer(cWtmpPath))
+
 	cTtyName := C.CString(strings.TrimPrefix(ttyName, "/dev/"))
 	defer C.free(unsafe.Pointer(cTtyName))
 
@@ -193,6 +180,25 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	default:
 		return decodeUnknownError(int(status))
 	}
+}
+
+// getDefaultPaths sets the default paths for utmp and wtmp files if passed empty.
+// This function always returns both paths, even if they don't exist in the system.
+func getDefaultPaths(utmpPath, wtmpPath string) (string, string) {
+	if utmpPath == "" {
+		utmpPath = utmpFilePath
+	}
+
+	if wtmpPath == "" {
+		// Check where wtmp is located.
+		if utils.FileExists(wtmpFilePath) {
+			wtmpPath = wtmpFilePath
+		} else {
+			wtmpPath = wtmpAltFilePath
+		}
+	}
+
+	return utmpPath, wtmpPath
 }
 
 // UserWithPtyInDatabase checks the user accounting database for the existence of an USER_PROCESS entry with the given username.

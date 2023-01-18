@@ -16,6 +16,7 @@ limitations under the License.
 
 package db
 
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"crypto/tls"
@@ -23,9 +24,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,24 +45,18 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	"github.com/gravitational/teleport/lib/utils"
-
+	// Import to register Elasticsearch engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	// Import to register MongoDB engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register MySQL engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
-	// Import to register Elasticsearch engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config is the configuration for an database proxy server.
@@ -68,6 +69,8 @@ type Config struct {
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
+	// Emitter is used to emit audit events.
+	Emitter apievents.Emitter
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
@@ -139,6 +142,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
+	}
+	if c.Emitter == nil {
+		c.Emitter = c.AuthClient
 	}
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
@@ -780,7 +786,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		serverID:     s.cfg.HostID,
 		authClient:   s.cfg.AuthClient,
 		teleportUser: sessionCtx.Identity.Username,
-		emitter:      s.cfg.AuthClient,
+		emitter:      s.cfg.Emitter,
 		log:          s.log,
 		ctx:          s.closeContext,
 	})

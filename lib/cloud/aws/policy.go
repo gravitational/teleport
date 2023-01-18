@@ -26,9 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // Policy represents an AWS IAM policy.

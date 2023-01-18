@@ -22,10 +22,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // Message defines common interface for MongoDB wire protocol messages.

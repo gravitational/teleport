@@ -22,16 +22,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
 )
 
 // AlertCommand implements the `tctl alerts` family of commands.

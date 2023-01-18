@@ -22,7 +22,6 @@ import (
 	"errors"
 
 	"github.com/gravitational/teleport/api/client/proto"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 

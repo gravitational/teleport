@@ -211,10 +211,10 @@ Next, create a script that will be run by `pam_exec.so`.
 
 ```code
 mkdir -p /etc/pam-exec.d
-cat > /etc/pam-exec.d/teleport_acct <<EOF
+cat > /etc/pam-exec.d/teleport_acct <<"EOF"
 #!/bin/sh
 COMMENT="User ${TELEPORT_LOGIN} for ${TELEPORT_USERNAME} with roles ${TELEPORT_ROLES} created by Teleport."
-/bin/id -u "${TELEPORT_LOGIN}" 2>&1 >/dev/null || /sbin/useradd -m -s /bin/bash -c "${COMMENT}" "${TELEPORT_LOGIN}" 2>> /tmp/pam.error
+/bin/id -u "${TELEPORT_LOGIN}" > /dev/null 2>&1 || /sbin/useradd -m -s /bin/bash -c "${COMMENT}" "${TELEPORT_LOGIN}" 2>> /tmp/pam.error
 exit 0
 EOF
 chmod +x /etc/pam-exec.d/teleport_acct

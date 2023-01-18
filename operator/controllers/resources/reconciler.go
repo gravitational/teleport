@@ -19,13 +19,12 @@ package resources
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/gravitational/trace"
 )
 
 // DeletionFinalizer is a name of finalizer added to resource's 'finalizers' field

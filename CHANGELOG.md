@@ -1,5 +1,106 @@
 # Changelog
 
+## 10.3.12
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Updated Go to 1.19.5 [#20085](https://github.com/gravitational/teleport/pull/20085)
+* Updated Rust to 1.66.0 [#19769](https://github.com/gravitational/teleport/pull/19769)
+* Improved the graceful shutdown procedure when there are active sessions [#20224](https://github.com/gravitational/teleport/pull/20224)
+* Updated the authentication flow for application access [#20166](https://github.com/gravitational/teleport/pull/20166)
+* Updated the proxy to use the cache for periodic operations [#20154](https://github.com/gravitational/teleport/pull/20154)
+* Upated `tsh` to set extra proxy headers in all HTTP requests [#20111](https://github.com/gravitational/teleport/pull/20111)
+* Added support for periodically reloading the proxy's TLS certificates [#20041](https://github.com/gravitational/teleport/pull/20041)
+* Improved `tsh recordings ls` options and added better error messages [#19955](https://github.com/gravitational/teleport/pull/19955)
+* Added support for CentOS 7 in ARM64 builds [#19896](https://github.com/gravitational/teleport/pull/19896)
+* Added rate limiting to unauthenticated routes [#19870](https://github.com/gravitational/teleport/pull/19870)
+* Made `gcp.credentialSecretName` optional in the Teleport Cluster Helm chart [#19804](https://github.com/gravitational/teleport/pull/19804)
+* Added support for secure certificate mapping for Windows desktop certificates [#19801](https://github.com/gravitational/teleport/pull/19801)
+* Added the ability to export tsh traces even when the Auth Server is not configured for tracing [#19582](https://github.com/gravitational/teleport/pull/19582)
+* Improved desktop error messages for server-initiated disconnects [#19547](https://github.com/gravitational/teleport/pull/19547)
+* Fixed an issue with desktop directory sharing where large files could be corrupted [#1473](https://github.com/gravitational/webapps/pull/1473)
+* Fixed an issue preventing per-session MFA from working with leaf clusters [#20239](https://github.com/gravitational/teleport/pull/20239)
+* Fixed an issue that resulted in an user account database error message when closing SSH sessions [#20160](https://github.com/gravitational/teleport/pull/20160)
+* Fixed an issue preventing kubernetes agents from respecting `max_kubernetes_connections [#20205](https://github.com/gravitational/teleport/pull/20205)
+* Fixed an issue where Machine ID Certificates did not respect the provided TTL when using IAM joining [#20000](https://github.com/gravitational/teleport/pull/20000)
+* Fixed an issue connecting to leaf cluster desktops via reverse tunnel [#19946](https://github.com/gravitational/teleport/pull/19946)
+* Fixed a goroutine leak in Kubernetes Access [#19764](https://github.com/gravitational/teleport/pull/19764)
+* Fixed an issue where access requests for Kubernetes clusters used improperly cached credentials  [#19913](https://github.com/gravitational/teleport/pull/19913)
+* Fixed an issue listing all nodes with tsh [#19822](https://github.com/gravitational/teleport/pull/19822)
+* Fixed an issue preventing audit events that exceed the maximum size limit from being logged [#19738](https://github.com/gravitational/teleport/pull/19738)
+* Fixed an issue preventing some users from being able to play desktop recordings [#19708](https://github.com/gravitational/teleport/pull/19708)
+* Fixed an issue with RDS auto-discovery failing to start in some cases [#18618](https://github.com/gravitational/teleport/pull/18618)
+
+## 10.3.11
+
+This release of Teleport contains multiple security fixes, improvements and bug fixes.
+
+### [Critical] RBAC bypass in SSH TCP tunneling
+
+When establishing a direct-tcpip channel, Teleport did not sufficiently validate
+RBAC.
+
+This could allow an attacker in possession of valid cluster credentials to
+establish a TCP tunnel to a node they didn’t have access to.
+
+The connection attempt would show up in the audit log as a “port” audit event
+(code T3003I) and include Teleport username in the “user” field.
+
+### [High] Application Access session hijack
+
+When accepting Application Access requests, Teleport did not sufficiently
+validate client credentials.
+
+This could allow an attacker in possession of a valid active application session
+ID to issue requests to this application impersonating the session owner for a
+limited time window.
+
+Presence of multiple “cert.create” audit events (code TC000I) with the same app
+session ID in the “route_to_app.session_id” field may indicate the attempt to
+impersonate an existing user’s application session.
+
+### [Medium] SSH IP pinning bypass
+
+When issuing a user certificate, Teleport did not check for the presence of IP
+restrictions in the client’s credentials.
+
+This could allow an attacker in possession of valid client credentials with IP
+restrictions to reissue credentials without IP restrictions.
+
+Presence of a “cert.create” audit event (code TC000I) without corresponding
+“user.login” audit event (codes T1000I or T1101I) for users with IP restricted
+roles may indicate an issuance of a certificate without IP restrictions.
+
+### [Low] Web API session caching
+
+After logging out via the web UI, a user’s session could remain cached in
+Teleport’s proxy, allowing continued access to resources for a limited time
+window.
+
+### Other improvements and fixes
+
+* Fixed issue with noisy-square distortions in desktop access. [#19544](https://github.com/gravitational/teleport/pull/19544)
+* Fixed LDAP pagination issue in desktop access. (#19002) [#19534](https://github.com/gravitational/teleport/pull/19534)
+* Fixed issue with SSH sessions inheriting parent's OOM score. [#19522](https://github.com/gravitational/teleport/pull/19522)
+* Fixed issue with `session.start` event being overwritten with `session.exec` event. [#19496](https://github.com/gravitational/teleport/pull/19496)
+* Fixed issue with SNI info not being set by `tsh login --format kubernetes` command. [#19432](https://github.com/gravitational/teleport/pull/19432)
+* Fixed issue with websockets not working in app access when target app is using HTTP/2. [#19424](https://github.com/gravitational/teleport/pull/19424)
+* Fixed TLS routing in insecure mode. [#19409](https://github.com/gravitational/teleport/pull/19409)
+* Fixed issue with incorrect UACC wtmp path. [#19382](https://github.com/gravitational/teleport/pull/19382)
+* Fixed issue with SAML connector validation calling issuer URL before auth checks. [#19318](https://github.com/gravitational/teleport/pull/19318)
+* Fixed issue with corrupted uploads being retried indefinitely. [#19259](https://github.com/gravitational/teleport/pull/19259)
+* Fixed issue with `disconnect_expired_cert` and `require_session_mfa` settings conflicting with each other. [#19204](https://github.com/gravitational/teleport/pull/19204)
+* Fixed issue with Teleport ALPN proxy not respecting HTTP CONNECT proxy. [#19039](https://github.com/gravitational/teleport/pull/19039)
+* Fixed `tctl windows_desktops ls` output. [#19015](https://github.com/gravitational/teleport/pull/19015)
+* Fixed issue with starting node sessions due to unknown group error. [#18991](https://github.com/gravitational/teleport/pull/18991)
+* Added support for Kubernetes port-forward over websockets protocol. [#19184](https://github.com/gravitational/teleport/pull/19184)
+* Updated desktop access config script to disable password prompt. [#19428](https://github.com/gravitational/teleport/pull/19428)
+* Updated Go to 1.19.4. [#19155](https://github.com/gravitational/teleport/pull/19155)
+* Improved `tsh ls -R` latency. [#19483](https://github.com/gravitational/teleport/pull/19483)
+* Improved performance when mapping traits to roles. [#19183](https://github.com/gravitational/teleport/pull/19183)
+* Improved web UI SSH performance. [#19119](https://github.com/gravitational/teleport/pull/19119)
+* Improved connection resiliency when auth service is offline. [#18914](https://github.com/gravitational/teleport/pull/18914)
+
 ## 10.3.9
 
 This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
@@ -992,8 +1093,7 @@ Some of the things you can do with Machine ID:
 - Configure role-based access controls and locking for machines.
 - Capture access events in the audit log.
 
-Machine ID getting started guide:
-https://goteleport.com/docs/ver/9.0/machine-id/getting-started/.
+[Machine ID getting started guide](docs/pages/machine-id/getting-started.mdx)
 
 ### Database Access
 
@@ -1003,8 +1103,7 @@ You can now use Database Access to connect to a self-hosted Redis instance or
 Redis cluster and view Redis commands in the Teleport audit log. We will be
 adding support for AWS Elasticache in the coming weeks.
 
-Self-hosted Redis guide:
-https://goteleport.com/docs/ver/9.0/database-access/guides/redis/.
+[Self-hosted Redis guide](docs/pages/database-access/guides/redis.mdx)
 
 #### SQL Server (Preview)
 
@@ -1013,8 +1112,7 @@ Directory authentication support for Database Access. Audit logging of query
 activity is not included in the preview release and will be implemented in a
 later 9.x release.
 
-SQL Server guide:
-https://goteleport.com/docs/ver/9.0/database-access/guides/sql-server-ad/.
+[SQL Server guide](docs/pages/database-access/guides/sql-server-ad.mdx)
 
 #### RDS MariaDB
 
@@ -1022,8 +1120,7 @@ Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
 MariaDB databases using IAM authentication. The minimum MariaDB version that
 supports IAM authentication is 10.6.
 
-Updated RDS guide:
-https://goteleport.com/docs/ver/9.0/database-access/guides/rds/.
+[Updated RDS guide](docs/pages/database-access/guides/rds.mdx)
 
 #### Other Improvements
 
@@ -1034,8 +1131,9 @@ and "teleport db configure bootstrap", which configures IAM permissions for the
 Database Service when running on AWS.
 
 CLI commands reference:
-https://goteleport.com/docs/ver/9.0/database-access/reference/cli/#teleport-db-configure-create
-https://goteleport.com/docs/ver/9.0/database-access/reference/cli/#teleport-db-configure-bootstrap
+- [`teleport db configure
+  create`](./docs/pages/database-access/reference/cli.mdx#teleport-db-configure-create)
+- [`teleport db configure bootstrap`](./docs/pages/database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
 
 ### Moderated Sessions
 
@@ -1043,8 +1141,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-Moderated Sessions guide:
-https://goteleport.com/docs/ver/9.0/access-controls/guides/moderated-sessions/.
+[Moderated Sessions guide](docs/pages/access-controls/guides/moderated-sessions.mdx)
 
 ### Breaking Changes
 
@@ -1072,7 +1169,7 @@ Teleport users can connect to Active Directory enrolled Windows hosts running
 Windows 10, Windows Server 2012 R2 and newer Windows versions.
 
 To try this feature yourself, check out our
-[Getting Started Guide](https://goteleport.com/docs/ver/8.0/desktop-access/getting-started/).
+[Getting Started Guide](docs/pages/desktop-access/getting-started.mdx).
 
 Review the Desktop Access design in:
 
@@ -1109,7 +1206,8 @@ Teleport application access extends AWS console support to CLI . Users are able
 to log into their AWS console using `tsh app login` and use `tsh aws` commands
 to interact with AWS APIs.
 
-See more info in the [documentation](https://goteleport.com/docs/ver/8.0/application-access/guides/aws-console/#step-8-using-aws-cli).
+See more info in the
+[documentation](docs/pages/application-access/guides/aws-console.mdx).
 
 #### Application and Database Dynamic Registration
 
@@ -1118,9 +1216,9 @@ without needing to update static YAML configuration or restart application or
 database agents.
 
 See dynamic registration guides for
-[apps](https://goteleport.com/docs/ver/8.0/application-access/guides/dynamic-registration/)
+[apps](docs/pages/application-access/guides/dynamic-registration.mdx)
 and
-[databases](https://goteleport.com/docs/ver/8.0/database-access/guides/dynamic-registration/).
+[databases](docs/pages/database-access/guides/dynamic-registration.mdx).
 
 #### RDS Automatic Discovery
 
@@ -1128,7 +1226,7 @@ With RDS auto discovery Teleport database agents can automatically discover RDS
 instances and Aurora clusters in an AWS account.
 
 See updated
-[RDS guide](https://goteleport.com/docs/ver/8.0/database-access/guides/rds/) for
+[RDS guide](docs/pages/database-access/guides/rds.mdx) for
 more information.
 
 #### WebAuthn
@@ -1232,19 +1330,19 @@ Teleport 7.0 is a major release of Teleport that contains new features, improvem
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport Database Access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 
-View the [Database Access with MongoDB](https://goteleport.com/docs/ver/7.0/database-access/guides/mongodb-self-hosted/) for more details.
+View the [Database Access with MongoDB](docs/pages/database-access/guides/mongodb-self-hosted.mdx) for more details.
 
 #### Cloud SQL MySQL
 
 Added support for [GCP Cloud SQL MySQL](https://cloud.google.com/sql/docs/mysql) to Teleport Database Access. [#7302](https://github.com/gravitational/teleport/pull/7302)
 
-View the Cloud SQL MySQL [guide](https://goteleport.com/docs/ver/7.0/database-access/guides/mysql-cloudsql/) for more details.
+View the Cloud SQL MySQL [guide](docs/pages/database-access/guides/mysql-cloudsql.mdx) for more details.
 
 #### AWS Console
 
 Added support for [AWS Console](https://aws.amazon.com/console) to Teleport Application Access. [#7590](https://github.com/gravitational/teleport/pull/7590)
 
-Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](https://goteleport.com/docs/ver/7.0/application-access/guides/aws-console/) for more details.
+Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/application-access/guides/aws-console.mdx) for more details.
 
 #### Restricted Sessions
 
@@ -1301,7 +1399,7 @@ before upgrading.
 
 Added support for [Amazon Redshift](https://aws.amazon.com/redshift) to Teleport Database Access.[#6479](https://github.com/gravitational/teleport/pull/6479).
 
-View the [Database Access with Redshift on AWS Guide](https://goteleport.com/docs/ver/6.2/database-access/guides/postgres-redshift/) for more details.
+View the [Database Access with Redshift on AWS Guide](docs/pages/database-access/guides/postgres-redshift.mdx) for more details.
 
 ### Improvements
 

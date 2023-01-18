@@ -22,8 +22,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // localFileSystem provides API for accessing the files on

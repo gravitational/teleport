@@ -30,6 +30,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"gopkg.in/check.v1"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	api "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -38,9 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"gopkg.in/check.v1"
 )
 
 type blockAction int

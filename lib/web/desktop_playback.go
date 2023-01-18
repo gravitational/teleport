@@ -19,11 +19,12 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/web/desktop"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/websocket"
+
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/web/desktop"
 )
 
 func (h *Handler) desktopPlaybackHandle(

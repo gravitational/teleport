@@ -21,13 +21,16 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"io"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
@@ -35,9 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -328,10 +328,13 @@ func (p *Proxy) Serve(ctx context.Context) error {
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
 					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
-
-				if trace.IsBadParameter(err) {
+				switch {
+				case trace.IsBadParameter(err):
 					p.log.Warnf("Failed to handle client connection: %v", err)
-				} else if !utils.IsOKNetworkError(err) {
+				case utils.IsOKNetworkError(err):
+				case isConnRemoteError(err):
+					p.log.WithField("remote_addr", clientConn.RemoteAddr()).Debugf("Connection rejected by client: %v", err)
+				default:
 					p.log.WithError(err).Warnf("Failed to handle client connection.")
 				}
 			}
@@ -612,4 +615,11 @@ func (w *ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn ne
 		return trace.NotFound("missing ConnectionHandler")
 	}
 	return w.h(ctx, conn)
+}
+
+// isConnRemoteError checks if an error origin is from the client side like:
+// TLS client side handshake error when the telepot proxy CA is not recognized by a client.
+func isConnRemoteError(err error) bool {
+	var opErr *net.OpError
+	return errors.As(err, &opErr) && opErr.Op == "remote error"
 }

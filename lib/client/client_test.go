@@ -26,15 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/sshutils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"gopkg.in/check.v1"
 )
 
 type ClientTestSuite struct {

@@ -20,11 +20,11 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // NewKeepAliver returns a new instance of keep aliver.

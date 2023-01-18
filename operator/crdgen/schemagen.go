@@ -21,19 +21,15 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gobuffalo/flect"
+	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
-
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 	"sigs.k8s.io/controller-tools/pkg/loader"
 	"sigs.k8s.io/controller-tools/pkg/markers"
-
-	"github.com/gobuffalo/flect"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
-
-	"github.com/gravitational/trace"
 )
 
 const k8sKindPrefix = "Teleport"

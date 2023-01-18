@@ -20,17 +20,17 @@ limitations under the License.
 package bpf
 
 import (
+	"encoding/binary"
+	"os"
+	"sync"
+	"unsafe"
+
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-
-	"encoding/binary"
-	"os"
-	"sync"
-	"unsafe"
 )
 
 var log = logrus.WithFields(logrus.Fields{

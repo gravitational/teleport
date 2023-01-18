@@ -24,6 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -36,12 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
@@ -94,11 +94,6 @@ func TestSession_newRecorder(t *testing.T) {
 
 	proxyRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxySync,
-	})
-	require.NoError(t, err)
-
-	nodeRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
 	})
 	require.NoError(t, err)
 
@@ -163,28 +158,6 @@ func TestSession_newRecorder(t *testing.T) {
 				_, ok := i.(*events.DiscardStream)
 				require.True(t, ok)
 			},
-		},
-		{
-			desc: "err-new-streamer-fails",
-			sess: &session{
-				id:  "test",
-				log: logger,
-				registry: &SessionRegistry{
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
-			sctx: &ServerContext{
-				SessionRecordingConfig: nodeRecording,
-				srv: &mockServer{
-					component: teleport.ComponentNode,
-				},
-			},
-			errAssertion: require.Error,
-			recAssertion: require.Nil,
 		},
 		{
 			desc: "strict-err-new-audit-writer-fails",
@@ -613,7 +586,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 
 type mockRecorder struct {
 	events.StreamWriter
-	done bool
+	emitter eventstest.MockEmitter
+	done    bool
 }
 
 func (m *mockRecorder) Done() <-chan struct{} {
@@ -623,6 +597,10 @@ func (m *mockRecorder) Done() <-chan struct{} {
 	}
 
 	return ch
+}
+
+func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return m.emitter.EmitAuditEvent(ctx, event)
 }
 
 type trackerService struct {

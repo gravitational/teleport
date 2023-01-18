@@ -17,11 +17,11 @@ package handler
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
-	"github.com/gravitational/trace"
 )
 
 // CreateGateway creates a gateway

@@ -26,9 +26,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/stretchr/testify/require"
 )
 
 func TestForwardProxy(t *testing.T) {

@@ -22,8 +22,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils/workpool"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/workpool"
 )
 
 type Lease = workpool.Lease

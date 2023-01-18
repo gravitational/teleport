@@ -19,8 +19,9 @@ package config
 import (
 	"path/filepath"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 var defaultStoragePath = filepath.Join(defaults.DataDir, "bot")

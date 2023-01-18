@@ -20,10 +20,10 @@ import (
 	"crypto/rsa"
 	"net"
 
-	"github.com/gravitational/teleport/api/constants"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // CertChecker is a drop-in replacement for ssh.CertChecker. In FIPS mode,

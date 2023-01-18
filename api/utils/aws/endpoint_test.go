@@ -194,7 +194,7 @@ func TestParseElastiCacheEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name:     "primary endpiont, TLS disabled",
+			name:     "primary endpoint, TLS disabled",
 			inputURI: "my-redis-cluster.xxxxxx.ng.0001.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
 				ID:           "my-redis-cluster",
@@ -203,7 +203,7 @@ func TestParseElastiCacheEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name:     "reader endpiont, TLS disabled",
+			name:     "reader endpoint, TLS disabled",
 			inputURI: "my-redis-cluster-ro.xxxxxx.ng.0001.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
 				ID:           "my-redis-cluster",

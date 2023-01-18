@@ -264,6 +264,8 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			if g.APIConfig.MetadataGetter != nil {
 				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				// TODO(zmb3): this may result in duplicate upload events, as the upload
+				// completer will emit its own session.upload
 				event := &apievents.SessionUpload{
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,

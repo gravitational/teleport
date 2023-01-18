@@ -21,9 +21,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {

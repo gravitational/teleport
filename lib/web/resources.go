@@ -22,6 +22,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/mod/semver"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -31,12 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"golang.org/x/mod/semver"
-
-	"github.com/gravitational/trace"
-
-	"github.com/julienschmidt/httprouter"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.

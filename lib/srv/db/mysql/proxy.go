@@ -22,6 +22,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -30,12 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/go-mysql-org/go-mysql/mysql"
-	"github.com/go-mysql-org/go-mysql/server"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Proxy proxies connections from MySQL clients to database services
@@ -246,7 +245,13 @@ func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
 			return trace.Wrap(err)
 		}
 	case *protocol.Error:
-		err = server.WriteError(p)
+		// There may be a difference in capabilities between client <--> proxy
+		// than there is between proxy <--> agent, most notably,
+		// CLIENT_PROTOCOL_41.
+		// So rather than forwarding packet bytes directly, convert the error
+		// packet into MyError and write with respect to caps between
+		// client <--> proxy.
+		err = server.WriteError(mysql.NewError(p.Code, p.Message))
 		if err != nil {
 			return trace.Wrap(err)
 		}

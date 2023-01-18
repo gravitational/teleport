@@ -19,9 +19,10 @@ package srv
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCheckSFTPAllowed(t *testing.T) {

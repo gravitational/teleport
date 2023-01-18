@@ -30,8 +30,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -49,10 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 // FileConfig structre represents the teleport configuration stored in a config file
@@ -685,7 +684,7 @@ type Auth struct {
 	// environments where paranoid security is not needed
 	//
 	// Each token string has the following format: "role1,role2,..:token",
-	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
+	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
 	// Authentication holds authentication configuration information like authentication
@@ -769,6 +768,30 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+}
+
+// hasCustomNetworkingConfig returns true if any of the networking
+// configuration fields have values different from an empty Auth.
+func (a *Auth) hasCustomNetworkingConfig() bool {
+	empty := Auth{}
+	return a.ClientIdleTimeout != empty.ClientIdleTimeout ||
+		a.ClientIdleTimeoutMessage != empty.ClientIdleTimeoutMessage ||
+		a.WebIdleTimeout != empty.WebIdleTimeout ||
+		a.KeepAliveInterval != empty.KeepAliveInterval ||
+		a.KeepAliveCountMax != empty.KeepAliveCountMax ||
+		a.SessionControlTimeout != empty.SessionControlTimeout ||
+		a.ProxyListenerMode != empty.ProxyListenerMode ||
+		a.RoutingStrategy != empty.RoutingStrategy ||
+		a.TunnelStrategy != empty.TunnelStrategy ||
+		a.ProxyPingInterval != empty.ProxyPingInterval
+}
+
+// hasCustomSessionRecording returns true if any of the session recording
+// configuration fields have values different from an empty Auth.
+func (a *Auth) hasCustomSessionRecording() bool {
+	empty := Auth{}
+	return a.SessionRecording != empty.SessionRecording ||
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1525,6 +1548,10 @@ type Proxy struct {
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
 
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration `yaml:"https_keypairs_reload_interval"`
+
 	// ACME configures ACME protocol support
 	ACME ACME `yaml:"acme"`
 
@@ -1725,6 +1752,8 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
+	// SID is the Security Identifier for the service account specified by Username.
+	SID string `yaml:"sid"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// ServerName is the name of the LDAP server for TLS.

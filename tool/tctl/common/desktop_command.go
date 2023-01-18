@@ -19,11 +19,12 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
@@ -86,3 +87,9 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) e
 		return trace.BadParameter("unknown format %q", c.format)
 	}
 }
+
+var desktopMessageTemplate = template.Must(template.New("desktop").Parse(`The invite token: {{.token}}
+This token will expire in {{.minutes}} minutes.
+This token enables Desktop Access.  See https://goteleport.com/docs/desktop-access/
+for detailed information on configuring Teleport Desktop Access with this token.
+`))

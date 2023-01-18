@@ -18,7 +18,6 @@ package clusters
 
 import (
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )

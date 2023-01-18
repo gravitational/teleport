@@ -29,10 +29,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // TLSConfig returns default TLS configuration strong defaults.

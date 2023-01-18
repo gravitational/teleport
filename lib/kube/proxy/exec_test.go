@@ -25,14 +25,14 @@ import (
 	"net/url"
 	"testing"
 
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/scheme"
+
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
 var (
@@ -139,7 +139,7 @@ func TestExecKubeService(t *testing.T) {
 			exec, err := tt.args.executorBuilder(config, http.MethodPost, req.URL())
 			require.NoError(t, err)
 
-			err = exec.Stream(streamOpts)
+			err = exec.StreamWithContext(testCtx.ctx, streamOpts)
 			require.NoError(t, err)
 
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stdout.String())

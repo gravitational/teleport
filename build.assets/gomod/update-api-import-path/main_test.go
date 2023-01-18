@@ -21,10 +21,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/build.assets/gomod"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/build.assets/gomod"
 )
 
 func TestUpdateGoPkgs(t *testing.T) {

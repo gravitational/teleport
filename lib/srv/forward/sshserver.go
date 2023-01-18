@@ -23,6 +23,12 @@ import (
 	"net"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -44,13 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -652,7 +651,6 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 		return nil, trace.Wrap(err)
 	}
 	return client, nil
-
 }
 
 // signersWithSHA1Fallback returns the signers provided by signersCb and appends
@@ -794,6 +792,16 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
+		// On forward server in direct-tcpip" channels from SessionJoinPrincipal
+		//  should be rejected, otherwise it's possible to use the
+		// "-teleport-internal-join" user to bypass RBAC.
+		if s.identityContext.Login == teleport.SSHSessionJoinPrincipal {
+			s.log.Error("Connection rejected, direct-tcpip with SessionJoinPrincipal in forward node must be blocked")
+			if err := nch.Reject(ssh.Prohibited, fmt.Sprintf("attempted %v channel open in join-only mode", channelType)); err != nil {
+				s.log.Warnf("Failed to reject channel: %v", err)
+			}
+			return
+		}
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			s.log.Errorf("Failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)

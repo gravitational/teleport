@@ -29,15 +29,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgx/v4"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/sqlbk"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
-
-	"github.com/jackc/pgx/v4"
-	"github.com/stretchr/testify/require"
 )
 
 var (

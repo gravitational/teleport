@@ -21,7 +21,6 @@ import (
 	"os/user"
 
 	"github.com/gravitational/trace"
-
 	"gopkg.in/check.v1"
 )
 

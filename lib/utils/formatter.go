@@ -30,9 +30,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 type TextFormatter struct {

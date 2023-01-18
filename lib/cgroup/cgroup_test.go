@@ -24,10 +24,10 @@ import (
 	"path"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/uuid"
 	"gopkg.in/check.v1"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {

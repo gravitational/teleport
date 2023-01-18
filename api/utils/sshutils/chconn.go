@@ -22,10 +22,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 type Conn interface {

@@ -22,6 +22,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -33,9 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
@@ -76,7 +76,9 @@ type CreateAppSessionRequest resolveAppParams
 
 type CreateAppSessionResponse struct {
 	// CookieValue is the application session cookie value.
-	CookieValue string `json:"value"`
+	CookieValue string `json:"cookie_value"`
+	// SubjectCookieValue is the application session subject cookie token.
+	SubjectCookieValue string `json:"subject_cookie_value"`
 	// FQDN is application FQDN.
 	FQDN string `json:"fqdn"`
 }
@@ -218,8 +220,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return &CreateAppSessionResponse{
-		CookieValue: ws.GetName(),
-		FQDN:        result.FQDN,
+		CookieValue:        ws.GetName(),
+		SubjectCookieValue: ws.GetBearerToken(),
+		FQDN:               result.FQDN,
 	}, nil
 }
 

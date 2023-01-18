@@ -24,13 +24,14 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 var log = logrus.WithFields(logrus.Fields{

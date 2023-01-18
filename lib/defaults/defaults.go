@@ -25,15 +25,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -825,8 +824,10 @@ const (
 
 // Default values for tsh and tctl commands.
 const (
-	TshTctlSessionListLimit = "50"
-	TshTctlSessionDayLimit  = 365
+	// Use more human readable format than RFC3339
+	TshTctlSessionListTimeFormat = "2006-01-02"
+	TshTctlSessionListLimit      = "50"
+	TshTctlSessionDayLimit       = 365
 )
 
 // DefaultFormats is the default set of formats to use for commands that have the --format flag.
@@ -837,22 +838,47 @@ func FormatFlagDescription(formats ...string) string {
 	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
 }
 
-func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time.Time, to time.Time, err error) {
+func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {
+	if (fromUTC != "" || toUTC != "") && recordingsSince != "" {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("use of 'since' is mutually exclusive with 'from-utc' and 'to-utc' flags")
+	}
 	from = clock.Now().Add(time.Hour * -24)
 	to = clock.Now()
 	if fromUTC != "" {
-		from, err = time.Parse(time.RFC3339, fromUTC)
+		from, err = time.Parse(TshTctlSessionListTimeFormat, fromUTC)
 		if err != nil {
 			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session recording listing start time: expected format %s, got %s.", time.RFC3339, fromUTC)
+				trace.BadParameter("failed to parse session recording listing start time: expected format %s, got %s.", TshTctlSessionListTimeFormat, fromUTC)
 		}
 	}
 	if toUTC != "" {
-		to, err = time.Parse(time.RFC3339, toUTC)
+		to, err = time.Parse(TshTctlSessionListTimeFormat, toUTC)
 		if err != nil {
 			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", time.RFC3339, toUTC)
+				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", TshTctlSessionListTimeFormat, toUTC)
 		}
+	}
+	if recordingsSince != "" {
+		since, err := time.ParseDuration(recordingsSince)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("invalid duration provided to 'since': %s: expected format: '5h30m40s'", recordingsSince)
+		}
+		from = to.Add(-since)
+	}
+
+	if to.After(clock.Now()) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--to-utc': '--to-utc' cannot be in the future")
+	}
+	if from.After(clock.Now()) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--from-utc': '--from-utc' cannot be in the future")
+	}
+	if from.After(to) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--from-utc' time: 'from' must be before '--to-utc'")
 	}
 	return from, to, nil
 }

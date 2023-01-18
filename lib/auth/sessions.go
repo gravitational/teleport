@@ -20,6 +20,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -29,10 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -90,12 +90,17 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	bearer, err := utils.CryptoRandomHex(SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
-		User:    req.Username,
-		Priv:    privateKey,
-		Pub:     certs.SSH,
-		TLSCert: certs.TLS,
-		Expires: s.clock.Now().Add(ttl),
+		User:        req.Username,
+		Priv:        privateKey,
+		Pub:         certs.SSH,
+		TLSCert:     certs.TLS,
+		Expires:     s.clock.Now().Add(ttl),
+		BearerToken: bearer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

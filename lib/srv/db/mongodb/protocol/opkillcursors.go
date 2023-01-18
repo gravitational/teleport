@@ -19,10 +19,9 @@ package protocol
 import (
 	"fmt"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpKillCursors represents parsed OP_KILL_CURSORS wire message.

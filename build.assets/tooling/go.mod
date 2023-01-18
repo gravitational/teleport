@@ -4,9 +4,11 @@ go 1.18
 
 require (
 	github.com/aws/aws-sdk-go v1.44.47
+	github.com/bradleyfalzon/ghinstallation/v2 v2.1.0
 	github.com/cavaliergopher/rpm v1.2.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/google/go-github/v41 v41.0.0
+	github.com/google/uuid v1.3.0
 	github.com/gravitational/trace v1.1.15
 	github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
 	github.com/seqsense/s3sync v1.8.2
@@ -19,6 +21,8 @@ require (
 
 require (
 	github.com/gabriel-vasile/mimetype v1.4.0 // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
+	github.com/google/go-github/v45 v45.2.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect

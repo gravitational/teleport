@@ -22,12 +22,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/sqlbk"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v4"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/sqlbk"
 )
 
 // pgTx implements sqlbk.Tx for postgres.

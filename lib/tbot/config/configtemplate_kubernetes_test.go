@@ -23,9 +23,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils/golden"
-	"github.com/stretchr/testify/require"
 )
 
 // TestTemplateKubernetesRender renders a Kubernetes template and compares it

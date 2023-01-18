@@ -18,11 +18,11 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
-	"github.com/gravitational/trace"
 )
 
 // New creates an instance of Daemon service

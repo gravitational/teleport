@@ -24,15 +24,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be

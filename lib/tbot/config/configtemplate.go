@@ -24,14 +24,15 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 )
 
 const (

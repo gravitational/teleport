@@ -110,6 +110,17 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleDiscovery:      {},
 }
 
+// LocalServiceMappings returns the subset of role mappings which happen
+// to be true Teleport services (e.g. db, kube, proxy, etc), excluding
+// those which represent remote service (i.e. remoteproxy).
+func LocalServiceMappings() SystemRoles {
+	var sr SystemRoles
+	for k := range localServiceMappings {
+		sr = append(sr, k)
+	}
+	return sr
+}
+
 // NewTeleportRoles return a list of teleport roles from slice of strings
 func NewTeleportRoles(in []string) (SystemRoles, error) {
 	var roles SystemRoles

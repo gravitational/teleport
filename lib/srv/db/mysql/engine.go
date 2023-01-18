@@ -27,6 +27,8 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,9 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -72,7 +71,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) er
 
 // SendError sends an error to connected client in the MySQL understandable format.
 func (e *Engine) SendError(err error) {
-	if writeErr := e.proxyConn.WriteError(err); writeErr != nil {
+	if writeErr := e.proxyConn.WriteError(trace.Unwrap(err)); writeErr != nil {
 		e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
 	}
 }

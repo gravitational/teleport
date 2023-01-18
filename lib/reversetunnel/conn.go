@@ -24,11 +24,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -190,6 +189,16 @@ func (c *remoteConn) markValid() {
 
 func (c *remoteConn) isInvalid() bool {
 	return atomic.LoadInt32(&c.invalid) == 1
+}
+
+// isOffline determines if the remoteConn has missed
+// enough heartbeats to be considered offline. Any active connections
+// still being serviced by the connection will cause a true return
+// even if the threshold has been exceeded.
+func (c *remoteConn) isOffline(now time.Time, threshold time.Duration) bool {
+	hb := c.getLastHeartbeat()
+	count := c.activeSessions()
+	return now.After(hb.Add(threshold)) && count == 0
 }
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {

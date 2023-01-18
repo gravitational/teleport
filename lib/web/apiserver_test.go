@@ -57,6 +57,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -277,7 +278,6 @@ func newWebSuite(t *testing.T) *WebSuite {
 	s.node = node
 	s.srvID = node.ID()
 	require.NoError(t, s.node.Start())
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
@@ -463,7 +463,7 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 }
 
 func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Response {
-	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "web", "renew"), nil)
 	require.NoError(t, err)
 	return resp
 }
@@ -761,7 +761,7 @@ func TestWebSessionsCRUD(t *testing.T) {
 	// now delete session
 	_, err = pack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests trying to use this session will fail
@@ -913,7 +913,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	}
 	for i, req := range reqs {
 		t.Run(fmt.Sprintf("tc %v", i), func(t *testing.T) {
-			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions"), req)
+			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions", "web"), req)
 			require.Error(t, err)
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -1409,7 +1409,7 @@ func TestTerminal(t *testing.T) {
 			name: "node recording mode",
 			recordingConfig: types.SessionRecordingConfigV2{
 				Spec: types.SessionRecordingConfigSpecV2{
-					Mode: types.RecordAtNode,
+					Mode: types.RecordAtNodeSync,
 				},
 			},
 		},
@@ -1788,7 +1788,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	_, err = stream.Read(out)
 	require.NoError(t, err)
 
-	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// wait until we timeout or detect that connection has been closed
@@ -1887,7 +1887,7 @@ func TestLogin(t *testing.T) {
 
 	clt := s.client()
 	ua := "test-ua"
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", ua)
 
@@ -3177,7 +3177,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Len(t, sessions, len(applications))
 
 	// Logout from Telport.
-	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
@@ -3793,7 +3793,10 @@ func TestCreateAppSession(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.outUsername, sess.GetUser())
+			require.NotEmpty(t, response.CookieValue)
 			require.Equal(t, response.CookieValue, sess.GetName())
+			require.NotEmpty(t, response.SubjectCookieValue, "every session should create a secret token")
+			require.Equal(t, response.SubjectCookieValue, sess.GetBearerToken())
 		})
 	}
 }
@@ -3919,7 +3922,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// now delete session
 	_, err = newPack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests to use this session will fail
@@ -4942,7 +4945,7 @@ func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken str
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -5110,7 +5113,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	require.NoError(t, node.Start())
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
@@ -5557,7 +5559,7 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -5631,7 +5633,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessRequestID := accessReq.GetMetadata().Name
 
 	// Make a request to renew the session with the ID of the access request.
-	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "renew"), renewSessionRequest{
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "web", "renew"), renewSessionRequest{
 		AccessRequestID: accessRequestID,
 	})
 	require.NoError(t, err)
@@ -5648,6 +5650,40 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 
 	// Verify that the userContext returned contains the correct Access Request ID.
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
+}
+
+func TestWithLimiterHandlerFunc(t *testing.T) {
+	const burst = 20
+	limiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{
+				Period:  time.Minute,
+				Average: 10,
+				Burst:   burst,
+			},
+		},
+		Clock: &timetools.FreezedTime{
+			CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+		},
+	})
+	require.NoError(t, err)
+	h := &Handler{limiter: limiter}
+	hf := h.WithLimiterHandlerFunc(func(http.ResponseWriter, *http.Request, httprouter.Params) (interface{}, error) {
+		return nil, nil
+	})
+
+	// Verify that a valid burst is allowed.
+	r := &http.Request{}
+	for i := 0; i < burst; i++ {
+		r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", i)
+		_, err = hf(nil, r, nil)
+		require.NoError(t, err, "WithLimiterHandlerFunc failed unexpectedly")
+	}
+
+	// Verify that exceeding the limit causes errors.
+	r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", burst)
+	_, err = hf(nil, r, nil)
+	require.True(t, trace.IsLimitExceeded(err), "WithLimiterHandlerFunc returned err = %T, want trace.LimitExceededError", err)
 }
 
 // kubeClusterConfig defines the cluster to be created
@@ -5864,4 +5900,60 @@ func init() {
 	statusScheme.AddUnversionedTypes(metav1.SchemeGroupVersion,
 		&metav1.Status{},
 	)
+}
+
+func TestLogout(t *testing.T) {
+	ctx := context.Background()
+	t.Parallel()
+	env := newWebPack(t, 2)
+
+	// create a logged in user for proxy 1
+	pack := env.proxies[0].authPack(t, "llama", nil /* roles */)
+
+	// ensure the client is authenticated
+	re, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	var clusters []ui.Cluster
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// create a client for proxy 2 with the token and cookies from proxy 1
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	jar.SetCookies(&env.proxies[1].webURL, pack.cookies)
+	clt2 := env.proxies[1].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
+
+	// ensure the second client is authenticated
+	re, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// logout from proxy 1
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
+	require.NoError(t, err)
+
+	// ensure proxy 1 invalidated the session
+	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.AccessDenied("missing session cookie"))
+
+	// should still be authenticated to proxy 2 until the expiration loop kicks in
+	re, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// advance the clock to fire the expiration ticker
+	env.clock.Advance(time.Second)
+
+	// wait for the expiration loop to purge the session
+	require.Eventually(t, func() bool {
+		return env.proxies[1].handler.handler.auth.ActiveSessions() == 0
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// ensure proxy 2 invalidated the session
+	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }

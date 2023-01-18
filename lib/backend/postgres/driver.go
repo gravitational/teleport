@@ -26,11 +26,12 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend/sqlbk"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
+
+	"github.com/gravitational/teleport/lib/backend/sqlbk"
 )
 
 // pgDriver implements backend.Driver for a PostgreSQL or CockroachDB database.

@@ -23,13 +23,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // ConnectionContext manages connection-level state.

@@ -22,9 +22,8 @@ import (
 	"net"
 	"syscall"
 
-	"google.golang.org/grpc/credentials"
-
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/credentials"
 )
 
 // TLSCreds is the credentials required for authenticating a connection using TLS.

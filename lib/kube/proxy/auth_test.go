@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 	authzapi "k8s.io/api/authorization/v1"
@@ -31,6 +30,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/transport"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type AuthSuite struct{}

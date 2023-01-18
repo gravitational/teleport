@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 // JoinMethod is the method used for new nodes to join the cluster.

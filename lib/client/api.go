@@ -39,6 +39,15 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -71,15 +80,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -3229,7 +3229,12 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	if len(tc.JumpHosts) > 0 {
 		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
 		// Check if JumpHost address is a proxy web address.
-		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: sshProxyAddr, Insecure: tc.InsecureSkipVerify})
+		resp, err := webclient.Find(&webclient.Config{
+			Context:      ctx,
+			ProxyAddr:    sshProxyAddr,
+			Insecure:     tc.InsecureSkipVerify,
+			ExtraHeaders: tc.ExtraProxyHeaders,
+		})
 		// If JumpHost address is a proxy web port and proxy supports TLSRouting dial proxy with TLSWrapper.
 		if err == nil && resp.Proxy.TLSRoutingEnabled {
 			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)

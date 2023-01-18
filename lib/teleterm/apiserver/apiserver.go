@@ -22,17 +22,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/api/utils/keys"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
-	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
-
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/api/utils/keys"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (

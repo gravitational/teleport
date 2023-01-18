@@ -12,7 +12,8 @@ main() {
   # the correct relative path.
   trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
   rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
-  buf generate
+  buf generate api/proto
+  buf generate proto
   cp -r github.com/gravitational/teleport/* .
 }
 

@@ -21,10 +21,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/api"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // DatabaseServer represents a database access server.

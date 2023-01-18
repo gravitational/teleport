@@ -20,10 +20,10 @@ package proto
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
 )
 
 // Duration is a wrapper around duration

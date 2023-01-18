@@ -21,10 +21,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, p httprouter.Params, session *session) error {
@@ -36,16 +36,21 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, p httprou
 		return trace.Wrap(err)
 	}
 
-	// Set Max-Age to 0 to tell the browser to delete this cookie.
+	// delete these cookies on logout.
+	expireCookie(w, CookieName)
+	expireCookie(w, SubjectCookieName)
+	http.Error(w, "Logged out.", http.StatusOK)
+	return nil
+}
+
+func expireCookie(w http.ResponseWriter, cookieName string) {
+	// Set Max-Age to 0 to tell the browser to delete these cookies.
 	http.SetCookie(w, &http.Cookie{
-		Name:     CookieName,
+		Name:     cookieName,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
 		Expires:  time.Unix(0, 0),
 		SameSite: http.SameSiteLaxMode,
 	})
-	http.Error(w, "Logged out.", http.StatusOK)
-
-	return nil
 }

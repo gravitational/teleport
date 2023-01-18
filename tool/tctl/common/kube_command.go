@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -46,8 +47,8 @@ type KubeCommand struct {
 func (c *KubeCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
-	kube := app.Command("kube", "Operate on registered kubernetes clusters.")
-	c.kubeList = kube.Command("ls", "List all kubernetes clusters registered with the cluster.")
+	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
+	c.kubeList = kube.Command("ls", "List all Kubernetes clusters registered with the cluster.")
 	c.kubeList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.kubeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
@@ -82,3 +83,25 @@ func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
 		return trace.BadParameter("unknown format %q", c.format)
 	}
 }
+
+var kubeMessageTemplate = template.Must(template.New("kube").Parse(`The invite token: {{.token}}
+This token will expire in {{.minutes}} minutes.
+To use with Helm installation follow these steps:
+# Retrieve the Teleport helm charts
+helm repo add teleport https://charts.releases.teleport.dev
+# Refresh the helm charts
+helm repo update
+> helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=cluster ` + "`" + `# Change kubeClusterName variable to your preferred name.` + "`" + ` \
+  --set proxyAddr={{.auth_server}} \
+  --set authToken={{.token}} \
+  --create-namespace \
+  --namespace=teleport-agent
+        
+Please note:
+        
+  - This invitation token will expire in {{.minutes}} minutes.
+  - {{.auth_server}} must be reachable from Kubernetes cluster.
+  - The token is usable in a standalone Linux server with kubernetes_service.
+  - See https://goteleport.com/docs/kubernetes-access/ for detailed installation information.
+`))

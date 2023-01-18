@@ -29,9 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -216,7 +215,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:                   desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
@@ -231,19 +230,6 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			warnOnErr(srv.Close(), log)
 		}
 	}()
-
-	if err := process.initUploaderService(
-		filesessions.UploaderConfig{
-			Streamer: accessPoint,
-			AuditLog: conn.Client,
-		},
-		events.UploadCompleterConfig{
-			SessionTracker: conn.Client,
-			GracePeriod:    defaults.UploadGracePeriod,
-			ClusterName:    conn.ServerIdentity.ClusterName,
-		}); err != nil {
-		return trace.Wrap(err)
-	}
 
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
 		if useTunnel {

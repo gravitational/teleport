@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -43,8 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -395,6 +394,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if err := x11rdyfd.Close(); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
+	}
+
+	if err := setNeutralOOMScore(); err != nil {
+		log.WithError(err).Warnf("failed to adjust OOM score")
 	}
 
 	// Start the command.

@@ -24,11 +24,11 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // AuthPreference defines the authentication preferences for a specific

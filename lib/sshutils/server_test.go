@@ -23,13 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {

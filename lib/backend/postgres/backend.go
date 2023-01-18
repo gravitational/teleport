@@ -20,15 +20,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/sqlbk"
 	"github.com/gravitational/trace"
+	// Ensure pgx driver is registered.
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	// Ensure pgx driver is registered.
-	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/sqlbk"
 )
 
 const (

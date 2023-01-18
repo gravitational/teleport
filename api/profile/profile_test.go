@@ -22,10 +22,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/profile"
 )
 
 // TestProfileBasics verifies basic profile operations such as
