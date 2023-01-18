@@ -341,6 +341,13 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 			}
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
 		}
+		if len(c.AccessPolicies) != 0 {
+			policies, err := services.MarshalCertAccessPolicies(c.AccessPolicies)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportAccessPolicies] = policies
+		}
 		if c.RouteToCluster != "" {
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster] = c.RouteToCluster
 		}

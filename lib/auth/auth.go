@@ -1344,6 +1344,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		SourceIP:               req.sourceIP,
 		ConnectionDiagnosticID: req.connectionDiagnosticID,
 		PrivateKeyPolicy:       attestedKeyPolicy,
+		AccessPolicies:         req.user.GetAccessPolicies(),
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1394,6 +1395,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
 		Groups:            req.checker.RoleNames(),
+		AccessPolicies:    req.user.GetAccessPolicies(),
 		Principals:        allowedLogins,
 		Usage:             req.usage,
 		RouteToCluster:    req.routeToCluster,

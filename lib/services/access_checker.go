@@ -196,6 +196,8 @@ type AccessChecker interface {
 type AccessInfo struct {
 	// Roles is the list of cluster local roles for the identity.
 	Roles []string
+	// AccessPolicies is the list of cluster local access policies for the identity.
+	AccessPolicies []string
 	// Traits is the set of traits for the identity.
 	Traits wrappers.Traits
 	// AllowedResourceIDs is the list of resource IDs the identity is allowed to
@@ -316,6 +318,11 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 		return nil, trace.Wrap(err)
 	}
 
+	accessPolicies, err := ExtractAccessPoliciesFromCert(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	allowedResourceIDs, err := ExtractAllowedResourcesFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -323,6 +330,7 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 
 	return &AccessInfo{
 		Roles:              roles,
+		AccessPolicies:     accessPolicies,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
@@ -352,6 +360,11 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMa
 		return nil, trace.Wrap(err)
 	}
 
+	unmappedAccessPolicies, err := ExtractAccessPoliciesFromCert(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	roles, err := MapRoles(roleMap, unmappedRoles)
 	if err != nil {
 		return nil, trace.AccessDenied("failed to map roles for user with remote roles %v: %v", unmappedRoles, err)
@@ -368,7 +381,9 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMa
 	}
 
 	return &AccessInfo{
-		Roles:              roles,
+		Roles: roles,
+		// TODO(joel): this will be resolved later after speccing out policy mapping further
+		AccessPolicies:     unmappedAccessPolicies,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
@@ -402,6 +417,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 
 	return &AccessInfo{
 		Roles:              roles,
+		AccessPolicies:     identity.AccessPolicies,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
@@ -450,7 +466,9 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	allowedResourceIDs := identity.AllowedResourceIDs
 
 	return &AccessInfo{
-		Roles:              roles,
+		Roles: roles,
+		// TODO(joel): this will be resolved later after speccing out policy mapping further
+		AccessPolicies:     identity.AccessPolicies,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
@@ -462,9 +480,11 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 // tbot certs, tests).
 func AccessInfoFromUser(user types.User) *AccessInfo {
 	roles := user.GetRoles()
+	accessPolicies := user.GetAccessPolicies()
 	traits := user.GetTraits()
 	return &AccessInfo{
-		Roles:  roles,
-		Traits: traits,
+		Roles:          roles,
+		AccessPolicies: accessPolicies,
+		Traits:         traits,
 	}
 }

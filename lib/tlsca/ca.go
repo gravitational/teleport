@@ -114,6 +114,8 @@ type Identity struct {
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
 	Groups []string
+	// AccessPolicies is a list of policies (Teleport access policies) encoded in the identity
+	AccessPolicies []string
 	// SystemRoles is a list of system roles (e.g. auth, proxy, node, etc) used
 	// in "multi-role" certificates. Single-role certificates encode the system role
 	// in `Groups` for back-compat reasons.
@@ -407,6 +409,10 @@ var (
 	// system role, and use `pkix.Name.Organization` to encode this value. This extension
 	// is specifically used for "multi-role" certs.
 	SystemRolesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 11}
+
+	// AllowedResourcesASN1ExtensionOID is an extension OID used to list the
+	// access policies attached to a user.
+	AccessPoliciesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 12}
 )
 
 // Subject converts identity to X.509 subject name
@@ -426,6 +432,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		// and move away from using StreetAddress and PostalCode
 		StreetAddress: []string{id.RouteToCluster},
 		PostalCode:    []string{string(rawTraits)},
+	}
+
+	for _, policy := range id.AccessPolicies {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AccessPoliciesASN1ExtensionOID,
+				Value: policy,
+			})
 	}
 
 	for i := range id.SystemRoles {
@@ -662,6 +676,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 
 	for _, attr := range subject.Names {
 		switch {
+		case attr.Type.Equal(AccessPoliciesASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AccessPolicies = append(id.AccessPolicies, val)
+			}
 		case attr.Type.Equal(SystemRolesASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {

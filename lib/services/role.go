@@ -806,6 +806,16 @@ func ExtractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	return UnmarshalCertRoles(data)
 }
 
+// ExtractAccessPoliciesFromCert extracts access policies from certificate metadata extensions.
+func ExtractAccessPoliciesFromCert(cert *ssh.Certificate) ([]string, error) {
+	data, ok := cert.Extensions[teleport.CertExtensionTeleportAccessPolicies]
+	if !ok {
+		return []string{}, nil
+	}
+
+	return UnmarshalCertAccessPolicies(data)
+}
+
 // ExtractTraitsFromCert extracts traits from the certificate extensions.
 func ExtractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
 	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]

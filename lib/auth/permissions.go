@@ -269,6 +269,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	}
 	user.SetTraits(accessInfo.Traits)
 	user.SetRoles(accessInfo.Roles)
+	user.SetAccessPolicies(accessInfo.AccessPolicies)
 
 	// Adjust expiry based on locally mapped roles.
 	ttl := time.Until(u.Identity.Expires)
@@ -292,6 +293,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	identity := tlsca.Identity{
 		Username:         user.GetName(),
 		Groups:           user.GetRoles(),
+		AccessPolicies:   user.GetAccessPolicies(),
 		Traits:           accessInfo.Traits,
 		Principals:       principals,
 		KubernetesGroups: kubeGroups,
@@ -782,6 +784,7 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	// that by extracting up to date identity traits and roles from the user's
 	// certificate metadata.
 	user.SetRoles(accessInfo.Roles)
+	user.SetAccessPolicies(accessInfo.AccessPolicies)
 	user.SetTraits(accessInfo.Traits)
 
 	return &Context{
