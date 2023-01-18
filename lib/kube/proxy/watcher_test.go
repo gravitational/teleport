@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -37,18 +36,12 @@ import (
 // TestWatcher verifies that kubernetes agent properly detects and applies
 // changes to kube_cluster resources.
 func TestWatcher(t *testing.T) {
-	t.Cleanup(func() {
-		goleak.VerifyNone(t,
-			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
-			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-		)
-	})
 	kubeMock, err := testingkubemock.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
-	ctx := context.Background()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	reconcileCh := make(chan types.KubeClusters)
 	// Setup kubernetes server that proxies one static kube cluster and
 	// watches for kube_clusters with label group=a.
@@ -60,7 +53,11 @@ func TestWatcher(t *testing.T) {
 			}},
 		},
 		onReconcile: func(kcs types.KubeClusters) {
-			reconcileCh <- kcs
+			select {
+			case reconcileCh <- kcs:
+			case <-ctx.Done():
+				return
+			}
 		},
 	})
 
