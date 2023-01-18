@@ -629,7 +629,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource", "sts:AssumeRole"},
 				},
 			},
 		},
@@ -657,7 +657,49 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource", "sts:AssumeRole"},
+				},
+			},
+		},
+		"AWS Keyspaces static databases": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{{
+						Name:     "keyspaces-1",
+						Protocol: "cassandra",
+						AWS: config.DatabaseAWS{
+							AccountID: "123456789012",
+						},
+					}},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"sts:AssumeRole"},
+				},
+			},
+		},
+		"DynamoDB static databases": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{{
+						Name:     "dynamodb-1",
+						Protocol: "dynamodb",
+						AWS: config.DatabaseAWS{
+							Region: "us-west-1",
+						},
+					}},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"sts:AssumeRole"},
 				},
 			},
 		},

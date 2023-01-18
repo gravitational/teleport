@@ -37,7 +37,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apiserver/pkg/util/wsstream"
@@ -88,12 +87,6 @@ const (
 	// into the connection before terminating the portforward connection.
 	PortForwardPayload = "Portforward handler message"
 )
-
-// statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection
-var statusScheme = runtime.NewScheme()
-
-// ParameterCodec knows about query parameters used with the meta v1 API spec.
-var statusCodecs = serializer.NewCodecFactory(statusScheme)
 
 type KubeMockServer struct {
 	router      *httprouter.Router
@@ -164,7 +157,7 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 		Message: respErr.Error(),
 		Code:    int32(trace.ErrorToCode(respErr)),
 	}
-	data, err := runtime.Encode(statusCodecs.LegacyCodec(), status)
+	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
 		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
 		trace.WriteError(rw, respErr)
