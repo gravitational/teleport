@@ -209,7 +209,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 // Close closes TLS server non-gracefully - terminates in flight connections
 func (t *TLSServer) Close() error {
-	errC := make(chan error, 2)
+	errC := make(chan error, 3)
 	go func() {
 		errC <- t.httpServer.Close()
 	}()
@@ -217,8 +217,11 @@ func (t *TLSServer) Close() error {
 		t.grpcServer.server.Stop()
 		errC <- nil
 	}()
+	go func() {
+		errC <- t.mux.Close()
+	}()
 	errors := []error{}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		errors = append(errors, <-errC)
 	}
 	return trace.NewAggregate(errors...)
@@ -244,12 +247,6 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 // Serve starts GRPC and HTTP1.1 services on the mux listener
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
-
-	defer func() {
-		err := t.mux.Close()
-		t.log.WithError(err).Warningf("Mux serve failed.")
-	}()
-
 	go func() {
 		err := t.mux.Serve()
 		t.log.WithError(err).Warningf("Mux serve failed.")
