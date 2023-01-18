@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -178,6 +179,11 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	// Don't apply the following checks in non-node contexts.
 	if s.cfg.Component != teleport.ComponentNode {
 		return ctx, nil
+	}
+
+	// Device Trust: authorize device extensions.
+	if err := dtauthz.VerifySSHUser(authPref.GetDeviceTrust(), identity.Certificate); err != nil {
+		return ctx, trace.Wrap(err)
 	}
 
 	maxConnections := identity.AccessChecker.MaxConnections()

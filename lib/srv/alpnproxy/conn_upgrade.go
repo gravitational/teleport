@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -77,15 +78,15 @@ func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 // alpnConnUpgradeDialer makes an "HTTP" upgrade call to the Proxy Service then
 // tunnels the connection with this connection upgrade.
 type alpnConnUpgradeDialer struct {
-	dialer   apiclient.ContextDialer
-	insecure bool
+	dialer    apiclient.ContextDialer
+	tlsConfig *tls.Config
 }
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
-func newALPNConnUpgradeDialer(dialer apiclient.ContextDialer, insecure bool) ContextDialer {
+func newALPNConnUpgradeDialer(dialer apiclient.ContextDialer, tlsConfig *tls.Config) ContextDialer {
 	return &alpnConnUpgradeDialer{
-		insecure: insecure,
-		dialer:   dialer,
+		dialer:    dialer,
+		tlsConfig: tlsConfig,
 	}
 }
 
@@ -97,9 +98,24 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConn := tls.Client(conn, &tls.Config{
-		InsecureSkipVerify: d.insecure,
-	})
+
+	// matching the behavior of tls.Dial
+	cfg := d.tlsConfig
+	if cfg == nil {
+		cfg = &tls.Config{}
+	}
+	if cfg.ServerName == "" {
+		colonPos := strings.LastIndex(addr, ":")
+		if colonPos == -1 {
+			colonPos = len(addr)
+		}
+		hostname := addr[:colonPos]
+
+		cfg = cfg.Clone()
+		cfg.ServerName = hostname
+	}
+
+	tlsConn := tls.Client(conn, cfg)
 
 	err = upgradeConnThroughWebAPI(tlsConn, url.URL{
 		Host:   addr,

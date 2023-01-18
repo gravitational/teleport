@@ -166,7 +166,7 @@ endif
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
-# PIV=yes and PIV=static enable static piv builds. This is used by the build 
+# PIV=yes and PIV=static enable static piv builds. This is used by the build
 # process to link a static library of libpcsclite for piv-go to connect to.
 #
 # PIV=dynamic enables dynamic piv builds. This can be used for local
@@ -227,6 +227,11 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
+# Is this build targeting the same OS & architecture it is being compiled on, or
+# will it require cross-compilation? We need to know this (especially for ARM) so we
+# can set the cross-compiler path (and possibly feature flags) correctly.
+IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
@@ -239,8 +244,15 @@ CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 else ifeq ("$(ARCH)","arm64")
-# ARM64 builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
+CGOFLAG = CGO_ENABLED=1
+
+# If we 're not guaranteed to be building natively on an arm64 system, then we'll
+# need to configure the cross compiler.
+ifeq ($(IS_NATIVE_BUILD),"no")
+CGOFLAG += CC=aarch64-linux-gnu-gcc
+endif
+
 endif
 endif
 
@@ -266,6 +278,13 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
+	$(MAKE) $(BINARIES)
+
+#
+# make binaries builds all binaries defined in the BINARIES environment variable
+#
+.PHONY: binaries
+binaries:
 	$(MAKE) $(BINARIES)
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -394,6 +413,8 @@ release:
 	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -432,13 +453,37 @@ build-archive:
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	
+
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-unix - Produces binary release tarballs for both OSS and
+# Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	# Only run if Apple username/pass for notarization are provided
+	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
+		cd ./build.assets/tooling/ && \
+		go run ./cmd/notarize-apple-binaries/*.go \
+			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
+	fi
+	$(MAKE) build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+#
+# make release-unix-only - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
@@ -528,6 +573,14 @@ TOOLINGDIR := ${abspath ./build.assets/tooling}
 RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
 $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
+
+DIFF_TEST := $(TOOLINGDIR)/bin/difftest
+$(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
+
+.PHONY: tooling
+tooling: $(RENDER_TESTS) $(DIFF_TEST)
+
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -561,39 +614,66 @@ test-helm-update-snapshots: helmunit/installed
 
 #
 # Runs all Go tests except integration, called by CI/CD.
-# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-go: FLAGS ?= -race -shuffle on
-test-go: PACKAGES = $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
-test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
-test-go: $(VERSRC) $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+test-go: test-go-prepare test-go-unit test-go-libfido2 test-go-touch-id test-go-tsh test-go-chaos
+
+# Runs test prepare steps
+.PHONY: test-go-prepare
+test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS) $(VERSRC)
+
+# Runs base unit tests
+.PHONY: test-go-unit
+test-go-unit: FLAGS ?= -race -shuffle on
+test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
+test-go-unit:
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
+
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
 # separately.
 # TODO(codingllama): Run libfido2 tests along with others once RDP doesn't
 #  embed openssl/libcrypto.
+.PHONY: test-go-libfido2
+test-go-libfido2: FLAGS ?= -race -shuffle on
+test-go-libfido2: SUBJECT ?= ./lib/auth/webauthncli/...
+test-go-libfido2:
 ifneq ("$(LIBFIDO2_TEST_TAG)", "")
-	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TEST_TAG)" ./lib/auth/webauthncli/... $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 endif
+
 # Make sure untagged touchid code build/tests.
+.PHONY: test-go-touch-id
+test-go-touch-id: FLAGS ?= -race -shuffle on
+test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
+test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
-	$(CGOFLAG) go test -cover -json ./lib/auth/touchid/... $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 endif
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
+
+# Runs ci tsh tests
+.PHONY: test-go-tsh
+test-go-tsh: FLAGS ?= -race -shuffle on
+test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh
+test-go-tsh:
+	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
+
+# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
+.PHONY: test-go-chaos
+test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
+test-go-chaos:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
 		| ${RENDER_TESTS}
 
+# Runs ci scripts tests
 .PHONY: test-ci
 test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	(cd .cloudbuild/scripts && \
@@ -618,11 +698,11 @@ test-go-root: $(VERSRC)
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
 #
 .PHONY: test-api
-test-api:
-test-api: FLAGS ?= -race -shuffle on
-test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
-	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+test-api: FLAGS ?= -race -shuffle on
+test-api: SUBJECT ?= $(shell cd api && go list ./...)
+test-api:
+	cd api && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
 		| ${RENDER_TESTS}
 
@@ -821,9 +901,11 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/teleterm/api/protogen/**' \
 		-ignore 'lib/prehog/gen/**' \
+		-ignore 'lib/prehog/gen-js/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
+		-ignore 'web/**' \
 		-ignore 'ignoreme'
 
 .PHONY: lint-license
@@ -882,6 +964,7 @@ update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
+	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
 .PHONY: test-package
@@ -908,6 +991,13 @@ sloccount:
 .PHONY: remove-temp-files
 remove-temp-files:
 	find . -name flymake_* -delete
+
+#
+# print-go-version outputs Go version as a semver without "go" prefix
+#
+.PHONY: print-go-version
+print-go-version:
+	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
 
 # Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker
@@ -952,21 +1042,15 @@ protos/all: protos/build protos/lint protos/format
 .PHONY: protos/build
 protos/build: buf/installed
 	$(BUF) build
-	cd lib/teleterm && $(BUF) build
-	cd lib/prehog && $(BUF) build
 
 .PHONY: protos/format
 protos/format: buf/installed
 	$(BUF) format -w
-	cd lib/teleterm && $(BUF) format -w
-	cd lib/prehog && $(BUF) format -w
 
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
-	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
-	cd lib/teleterm && $(BUF) lint
-	cd lib/prehog && $(BUF) lint
+	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
 
 .PHONY: lint-protos
 lint-protos: protos/lint
@@ -1010,7 +1094,8 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host: protos/all
-	cd lib/teleterm && $(BUF) generate
+	$(BUF) generate --template=lib/prehog/buf-teleterm.gen.yaml lib/prehog/proto
+	$(BUF) generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
 
 .PHONY: goinstall
 goinstall:
@@ -1146,10 +1231,10 @@ update-webassets:
 # dronegen generates .drone.yml config
 #
 #    Usage:
-#    - install github.com/gravitational/tdr
-#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
 #    - tsh login --proxy=platform.teleport.sh
 #    - tsh app login drone
+#    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
+#    - tsh proxy app --port=8080 drone
 #    - make dronegen
 .PHONY: dronegen
 dronegen:

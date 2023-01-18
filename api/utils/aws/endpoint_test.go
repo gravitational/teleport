@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -232,7 +233,7 @@ func TestParseElastiCacheEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name:     "primary endpiont, TLS disabled",
+			name:     "primary endpoint, TLS disabled",
 			inputURI: "my-redis-cluster.xxxxxx.ng.0001.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
 				ID:           "my-redis-cluster",
@@ -241,7 +242,7 @@ func TestParseElastiCacheEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name:     "reader endpiont, TLS disabled",
+			name:     "reader endpoint, TLS disabled",
 			inputURI: "my-redis-cluster-ro.xxxxxx.ng.0001.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
 				ID:           "my-redis-cluster",
@@ -465,21 +466,21 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 	}{
 		{
 			name:                               "workgroup endpoint",
-			endpoint:                           "my-workgroup.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			endpoint:                           "my-workgroup.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
 			expectIsRedshiftServerlessEndpoint: true,
 			expectDetails: &RedshiftServerlessEndpointDetails{
 				WorkgroupName: "my-workgroup",
-				AccountID:     "1234567890",
+				AccountID:     "123456789012",
 				Region:        "us-east-1",
 			},
 		},
 		{
 			name:                               "vpc endpoint",
-			endpoint:                           "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com",
+			endpoint:                           "my-vpc-endpoint-xxxyyyzzz.123456789012.us-east-1.redshift-serverless.amazonaws.com",
 			expectIsRedshiftServerlessEndpoint: true,
 			expectDetails: &RedshiftServerlessEndpointDetails{
 				EndpointName: "my-vpc",
-				AccountID:    "1234567890",
+				AccountID:    "123456789012",
 				Region:       "us-east-1",
 			},
 		},
@@ -505,6 +506,135 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expectDetails, actualDetails)
 			}
+		})
+	}
+}
+
+func TestDynamoDBURIForRegion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc    string
+		region  string
+		wantURI string
+	}{
+		{
+			desc:    "region is in correct AWS partition",
+			region:  "us-east-1",
+			wantURI: "aws://dynamodb.us-east-1.amazonaws.com",
+		},
+		{
+			desc:    "china north region is in correct AWS partition",
+			region:  "cn-north-1",
+			wantURI: "aws://dynamodb.cn-north-1.amazonaws.com.cn",
+		},
+		{
+			desc:    "china northwest region is in correct AWS partition",
+			region:  "cn-northwest-1",
+			wantURI: "aws://dynamodb.cn-northwest-1.amazonaws.com.cn",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			require.Equal(t, tt.wantURI, DynamoDBURIForRegion(tt.region))
+		})
+	}
+}
+
+func TestParseDynamoDBEndpoint(t *testing.T) {
+	t.Parallel()
+	t.Run("parses valid endpoint", func(t *testing.T) {
+		t.Parallel()
+		for _, parts := range []struct {
+			services  []string
+			regions   []string
+			partition string
+		}{
+			{
+				services:  []string{DynamoDBServiceName, DynamoDBFipsServiceName, DynamoDBStreamsServiceName, DAXServiceName},
+				regions:   []string{"us-east-1", "us-gov-east-1"},
+				partition: AWSEndpointSuffix,
+			},
+			{
+				services:  []string{DynamoDBServiceName, DynamoDBStreamsServiceName, DAXServiceName},
+				regions:   []string{"cn-north-1", "cn-northwest-1"},
+				partition: AWSCNEndpointSuffix,
+			},
+		} {
+			parts := parts
+			for _, svc := range parts.services {
+				svc := svc
+				for _, region := range parts.regions {
+					region := region
+					endpoint := fmt.Sprintf("%s.%s%s", svc, region, parts.partition)
+					t.Run(endpoint, func(t *testing.T) {
+						t.Parallel()
+						info, err := ParseDynamoDBEndpoint(endpoint)
+						require.NoError(t, err)
+						wantInfo := DynamoDBEndpointInfo{
+							Service:   svc,
+							Region:    region,
+							Partition: parts.partition,
+						}
+						require.NotNil(t, info)
+						require.Equal(t, wantInfo, *info)
+					})
+				}
+			}
+		}
+	})
+
+	tests := []struct {
+		desc     string
+		services []string
+		regions  []string
+		endpoint string
+		wantInfo *DynamoDBEndpointInfo
+	}{
+		{
+			desc:     "empty uri",
+			endpoint: "",
+		},
+		{
+			desc:     "not AWS uri",
+			endpoint: "localhost",
+		},
+		{
+			desc:     "missing region",
+			endpoint: "amazonaws.com",
+		},
+		{
+			desc:     "missing china region",
+			endpoint: "amazonaws.com.cn",
+		},
+		{
+			desc:     "unrecognized service subdomain",
+			endpoint: "foo.us-east-1.amazonaws.com",
+		},
+		{
+			desc:     "unrecognized dynamodb service subdomain",
+			endpoint: "foo.dynamodb.us-east-1.amazonaws.com",
+		},
+		{
+			desc:     "unrecognized streams service subdomain",
+			endpoint: "streams.foo.us-east-1.amazonaws.com",
+		},
+		{
+			desc:     "mismatched us region and china partition",
+			endpoint: "streams.dynamodb.us-east-1.amazonaws.com.cn",
+		},
+		{
+			desc:     "mismatched china region and non-china partition",
+			endpoint: "streams.dynamodb.cn-north-1.amazonaws.com",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run("detects invalid endpoint with"+tt.desc, func(t *testing.T) {
+			t.Parallel()
+			info, err := ParseDynamoDBEndpoint(tt.endpoint)
+			require.Error(t, err, "endpoint %s should be invalid", tt.endpoint)
+			require.Nil(t, info)
 		})
 	}
 }

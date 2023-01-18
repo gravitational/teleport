@@ -18,6 +18,7 @@ package tdp
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -103,9 +104,9 @@ func (c *Conn) WriteMessage(m Message) error {
 	return trace.Wrap(err)
 }
 
-// SendError is a convenience function for sending an error message.
-func (c *Conn) SendError(message string) error {
-	return c.WriteMessage(Error{Message: message})
+// SendNotification is a convenience function for sending a Notification message.
+func (c *Conn) SendNotification(message string, severity Severity) error {
+	return c.WriteMessage(Notification{Message: message, Severity: severity})
 }
 
 // LocalAddr returns local address
@@ -116,4 +117,28 @@ func (c *Conn) LocalAddr() net.Addr {
 // RemoteAddr returns remote address
 func (c *Conn) RemoteAddr() net.Addr {
 	return c.remoteAddr
+}
+
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, clipDataMaxLenErr) ||
+		errors.Is(err, stringMaxLenErr) ||
+		errors.Is(err, fileReadWriteMaxLenErr) ||
+		errors.Is(err, mfaDataMaxLenErr)
+}
+
+// IsFatalErr returns the inverse of IsNonFatalErr
+// (except for if err == nil, for which both functions return false)
+func IsFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !IsNonFatalErr(err)
 }

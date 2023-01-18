@@ -116,8 +116,8 @@ type suiteConfig struct {
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
 	ValidateRequest func(*Suite, *http.Request)
-	// UseWebsockets will make the application server use a websocket for connection.
-	UseWebsockets bool
+	// EnableHTTP2 defines if the test server will support HTTP2.
+	EnableHTTP2 bool
 	// CloudImporter will use the given cloud importer for the app server.
 	CloudImporter labels.Importer
 	// AppLabels are the labels assigned to the application.
@@ -180,11 +180,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role = &types.RoleV5{
+	s.role = &types.RoleV6{
 		Metadata: types.Metadata{
 			Name: "foo",
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AppLabels:   roleAppLabels,
 				AWSRoleARNs: []string{"readonly"},
@@ -202,7 +202,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.message = uuid.New().String()
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.UseWebsockets {
+		if strings.ToLower(r.Header.Get("upgrade")) == "websocket" {
 			upgrader := websocket.Upgrader{
 				ReadBufferSize:  1024,
 				WriteBufferSize: 1024,
@@ -220,11 +220,16 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 			config.ValidateRequest(s, r)
 		}
 	}))
+	// Add NextProtos to support both protocols: h2, http/1.1
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
-	if config.UseWebsockets {
+	if config.EnableHTTP2 {
 		s.testhttp.EnableHTTP2 = true
+		// Add NextProtos to support both protocols: h2, http/1.1
+		s.testhttp.Config.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
+		s.testhttp.StartTLS()
+	} else {
+		s.testhttp.Start()
 	}
-	s.testhttp.Start()
 
 	// Extract the hostport that the in-memory HTTP server is running on.
 	u, err := url.Parse(s.testhttp.URL)
@@ -243,9 +248,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
-		URI:           s.testhttp.URL,
-		PublicAddr:    "foo.example.com",
-		DynamicLabels: types.LabelsToV2(dynamicLabels),
+		URI:                s.testhttp.URL,
+		PublicAddr:         "foo.example.com",
+		InsecureSkipVerify: true,
+		DynamicLabels:      types.LabelsToV2(dynamicLabels),
 	})
 	require.NoError(t, err)
 	appAWS, err := types.NewAppV3(types.Metadata{
@@ -284,7 +290,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: "cluster-name",
+		AccessPoint: s.authClient,
+		LockWatcher: lockWatcher,
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -371,8 +381,9 @@ func TestStart(t *testing.T) {
 		Name:   "foo",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
-		URI:        s.testhttp.URL,
-		PublicAddr: "foo.example.com",
+		URI:                s.testhttp.URL,
+		PublicAddr:         "foo.example.com",
+		InsecureSkipVerify: true,
 		DynamicLabels: map[string]types.CommandLabelV2{
 			dynamicLabelName: {
 				Period:  dynamicLabelPeriod,
@@ -600,9 +611,44 @@ func TestHandleConnectionWS(t *testing.T) {
 			// websocket transport header rewriter delegate.
 			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
 		},
-		UseWebsockets: true,
 	})
 
+	s.checkWSResponse(t, s.clientCertificate, func(messageType int, message string) {
+		require.Equal(t, websocket.TextMessage, messageType)
+		require.Equal(t, s.message, message)
+	})
+}
+
+// TestHandleConnectionHTTP2WS given a server that supports HTTP2, make a
+// request and then connect to WebSocket, ensuring that both succeed.
+//
+// This test guarantees the server is capable of handing requests and websockets
+// in different HTTP versions.
+func TestHandleConnectionHTTP2WS(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		EnableHTTP2: true,
+		ValidateRequest: func(s *Suite, r *http.Request) {
+			// Differentiate WebSocket requests.
+			if strings.ToLower(r.Header.Get("upgrade")) == "websocket" {
+				// Expect WS requests to be using http 1.
+				require.Equal(t, 1, r.ProtoMajor)
+				return
+			}
+
+			// Expect http requests to be using h2.
+			require.Equal(t, 2, r.ProtoMajor)
+		},
+	})
+
+	// First, make the request. This will be using HTTP2.
+	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+		require.Equal(t, resp.StatusCode, http.StatusOK)
+		buf, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+	})
+
+	// Second, make the WebSocket connection. This will be using HTTP/1.1
 	s.checkWSResponse(t, s.clientCertificate, func(messageType int, message string) {
 		require.Equal(t, websocket.TextMessage, messageType)
 		require.Equal(t, s.message, message)
@@ -904,8 +950,9 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 	checkResp(resp)
 	require.NoError(t, resp.Body.Close())
 
-	// Close should not trigger an error.
-	require.NoError(t, s.appServer.Close())
+	// Close should not trigger an error. Closing the connection is enough to
+	// get out of the HandleConnection routine.
+	require.NoError(t, pw.Close())
 
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
@@ -960,8 +1007,9 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	// This should not trigger an error.
 	require.NoError(t, ws.Close())
 
-	// Close should not trigger an error.
-	require.NoError(t, s.appServer.Close())
+	// Close should not trigger an error. Closing the connection is enough to
+	// get out of the HandleConnection routine.
+	require.NoError(t, pw.Close())
 
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners

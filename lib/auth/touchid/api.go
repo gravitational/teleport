@@ -30,9 +30,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -515,7 +515,8 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 func pickCredential(
 	actx AuthContext,
 	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
-	picker CredentialPicker, promptOnce func(), userRequested bool) (*CredentialInfo, error) {
+	picker CredentialPicker, promptOnce func(), userRequested bool,
+) (*CredentialInfo, error) {
 	// Handle early exits.
 	switch l := len(infos); {
 	// MFA.

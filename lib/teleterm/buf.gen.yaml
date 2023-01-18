@@ -1,25 +1,25 @@
 version: v1
 plugins:
   - name: go
-    out: api/protogen/golang
+    out: lib/teleterm/api/protogen/golang
     opt:
       - paths=source_relative
 
   - name: go-grpc
-    out: api/protogen/golang
+    out: lib/teleterm/api/protogen/golang
     opt:
       - paths=source_relative
 
   - name: js
-    out: api/protogen/js
+    out: lib/teleterm/api/protogen/js
     opt:
       - import_style=commonjs,binary
 
   - name: grpc
-    out: api/protogen/js
+    out: lib/teleterm/api/protogen/js
     opt: grpc_js
     path: grpc_tools_node_protoc_plugin
 
   - name: ts
-    out: api/protogen/js
+    out: lib/teleterm/api/protogen/js
     opt: "service=grpc-node"

@@ -137,7 +137,7 @@ message FindDevicesRequest {
 message FindDevicesResponse {
   // Devices that matched the search.
   // The number of resulting devices is expected to be low and may be
-  // artifically capped by the server otherwise.
+  // artificially capped by the server otherwise.
   repeated Device devices = 1;
 }
 
@@ -159,7 +159,8 @@ message ListDevicesRequest {
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
 
-  // Specifices which fields of the resource should be returned in the response.
+  // Specifies which fields of the resource should be returned in the response.
+  // Defaults to DEVICE_VIEW_LIST.
   DeviceView view = 3;
 }
 

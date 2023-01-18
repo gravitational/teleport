@@ -65,7 +65,7 @@ message Event {
     // User is a user resource
     types.UserV2 User = 8 [(gogoproto.jsontag) = "user,omitempty"];
     // Role is a role resource
-    types.RoleV5 Role = 9 [(gogoproto.jsontag) = "role,omitempty"];
+    types.RoleV6 Role = 9 [(gogoproto.jsontag) = "role,omitempty"];
     // Namespace is a namespace resource
     types.Namespace Namespace = 10 [(gogoproto.jsontag) = "namespace,omitempty"];
     // Server is a node or proxy resource
@@ -116,6 +116,8 @@ message Event {
     types.KubernetesClusterV3 KubernetesCluster = 33 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
     // Installer is an installer resource
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
+    // DatabaseService is a DatabaseService resource
+    types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
   }
 }
 
@@ -322,6 +324,8 @@ message RouteToApp {
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
   // AzureIdentity is the Azure identity to assume when accessing Azure API.
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+  // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -704,6 +708,8 @@ message CreateAppSessionRequest {
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn"];
   // AzureIdentity is Azure identity the user wants to assume.
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity"];
+  // GCPServiceAccount is the GCP service account the user wants to assume.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -839,6 +845,21 @@ message DeleteAllDatabaseServersRequest {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
+// DatabaseServiceV1List represents a list of DatabaseService resources.
+message DatabaseServiceV1List {
+  // Services is a list of DatabaseService resources.
+  repeated types.DatabaseServiceV1 Services = 1;
+}
+
+// UpsertDatabaseServiceRequest is a request to register DatabaseService.
+message UpsertDatabaseServiceRequest {
+  // Service is the database service to register.
+  types.DatabaseServiceV1 Service = 1 [(gogoproto.jsontag) = "service"];
+}
+
+// DeleteAllDatabaseServicesRequest is a request to delete all DatabaseServices.
+message DeleteAllDatabaseServicesRequest {}
+
 // DatabaseCSRRequest is a request to generate a client certificate used
 // by the proxy to authenticate with a remote database service.
 message DatabaseCSRRequest {
@@ -931,7 +952,7 @@ message GetRoleRequest {
 // GetRolesResponse is a response to querying for all roles.
 message GetRolesResponse {
   // Roles is a list of roles.
-  repeated types.RoleV5 Roles = 1;
+  repeated types.RoleV6 Roles = 1;
 }
 
 // DeleteRoleRequest is a request to delete a role.
@@ -1608,6 +1629,8 @@ message PaginatedResource {
     types.KubernetesServerV3 KubernetesServer = 7 [(gogoproto.jsontag) = "kubernetes_server,omitempty"];
     // WindowsDesktopService represents a WindowsDesktopServiceV3 resource.
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
+    // DatabaseService represents a DatabaseService resource.
+    types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
   }
 }
 
@@ -1757,6 +1780,16 @@ message GetClusterCACertResponse {
   bytes TLSCA = 1 [(gogoproto.jsontag) = "tls_ca"];
 }
 
+// GetLicenseResponse is a response from GetLicense
+message GetLicenseResponse {
+  bytes License = 1 [(gogoproto.jsontag) = "license"];
+}
+
+// ListReleasesResponse is a response from ListReleases
+message ListReleasesResponse {
+  repeated types.Release releases = 1 [(gogoproto.jsontag) = "releases"];
+}
+
 // GenerateTokenRequest is a request to generate auth token.
 message GenerateTokenRequest {
   // Token sets the token value. If not set, it will be auto generated.
@@ -1880,10 +1913,11 @@ message UpstreamInventoryHello {
   // its auth token. i.e. Services is the subset of SystemRoles that are currently
   // active.
   repeated string Services = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"];
-
-  // TODO(fspmarshall): look into what other info can safely be stated here once, instead of
-  // being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
-  // non-trivial reduction in network usage by doing this.
+  // Hostname is the hostname associated with the instance. This value is not required or guaranteed
+  // to be unique and its validity is not enforceable (i.e. join tokens do not constrian what an
+  // instance can claim its hostname to be). This value exists only to assist users in correlating
+  // instance resources with hosts.
+  string Hostname = 4;
 }
 
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.
@@ -1920,7 +1954,13 @@ message InventoryStatusSummary {
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
 // if it has a control stream registered.
 message InventoryPingRequest {
+  // ServerID is the ID of the instance to ping.
   string ServerID = 1;
+
+  // ControlLog forces the ping to use the standard "commit then act" model of control log synchronization
+  // for the ping. This significantly increases the amount of time it takes for the ping request to
+  // complete, but is useful for testing/debugging control log issues.
+  bool ControlLog = 2;
 }
 
 // InventoryPingResponse returns the result of an inventory ping initiated via an
@@ -1960,6 +2000,16 @@ message SubmitUsageEventRequest {
   teleport.usageevents.v1.UsageEventOneOf Event = 1 [(gogoproto.jsontag) = "event"];
 }
 
+// GetLicenseEvent is used to submit an external usage event.
+message GetLicenseRequest {
+  // GetLicense currently takes no params
+}
+
+// GetLicenseEvent is used to submit an external usage event.
+message ListReleasesRequest {
+  // ListReleases currently takes no params
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -1971,6 +2021,9 @@ service AuthService {
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
+
+  // GetInstances streams all instances matching the specified filter.
+  rpc GetInstances(types.InstanceFilter) returns (stream types.InstanceV1);
 
   // GetClusterAlerts loads cluster-level alert messages.
   rpc GetClusterAlerts(types.GetClusterAlertsRequest) returns (GetClusterAlertsResponse);
@@ -2069,7 +2122,7 @@ service AuthService {
   // Useful especially in the context of remote clusters which perform role and trait mapping.
   rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
   // GetCurrentUserRoles returns current user's roles.
-  rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV5);
+  rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV6);
   // GetUsers gets all current user resources.
   rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
   // CreateUser inserts a new user entry to a backend.
@@ -2195,6 +2248,15 @@ service AuthService {
   // DeleteAllDatabaseServers removes all registered database proxy servers.
   rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
 
+  // UpsertDatabaseService registers a new DatabaseService.
+  rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (types.KeepAlive);
+  // DeleteDatabaseService removes the specified DatabaseService.
+  rpc DeleteDatabaseService(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllDatabaseServices removes all registered DatabaseServices.
+  // If there's an error deleting the resources, there's no guarantee of a rollback.
+  // A subset of resources might be deleted while others still exist.
+  rpc DeleteAllDatabaseServices(DeleteAllDatabaseServicesRequest) returns (google.protobuf.Empty);
+
   // SignDatabaseCSR generates client certificate used by proxy to
   // authenticate with a remote database service.
   rpc SignDatabaseCSR(DatabaseCSRRequest) returns (DatabaseCSRResponse);
@@ -2205,11 +2267,11 @@ service AuthService {
   rpc GenerateSnowflakeJWT(SnowflakeJWTRequest) returns (SnowflakeJWTResponse);
 
   // GetRole retrieves a role described by the given request.
-  rpc GetRole(GetRoleRequest) returns (types.RoleV5);
+  rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
   // UpsertRole upserts a role in a backend.
-  rpc UpsertRole(types.RoleV5) returns (google.protobuf.Empty);
+  rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty);
   // DeleteRole deletes an existing role in a backend described by the given request.
   rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
@@ -2535,4 +2597,10 @@ service AuthService {
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);
+
+  // GetLicense returns the license used to start the auth server.
+  rpc GetLicense(GetLicenseRequest) returns (GetLicenseResponse);
+
+  // ListReleases returns a list of Teleport Enterprise releases.
+  rpc ListReleases(ListReleasesRequest) returns (ListReleasesResponse);
 }

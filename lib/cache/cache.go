@@ -99,6 +99,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindLock},
@@ -140,6 +141,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
@@ -152,6 +154,17 @@ func ForProxy(cfg Config) Config {
 }
 
 // ForRemoteProxy sets up watch configuration for remote proxies.
+//
+// **WARNING**: In order to add a new types.WatchKind below there
+// are a few things that must be done to ensure that backward
+// incompatible changes don't render a remote cluster permanently unhealthy.
+// First, the cfg.Watches of ForOldRemoteProxy must be replaced
+// with the current cfg.Watches of ForRemoteProxy. Next, the
+// version used by `lib/reversetunnel/srv/go` to determine whether
+// to use ForRemoteProxy or ForOldRemoteProxy must be updated
+// to be the release in which the new resource(s) will exist in. Finally,
+// add the new types.WatchKind below. Also note that this only
+// designed to occur once per major version.
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
 	cfg.Watches = []types.WatchKind{
@@ -174,6 +187,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
@@ -181,7 +195,10 @@ func ForRemoteProxy(cfg Config) Config {
 }
 
 // ForOldRemoteProxy sets up watch configuration for older remote proxies.
-// The Watches defined here are a copy of those defined in ForRemoteProxy in the v10 branch.
+// The types.WatchKind defined here allow for backwards incompatible changes and
+// should only be updated to match the previous values of ForRemoteProxy **prior**
+// to the breaking change. See the comment of ForRemoteProxy for instructions
+// on how to update without bricking remote proxy caches.
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
@@ -204,6 +221,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -335,6 +353,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindDatabase},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -405,6 +424,7 @@ type Cache struct {
 	restrictionsCache     services.Restrictions
 	appsCache             services.Apps
 	kubernetesCache       services.Kubernetes
+	databaseServicesCache services.DatabaseServices
 	databasesCache        services.Databases
 	appSessionCache       services.AppSession
 	snowflakeSessionCache services.SnowflakeSession
@@ -466,6 +486,7 @@ func (c *Cache) read() (readGuard, error) {
 			restrictions:     c.restrictionsCache,
 			apps:             c.appsCache,
 			kubernetes:       c.kubernetesCache,
+			databaseServices: c.databaseServicesCache,
 			databases:        c.databasesCache,
 			appSession:       c.appSessionCache,
 			snowflakeSession: c.snowflakeSessionCache,
@@ -487,6 +508,7 @@ func (c *Cache) read() (readGuard, error) {
 		restrictions:     c.Config.Restrictions,
 		apps:             c.Config.Apps,
 		kubernetes:       c.Config.Kubernetes,
+		databaseServices: c.Config.DatabaseServices,
 		databases:        c.Config.Databases,
 		appSession:       c.Config.AppSession,
 		snowflakeSession: c.Config.SnowflakeSession,
@@ -514,6 +536,7 @@ type readGuard struct {
 	restrictions     services.Restrictions
 	apps             services.Apps
 	kubernetes       services.Kubernetes
+	databaseServices services.DatabaseServices
 	databases        services.Databases
 	webSession       types.WebSessionInterface
 	webToken         types.WebTokenInterface
@@ -569,6 +592,8 @@ type Config struct {
 	Apps services.Apps
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
+	// DatabaseServices is a DatabaseService service.
+	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
 	// SnowflakeSession holds Snowflake sessions.
@@ -724,6 +749,7 @@ func New(config Config) (*Cache, error) {
 		restrictionsCache:     local.NewRestrictionsService(config.Backend),
 		appsCache:             local.NewAppService(config.Backend),
 		kubernetesCache:       local.NewKubernetesService(config.Backend),
+		databaseServicesCache: local.NewDatabaseServicesService(config.Backend),
 		databasesCache:        local.NewDatabasesService(config.Backend),
 		appSessionCache:       local.NewIdentityService(config.Backend),
 		snowflakeSessionCache: local.NewIdentityService(config.Backend),

@@ -120,6 +120,16 @@ from server to client.
 coordinates of the region, in pixels.
 `data` contains the PNG-encoded bitmap.
 
+#### 27 - PNG frame 2
+
+```
+| message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
+```
+
+This is a newer version of the PNG frame message, which includes the length of the PNG data after
+the message type. This allows for efficiently skipping over the PNG data without performing
+a PNG decode.
+
 #### 3 - mouse move
 
 ```
@@ -175,7 +185,7 @@ When this message is sent from client to server, it's a "paste" action.
 #### 7 - client username
 
 ```
-| message type (7) | username_length uint32 | username []byte
+| message type (7) | username_length uint32 | username []byte |
 ```
 
 This is the first message of the protocol and contains the username to login as
@@ -200,15 +210,37 @@ This message contains a mouse wheel update. Sent from client to server.
 #### 9 - error
 
 ```
-| message type (9) | message_length uint32 | message []byte
+| message type (9) | message_length uint32 | message []byte |
 ```
 
 This message indicates an error has occurred.
 
+#### 28 - notification
+
+```
+| message type (28) | message_length uint32 | message []byte | severity byte |
+```
+
+This message sends a notification message with a severity level. Sent from server to client.
+
+`message_length` denotes the length of the `message` byte array. It doesn't include the `severity` byte.
+
+`severity` defines the severity of the `message`:
+- `0` is for info
+- `1` is for a warning
+- `2` is for an error
+
+An error (`2`) means that some fatal problem was encountered and the TDP connection is ending imminently.
+A notification with `severity == 2` should be preferred to the `error` message above.
+
+A warning (`1`) means some non-fatal problem was encountered but the TDP connection can still continue.
+
+Info (`0`) can be used to communicate an arbitrary message back to the client without error semantics.
+
 #### 10 - MFA
 
 ```
-| message type (10) | mfa_type byte | length uint32 | JSON []byte
+| message type (10) | mfa_type byte | length uint32 | JSON []byte |
 ```
 
 This message is used to send the MFA challenge to the user when per-session MFA
@@ -224,12 +256,4 @@ sessions. A JSON-encoded challenge is sent over websocket to the user's browser.
 The only difference is that SSH sessions wrap the MFA JSON in a protobuf
 encoding, where desktop sessions wrap the MFA JSON in a TDP message.
 
-#### 27 - PNG frame 2
 
-```
-| message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
-```
-
-This is a newer version of the PNG frame message, which includes the length of the PNG data after
-the message type. This allows for efficiently skipping over the PNG data without performing
-a PNG decode.

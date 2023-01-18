@@ -40,8 +40,13 @@ import (
 // Valuable reference:
 // - https://github.com/actions/toolkit/blob/main/packages/core/src/oidc-utils.ts
 // - https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-cloud-providers
+//
+// The GitHub Issuer's well-known OIDC document is at
+// https://token.actions.githubusercontent.com/.well-known/openid-configuration
+// For GitHub Enterprise Servers, this will be at
+// https://$HOSTNAME/_services/token/.well-known/openid-configuration
 
-const IssuerURL = "https://token.actions.githubusercontent.com"
+const DefaultIssuerHost = "token.actions.githubusercontent.com"
 
 // IDTokenClaims is the structure of claims contained within a Github issued
 // ID token.

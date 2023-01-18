@@ -117,7 +117,7 @@ resources with any label key or value.
 
 You can configure a Kubernetes Service instance to watch for a subset of
 Kubernetes clusters by including specific label keys and values instead of
-wildcard characters: 
+wildcard characters:
 
 ```yaml
 resources:
@@ -129,15 +129,15 @@ resources:
     "region": "us-west-1"
 ```
 
-For the Kubernetes Service to register a cluster, _any_ of the items in
+For the Kubernetes Service to register a cluster, *any* of the items in
 `resources` must match the cluster's labels. For an item in `resources` to
-match, _all_ of the `labels` entries within that item must match the cluster's
+match, *all* of the `labels` entries within that item must match the cluster's
 labels.
 
 For example, a cluster with the labels `env:prod` and `region:us-west-1` would
 not match the configuration above, since it only matches the `env:prod` label in
 the first `resources` item and the `region:us-west-1` label in the second
-`resources` item. 
+`resources` item.
 
 However, a cluster with `env:test` and `region:us-west-1` would match, since it
 matches both labels given in the second `resources` item.

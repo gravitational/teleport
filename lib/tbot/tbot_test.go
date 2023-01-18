@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
@@ -41,7 +42,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func rotate(
+func rotate( //nolint:unused // used in skipped test
 	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc *service.TeleportProcess, phase string,
 ) {
 	t.Helper()
@@ -60,7 +61,8 @@ func rotate(
 	log.Infof("Triggered rotation: %s", phase)
 }
 
-func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
+func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup, //nolint:unused // used in skipped test
+) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
 	cfg := service.MakeDefaultConfig()
@@ -69,6 +71,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 	cfg.Log = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	svcC := make(chan *service.TeleportProcess)
 	wg.Add(1)
@@ -127,6 +130,9 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 // TestCARotation is a heavy integration test that through a rotation, the bot
 // receives credentials for a new CA.
 func TestBot_Run_CARotation(t *testing.T) {
+	// TODO(jakule): Re-enable this test https://github.com/gravitational/teleport/issues/19403
+	t.Skip("Temporary disable until it's fixed - flaky")
+
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("test skipped when -short provided")

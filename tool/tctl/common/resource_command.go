@@ -25,12 +25,16 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -39,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
@@ -108,6 +113,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
 		types.KindNode:                    rc.createNode,
+		types.KindOIDCConnector:           rc.createOIDCConnector,
+		types.KindSAMLConnector:           rc.createSAMLConnector,
+		types.KindLoginRule:               rc.createLoginRule,
 	}
 	rc.config = config
 
@@ -121,7 +129,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update
 
-	Examples:
+	Example:
 	$ tctl update rc/remote`).SetValue(&rc.ref)
 	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
 	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
@@ -274,10 +282,6 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		// locate the creator function for a given resource kind:
 		creator, found := rc.CreateHandlers[ResourceKind(raw.Kind)]
 		if !found {
-			// if we're trying to create an OIDC/SAML connector with the OSS version of tctl, return a specific error
-			if raw.Kind == "oidc" || raw.Kind == "saml" {
-				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. If you are connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
-			}
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
 		// only return in case of error, to create multiple resources
@@ -591,6 +595,7 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client auth.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	database.SetOrigin(types.OriginDynamic)
 	if err := client.CreateDatabase(ctx, database); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
@@ -640,6 +645,85 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 
 	_, err = client.UpsertNode(ctx, server)
 	return trace.Wrap(err)
+}
+
+func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	conn, err := services.UnmarshalOIDCConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := conn.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	connectorName := conn.GetName()
+	_, err = client.GetOIDCConnector(ctx, connectorName, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.IsForced() && exists {
+		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+	}
+	if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	// Create services.SAMLConnector from raw YAML to extract the connector name.
+	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	connectorName := conn.GetName()
+	foundConn, err := client.GetSAMLConnector(ctx, connectorName, true)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.IsForced() && exists {
+		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+	}
+
+	// If the connector being pushed to the backend does not have a signing key
+	// in it and an existing connector was found in the backend, extract the
+	// signing key from the found connector and inject it into the connector
+	// being injected into the backend.
+	if conn.GetSigningKeyPair() == nil && exists {
+		conn.SetSigningKeyPair(foundConn.GetSigningKeyPair())
+	}
+	if err := conn.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = client.UpsertSAMLConnector(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	loginRuleClient := client.LoginRuleClient()
+	if rc.IsForced() {
+		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
+			LoginRule: rule,
+		})
+		return trail.FromGRPC(err)
+	}
+	_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+		LoginRule: rule,
+	})
+	return trail.FromGRPC(err)
 }
 
 // Delete deletes resource by name
@@ -866,6 +950,15 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		} else {
 			fmt.Printf("%s has been deleted\n", rc.ref.Name)
 		}
+	case types.KindLoginRule:
+		loginRuleClient := client.LoginRuleClient()
+		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+			Name: rc.ref.Name,
+		})
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
+		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
 
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
@@ -1380,6 +1473,53 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	case types.KindDatabaseService:
+		resourceName := rc.ref.Name
+		listReq := proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+		}
+		if resourceName != "" {
+			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+		}
+
+		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		databaseServices, err := types.ResourcesWithLabels(getResp).AsDatabaseServices()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(databaseServices) == 0 && resourceName != "" {
+			return nil, trace.NotFound("Database Service %q not found", resourceName)
+		}
+
+		return &databaseServiceCollection{databaseServices: databaseServices}, nil
+	case types.KindLoginRule:
+		loginRuleClient := client.LoginRuleClient()
+		if rc.ref.Name == "" {
+			fetch := func(token string) (*loginrulepb.ListLoginRulesResponse, error) {
+				resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
+					PageToken: token,
+				})
+				return resp, trail.FromGRPC(err)
+			}
+			var rules []*loginrulepb.LoginRule
+			resp, err := fetch("")
+			for ; err == nil; resp, err = fetch(resp.NextPageToken) {
+				rules = append(rules, resp.LoginRules...)
+				if resp.NextPageToken == "" {
+					break
+				}
+			}
+			return &loginRuleCollection{rules}, trace.Wrap(err)
+		}
+		rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+			Name: rc.ref.Name,
+		})
+		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

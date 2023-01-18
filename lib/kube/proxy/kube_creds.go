@@ -36,6 +36,7 @@ type kubeCreds interface {
 	getTLSConfig() *tls.Config
 	getTransportConfig() *transport.Config
 	getTargetAddr() string
+	getKubeRestConfig() *rest.Config
 	getKubeClient() *kubernetes.Clientset
 	wrapTransport(http.RoundTripper) (http.RoundTripper, error)
 	close() error
@@ -59,19 +60,28 @@ type staticKubeCreds struct {
 	// targetAddr is a kubernetes API address.
 	targetAddr string
 	kubeClient *kubernetes.Clientset
+	// clientRestCfg is the Kubernetes Rest config for the cluster.
+	clientRestCfg *rest.Config
 }
 
 func (s *staticKubeCreds) getTLSConfig() *tls.Config {
 	return s.tlsConfig
 }
+
 func (s *staticKubeCreds) getTransportConfig() *transport.Config {
 	return s.transportConfig
 }
+
 func (s *staticKubeCreds) getTargetAddr() string {
 	return s.targetAddr
 }
+
 func (s *staticKubeCreds) getKubeClient() *kubernetes.Clientset {
 	return s.kubeClient
+}
+
+func (s *staticKubeCreds) getKubeRestConfig() *rest.Config {
+	return s.clientRestCfg
 }
 
 func (s *staticKubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, error) {
@@ -138,21 +148,31 @@ func (d *dynamicKubeCreds) getTLSConfig() *tls.Config {
 	defer d.RUnlock()
 	return d.staticCreds.tlsConfig
 }
+
 func (d *dynamicKubeCreds) getTransportConfig() *transport.Config {
 	d.RLock()
 	defer d.RUnlock()
 	return d.staticCreds.transportConfig
 }
+
+func (d *dynamicKubeCreds) getKubeRestConfig() *rest.Config {
+	d.RLock()
+	defer d.RUnlock()
+	return d.staticCreds.clientRestCfg
+}
+
 func (d *dynamicKubeCreds) getTargetAddr() string {
 	d.RLock()
 	defer d.RUnlock()
 	return d.staticCreds.targetAddr
 }
+
 func (d *dynamicKubeCreds) getKubeClient() *kubernetes.Clientset {
 	d.RLock()
 	defer d.RUnlock()
 	return d.staticCreds.kubeClient
 }
+
 func (d *dynamicKubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, error) {
 	d.RLock()
 	defer d.RUnlock()

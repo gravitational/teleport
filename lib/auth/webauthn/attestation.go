@@ -18,7 +18,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"

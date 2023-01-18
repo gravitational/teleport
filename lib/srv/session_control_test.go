@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -107,8 +109,61 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	emitter := &eventstest.MockEmitter{}
 
+	minimalCfg := SessionControllerConfig{
+		Semaphores: mockSemaphores{},
+		AccessPoint: mockAccessPoint{
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{},
+			},
+			clusterName: &types.ClusterNameV2{
+				Spec: types.ClusterNameSpecV2{
+					ClusterName: "llama",
+				},
+			},
+		},
+		LockEnforcer: mockLockEnforcer{},
+		Emitter:      emitter,
+		Component:    teleport.ComponentNode,
+		ServerID:     "1234",
+	}
+
+	minimalIdentity := IdentityContext{
+		TeleportUser: "alpaca",
+		Login:        "alpaca",
+		Certificate: &ssh.Certificate{
+			KeyId: "alpaca",
+		},
+		AccessChecker: &mockAccessChecker{
+			keyPolicy: keys.PrivateKeyPolicyNone,
+		},
+	}
+
+	cfgWithDeviceMode := func(mode string) SessionControllerConfig {
+		cfg := minimalCfg
+		authPref, _ := cfg.AccessPoint.GetAuthPreference(context.Background())
+		authPref.(*types.AuthPreferenceV2).Spec.DeviceTrust = &types.DeviceTrust{
+			Mode: mode,
+		}
+		return cfg
+	}
+	identityWithDeviceExtensions := func() IdentityContext {
+		idCtx := minimalIdentity
+		idCtx.Certificate = &ssh.Certificate{
+			KeyId: "alpaca",
+			Permissions: ssh.Permissions{
+				Extensions: map[string]string{
+					teleport.CertExtensionDeviceID:           "deviceid1",
+					teleport.CertExtensionDeviceAssetTag:     "assettag1",
+					teleport.CertExtensionDeviceCredentialID: "credentialid1",
+				},
+			},
+		}
+		return idCtx
+	}
+
 	cases := []struct {
 		name      string
+		buildType string // defaults to modules.BuildOSS
 		cfg       SessionControllerConfig
 		identity  IdentityContext
 		assertion func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter)
@@ -392,17 +447,50 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				require.Empty(t, emitter.Events(), 0)
 			},
 		},
+		{
+			name:     "device extensions not enforced for OSS",
+			cfg:      cfgWithDeviceMode(constants.DeviceTrustModeRequired),
+			identity: minimalIdentity,
+			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
+				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
+			},
+		},
+		{
+			name:      "device extensions enforced for Enterprise",
+			buildType: modules.BuildEnterprise,
+			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
+			identity:  minimalIdentity,
+			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
+				assert.ErrorContains(t, err, "device", "AcquireSessionContext returned an unexpected error")
+				assert.True(t, trace.IsAccessDenied(err), "AcquireSessionContext returned an error other than trace.AccessDeniedError: %T", err)
+			},
+		},
+		{
+			name:      "device extensions valid for Enterprise",
+			buildType: modules.BuildEnterprise,
+			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
+			identity:  identityWithDeviceExtensions(),
+			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
+				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
+			},
+		},
 	}
-
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			buildType := tt.buildType
+			if buildType == "" {
+				buildType = modules.BuildOSS
+			}
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: buildType,
+			})
+
 			emitter.Reset()
 			ctrl, err := NewSessionController(tt.cfg)
-			require.NoError(t, err)
+			require.NoError(t, err, "NewSessionController failed")
 
 			ctx, err := ctrl.AcquireSessionContext(context.Background(), tt.identity, "127.0.0.1:1", "127.0.0.1:2")
 			tt.assertion(t, ctx, err, emitter)
-
 		})
 	}
 }

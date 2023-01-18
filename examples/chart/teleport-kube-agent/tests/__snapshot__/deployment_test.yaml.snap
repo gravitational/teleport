@@ -18,7 +18,7 @@ sets Deployment annotations when specified if action is Upgrade:
       template:
         metadata:
           annotations:
-            checksum/config: 69e263080e9c222718c7fb92180c7367832071d7efd51e9bd6dcdb6326e6f9a8
+            checksum/config: 80088923d2d7ce4344db0f2174d29d7cfb2d599424adfabf6f6818a9434794ca
             kubernetes.io/pod: test-annotation
             kubernetes.io/pod-different: 4
           labels:
@@ -86,7 +86,7 @@ sets Deployment labels when specified if action is Upgrade:
     template:
       metadata:
         annotations:
-          checksum/config: f472b546dffe5369ea3263c8ee806e71ff2782c951b6f8233835606d17eeae12
+          checksum/config: db49feab9b174f73188febc30d2b01d27b16e5a76b586c6e87e6e62eb43620a2
         labels:
           app: RELEASE-NAME
           app.kubernetes.io/name: teleport-kube-agent
@@ -1129,6 +1129,17 @@ should set default serviceAccountName when not set in values if action is Upgrad
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
+should set dnsConfig when set in values if action is Upgrade:
+  1: |
+    nameservers:
+    - 1.2.3.4
+    options:
+    - name: ndots
+      value: "2"
+    - name: edns0
+    searches:
+    - ns1.svc.cluster-domain.example
+    - my.dns.search.suffix
 should set environment when extraEnv set in values if action is Upgrade:
   1: |
     containers:

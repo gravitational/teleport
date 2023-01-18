@@ -275,6 +275,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MFADeviceDelete{
 			MFADeviceDelete: e,
 		}
+	case *DeviceEvent:
+		out.Event = &OneOf_DeviceEvent{
+			DeviceEvent: e,
+		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
 			BillingCardCreate: e,
@@ -514,7 +518,7 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	// OneOfs only have one inner field, verify and then read it.
 	if elem.NumField() != 1 {
 		// This should never happen for proto one-ofs.
-		return nil, trace.BadParameter("unexpect number in value %v: %v != 1", elem.Kind(), elem.NumField())
+		return nil, trace.BadParameter("unexpected number in value %v: %v != 1", elem.Kind(), elem.NumField())
 	}
 
 	auditEvent, ok := elem.Field(0).Interface().(AuditEvent)

@@ -1,0 +1,1744 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render dialog to add a new mfa device with webauthn as preferred type 1`] = `
+.c11 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 50%;
+}
+
+.c15 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  width: 100%;
+}
+
+.c19 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-right: 16px;
+  width: 45%;
+}
+
+.c19:active {
+  opacity: 0.56;
+}
+
+.c19:hover,
+.c19:focus {
+  background: #651FFF;
+}
+
+.c19:active {
+  background: #354AA4;
+}
+
+.c19:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c20 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 30%;
+}
+
+.c20:active {
+  opacity: 0.56;
+}
+
+.c20:hover,
+.c20:focus {
+  background: #2C3A73;
+}
+
+.c20:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c17 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c17::-ms-clear {
+  display: none;
+}
+
+.c17::placeholder {
+  opacity: 0.4;
+}
+
+.c17:read-only {
+  cursor: not-allowed;
+}
+
+.c12 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c16 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c8 {
+  display: block;
+  outline: none;
+  height: 168px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #222C59;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c10 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  width: 484px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c18 {
+  box-sizing: border-box;
+}
+
+.c13 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c13 .react-select__control,
+.c13 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c13 .react-select__control:hover,
+.c13 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c13 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c13 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c13 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c13 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c13 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c13 .react-select__indicator-separator {
+  display: none;
+}
+
+.c13 .react-select__loading-indicator {
+  display: none;
+}
+
+.c13 .react-select--is-disabled .react-select__single-value,
+.c13 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c13 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4"
+        style="flex-direction: column;"
+      >
+        <div
+          class="c5"
+          color="text.primary"
+        >
+          Add New Two-Factor Device
+        </div>
+      </div>
+      <div
+        class="c6"
+      >
+        <div
+          class="c7"
+          height="256px"
+        >
+          <img
+            class="c8"
+            height="168px"
+            src="file_stub"
+          />
+          <div
+            class="c9"
+          >
+            Enter a name for your hardware key.
+          </div>
+        </div>
+        <div
+          class="c10"
+        >
+          <div
+            class="c11"
+            data-testid="mfa-select"
+            width="100%"
+          >
+            <label
+              class="c12"
+              font-size="0"
+              for="select"
+            >
+              Two-factor type
+            </label>
+            <div
+              class="c13"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      Hardware Key
+                    </div>
+                    <input
+                      aria-autocomplete="list"
+                      class="css-62g3xt-dummyInput"
+                      id="select"
+                      readonly=""
+                      tabindex="0"
+                      value=""
+                    />
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="c14"
+            width="50%"
+          >
+            <label
+              class="c12"
+              font-size="0"
+              for="select"
+            >
+              Allow Passwordless Login?
+            </label>
+            <div
+              class="c13"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      no
+                    </div>
+                    <input
+                      aria-autocomplete="list"
+                      class="css-62g3xt-dummyInput"
+                      id="select"
+                      readonly=""
+                      tabindex="0"
+                      value=""
+                    />
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c15"
+          width="100%"
+        >
+          <label
+            class="c16"
+            font-size="0"
+          >
+            Device name
+            <input
+              autocomplete="off"
+              class="c17"
+              color="text.onLight"
+              inputmode="text"
+              placeholder="Name"
+              type="text"
+              value=""
+            />
+          </label>
+        </div>
+      </div>
+      <div
+        class="c18"
+      >
+        <button
+          class="c19"
+          kind="primary"
+          type="submit"
+          width="45%"
+        >
+          Add device
+        </button>
+        <button
+          class="c20"
+          kind="secondary"
+          width="30%"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render failed state for dialog to add a new mfa device 1`] = `
+.c6 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-top: 8px;
+  background: #f50057;
+  color: #FFFFFF;
+  width: 100%;
+}
+
+.c6 a {
+  color: #FFFFFF;
+}
+
+.c12 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c15 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 50%;
+}
+
+.c16 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  width: 100%;
+}
+
+.c20 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-right: 16px;
+  width: 45%;
+}
+
+.c20:active {
+  opacity: 0.56;
+}
+
+.c20:hover,
+.c20:focus {
+  background: #651FFF;
+}
+
+.c20:active {
+  background: #354AA4;
+}
+
+.c20:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c21 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 30%;
+}
+
+.c21:active {
+  opacity: 0.56;
+}
+
+.c21:hover,
+.c21:focus {
+  background: #2C3A73;
+}
+
+.c21:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c18 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c18::-ms-clear {
+  display: none;
+}
+
+.c18::placeholder {
+  opacity: 0.4;
+}
+
+.c18:read-only {
+  cursor: not-allowed;
+}
+
+.c13 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c17 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c9 {
+  display: block;
+  outline: none;
+  height: 168px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #222C59;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c11 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  width: 484px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c19 {
+  box-sizing: border-box;
+}
+
+.c14 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c14 .react-select__control,
+.c14 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c14 .react-select__control:hover,
+.c14 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c14 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c14 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c14 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c14 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c14 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c14 .react-select__indicator-separator {
+  display: none;
+}
+
+.c14 .react-select__loading-indicator {
+  display: none;
+}
+
+.c14 .react-select--is-disabled .react-select__single-value,
+.c14 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c14 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4"
+        style="flex-direction: column;"
+      >
+        <div
+          class="c5"
+          color="text.primary"
+        >
+          Add New Two-Factor Device
+        </div>
+      </div>
+      <div
+        class="c6"
+        kind="danger"
+        width="100%"
+      >
+        failed to add device
+      </div>
+      <div
+        class="c7"
+      >
+        <div
+          class="c8"
+          height="256px"
+        >
+          <img
+            class="c9"
+            height="168px"
+            src="file_stub"
+          />
+          <div
+            class="c10"
+          >
+            Enter a name for your hardware key.
+          </div>
+        </div>
+        <div
+          class="c11"
+        >
+          <div
+            class="c12"
+            data-testid="mfa-select"
+            width="100%"
+          >
+            <label
+              class="c13"
+              font-size="0"
+              for="select"
+            >
+              Two-factor type
+            </label>
+            <div
+              class="c14"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      Hardware Key
+                    </div>
+                    <input
+                      aria-autocomplete="list"
+                      class="css-62g3xt-dummyInput"
+                      id="select"
+                      readonly=""
+                      tabindex="0"
+                      value=""
+                    />
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="c15"
+            width="50%"
+          >
+            <label
+              class="c13"
+              font-size="0"
+              for="select"
+            >
+              Allow Passwordless Login?
+            </label>
+            <div
+              class="c14"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      no
+                    </div>
+                    <input
+                      aria-autocomplete="list"
+                      class="css-62g3xt-dummyInput"
+                      id="select"
+                      readonly=""
+                      tabindex="0"
+                      value=""
+                    />
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c16"
+          width="100%"
+        >
+          <label
+            class="c17"
+            font-size="0"
+          >
+            Device name
+            <input
+              autocomplete="off"
+              class="c18"
+              color="text.onLight"
+              inputmode="text"
+              placeholder="Name"
+              type="text"
+              value=""
+            />
+          </label>
+        </div>
+      </div>
+      <div
+        class="c19"
+      >
+        <button
+          class="c20"
+          kind="primary"
+          type="submit"
+          width="45%"
+        >
+          Add device
+        </button>
+        <button
+          class="c21"
+          kind="secondary"
+          width="30%"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render failed state for fetching QR Code for dialog to add a new mfa device 1`] = `
+.c6 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-top: 8px;
+  background: #f50057;
+  color: #FFFFFF;
+  width: 100%;
+}
+
+.c6 a {
+  color: #FFFFFF;
+}
+
+.c14 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 50%;
+}
+
+.c20 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  width: 100%;
+}
+
+.c22 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-right: 16px;
+  width: 45%;
+}
+
+.c22:active {
+  opacity: 0.56;
+}
+
+.c22:hover,
+.c22:focus {
+  background: #651FFF;
+}
+
+.c22:active {
+  background: #354AA4;
+}
+
+.c22:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c23 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 30%;
+}
+
+.c23:active {
+  opacity: 0.56;
+}
+
+.c23:hover,
+.c23:focus {
+  background: #2C3A73;
+}
+
+.c23:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c19 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c19::-ms-clear {
+  display: none;
+}
+
+.c19::placeholder {
+  opacity: 0.4;
+}
+
+.c19:read-only {
+  cursor: not-allowed;
+}
+
+.c15 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c18 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #222C59;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c9 {
+  box-sizing: border-box;
+  height: 168px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c13 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  width: 484px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c21 {
+  box-sizing: border-box;
+}
+
+.c16 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c16 .react-select__control,
+.c16 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c16 .react-select__control:hover,
+.c16 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c16 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c16 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c16 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c16 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c16 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c16 .react-select__indicator-separator {
+  display: none;
+}
+
+.c16 .react-select__loading-indicator {
+  display: none;
+}
+
+.c16 .react-select--is-disabled .react-select__single-value,
+.c16 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c16 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4"
+        style="flex-direction: column;"
+      >
+        <div
+          class="c5"
+          color="text.primary"
+        >
+          Add New Two-Factor Device
+        </div>
+      </div>
+      <div
+        class="c6"
+        kind="danger"
+        width="100%"
+      >
+        failed to create totp register challenge
+      </div>
+      <div
+        class="c7"
+      >
+        <div
+          class="c8"
+          height="256px"
+        >
+          <div
+            class="c9"
+            height="168px"
+          />
+          <div
+            class="c10"
+            font-size="1"
+          >
+            Scan the QR Code with any authenticator app and enter the generated code.
+             
+            <div
+              class="c11"
+              color="text.secondary"
+            >
+              We recommend
+               
+              <a
+                class="c12"
+                href="https://authy.com/download/"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Authy
+              </a>
+              .
+            </div>
+          </div>
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c14"
+            data-testid="mfa-select"
+            width="100%"
+          >
+            <label
+              class="c15"
+              font-size="0"
+              for="select"
+            >
+              Two-factor type
+            </label>
+            <div
+              class="c16"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      Authenticator App
+                    </div>
+                    <input
+                      aria-autocomplete="list"
+                      class="css-62g3xt-dummyInput"
+                      id="select"
+                      readonly=""
+                      tabindex="0"
+                      value=""
+                    />
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="c17"
+            width="50%"
+          >
+            <label
+              class="c18"
+              font-size="0"
+            >
+              Authenticator code
+              <input
+                autocomplete="one-time-code"
+                class="c19"
+                color="text.onLight"
+                inputmode="numeric"
+                placeholder="123 456"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+        </div>
+        <div
+          class="c20"
+          width="100%"
+        >
+          <label
+            class="c18"
+            font-size="0"
+          >
+            Device name
+            <input
+              autocomplete="off"
+              class="c19"
+              color="text.onLight"
+              inputmode="text"
+              placeholder="Name"
+              type="text"
+              value=""
+            />
+          </label>
+        </div>
+      </div>
+      <div
+        class="c21"
+      >
+        <button
+          class="c22"
+          kind="primary"
+          type="submit"
+          width="45%"
+        >
+          Add device
+        </button>
+        <button
+          class="c23"
+          kind="secondary"
+          width="30%"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;

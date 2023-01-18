@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	wan "github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"

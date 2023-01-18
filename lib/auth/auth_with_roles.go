@@ -36,12 +36,16 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -178,13 +182,13 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 // actionForKindSession is a special checker that grants access to session
 // recordings.  It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid session.ID) error {
+func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) error {
 	extendContext := func(ctx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(namespace, sid)
 		ctx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
 // serverAction returns an access denied error if the role is not one of the builtin server roles.
@@ -254,6 +258,12 @@ func hasLocalUserRole(authContext Context) bool {
 // It should not be called through ServerWithRoles and will always panic.
 func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
 	panic("DevicesClient not implemented by ServerWithRoles")
+}
+
+// LoginRuleClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles and will always panic.
+func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
+	panic("LoginRuleClient not implemented by ServerWithRoles")
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -635,6 +645,11 @@ func (a *ServerWithRoles) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpdateUserCARoleMap not implemented: can only be called locally.
+func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // GenerateToken generates multi-purpose authentication token.
 func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
@@ -768,38 +783,43 @@ func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req prot
 	return a.authServer.UnstableAssertSystemRole(ctx, req)
 }
 
-func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) error {
+// RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
+// the auth server's main control logic. We also return the post-auth hello message back up to the grpcserver layer in order to
+// use it for metrics purposes.
+func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (proto.UpstreamInventoryHello, error) {
+	// this value gets set further down
+	var hello proto.UpstreamInventoryHello
+
 	// Ensure that caller is a teleport server
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
+		return hello, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
 
 	// wait for upstream hello
-	var upstreamHello proto.UpstreamInventoryHello
 	select {
 	case msg := <-ics.Recv():
 		switch m := msg.(type) {
 		case proto.UpstreamInventoryHello:
-			upstreamHello = m
+			hello = m
 		default:
-			return trace.BadParameter("expected upstream hello, got: %T", m)
+			return hello, trace.BadParameter("expected upstream hello, got: %T", m)
 		}
 	case <-ics.Done():
-		return trace.Wrap(ics.Error())
+		return hello, trace.Wrap(ics.Error())
 	case <-a.CloseContext().Done():
-		return trace.Errorf("auth server shutdown")
+		return hello, trace.Errorf("auth server shutdown")
 	}
 
 	// verify that server is creating stream on behalf of itself.
-	if upstreamHello.ServerID != role.GetServerID() {
-		return trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), upstreamHello.ServerID)
+	if hello.ServerID != role.GetServerID() {
+		return hello, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.ServerID)
 	}
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
 	// services that are unrecognized or unauthorized, rather than rejecting hellos that claim them.
 	var filteredServices []types.SystemRole
-	for _, service := range upstreamHello.Services {
+	for _, service := range hello.Services {
 		if !a.hasBuiltinRole(service) {
 			log.Warnf("Omitting service %q for control stream of instance %q (unknown or unauthorized).", service, role.GetServerID())
 			continue
@@ -807,9 +827,9 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		filteredServices = append(filteredServices, service)
 	}
 
-	upstreamHello.Services = filteredServices
+	hello.Services = filteredServices
 
-	return a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
+	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
@@ -828,6 +848,14 @@ func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.Inventory
 		return proto.InventoryPingResponse{}, trace.AccessDenied("requires builtin admin role")
 	}
 	return a.authServer.PingInventory(ctx, req)
+}
+
+func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
+	if err := a.action(apidefaults.Namespace, types.KindInstance, types.VerbList, types.VerbRead); err != nil {
+		return stream.Fail[types.Instance](trace.Wrap(err))
+	}
+
+	return a.authServer.GetInstances(ctx, filter)
 }
 
 func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
@@ -1254,7 +1282,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1329,22 +1357,24 @@ type resourceChecker struct {
 func (r resourceChecker) CanAccess(resource types.Resource) error {
 	// MFA is not required for operations on app resources but
 	// will be enforced at the connection time.
-	mfaParams := services.AccessMFAParams{Verified: true}
+	state := services.AccessState{MFAVerified: true}
 	switch rr := resource.(type) {
 	case types.AppServer:
-		return r.CheckAccess(rr.GetApp(), mfaParams)
+		return r.CheckAccess(rr.GetApp(), state)
 	case types.KubeServer:
-		return r.CheckAccess(rr.GetCluster(), mfaParams)
+		return r.CheckAccess(rr.GetCluster(), state)
 	case types.DatabaseServer:
-		return r.CheckAccess(rr.GetDatabase(), mfaParams)
+		return r.CheckAccess(rr.GetDatabase(), state)
+	case types.DatabaseService:
+		return r.CheckAccess(rr, state)
 	case types.Database:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	case types.Server:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	case types.WindowsDesktop:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	case types.WindowsDesktopService:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
@@ -1409,7 +1439,7 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 			return trace.Wrap(err)
 		}
 
-		if err := k.checker.CheckAccess(k8sV3, services.AccessMFAParams{Verified: true}); err != nil {
+		if err := k.checker.CheckAccess(k8sV3, services.AccessState{MFAVerified: true}); err != nil {
 			if trace.IsAccessDenied(err) {
 				continue
 			}
@@ -1426,14 +1456,14 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 
 func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 	kube := server.GetCluster()
-	err := k.checker.CheckAccess(kube, services.AccessMFAParams{Verified: true})
+	err := k.checker.CheckAccess(kube, services.AccessState{MFAVerified: true})
 	return trace.Wrap(err)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -1663,8 +1693,30 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 	return a.authServer.GetToken(ctx, token)
 }
 
+func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		return nil
+	}
+
+	v, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("unexpected token type %T", token)
+	}
+
+	if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+		return fmt.Errorf(
+			"github enterprise server joining: %w",
+			ErrRequiresEnterprise,
+		)
+	}
+	return nil
+}
+
 func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertToken(ctx, token)
@@ -1672,6 +1724,9 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.CreateToken(ctx, token)
@@ -1923,11 +1978,7 @@ func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.Acc
 			return trace.Wrap(err)
 		}
 	}
-	// Ensure that an access request cannot outlive the identity that creates it.
-	if req.GetAccessExpiry().Before(a.authServer.GetClock().Now()) || req.GetAccessExpiry().After(a.context.Identity.GetIdentity().Expires) {
-		req.SetAccessExpiry(a.context.Identity.GetIdentity().Expires)
-	}
-	return a.authServer.CreateAccessRequest(ctx, req)
+	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity())
 }
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
@@ -2335,7 +2386,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 	for _, reqID := range finalRequestIDs {
 		// Fetch and validate the access request for this user.
-		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, req.Username, reqID)
+		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, currentIdentity, req.Username, reqID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2365,7 +2416,22 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	return a.generateUserCerts(ctx, req)
+	authPref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity := a.context.Identity.GetIdentity()
+
+	// Device trust: authorize device before issuing certificates, if applicable.
+	// This gives a better UX by failing earlier in the access attempt.
+	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.generateUserCerts(
+		ctx, req,
+		certRequestDeviceExtensions(identity.DeviceExtensions),
+	)
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
@@ -2560,8 +2626,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		azureIdentity:     req.RouteToApp.AzureIdentity,
+		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
 		checker:           checker,
-		traits:            accessInfo.Traits,
+		// Copy IP from current identity to the generated certificate, if present,
+		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
+		clientIP: a.context.Identity.GetIdentity().ClientIP,
+		traits:   accessInfo.Traits,
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
@@ -2742,7 +2812,10 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 		return trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().OIDC {
-		return trace.AccessDenied("OIDC is only available in enterprise subscriptions")
+		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+		// we can't currently propagate wrapped errors across the gRPC boundary,
+		// and we want tctl to display a clean user-facing message in this case
+		return trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
 	return a.authServer.UpsertOIDCConnector(ctx, connector)
@@ -2819,15 +2892,17 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	if !modules.GetModules().Features().SAML {
+		return trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().SAML {
-		return trace.Wrap(ErrSAMLRequiresEnterprise)
-	}
+
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
@@ -3132,7 +3207,7 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3140,7 +3215,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3434,6 +3509,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
+	}
+
+	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetAuthPreference(ctx, newAuthPref)
@@ -3865,6 +3944,30 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 	return a.authServer.DeleteAllDatabaseServers(ctx, namespace)
 }
 
+// UpsertDatabaseService creates or updates a new DatabaseService resource.
+func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	if err := a.action(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertDatabaseService(ctx, service)
+}
+
+// DeleteAllDatabaseServices removes all DatabaseService resources.
+func (a *ServerWithRoles) DeleteAllDatabaseServices(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllDatabaseServices(ctx)
+}
+
+// DeleteDatabaseService removes a specific DatabaseService resource.
+func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteDatabaseService(ctx, name)
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
@@ -3947,7 +4050,7 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 		app,
 		// MFA is not required for operations on app resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -4208,18 +4311,18 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		return trace.Wrap(err)
 	}
 
-	ap, err := a.authServer.GetAuthPreference(ctx)
+	authPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := a.context.MFAParams(ap.GetRequireMFAType())
+	state := a.context.GetAccessState(authPref)
 	for _, kube := range s.GetKubernetesClusters() {
 		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
+		if err := a.context.Checker.CheckAccess(k8sV3, state); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -4240,7 +4343,7 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) er
 		cluster,
 		// MFA is not required for operations on kube clusters resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 // GetKubernetesServers returns all registered kubernetes servers.
@@ -4499,7 +4602,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	isTeleportServer := err == nil
 
 	if !isTeleportServer {
-		if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
+		if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
 			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 			e <- trace.Wrap(err)
 			return c, e
@@ -4746,14 +4849,14 @@ func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
 	return a.context.Checker.CheckAccess(node,
 		// MFA is not required for operations on node resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
 	return a.context.Checker.CheckAccess(database,
 		// MFA is not required for operations on database resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 // CreateDatabase creates a new database resource.
@@ -5047,7 +5150,7 @@ func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop)
 func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) error {
 	return a.context.Checker.CheckAccess(w,
 		// MFA is not required for operations on desktop resources
-		services.AccessMFAParams{Verified: true},
+		services.AccessState{MFAVerified: true},
 		// Note: we don't use the Windows login matcher here, as we won't know what OS user
 		// the user is trying to log in as until they initiate the connection.
 	)
@@ -5057,7 +5160,8 @@ func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) er
 // authentication.
 func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	// Only windows_desktop_service should be requesting Windows certificates.
-	if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
+	// (We also allow RoleAdmin for tctl auth sign)
+	if !a.hasBuiltinRole(types.RoleWindowsDesktop, types.RoleAdmin) {
 		return nil, trace.AccessDenied("access denied")
 	}
 	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
@@ -5201,6 +5305,23 @@ func (a *ServerWithRoles) SubmitUsageEvent(ctx context.Context, req *proto.Submi
 	}
 
 	return nil
+}
+
+// GetLicense returns the license used to start the auth server
+func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindLicense, types.VerbRead); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return a.authServer.GetLicense(ctx)
+}
+
+// ListReleases return Teleport Enterprise releases
+func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.releaseService.ListReleases(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

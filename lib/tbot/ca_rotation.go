@@ -224,7 +224,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 		)
 	}
 
-	// We want to skip anything that is not host, user, db
+	// We want to skip anything that is not host, user, or db
 	if !slices.Contains([]string{
 		string(types.HostCA),
 		string(types.UserCA),

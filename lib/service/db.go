@@ -40,7 +40,7 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 }
 
 func (process *TeleportProcess) initDatabases() {
-	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -48,7 +48,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	conn, err := process.waitForConnector(DatabasesIdentityEvent, log)
+	conn, err := process.WaitForConnector(DatabasesIdentityEvent, log)
 	if conn == nil {
 		return trace.Wrap(err)
 	}
@@ -95,7 +95,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 
 	clusterName := conn.ServerIdentity.ClusterName
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
