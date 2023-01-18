@@ -155,8 +155,8 @@ WITHOUT := $(subst -," ",$(call join-with,$(COMMA) ,$(subst without-,,$(filter w
 RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and with $(WITH) and without $(WITHOUT)."
 
 # Is this build targeting the same OS & architecture it is being compiled on, or
-# will it require cross-compilation? We need to know this (especially for ARM) so we 
-# can set the cross-compiler path correctly. 
+# will it require cross-compilation? We need to know this (especially for ARM) so we
+# can set the cross-compiler path correctly.
 IS_CROSS_BUILD = $(if $(filter-out $(ARCH), $(shell go env GOARCH)),yes)
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
@@ -170,7 +170,7 @@ else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 else ifeq ("$(ARCH)","arm64")
 
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced 
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced
 # featureset. Also, if we 're not guaranteed to be building natively on an arm64 system
 # then we'll need to configure the cross compiler.
 
@@ -198,7 +198,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: bpf-bytecode-e ensure-webassets-e teleport-fips-check rdpclient
+$(BUILDDIR)/teleport: bpf-bytecode-e teleport-fips-check rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
@@ -260,7 +260,7 @@ clean:
 # make deploy-cloud - Produces a docker image and deploys to a cloud
 # tenant in the staging cluster.
 .PHONY: deploy-cloud
-deploy-cloud: ensure-webassets-e
+deploy-cloud:
 	@echo "---> Building teleport binaries for deployment to cloud tenant."
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -tags "webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 	@if [ "$(CLOUD_DOCKERFILE)" != "-" ]; then \
@@ -287,6 +287,7 @@ export
 release:
 	@echo
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
+	$(MAKE) -C .. ensure-webassets-e
 	$(MAKE) --no-print-directory release-unix
 
 # These are aliases used to make build commands uniform.
@@ -334,7 +335,7 @@ release-unix: clean full build-archive
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
-full: check-build-vars ensure-webassets-e
+full: check-build-vars
 	@echo "---> Attaching Enterprise web assets."
 	$(MAKE) all WEBASSETS_TAG="webassets_embed webassets_ent"
 
@@ -437,7 +438,3 @@ ent-deb:
 # build .deb
 .PHONY: deb
 deb: ent-deb
-
-.PHONY: ensure-webassets-e
-ensure-webassets-e:
-	$(MAKE) -s -C .. ensure-webassets-e

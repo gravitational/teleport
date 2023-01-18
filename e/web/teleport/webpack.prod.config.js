@@ -1,1 +1,1 @@
-module.exports = require('@gravitational/teleport/webpack.prod.config');
+module.exports = require('../../../web/packages/teleport/webpack.prod.config');
