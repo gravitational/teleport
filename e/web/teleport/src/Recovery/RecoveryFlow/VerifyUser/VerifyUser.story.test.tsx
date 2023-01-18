@@ -1,0 +1,55 @@
+import React from 'react';
+import { render } from 'design/utils/testing';
+
+import * as WithMulti from './Multi.story';
+import * as WithPassword from './Password.story';
+import * as WithTotp from './Totp.story';
+import * as Webauthn from './Webauthn.story';
+
+test('render form for authenticating with password to recover mfa device', () => {
+  const { container } = render(<WithPassword.Loaded />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render failed state form for authenticating with password', () => {
+  const { container } = render(<WithPassword.Failed />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render form for authenticating with totp', () => {
+  const { container } = render(<WithTotp.Loaded />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render failed state form for authenticating with totp', () => {
+  const { container } = render(<WithTotp.Failed />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render form for authenticating with multi option', () => {
+  const { container } = render(<WithMulti.Loaded />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render failed state form for authenticating with multi option', () => {
+  const { container } = render(<WithMulti.Failed />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render form for authenticating with webauthn', () => {
+  const { container } = render(<Webauthn.Loaded />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render failed state form for authenticating with webauthn', () => {
+  const { container } = render(<Webauthn.Failed />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
