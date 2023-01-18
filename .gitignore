@@ -85,3 +85,4 @@ go.work.sum
 node_modules
 
 .air.toml
+webassets/
