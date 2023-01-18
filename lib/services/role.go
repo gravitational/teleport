@@ -1169,23 +1169,31 @@ func (set RoleSet) PinSourceIP() bool {
 	return false
 }
 
-// GetAccessState returns the AccessState for the user given their roles, the
-// cluster auth preference, and whether MFA and the user's device were verified.
+// GetAccessState returns the AccessState, setting [AccessState.MFARequired]
+// according to the user's roles and cluster auth preference.
 func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+	return AccessState{
+		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
+		// We don't set ClusterDeviceMode here, as both ClusterDeviceMode and
+		// DeviceVerified should be set in tandem.
+	}
+}
+
+func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MFARequired {
 	// per-session MFA is overridden by hardware key PIV touch requirement.
 	// check if the auth pref or any roles have this option.
-	if authPref.GetRequireMFAType() == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return AccessState{MFARequired: MFARequiredNever}
+	if clusterRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+		return MFARequiredNever
 	}
 	for _, role := range set {
 		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return AccessState{MFARequired: MFARequiredNever}
+			return MFARequiredNever
 		}
 	}
 
 	// MFA is always required according to the cluster auth pref.
-	if authPref.GetRequireMFAType().IsSessionMFARequired() {
-		return AccessState{MFARequired: MFARequiredAlways}
+	if clusterRequireMFAType.IsSessionMFARequired() {
+		return MFARequiredAlways
 	}
 
 	// If MFA requirement is the same across all roles, we can skip the per-role check.
@@ -1195,17 +1203,17 @@ func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 		for _, role := range set[1:] {
 			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
 				// This role differs from the MFA requirement of the other roles, return per-role.
-				return AccessState{MFARequired: MFARequiredPerRole}
+				return MFARequiredPerRole
 			}
 		}
 
 		if rolesMFARequired {
-			return AccessState{MFARequired: MFARequiredAlways}
+			return MFARequiredAlways
 		}
 	}
 
 	// No roles to check or no roles require MFA.
-	return AccessState{MFARequired: MFARequiredNever}
+	return MFARequiredNever
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
