@@ -512,6 +512,9 @@ const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels
 	TeleportInternalLabelPrefix = "teleport.internal/"
 
+	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels
+	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"
 
