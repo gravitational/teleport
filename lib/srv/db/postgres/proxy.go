@@ -55,7 +55,7 @@ type Proxy struct {
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
 	if p.IngressReporter != nil {
-		p.IngressReporter.ConnectionAccepeted(ingress.Postgres, clientConn)
+		p.IngressReporter.ConnectionAccepted(ingress.Postgres, clientConn)
 		defer p.IngressReporter.ConnectionClosed(ingress.Postgres, clientConn)
 	}
 

@@ -61,7 +61,7 @@ type Proxy struct {
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
 	if p.IngressReporter != nil {
-		p.IngressReporter.ConnectionAccepeted(ingress.MySQL, clientConn)
+		p.IngressReporter.ConnectionAccepted(ingress.MySQL, clientConn)
 		defer p.IngressReporter.ConnectionClosed(ingress.MySQL, clientConn)
 	}
 

@@ -305,7 +305,7 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if s.cfg.IngressReporter != nil {
-		s.cfg.IngressReporter.ConnectionAccepeted(ingress.DatabaseTLS, conn)
+		s.cfg.IngressReporter.ConnectionAccepted(ingress.DatabaseTLS, conn)
 		defer s.cfg.IngressReporter.ConnectionClosed(ingress.DatabaseTLS, conn)
 	}
 

@@ -433,7 +433,7 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 // and proxies, proxies and servers, servers and auth, etc).
 func (s *Server) HandleConnection(conn net.Conn) {
 	if s.ingressReporter != nil {
-		s.ingressReporter.ConnectionAccepeted(s.ingressService, conn)
+		s.ingressReporter.ConnectionAccepted(s.ingressService, conn)
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
 

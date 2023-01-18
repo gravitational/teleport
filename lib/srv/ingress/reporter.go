@@ -36,7 +36,6 @@ const (
 	Tunnel      = "tunnel"
 	MySQL       = "mysql"
 	Postgres    = "postgres"
-	SQLServer   = "sqlserver"
 	DatabaseTLS = "database_tls"
 )
 
@@ -49,7 +48,7 @@ const (
 
 var commonLabels = []string{"ingress_path", "ingress_service"}
 
-// acceptedConnections measures connections accepeted by each listener type and ingress path.
+// acceptedConnections measures connections accepted by each listener type and ingress path.
 // This allows us to differentiate between connectoins going through alpn routing or directly
 // to the listener.
 var acceptedConnections = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -86,7 +85,7 @@ func HTTPConnStateReporter(service string, r *Reporter) func(net.Conn, http.Conn
 
 		switch state {
 		case http.StateNew:
-			r.ConnectionAccepeted(service, conn)
+			r.ConnectionAccepted(service, conn)
 			r.ConnectionAuthenticated(service, conn)
 		case http.StateClosed, http.StateHijacked:
 			r.ConnectionClosed(service, conn)
@@ -133,14 +132,14 @@ type Reporter struct {
 	unspecifiedIP bool
 }
 
-// ConnectionAccepeted reports a new connection, ConnectionClosed must be called when the connection closes.
-func (r *Reporter) ConnectionAccepeted(service string, conn net.Conn) {
+// ConnectionAccepted reports a new connection, ConnectionClosed must be called when the connection closes.
+func (r *Reporter) ConnectionAccepted(service string, conn net.Conn) {
 	path := r.getIngressPath(conn)
 	acceptedConnections.WithLabelValues(path, service).Inc()
 	activeConnections.WithLabelValues(path, service).Inc()
 }
 
-// ConnectionClosed reports a closed connection. This should only be called after ConnectionAccepeted.
+// ConnectionClosed reports a closed connection. This should only be called after ConnectionAccepted.
 func (r *Reporter) ConnectionClosed(service string, conn net.Conn) {
 	path := r.getIngressPath(conn)
 	activeConnections.WithLabelValues(path, service).Dec()

@@ -31,20 +31,20 @@ func TestIngressReporter(t *testing.T) {
 	reporter, err := NewReporter("0.0.0.0:3080")
 	require.NoError(t, err)
 	conn := newConn(t, "localhost:3080")
-	reporter.ConnectionAccepeted(SSH, conn)
-	require.Equal(t, 1, getAccepetedConnections(PathALPN, SSH))
+	reporter.ConnectionAccepted(SSH, conn)
+	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 1, getActiveConnections(PathALPN, SSH))
 
 	reporter.ConnectionClosed(SSH, conn)
-	require.Equal(t, 1, getAccepetedConnections(PathALPN, SSH))
+	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 0, getActiveConnections(PathALPN, SSH))
 
 	reporter.ConnectionAuthenticated(SSH, conn)
-	require.Equal(t, 1, getAuthenticatedAccepetedConnections(PathALPN, SSH))
+	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 1, getAuthenticatedActiveConnections(PathALPN, SSH))
 
 	reporter.AuthenticatedConnectionClosed(SSH, conn)
-	require.Equal(t, 1, getAuthenticatedAccepetedConnections(PathALPN, SSH))
+	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH))
 }
 
@@ -78,7 +78,7 @@ func (c *wrappedConn) LocalAddr() net.Addr {
 	return c.addr
 }
 
-func getAccepetedConnections(path, service string) int {
+func getAcceptedConnections(path, service string) int {
 	return getCounterValue(acceptedConnections, path, service)
 }
 
@@ -86,7 +86,7 @@ func getActiveConnections(path, service string) int {
 	return getGaugeValue(activeConnections, path, service)
 }
 
-func getAuthenticatedAccepetedConnections(path, service string) int {
+func getAuthenticatedAcceptedConnections(path, service string) int {
 	return getCounterValue(authenticatedConnectionsAccepted, path, service)
 }
 
