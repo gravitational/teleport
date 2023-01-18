@@ -21,7 +21,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gobuffalo/flect"
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -123,7 +123,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, overrideV
 			groupName:  generator.groupName,
 			kind:       resourceKind,
 			name:       strings.ToLower(resourceKind),
-			pluralName: strings.ToLower(flect.Pluralize(resourceKind)),
+			pluralName: strings.ToLower(english.PluralWord(2, resourceKind, "")),
 		}
 		generator.roots[resourceKind] = root
 	}

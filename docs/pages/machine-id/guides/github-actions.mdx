@@ -27,16 +27,18 @@ Actions runners as well as GitHub Enterprise Server.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
+(!docs/pages/includes/tctl.mdx!)
+
 - A node that is a part of the Teleport cluster with [Server Access](https://goteleport.com/docs/server-access/introduction/).
-- A local workstation with `tsh` access to the cluster.
+- Your user should have the privileges to create token resources.
 - A GitHub repository with GitHub Actions enabled. This guide uses the example `gravitational/example`
 repo, however this value should be replaced with your own unique repo.
 
-## Step 1/3. Creating a join token for GitHub Actions
+## Step 1/3. Create a join token for GitHub Actions
 
 (!docs/pages/includes/machine-id/github-actions-create-token.mdx!)
 
-## Step 2/3. Creating your Machine ID bot
+## Step 2/3. Create your Machine ID bot
 
 With the join token for GitHub Actions created, the next step is to create the Machine ID bot,
 and ensure that it is configured to use the newly created token.
@@ -54,7 +56,7 @@ a Linux user on the host that you want your GitHub Actions flow to be able to co
 $ tctl bots add github-demo --roles=access --token=github-token --logins=username
 ```
 
-## Step 3/3. Configuring GitHub Actions
+## Step 3/3. Configure GitHub Actions
 
 Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their GitHub-provided identity.
 
@@ -119,7 +121,7 @@ to complete, and will resemble the following once successful.
 
 ![GitHub Actions](../../../img/machine-id/github-actions.png)
 
-Expand the `List nodes` step of the action, and the output will
+Expand the **List nodes** step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
 Machine ID bot using the command `tsh ls`.
 
@@ -144,5 +146,5 @@ You can find out more about the `teleport-action/setup` and
 - [https://github.com/teleport-actions/setup](https://github.com/teleport-actions/setup)
 - [https://github.com/teleport-actions/auth](https://github.com/teleport-actions/auth)
 
-For more informatiom about GitHub Actions itself, read
+For more information about GitHub Actions itself, read
 [their documentation](https://docs.github.com/en/actions).
