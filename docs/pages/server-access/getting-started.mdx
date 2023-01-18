@@ -12,7 +12,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 2. Introspect the cluster using Teleport features.
 
 <Admonition type="tip" title="Tip">
-  This guide also demonstrates how to configure Teleport Nodes using the **bastion pattern** so that only a single Node can be accessed publicly.
+  This guide also demonstrates how to configure Teleport SSH Service using the **bastion pattern** so that only a single Node can be accessed publicly.
 </Admonition>
 
 <Figure
@@ -28,7 +28,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - One host running a Linux environment (such as Ubuntu 20.04, CentOS
-  8.0, or Debian 10). This will serve as a Teleport Node.
+  8.0, or Debian 10). This will serve as a Teleport SSH Service machine.
 - The `jq` tool to process `JSON` output. This is available via common package managers.
 
 (!docs/pages/includes/tctl.mdx!)
@@ -43,37 +43,25 @@ This guide introduces some of these common scenarios and how to interact with Te
    We'll configure and launch our instance, then demonstrate how to use the
    `tsh` tool and Teleport in SSH mode.
 
-2. On the host where you will run your Teleport Node, follow the instructions for your environment to install Teleport.
+2. On the host where you will run your Teleport SSH Service, follow the instructions for your environment to install Teleport.
 
    (!docs/pages/includes/install-linux.mdx!)
 
-   Next, we'll create a **join token** so you can start the Teleport Node and
+   Next, we'll create a **join token** so you can start the Teleport SSH Service and
    add it to your cluster.
 
-## Step 2/4. Add a Node to the cluster
+## Step 2/4. Add a SSH Service to the cluster
 
 ### Create a join token
 
-Next, create a join token so you can add the Node to your Teleport cluster.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+Next, create a join token so you can add the SSH Service to your Teleport cluster.
 
 ```code
 # Let's save the token to a file
-$ sudo tctl tokens add --type=node --format json | jq -r '.token'  > token.file
+$ tctl tokens add --type=node --format json | jq -r '.token'  > token.file
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-#Let's save the token to a file
-$ tctl tokens add --type=node  --format json | jq -r '.token' > token.file
-```
-
-</ScopedBlock>
-
-`--type=node` specifies that the Teleport Node will act and join as an SSH
+`--type=node` specifies that the Teleport Agent will act and join as an SSH
 server.
 
 `> token.file` indicates that you'd like to save the output to a file name `token.file`.
@@ -82,19 +70,19 @@ server.
    This helps to minimize the direct sharing of tokens even when they are dynamically generated.
 </Admonition>
 
-### Join your Node to the cluster
+### Join your SSH Service to the cluster
 
-On your Node, save `token.file` to an appropriate, secure, directory you have
+On your SSH Service machine, save `token.file` to an appropriate, secure, directory you have
 the rights and access to read.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-Configure and start the Node. Change `tele.example.com` to the address of your Teleport Proxy
+Configure and start the SSH Service instance. Change `tele.example.com` to the address of your Teleport Proxy
 Service. Assign the `--token` flag to the path where you saved
 `token.file`.
 
 ```code
-# Generate the Teleport configuration file defaulted at /etc/teleport.yaml
+# Generate the Teleport configuration file, which is written to /etc/teleport.yaml
 $ sudo teleport node configure \
    --labels=env=example \
    --token=/path/to/token.file \
@@ -107,11 +95,11 @@ $ sudo teleport start
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
-Configure and start the Node. Change `mytenant.teleport.sh` to your Teleport Cloud tenant
+Configure and start the SSH Service instance. Change `mytenant.teleport.sh` to your Teleport Cloud tenant
 address. Assign the `--token` flag to the path where you saved `token.file`.
 
 ```code
-# Generate the Teleport configuration file defaulted at /etc/teleport.yaml
+# Generate the Teleport configuration file, which is written to /etc/teleport.yaml
 $ sudo teleport node configure \
    --labels=env=example \
    --token=/path/to/token.file \
@@ -123,7 +111,7 @@ $ sudo teleport start
 
 </ScopedBlock>
 
-Now that you have a node configured you can update the configuration
+Now that you have the SSH Service configured you can update the configuration
 as needed, stop and restart with `sudo teleport start`. See
 [Run Teleport as a Daemon](../management/admin/daemon.mdx) for running as a daemon using systemd.
 
@@ -131,20 +119,9 @@ as needed, stop and restart with `sudo teleport start`. See
 
 Run the following command to create a user that can access the Teleport Web UI:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ sudo tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
 ```code
 $ tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
-
-</ScopedBlock>
 
 This will generate an initial login link where you can create a password and set up two-factor authentication for `tele-admin`.
 
@@ -152,21 +129,21 @@ This will generate an initial login link where you can create a password and set
    We've only given `tele-admin` the roles `editor` and `access` according to the Principle of Least Privilege.
 </Admonition>
 
-You should now be able to view your Teleport Node in the Teleport Web UI after
+You should now be able to view your Teleport SSH Service in the Teleport Web UI after
 logging in as `tele-admin`:
 
    <Figure
      align="center"
      bordered
-     caption="Both Nodes in the Web UI"
+     caption="Both Servers in the Web UI"
    >
-     ![Both Nodes in the Web UI](../../img/server-access/teleport_ui.png)
+     ![Both Servers in the Web UI](../../img/server-access/teleport_ui.png)
    </Figure>
 
 ## Step 3/4. SSH into the server
 
 Now that we've got our cluster up and running, let's see how easy it is to
-connect to our Node.
+connect to our SSH Service.
 
 We can use `tsh` to SSH into the cluster:
 
@@ -238,7 +215,7 @@ cluster through Teleport SSH.
 
 ### Display cluster resources
 
-`tele-admin` can now execute the following to find the cluster's Node names,
+`tele-admin` can now execute the following to find the cluster's SSH Service names,
 which are used for establishing SSH connections:
 
    ```code
@@ -266,7 +243,7 @@ which are used for establishing SSH connections:
    ```
 </ScopedBlock>
 
-### Connect to a Node
+### Connect to a SSH Service
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 `tele-admin` can SSH into the bastion host Node by running the following command locally:
@@ -338,7 +315,7 @@ Execute the following command within your bastion host console:
 
 ```code
 # List Nodes
-$ sudo tctl nodes ls
+$ tctl nodes ls
 ```
 
 This displays the unified resource catalog with all queried resources in one view:
@@ -355,7 +332,7 @@ ip-172-31-41-144 f3d2a65f-3fa7-451d-b516-68d189ff9ae5 127.0.0.1:3022 env=example
 Execute the following command on your desktop:
 
 ```code
-# List Nodes
+# List SSH Services
 $ tctl nodes ls
 ```
 
@@ -375,7 +352,7 @@ Note the "Labels" column on the farthest side. `tele-admin` can query all resour
 $ tsh ls env=example
 ```
 
-Customized labels can be defined in your `teleport.yaml` configuration file or during Node creation.
+Customized labels can be defined in your `teleport.yaml` configuration file or during SSH Service creation.
 
 This is a convenient feature that allows for more advanced queries. If an IP address changes, for example, an admin can quickly find the current Node with that label since it remains unchanged.
 
@@ -384,7 +361,7 @@ This is a convenient feature that allows for more advanced queries. If an IP add
 `tele-admin` can also execute commands on all Nodes that share a label, vastly simplifying repeated operations. For example, the command:
 
 ```code
-# Run the ls command on all Nodes with a label
+# Run the ls command on all SSH Services with a label
 $ tsh ssh root@env=example ls
 ```
 
