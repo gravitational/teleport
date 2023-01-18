@@ -27,9 +27,12 @@ control.
 
 (!docs/pages/includes/tctl.mdx!)
 
-- A running instance of the Teleport SSH Service that you have registered with your Teleport cluster. For instructions on setting this up, see the [Getting Started Guide](../../server-access/introduction.mdx). The SSH node must include a
-user you want to grant access to. In this guide, we will call the SSH node `my-node` and the user
-`ci-user`. Replace these with values appropriate to your setup.
+- A running instance of the Teleport SSH Service that you have registered with
+your Teleport cluster. For instructions on setting this up, see the
+[Getting Started Guide](../../server-access/introduction.mdx). The SSH node must
+include a user you want to grant access to. In this guide, we will call the SSH
+node `my-node` and the user `ci-user`. Replace these with values appropriate to
+your setup.
 - A CircleCI project connected to a Git repository you can push to.
 
 ## Step 1/4. Configure CircleCI
@@ -48,9 +51,9 @@ in configuration examples with this.
 ### Create a context
 
 CircleCI has an organization-level concept called
-**contexts**, which allow you to configure a series of secrets that should be exposed to a
-workflow job. You can configure CircleCI to control which actors are allowed to trigger jobs
-associated with a context.
+**contexts**, which allow you to configure a series of secrets that should be
+exposed to a workflow job. You can configure CircleCI to control which actors
+are allowed to trigger jobs associated with a context.
 
 The contexts that a workflow job has been assigned are also encoded in the
 identity token that CircleCI creates for the job. This makes them an ideal way
@@ -158,10 +161,10 @@ could be replaced with pushing new configuration or binaries over SSH.
 
 Open your Git repository and create a directory called `.circleci`. Then open
 a file called `config.yml` and insert the following configuration. Replace
-`tele.example.com:443` with the public-facing address of your Teleport Proxy Service or
-cloud tenant (e.g. `example.teleport.sh`). Replace `my-node` with the name of
-the Teleport node that you wish to connect to and replace `ci-user` with the
-login you configured in Step 3.
+`tele.example.com:443` with the public-facing address of your Teleport Proxy
+Service or cloud tenant (e.g. `example.teleport.sh`). Replace `my-node` with the
+name of the Teleport node that you wish to connect to and replace `ci-user` with
+the login you configured in Step 3.
 
 ```yaml
 # See: https://circleci.com/docs/2.0/configuration-reference
