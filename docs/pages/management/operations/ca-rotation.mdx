@@ -26,12 +26,10 @@ configured in group policy.
 </Admonition>
 
 <Admonition type="warning" title="Certificate Authority Types">
-Prior to Teleport v12 if `--type` was unspecified it would default to rotating
-all certificate authorities. This is known to cause issues and has been deprecated.
-Going forward you should rotate each certificate authority individually.
-If you want to replicate the behavior of rotating all of the certificate authorities
-you can specify `--type=all` and that will replicate the functionality of previous
-versions. The `--type=all` option will be removed entirely in v13.
+Prior to Teleport 12, `--type` would default to rotating all certificate authorities.
+It is best to rotate CAs one at a time for increased stability. Future versions of
+Teleport will require this, but you can opt in to the previous behavior by adding
+an explicit `--type=all` flag.
 </Admonition>
 
 ### Rotation phases
