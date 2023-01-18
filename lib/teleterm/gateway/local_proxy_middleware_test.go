@@ -31,12 +31,13 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
-	cert, err := utils.GenerateSelfSignedCert([]string{"localhost"})
+	testCert, err := cert.GenerateSelfSignedCert([]string{"localhost"})
 	require.NoError(t, err)
-	tlsCert, err := keys.X509KeyPair(cert.Cert, cert.PrivateKey)
+	tlsCert, err := keys.X509KeyPair(testCert.Cert, testCert.PrivateKey)
 	require.NoError(t, err)
 	x509cert, err := utils.TLSCertToX509(tlsCert)
 	require.NoError(t, err)

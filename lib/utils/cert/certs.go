@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,30 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package cert
 
 import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // CreateCertificate creates a valid 2048-bit RSA certificate.
 func CreateCertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
 	// Create RSA key for CA and certificate to be signed by CA.
-	caKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	caKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	key, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	key, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

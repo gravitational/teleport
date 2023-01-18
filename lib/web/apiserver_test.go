@@ -91,6 +91,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -147,7 +148,7 @@ type WebSuite struct {
 }
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
-// it as an argument. Otherwise it will run tests as normal.
+// it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
@@ -156,6 +157,7 @@ func TestMain(m *testing.M) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
+	native.PrecomputeTestKeys(m)
 
 	// Otherwise run tests as normal.
 	code := m.Run()
@@ -7011,7 +7013,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		kubeConfigLocation = newKubeConfigFile(ctx, t, cfg.clusters...)
 	}
 
-	keyGen := native.New(ctx)
+	keyGen := tlsutils.New(ctx)
 	hostID := uuid.New().String()
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))
