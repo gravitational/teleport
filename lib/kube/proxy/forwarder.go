@@ -359,6 +359,8 @@ type authContext struct {
 	// kubeResource.Namespace is the resource namespace and kubeResource.Name
 	// is the resource name.
 	kubeResource *types.KubernetesResource
+	// httpMethod is the request HTTP Method.
+	httpMethod string
 }
 
 func (c authContext) String() string {
@@ -469,10 +471,22 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientIdentity)
+	// kubeResource is the Kubernetes Resource the request is targeted at.
+	// Currently only supports Pods and it includes the pod name and namespace.
+	kubeResource := getPodResourceFromRequest(req.RequestURI)
+	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientIdentity, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
 		if trace.IsAccessDenied(err) {
+			if kubeResource != nil {
+				return nil, trace.AccessDenied(
+					kubeResourceDeniedAccessMsg(
+						clientIdentity.Username,
+						req.Method,
+						kubeResource,
+					),
+				)
+			}
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		}
 		return nil, trace.Wrap(err)
@@ -556,6 +570,7 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 		// low-level to be useful.
 		Message: respErr.Error(),
 		Code:    int32(trace.ErrorToCode(respErr)),
+		Reason:  errorToKubeStatusReason(respErr),
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
@@ -564,16 +579,17 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 		return
 	}
 	rw.Header().Set(responsewriters.ContentTypeHeader, "application/json")
-	// Always write InternalServerError, that's the only code that kubectl will
-	// parse the Status object for. The Status object has the real status code
-	// embedded.
-	rw.WriteHeader(http.StatusInternalServerError)
+	// Always write the correct error code in the response so kubectl can parse
+	// it correctly. If response code and status.Code drift, kubectl prints
+	// `Error from server (InternalError): an error on the server ("unknown")
+	// has prevented the request from succeeding`` instead of the correct reason.
+	rw.WriteHeader(trace.ErrorToCode(respErr))
 	if _, err := rw.Write(data); err != nil {
 		f.log.Warningf("Failed writing kube error response body: %v", err)
 	}
 }
 
-func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity) (*authContext, error) {
+func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
 	roles := authCtx.Checker
 
 	// adjust session ttl to the smaller of two values: the session
@@ -610,9 +626,6 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 	var (
 		kubeUsers, kubeGroups []string
 		kubeLabels            map[string]string
-		// kubeResource is the KubernetesResource the request is targeted at.
-		// Currently only supports Pods and it includes the pod name and namespace.
-		kubeResource = getPodResourceFromRequest(req.RequestURI)
 	)
 	// Only check k8s principals for local clusters.
 	//
@@ -720,6 +733,7 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
+		httpMethod: req.Method,
 	}, nil
 }
 
@@ -895,17 +909,21 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ap, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := actx.MFAParams(ap.GetRequireMFAType())
+	state := actx.GetAccessState(authPref)
 
 	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterName)
 	var roleMatchers services.RoleMatchers
 	if actx.kubeResource != nil {
-		notFoundMessage = fmt.Sprintf("%s %q from Kubernetes cluster %q not found", actx.kubeResource.Kind, actx.kubeResource.ClusterResource(), actx.kubeClusterName)
+		notFoundMessage = kubeResourceDeniedAccessMsg(
+			actx.User.GetName(),
+			actx.httpMethod,
+			actx.kubeResource,
+		)
 		roleMatchers = services.RoleMatchers{
 			// Append a matcher that validates if the Kubernetes resource is allowed
 			// by the roles that satisfy the Kubernetes Cluster.
@@ -923,7 +941,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			continue
 		}
 
-		if err := actx.Checker.CheckAccess(ks, mfaParams, roleMatchers...); err != nil {
+		if err := actx.Checker.CheckAccess(ks, state, roleMatchers...); err != nil {
 			return trace.AccessDenied(notFoundMessage)
 		}
 		// If the user has active Access requests we need to validate that they allow
@@ -2621,4 +2639,75 @@ func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.Del
 	}
 	_, _, err = decoder.Decode(data, nil, &into)
 	return into, trace.Wrap(err)
+}
+
+// kubeResourceDeniedAccessMsg creates a Kubernetes API like forbidden response.
+// Logic from:
+// https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/staging/src/k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/errors.go#L51
+func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.KubernetesResource) string {
+	resource := pluralize(kubeResource.Kind)
+	// pod api group is ""
+	// Check this code when we introduce new resources.
+	apiGroup := ""
+	// <resource> "<pod_name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
+	return fmt.Sprintf(
+		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q",
+		resource,
+		kubeResource.Name,
+		user,
+		getRequestVerb(method),
+		resource,
+		apiGroup,
+		kubeResource.Namespace,
+	)
+}
+
+// pluralize adds an s at the end of the input string.
+func pluralize(s string) string {
+	return s + "s"
+}
+
+// getRequestVerb converts the request method into a Kubernetes Verb.
+func getRequestVerb(method string) string {
+	apiVerb := ""
+	switch method {
+	case http.MethodPost:
+		apiVerb = "create"
+	case http.MethodGet:
+		apiVerb = "get"
+	case http.MethodPut:
+		apiVerb = "update"
+	case http.MethodPatch:
+		apiVerb = "patch"
+	case http.MethodDelete:
+		apiVerb = "delete"
+	}
+	return apiVerb
+}
+
+// errorToKubeStatusReason returns an appropriate StatusReason based on the
+// provided error type.
+func errorToKubeStatusReason(err error) metav1.StatusReason {
+	switch {
+	case trace.IsAggregate(err):
+		return metav1.StatusReasonTimeout
+	case trace.IsNotFound(err):
+		return metav1.StatusReasonNotFound
+	case trace.IsBadParameter(err) || trace.IsOAuth2(err):
+		return metav1.StatusReasonBadRequest
+	case trace.IsNotImplemented(err):
+		return metav1.StatusReasonMethodNotAllowed
+	case trace.IsCompareFailed(err):
+		return metav1.StatusReasonConflict
+	case trace.IsAccessDenied(err):
+		return metav1.StatusReasonForbidden
+	case trace.IsAlreadyExists(err):
+		return metav1.StatusReasonConflict
+	case trace.IsLimitExceeded(err):
+		return metav1.StatusReasonTooManyRequests
+	case trace.IsConnectionProblem(err):
+		return metav1.StatusReasonTimeout
+	default:
+		return metav1.StatusReasonUnknown
+	}
 }

@@ -1492,16 +1492,26 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := GetResourcesByResourceIDs(ctx, m.getter, resourceIDs)
+	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
-		var rolesForResource []types.Role
+		var (
+			rolesForResource []types.Role
+			resourceMatcher  *KubeResourcesMatcher
+		)
+		kubernetesResources, err := getKubeResourcesFromResourceIDs(resourceIDs, resource.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(kubernetesResources) > 0 {
+			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
+		}
 		for _, role := range allRoles {
-			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint)
+			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1511,6 +1521,20 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				continue
 			}
 			rolesForResource = append(rolesForResource, role)
+		}
+		// If any of the requested resources didn't match with the provided roles,
+		// we deny the request because the user is trying to request more access
+		// than what is allowed by its search_as_roles.
+		if resourceMatcher != nil && len(resourceMatcher.Unmatched()) > 0 {
+			resourcesStr, err := types.ResourceIDsToString(resourceIDs)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nil, trace.BadParameter(
+				`no roles configured in the "search_as_roles" for this user allow `+
+					`access to at least one requested resources. `+
+					`resources: %s roles: %v unmatched resources: %v`,
+				resourcesStr, roles, resourceMatcher.Unmatched())
 		}
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
@@ -1572,13 +1596,15 @@ func roleAllowsResource(
 	role types.Role,
 	resource types.ResourceWithLabels,
 	loginHint string,
+	extraMatchers ...RoleMatcher,
 ) (bool, error) {
 	roleSet := RoleSet{role}
 	var matchers []RoleMatcher
 	if len(loginHint) > 0 {
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
-	err := roleSet.checkAccess(resource, AccessMFAParams{Verified: true}, matchers...)
+	matchers = append(matchers, extraMatchers...)
+	err := roleSet.checkAccess(resource, AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.
@@ -1732,4 +1758,54 @@ func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hin
 	default:
 	}
 	return types.ResourcesWithLabels{resource}, nil
+}
+
+// resourceMatcherToMatcherSlice returns the resourceMatcher in a RoleMatcher slice
+// if the resourceMatcher is not nil, otherwise returns a nil slice.
+func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []RoleMatcher {
+	if resourceMatcher == nil {
+		return nil
+	}
+	return []RoleMatcher{resourceMatcher}
+}
+
+// getUnderlyingResourcesByResourceIDs gets the underlying resources the user
+// requested access. Except for resource Kinds present in types.KubernetesResourcesKinds,
+// the underlying resources are the same as requested. If the resource requested
+// is a Kubernetes resource, we return the underlying Kubernetes cluster.
+func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Context, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+	// When searching for Kube Resources, we change the resource Kind to the Kubernetes
+	// Cluster in order to load the roles that grant access to it and to verify
+	// if the access to it is allowed. We later verify if every Kubernetes Resource
+	// requested is fulfilled by at least one role.
+	searchableResourcesIDs := slices.Clone(resourceIDs)
+	for i := range searchableResourcesIDs {
+		if slices.Contains(types.KubernetesResourcesKinds, searchableResourcesIDs[i].Kind) {
+			searchableResourcesIDs[i].Kind = types.KindKubernetesCluster
+		}
+	}
+	// load the underlying resources.
+	resources, err := GetResourcesByResourceIDs(ctx, m.getter, searchableResourcesIDs)
+	return resources, trace.Wrap(err)
+}
+
+// getKubeResourcesFromResourceIDs returns the Kubernetes Resources requested for
+// the configured cluster.
+func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName string) ([]types.KubernetesResource, error) {
+	kubernetesResources := make([]types.KubernetesResource, 0, len(resourceIDs))
+
+	for _, resourceID := range resourceIDs {
+		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
+			splits := strings.Split(resourceID.SubResourceName, "/")
+			if len(splits) != 2 {
+				return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
+			}
+			kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+				Kind:      resourceID.Kind,
+				Namespace: splits[0],
+				Name:      splits[1],
+			})
+		}
+	}
+	return kubernetesResources, nil
 }

@@ -238,18 +238,18 @@ type mockChecker struct {
 	services.AccessChecker
 }
 
-func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
+func (m *mockChecker) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
 	return nil
 }
 
-func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	if authPrefMFARequirement.IsSessionMFARequired() {
-		return services.AccessMFAParams{
-			Required: services.MFARequiredAlways,
+func (m *mockChecker) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		return services.AccessState{
+			MFARequired: services.MFARequiredAlways,
 		}
 	}
-	return services.AccessMFAParams{
-		Required: services.MFARequiredNever,
+	return services.AccessState{
+		MFARequired: services.MFARequiredNever,
 	}
 }
 

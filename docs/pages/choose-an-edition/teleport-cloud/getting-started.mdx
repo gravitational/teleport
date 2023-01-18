@@ -19,7 +19,7 @@ Select Add Server and press COPY to copy the script command
 
 ## Step 3/5 Install Teleport Agent on Server
 
-Paste and run script
+Paste and run the script on a Linux Server:
 
 ![Past Install Script](../../../img/cloud/runscript-3.png)
 
@@ -28,19 +28,32 @@ Teleport Agent Installed
 
 ## Step 4/5 Access Server
 
-Select close and Server can be accessed
+Click **CLOSE**.  The server can now be accessed via SSH:
 ![Access Server](../../../img/cloud/online-session-5.png)
+
+Interact with your SSH session:
+![Open SSH](../../../img/cloud/online-ssh-5.png)
+
+Exit the session with `exit`. You can replay the session within Session Recordings:
+![Replay Session](../../../img/cloud/online-replay-5.png)
 
 ## Step 5/5 Access from Command Line
 
 Install client libraries:
 
 <Tabs>
+  <TabItem label="MacOS">
+(!docs/pages/includes/enterprise/install-macos-ent.mdx!)
+  </TabItem>
+  <TabItem label="Windows">
+(!docs/pages/includes/install-windows.mdx!)
+  </TabItem>
+
   <TabItem label="Linux">
     ```code
-    $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     # verify signature 
-    $ echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check 
+    $ echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check
     $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ cd teleport-ent
     $ sudo ./install
@@ -70,6 +83,7 @@ Type exit to end this session.  Happy Teleporting!
 
 ## Next Steps
 
+- Consider using our desktop app - [Teleport Connect](../../connect-your-client/teleport-connect.mdx) to access your resources.
 - Explore [cloud architecture](./architecture.mdx).
 - Check out [FAQ](./faq.mdx).
 - Join the [Teleport Discussions](https://github.com/gravitational/teleport/discussions) and ask a question.

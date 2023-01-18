@@ -151,18 +151,18 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 // authorizeConnection does authorization check for MongoDB connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := sessionCtx.GetAccessState(authPref)
 	// Only the username is checked upon initial connection. MongoDB sends
 	// database name with each protocol message (for query, update, etc.)
 	// so it is checked when we receive a message from client.
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
-		mfaParams,
+		state,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 	)
 	if err != nil {
@@ -195,7 +195,7 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	// Legacy OP_KILL_CURSORS command doesn't contain database information.
 	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
 		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
+			services.AccessState{MFAVerified: true},
 			&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	}
 	// Do not allow certain commands that deal with authentication.
@@ -209,7 +209,7 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	}
 	// Otherwise authorize the command against allowed databases.
 	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-		services.AccessMFAParams{Verified: true},
+		services.AccessState{MFAVerified: true},
 		role.DatabaseRoleMatchers(
 			defaults.ProtocolMongoDB,
 			sessionCtx.DatabaseUser,

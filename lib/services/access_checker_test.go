@@ -246,7 +246,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 
 			err := accessChecker.CheckAccess(
 				tt.kubeCluster,
-				AccessMFAParams{Required: MFARequiredNever},
+				AccessState{MFARequired: MFARequiredNever},
 				// Append a matcher that validates if the Kubernetes resource is allowed
 				// by the roles that satisfy the Kubernetes Cluster.
 				NewKubernetesResourceMatcher(tt.fields.resource),
