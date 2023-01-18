@@ -160,6 +160,18 @@ the correct STS endpoint.
 
 ### Generate a token
 
+<Details title="Alterative methods">
+
+For users with a lot of infrastructure in AWS, or who might create or recreate
+many instances, consider alternative methods for joining new EC2 instances running
+Teleport:
+
+- [Configure Teleport to Automatically Enroll EC2 instances (Preview)](../../server-access/guides/ec2-discovery.mdx)
+- [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
+- [Joining Nodes via AWS EC2 Identity Document](../../management/guides/joining-nodes-aws-ec2.mdx)
+
+</Details>
+
 A join token is required to authorize a Teleport Database Service instance
 to join the cluster. Generate a short-lived join token and save the output of
 the command:
