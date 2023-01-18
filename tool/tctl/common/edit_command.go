@@ -76,11 +76,12 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	}()
 
 	rc := &ResourceCommand{
-		refs:     services.Refs{e.ref},
-		format:   teleport.YAML,
-		stdout:   f,
-		filename: f.Name(),
-		force:    true,
+		refs:        services.Refs{e.ref},
+		format:      teleport.YAML,
+		stdout:      f,
+		filename:    f.Name(),
+		force:       true,
+		withSecrets: true,
 	}
 	rc.Initialize(e.app, e.config)
 
