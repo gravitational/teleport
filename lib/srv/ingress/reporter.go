@@ -53,7 +53,7 @@ var commonLabels = []string{"ingress_path", "ingress_service"}
 // to the listener.
 var acceptedConnections = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "teleport",
-	Name:      "accepted_connections",
+	Name:      "accepted_connections_total",
 }, commonLabels)
 
 // activeConnections measures the current number of active connections.
@@ -65,7 +65,7 @@ var activeConnections = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 // authenticatedConnectionsAccepted measures the number of connections that successfully authenticated.
 var authenticatedConnectionsAccepted = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "teleport",
-	Name:      "authenticated_accepted_connections",
+	Name:      "authenticated_accepted_connections_total",
 }, commonLabels)
 
 // authenticatedConnectionsActive measure the current number of active connectoins that
@@ -162,7 +162,7 @@ func (r *Reporter) AuthenticatedConnectionClosed(service string, conn net.Conn) 
 
 // getIngressPath determines the ingress path of a given connection.
 func (r *Reporter) getIngressPath(conn net.Conn) string {
-	// Unwarp a proxy protocol connection to compare against the local listener address.
+	// Unwrap a proxy protocol connection to compare against the local listener address.
 	addr := getRealLocalAddr(conn)
 
 	// An empty address indicates alpn routing is disabled.
