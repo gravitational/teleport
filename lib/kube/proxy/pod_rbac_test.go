@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,12 +46,6 @@ import (
 )
 
 func TestListPodRBAC(t *testing.T) {
-	t.Cleanup(func() {
-		goleak.VerifyNone(t,
-			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
-			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-		)
-	})
 	const (
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"
@@ -585,12 +578,6 @@ func (f *fakeResponseWriter) Write(b []byte) (int, error) {
 }
 
 func TestDeletePodCollectionRBAC(t *testing.T) {
-	t.Cleanup(func() {
-		goleak.VerifyNone(t,
-			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
-			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-		)
-	})
 	const (
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"

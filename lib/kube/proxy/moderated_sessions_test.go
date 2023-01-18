@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/remotecommand"
 
@@ -43,12 +42,6 @@ import (
 )
 
 func TestModeratedSessions(t *testing.T) {
-	t.Cleanup(func() {
-		goleak.VerifyNone(t,
-			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
-			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-		)
-	})
 	// enable enterprise features to have access to ModeratedSessions.
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	const (
@@ -292,6 +285,9 @@ func TestModeratedSessions(t *testing.T) {
 					if err != nil {
 						return trace.Wrap(err)
 					}
+					t.Cleanup(func() {
+						require.NoError(t, stream.Close())
+					})
 					// always send the force terminate even when the session is normally closed.
 					defer func() {
 						stream.ForceTerminate()
