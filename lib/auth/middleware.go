@@ -209,7 +209,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 // Close closes TLS server non-gracefully - terminates in flight connections
 func (t *TLSServer) Close() error {
-	errC := make(chan error, 3)
+	errC := make(chan error, 2)
 	go func() {
 		errC <- t.httpServer.Close()
 	}()
@@ -217,13 +217,11 @@ func (t *TLSServer) Close() error {
 		t.grpcServer.server.Stop()
 		errC <- nil
 	}()
-	go func() {
-		errC <- t.mux.Close()
-	}()
 	errors := []error{}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		errors = append(errors, <-errC)
 	}
+	errors = append(errors, t.mux.Close())
 	return trace.NewAggregate(errors...)
 }
 
