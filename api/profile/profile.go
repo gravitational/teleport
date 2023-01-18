@@ -39,9 +39,6 @@ import (
 const (
 	// profileDir is the default root directory where tsh stores profiles.
 	profileDir = ".tsh"
-	// currentProfileFilename is a file which stores the name of the
-	// currently active profile.
-	currentProfileFilename = "current-profile"
 )
 
 // Profile is a collection of most frequently used CLI flags
@@ -99,6 +96,15 @@ type Profile struct {
 	// MFAMode ("auto", "platform", "cross-platform").
 	// Equivalent to the --mfa-mode tsh flag.
 	MFAMode string `yaml:"mfa_mode,omitempty"`
+}
+
+// Copy returns a shallow copy of p, or nil if p is nil.
+func (p *Profile) Copy() *Profile {
+	if p == nil {
+		return nil
+	}
+	copy := *p
+	return &copy
 }
 
 // Name returns the name of the profile.
@@ -221,7 +227,7 @@ func SetCurrentProfileName(dir string, name string) error {
 		return trace.BadParameter("cannot set current profile: missing dir")
 	}
 
-	path := filepath.Join(dir, currentProfileFilename)
+	path := keypaths.CurrentProfileFilePath(dir)
 	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
 		return trace.Wrap(err)
 	}
@@ -244,7 +250,7 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, currentProfileFilename))
+	data, err := os.ReadFile(keypaths.CurrentProfileFilePath(dir))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", trace.NotFound("current-profile is not set")
@@ -316,7 +322,7 @@ func FromDir(dir string, name string) (*Profile, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	p, err := profileFromFile(filepath.Join(dir, name+".yaml"))
+	p, err := profileFromFile(keypaths.ProfileFilePath(dir, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -350,7 +356,7 @@ func (p *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
 	}
-	if err := p.saveToFile(filepath.Join(dir, p.Name()+".yaml")); err != nil {
+	if err := p.saveToFile(keypaths.ProfileFilePath(dir, p.Name())); err != nil {
 		return trace.Wrap(err)
 	}
 	if makeCurrent {

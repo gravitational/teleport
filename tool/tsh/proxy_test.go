@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"text/template"
 	"time"
@@ -217,7 +218,10 @@ func TestSSHLoadAllCAs(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := newTestSuite(t, tc.opts...)
 
 			leafProxySSHAddr, err := s.leaf.ProxySSHAddr()
@@ -398,7 +402,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := newTestSuite(t, tc.opts...)
 
 			runProxySSHJump := func(opts ...cliOption) error {
@@ -458,12 +465,13 @@ proxy_templates:
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
-	os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
+	err = os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
 Host *
   HostName %%h
   StrictHostKeyChecking no
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
 `, tshPath)), 0o644)
+	require.NoError(t, err)
 
 	// Connect to "localnode" with OpenSSH.
 	mustRunOpenSSHCommand(t, sshConfigFile, "localnode.root",
@@ -553,6 +561,8 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 }
 
 func TestEnvVarCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		inputFormat  string
 		inputKey     string
@@ -604,10 +614,71 @@ func TestEnvVarCommand(t *testing.T) {
 	}
 }
 
+// TestList verifies "tsh ls" functionality
+func TestList(t *testing.T) {
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+		}),
+	)
+	rootNodeAddress, err := s.root.NodeSSHAddr()
+	require.NoError(t, err)
+	leafNodeAddress, err := s.leaf.NodeSSHAddr()
+	require.NoError(t, err)
+
+	testCases := []struct {
+		description string
+		command     []string
+		resultNodes []string
+	}{
+		{
+			description: "List root cluster nodes",
+			command:     []string{"ls"},
+			resultNodes: []string{"localnode " + rootNodeAddress.String()},
+		},
+		{
+			description: "List leaf cluster nodes",
+			command:     []string{"ls", "-c", "leaf1"},
+			resultNodes: []string{"localnode " + leafNodeAddress.String()},
+		},
+		{
+			description: "List all clusters nodes",
+			command:     []string{"ls", "-R"},
+			resultNodes: []string{"leaf1     localnode", "localhost localnode"},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.description, func(t *testing.T) {
+			tshHome, _ := mustLogin(t, s)
+			stdout := new(bytes.Buffer)
+
+			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
+
+			require.NoError(t, err)
+			require.Equal(t, len(test.resultNodes), len(strings.Split(stdout.String(), "\n"))-4) // 4 - unimportant new lines
+			for _, node := range test.resultNodes {
+				require.Contains(t, stdout.String(), node)
+			}
+		})
+	}
+}
+
 func createAgent(t *testing.T) string {
 	t.Helper()
 
-	user, err := user.Current()
+	currentUser, err := user.Current()
 	require.NoError(t, err)
 
 	sockDir := "test"
@@ -621,7 +692,7 @@ func createAgent(t *testing.T) string {
 	})
 
 	// Start the SSH agent.
-	err = teleAgent.ListenUnixSocket(sockDir, sockName, user)
+	err = teleAgent.ListenUnixSocket(sockDir, sockName, currentUser)
 	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
@@ -766,6 +837,8 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 }
 
 func TestFormatCommand(t *testing.T) {
+	t.Parallel()
+
 	setEnv := func(command *exec.Cmd, envs ...string) *exec.Cmd {
 		command.Env = append(command.Env, envs...)
 		return command
@@ -807,6 +880,8 @@ func TestFormatCommand(t *testing.T) {
 }
 
 func Test_chooseProxyCommandTemplate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		commands         []dbcmd.CommandAlternative

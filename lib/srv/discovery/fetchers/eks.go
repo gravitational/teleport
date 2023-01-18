@@ -18,6 +18,7 @@ package fetchers
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 const (
@@ -71,7 +73,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 }
 
 // NewEKSFetcher creates a new EKS fetcher configuration.
-func NewEKSFetcher(cfg EKSFetcherConfig) (Fetcher, error) {
+func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,6 +141,11 @@ func (a *eksFetcher) ResourceType() string {
 
 func (a *eksFetcher) Cloud() string {
 	return types.CloudAWS
+}
+
+func (a *eksFetcher) String() string {
+	return fmt.Sprintf("eksFetcher(Region=%v, FilterLabels=%v)",
+		a.Region, a.FilterLabels)
 }
 
 // awsEKSTagsToLabels converts EKS tags to a labels map.

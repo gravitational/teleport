@@ -1,11 +1,18 @@
-<ScopedBlock scope={["enterprise", "cloud"]}>
+<ScopedBlock scope={["enterprise"]}>
 
 Visit the [Downloads Page](https://dashboard.gravitational.com/web/downloads) in
 the customer portal and select the URL for your package of choice.
 
-Next, use the appropriate commands for your environment to install your package.
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+
+Visit the [Downloads Page](/docs/choose-an-edition/teleport-cloud/downloads.mdx)
+and select the URL for your package of choice.
 
 </ScopedBlock>
+
+Next, use the appropriate commands for your environment to install your package.
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
   <TabItem label="Open Source" scope="oss">
@@ -44,22 +51,26 @@ Next, use the appropriate commands for your environment to install your package.
   # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
   # and the codename your distro was forked from instead of '$ID'
   # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
-  $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-  $ sudo dnf install teleport
+  $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
+  $ sudo yum install teleport
   #
   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
   #
-  # Optional:  Using YUM on older distributions
-  #$ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
-  #$ sudo yum install teleport
+  # Optional:  Use DNF on newer distributions
+  # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+  # $ sudo dnf install teleport
   ```
 
   </TabItem>
   <TabItem label="Tarball" scope="oss">
 
+  In the example commands below, update `$SYSTEM-ARCH` with the appropriate
+  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
+  will update after one is filled out.
+
   ```code
-  $ curl https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH" description="The CPU architecture of the system Teleport will be installed on"/>-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH" description="The CPU architecture of the system Teleport will be installed on"/>-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
   $ shasum -a 256 teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
@@ -81,7 +92,7 @@ Next, use the appropriate commands for your environment to install your package.
   <Tabs>
   <TabItem label="Debian/Ubuntu (DEB)" scope="enterprise">
 
-  Aftter Downloading the `.deb` file for your system architecture, install it with
+  After Downloading the `.deb` file for your system architecture, install it with
   `dpkg`. The example below assumes the `root` user:
 
   ```code
@@ -107,7 +118,7 @@ Next, use the appropriate commands for your environment to install your package.
   <TabItem label="Tarball" scope="enterprise">
 
   ```code
-  $ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
   $ shasum -a 256 teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
@@ -121,7 +132,7 @@ Next, use the appropriate commands for your environment to install your package.
   will be slightly different:
 
   ```code
-  $ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz
   $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-fips-bin.tar.gz
@@ -143,7 +154,7 @@ Next, use the appropriate commands for your environment to install your package.
   <Tabs>
   <TabItem label="Debian/Ubuntu (DEB)" scope="cloud">
 
-  Aftter Downloading the `.deb` file for your system architecture, install it with
+  After Downloading the `.deb` file for your system architecture, install it with
   `dpkg`. The example below assumes the `root` user:
 
   ```code
@@ -169,7 +180,7 @@ Next, use the appropriate commands for your environment to install your package.
   <TabItem label="Tarball" scope="cloud">
 
   ```code
-  $ curl https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
+  $ curl https://get.gravitational.com/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
   # <checksum> <filename>
   $ curl -O https://cdn.teleport.dev/teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
   $ shasum -a 256 teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
@@ -181,5 +192,14 @@ Next, use the appropriate commands for your environment to install your package.
 
   </TabItem>
   </Tabs>
+  <Details title="Is my Teleport instance compatible with Teleport Cloud?">
+
+  Before installing a `teleport` binary with a version besides v(=cloud.major_version=),
+  read our compatibility rules to ensure that the binary is compatible with
+  Teleport Cloud.
+
+  (!docs/pages/includes/compatibility.mdx!)
+
+  </Details>
   </TabItem>
 </Tabs>

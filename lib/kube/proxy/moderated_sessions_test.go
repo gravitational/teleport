@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -265,7 +266,7 @@ func TestModeratedSessions(t *testing.T) {
 			sessionIDC := make(chan string, 1)
 			// moderatorJoined is used to syncronize when the moderator joins the session.
 			moderatorJoined := make(chan struct{})
-
+			once := sync.Once{}
 			if tt.args.moderator != nil {
 				// generate moderator certs
 				_, config := testCtx.genTestKubeClientTLSCert(
@@ -375,11 +376,13 @@ func TestModeratedSessions(t *testing.T) {
 					// checks if moderator has joined the session.
 					// Each time a user joins a session the following message is broadcasted
 					// User <user> joined the session.
-					if strings.Contains(stringData, moderatorUsername) {
+					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session.", moderatorUsername)) {
 						t.Logf("identified that moderator joined the session")
 						// inform moderator goroutine that the user detected that he joined the
 						// session.
-						close(moderatorJoined)
+						once.Do(func() {
+							close(moderatorJoined)
+						})
 					}
 
 					// if podContainerName is received, it means the session has already reached
@@ -411,7 +414,7 @@ func TestModeratedSessions(t *testing.T) {
 					stdoutWritter.Close()
 				}()
 				// start user session.
-				err := exec.Stream(streamOpts)
+				err := exec.StreamWithContext(testCtx.ctx, streamOpts)
 				// ignore closed pipes error.
 				if errors.Is(err, io.ErrClosedPipe) {
 					return nil

@@ -241,19 +241,21 @@ func (c *Client) connect(ctx context.Context) error {
 
 	res := C.connect_rdp(
 		C.uintptr_t(c.handle),
-		addr,
-		username,
-		// cert length and bytes.
-		C.uint32_t(len(userCertDER)),
-		(*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
-		// key length and bytes.
-		C.uint32_t(len(userKeyDER)),
-		(*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
-		// screen size.
-		C.uint16_t(c.clientWidth),
-		C.uint16_t(c.clientHeight),
-		C.bool(c.cfg.AllowClipboard),
-		C.bool(c.cfg.AllowDirectorySharing),
+		C.CGOConnectParams{
+			go_addr:     addr,
+			go_username: username,
+			// cert length and bytes.
+			cert_der_len: C.uint32_t(len(userCertDER)),
+			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+			// key length and bytes.
+			key_der_len:             C.uint32_t(len(userKeyDER)),
+			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+			screen_width:            C.uint16_t(c.clientWidth),
+			screen_height:           C.uint16_t(c.clientHeight),
+			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
+			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
+			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+		},
 	)
 	if res.err != C.ErrCodeSuccess {
 		return trace.ConnectionProblem(nil, "RDP connection failed")

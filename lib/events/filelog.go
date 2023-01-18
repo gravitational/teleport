@@ -194,7 +194,7 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 		return nil, trace.Wrap(err)
 	}
 	if len(line) > l.MaxScanTokenSize {
-		return nil, trace.BadParameter("event %T reached max FileLog entry size limit", event.Size())
+		return nil, trace.BadParameter("event %T reached max FileLog entry size limit, current size %v", event, len(line))
 	}
 	return line, nil
 }

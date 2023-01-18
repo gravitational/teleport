@@ -207,11 +207,11 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 func (t *TLSServer) Serve(listener net.Listener) error {
 	// Wrap listener with a multiplexer to get Proxy Protocol support.
 	mux, err := multiplexer.New(multiplexer.Config{
-		Context:             t.Context,
-		Listener:            listener,
-		Clock:               t.Clock,
-		EnableProxyProtocol: true,
-		ID:                  t.Component,
+		Context:                     t.Context,
+		Listener:                    listener,
+		Clock:                       t.Clock,
+		EnableExternalProxyProtocol: true,
+		ID:                          t.Component,
 	})
 	if err != nil {
 		return trace.Wrap(err)
