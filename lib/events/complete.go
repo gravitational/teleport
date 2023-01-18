@@ -83,8 +83,9 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 var (
 	incompleteSessionUploads = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: teleport.MetricIncompleteSessionUploads,
-			Help: "Number of sessions not yet uploaded to auth",
+			Namespace: "teleport",
+			Name:      teleport.MetricIncompleteSessionUploads,
+			Help:      "Number of sessions not yet uploaded to auth",
 		},
 	)
 )
