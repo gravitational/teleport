@@ -44,11 +44,11 @@ Teleport needs AWS IAM permissions to be able to:
 
 If you don't already have one, create a role to apply to the EC2 instance that
 the Teleport Database Service will run on. This guide uses the example name
-`teleport-redshift-node`.
+`teleport-redshift-serverless-node`.
 
 Under **Trusted entity type** choose "AWS service", and under **Use case** choose "EC2".
 
-Create and attach a policy to the `teleport-redshift-node` role to allow Teleport
+Create and attach a policy to the `teleport-redshift-serverless-node` role to allow Teleport
 to bootstrap access to AWS Redshift Serverless:
 
 ```json
@@ -61,7 +61,7 @@ to bootstrap access to AWS Redshift Serverless:
                 "iam:PutRolePermissionsBoundary"
             ],
             "Resource": [
-                "arn:aws:iam::(=aws.aws_access_key=):role/teleport-redshift-node"
+                "arn:aws:iam::(=aws.aws_access_key=):role/teleport-redshift-serverless-node"
             ],
             "Effect": "Allow"
         },
@@ -74,7 +74,8 @@ to bootstrap access to AWS Redshift Serverless:
                 "iam:CreatePolicyVersion"
             ],
             "Resource": [
-                "*"
+                "arn:aws:iam::(=aws.aws_access_key=):policy/DatabaseAccess",
+                "arn:aws:iam::(=aws.aws_access_key=):policy/DatabaseAccessBoundary"
             ],
             "Effect": "Allow"
         }
@@ -82,7 +83,8 @@ to bootstrap access to AWS Redshift Serverless:
 }
 ```
 
-Remember to replace the example AWS account ID.
+Remember to replace the example AWS account ID. The policies defined in the
+`Resources` array will be created later in this guide.
 
 <Admonition type="tip">
 This policy is required for Automatic Teleport bootstrapping, documented below.
@@ -110,7 +112,7 @@ to allow the IAM role generated in the previous step to assume this role:
             "Sid": "Statement1",
             "Effect": "Allow",
             "Principal": {
-                "AWS": "arn:aws:iam::(=aws.aws_access_key=):role/teleport-redshift-node",
+                "AWS": "arn:aws:iam::(=aws.aws_access_key=):role/teleport-redshift-serverless-node",
                 "Service": "ec2.amazonaws.com"
             },
             "Action": "sts:AssumeRole"
@@ -247,7 +249,7 @@ this command in automatic or manual mode:
 
 - In automatic mode, Teleport will attempt to create appropriate IAM policies
   and attach them to the specified IAM identity (user or role). This requires the
-  IAM permissions we applied to the `teleport-redshift-node` role earlier.
+  IAM permissions we applied to the `teleport-redshift-serverless-node` role earlier.
 - In manual mode, Teleport will print required IAM policies. You can then create
   and attach them manually using the AWS management console.
 
