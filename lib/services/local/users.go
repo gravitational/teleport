@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -1493,9 +1492,8 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey c
 }
 
 func fingerprintSha256(pubDER []byte) string {
-	sha256sum := sha256.Sum256(pubDER)
-	hash := base64.URLEncoding.EncodeToString(sha256sum[:])
-	return "SHA256:" + hash
+	uuid := uuid.NewHash(crypto.SHA256.New(), uuid.UUID{}, pubDER, 0)
+	return uuid.String()
 }
 
 // DELETE IN 13.0.0
