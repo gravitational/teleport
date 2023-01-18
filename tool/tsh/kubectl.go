@@ -26,9 +26,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/component-base/cli"
@@ -73,7 +73,7 @@ type resourceKind struct {
 // If the access request is created, tsh waits for the approval and runs the expected
 // command again.
 func onKubectlCommand(cf *CLIConf, args []string) error {
-	if os.Getenv(tshKubectlReexec) == "" {
+	if os.Getenv(tshKubectlReexecEnvVar) == "" {
 		err := runKubectlAndCollectRun(cf, args)
 		return trace.Wrap(err)
 	}
@@ -83,9 +83,9 @@ func onKubectlCommand(cf *CLIConf, args []string) error {
 }
 
 const (
-	// tshKubectlReexec is used to control if tsh should re-exec or execute a kubectl
-	// command.
-	tshKubectlReexec = "tsh_kube_reexec"
+	// tshKubectlReexecEnvVar is the name of the environment variable used to control if
+	// tsh should re-exec or execute a kubectl command.
+	tshKubectlReexecEnvVar = "TSH_KUBE_REEXEC"
 )
 
 // runKubectlReexec reexecs itself and copies the `stderr` output into
@@ -97,7 +97,7 @@ func runKubectlReexec(selfExec string, args []string, collector io.Writer) error
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, collector)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexec))
+	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexecEnvVar))
 	return trace.Wrap(cmd.Run())
 }
 
@@ -144,42 +144,47 @@ func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
 		// was rejected in this kubectl call.
 		missingKubeResources := make([]resourceKind, 0, 50)
 		reader, writer := io.Pipe()
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			// This goroutine scans each line of output emitted to stderr by kubectl
-			// and parses it in order to check if the returned error was a problem with
-			// missing access level. If it's the case, tsh kubectl will create automatically
-			// the access request for the user to access the resource.
-			// Current supported resources:
-			// - pod
-			// - kube_cluster
-			defer wg.Done()
+		group, _ := errgroup.WithContext(cf.Context)
+		group.Go(
+			func() error {
+				// This goroutine scans each line of output emitted to stderr by kubectl
+				// and parses it in order to check if the returned error was a problem with
+				// missing access level. If it's the case, tsh kubectl will create automatically
+				// the access request for the user to access the resource.
+				// Current supported resources:
+				// - pod
+				// - kube_cluster
 
-			scanner := bufio.NewScanner(reader)
-			scanner.Split(bufio.ScanLines)
-			for scanner.Scan() {
-				line := scanner.Text()
+				scanner := bufio.NewScanner(reader)
+				scanner.Split(bufio.ScanLines)
+				for scanner.Scan() {
+					line := scanner.Text()
 
-				// Check if the request targeting a pod endpoint was denied due to
-				// Teleport Pod RBAC or if the operation was denied by Kubernetes RBAC.
-				// In the second case, we should create a Resource Access Request to allow
-				// the user to exec/read logs using different Kubernetes RBAC principals.
-				// using different Kubernetes RBAC principals.
-				if podForbiddenRe.MatchString(line) {
-					results := podForbiddenRe.FindStringSubmatch(line)
-					missingKubeResources = append(missingKubeResources, resourceKind{kind: types.KindKubePod, subResourceName: filepath.Join(results[2], results[1])})
-					// Check if cluster access was denied. If denied we should create
-					// a Resource Access Request for the cluster and not a pod.
-				} else if strings.Contains(line, clusterForbidden) || clusterObjectDiscoveryFailed.MatchString(line) {
-					missingKubeResources = append(missingKubeResources, resourceKind{kind: types.KindKubernetesCluster})
+					// Check if the request targeting a pod endpoint was denied due to
+					// Teleport Pod RBAC or if the operation was denied by Kubernetes RBAC.
+					// In the second case, we should create a Resource Access Request to allow
+					// the user to exec/read logs using different Kubernetes RBAC principals.
+					// using different Kubernetes RBAC principals.
+					if podForbiddenRe.MatchString(line) {
+						results := podForbiddenRe.FindStringSubmatch(line)
+						missingKubeResources = append(missingKubeResources, resourceKind{kind: types.KindKubePod, subResourceName: filepath.Join(results[2], results[1])})
+						// Check if cluster access was denied. If denied we should create
+						// a Resource Access Request for the cluster and not a pod.
+					} else if strings.Contains(line, clusterForbidden) || clusterObjectDiscoveryFailed.MatchString(line) {
+						missingKubeResources = append(missingKubeResources, resourceKind{kind: types.KindKubernetesCluster})
+					}
 				}
-			}
-		}()
+				return trace.Wrap(scanner.Err())
+			},
+		)
 
 		err := runKubectlReexec(cf.executablePath, args, writer)
 		writer.CloseWithError(io.EOF)
-		wg.Wait()
+
+		if scanErr := group.Wait(); scanErr != nil {
+			log.WithError(scanErr).Warn("unable to scan stderr payload")
+		}
+
 		if err == nil {
 			break
 		} else if !errors.As(err, &exitErr) {
