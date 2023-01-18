@@ -141,6 +141,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	cfg.WebProxyAddr = webProxyAddress
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
+	cfg.ClientStore = client.NewFSClientStore(s.Dir)
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 
 	profileName := parseName(webProxyAddress)

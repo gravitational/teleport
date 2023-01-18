@@ -1022,17 +1022,22 @@ func TestCheckAccessToServer(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				RequireMFAType: tc.authPrefMFARequireType,
+			})
+			require.NoError(t, err, "NewAuthPreference failed")
+
 			var set RoleSet
 			for i := range tc.roles {
 				set = append(set, tc.roles[i])
 			}
 			for j, check := range tc.checks {
 				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
-				mfaParams := set.MFAParams(tc.authPrefMFARequireType)
-				mfaParams.Verified = tc.mfaVerified
+				state := set.GetAccessState(authPref)
+				state.MFAVerified = tc.mfaVerified
 				err := set.checkAccess(
 					check.server,
-					mfaParams,
+					state,
 					NewLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, comment)
@@ -1980,6 +1985,50 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "logins substitute in allow rule with multiple functions and regexps",
+			inTraits: map[string][]string{
+				"email": {"ab_cd@example.com"},
+			},
+			allow: rule{
+				inLogins: []string{
+					`{{regexp.replace(external.email, "_", "")}}`,
+					`{{email.local(external.email)}}`,
+					`{{regexp.replace(email.local(external.email), "_", "")}}`,
+					`{{regexp.replace(external.email, "d", "e")}}`,
+					`{{email.local(regexp.replace(external.email, "d", "e"))}}`,
+					`{{regexp.replace(regexp.replace(email.local(regexp.replace(external.email, "cd", "z")), "ab", "xy"), "_", "")}}`,
+					"root",
+				},
+				outLogins: []string{
+					"abcd@example.com",
+					"ab_cd",
+					"abcd",
+					"ab_ce@example.com",
+					"ab_ce",
+					"xyz",
+					"root",
+				},
+			},
+		},
+		{
+			comment:  "logins substitute in allow rule can have constant expressions",
+			inTraits: map[string][]string{},
+			allow: rule{
+				inLogins: []string{
+					`{{regexp.replace("vitor@gravitational.com", "gravitational", "goteleport")}}`,
+					`{{email.local("vitor@goteleport.com")}}`,
+					`{{email.local(regexp.replace("vitor.enes@gravitational.com", "gravitational", "goteleport"))}}`,
+					"root",
+				},
+				outLogins: []string{
+					"vitor@goteleport.com",
+					"vitor",
+					"vitor.enes",
+					"root",
+				},
+			},
+		},
+		{
 			comment: "logins substitute in deny rule",
 			inTraits: map[string][]string{
 				"foo": {"bar"},
@@ -2746,10 +2795,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		access bool
 	}
 	testCases := []struct {
-		name      string
-		roles     RoleSet
-		access    []access
-		mfaParams AccessMFAParams
+		name   string
+		roles  RoleSet
+		access []access
+		state  AccessState
 	}{
 		{
 			name:  "developer allowed any username/database in stage database except one database",
@@ -2780,33 +2829,33 @@ func TestCheckAccessToDatabase(t *testing.T) {
 			},
 		},
 		{
-			name:      "prod database requires MFA, no MFA provided",
-			roles:     RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
-			mfaParams: AccessMFAParams{Verified: false},
+			name:  "prod database requires MFA, no MFA provided",
+			roles: RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
+			state: AccessState{MFAVerified: false},
 			access: []access{
 				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
 				{server: dbProd, dbName: "test", dbUser: "dev", access: false},
 			},
 		},
 		{
-			name:      "prod database requires MFA, MFA provided",
-			roles:     RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
-			mfaParams: AccessMFAParams{Verified: true},
+			name:  "prod database requires MFA, MFA provided",
+			roles: RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
+			state: AccessState{MFAVerified: true},
 			access: []access{
 				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
 				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
 			},
 		},
 		{
-			name:      "cluster requires MFA, no MFA provided",
-			roles:     RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
-			mfaParams: AccessMFAParams{Verified: false, Required: MFARequiredAlways},
-			access:    []access{},
+			name:   "cluster requires MFA, no MFA provided",
+			roles:  RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
+			state:  AccessState{MFAVerified: false, MFARequired: MFARequiredAlways},
+			access: []access{},
 		},
 		{
-			name:      "cluster requires MFA, MFA provided",
-			roles:     RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
-			mfaParams: AccessMFAParams{Verified: true, Required: MFARequiredAlways},
+			name:  "cluster requires MFA, MFA provided",
+			roles: RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
+			state: AccessState{MFAVerified: true, MFARequired: MFARequiredAlways},
 			access: []access{
 				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
 				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
@@ -2816,7 +2865,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, tc.mfaParams,
+				err := tc.roles.checkAccess(access.server, tc.state,
 					&DatabaseUserMatcher{User: access.dbUser},
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -2902,7 +2951,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, AccessMFAParams{}, &DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.checkAccess(access.server, AccessState{}, &DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -3515,7 +3564,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, AccessMFAParams{})
+				err := tc.roles.checkAccess(access.server, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -3623,7 +3672,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 			for _, access := range test.access {
 				err := test.roles.checkAccess(
 					app,
-					AccessMFAParams{},
+					AccessState{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
 					require.NoError(t, err)
@@ -3722,7 +3771,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, AccessMFAParams{}, &AzureIdentityMatcher{Identity: identity})
+				err := test.roles.checkAccess(app, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -3820,7 +3869,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, AccessMFAParams{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				err := test.roles.checkAccess(app, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -4297,7 +4346,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		name      string
 		roles     []*types.RoleV6
 		cluster   *types.KubernetesCluster
-		mfaParams AccessMFAParams
+		state     AccessState
 		hasAccess bool
 	}{
 		{
@@ -4352,28 +4401,28 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			name:      "role requires MFA but MFA not verified",
 			roles:     []*types.RoleV6{matchingLabelsRole, matchingLabelsRoleWithMFA},
 			cluster:   clusterWithLabels,
-			mfaParams: AccessMFAParams{Verified: false},
+			state:     AccessState{MFAVerified: false},
 			hasAccess: false,
 		},
 		{
 			name:      "role requires MFA and MFA verified",
 			roles:     []*types.RoleV6{matchingLabelsRole, matchingLabelsRoleWithMFA},
 			cluster:   clusterWithLabels,
-			mfaParams: AccessMFAParams{Verified: true},
+			state:     AccessState{MFAVerified: true},
 			hasAccess: true,
 		},
 		{
 			name:      "cluster requires MFA but MFA not verified",
 			roles:     []*types.RoleV6{matchingLabelsRole},
 			cluster:   clusterWithLabels,
-			mfaParams: AccessMFAParams{Verified: false, Required: MFARequiredAlways},
+			state:     AccessState{MFAVerified: false, MFARequired: MFARequiredAlways},
 			hasAccess: false,
 		},
 		{
 			name:      "role requires MFA and MFA verified",
 			roles:     []*types.RoleV6{matchingLabelsRole},
 			cluster:   clusterWithLabels,
-			mfaParams: AccessMFAParams{Verified: true, Required: MFARequiredAlways},
+			state:     AccessState{MFAVerified: true, MFARequired: MFARequiredAlways},
 			hasAccess: true,
 		},
 	}
@@ -4386,7 +4435,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, tc.cluster)
 			require.NoError(t, err)
 
-			err = set.checkAccess(k8sV3, tc.mfaParams)
+			err = set.checkAccess(k8sV3, tc.state)
 			if tc.hasAccess {
 				require.NoError(t, err)
 			} else {
@@ -4554,10 +4603,10 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 	}
 
 	for _, test := range []struct {
-		name      string
-		roleSet   RoleSet
-		mfaParams AccessMFAParams
-		checks    []check
+		name    string
+		roleSet RoleSet
+		state   AccessState
+		checks  []check
 	}{
 		{
 			name:    "no roles, no access",
@@ -4644,7 +4693,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.desktop, test.mfaParams, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, test.state, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -4735,7 +4784,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 				// is testing the performance of failed RBAC checks
 				_ = set.checkAccess(
 					servers[i],
-					AccessMFAParams{},
+					AccessState{},
 					NewLoginMatcher(login),
 				)
 			}
@@ -5778,17 +5827,17 @@ func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailabl
 	require.Equal(t, []string{"defaultTraitLogin"}, roleSet[0].GetLogins(types.Allow))
 }
 
-func TestMFAParams(t *testing.T) {
+func TestRoleSet_GetAccessState(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		roleMFARequireTypes    []types.RequireMFAType
 		authPrefMFARequireType types.RequireMFAType
-		expectMFAParams        AccessMFAParams
+		expectState            AccessState
 	}{
 		{
 			name: "empty role set and auth pref requirement",
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredNever,
+			expectState: AccessState{
+				MFARequired: MFARequiredNever,
 			},
 		},
 		{
@@ -5798,8 +5847,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_OFF,
 			},
 			authPrefMFARequireType: types.RequireMFAType_OFF,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredNever,
+			expectState: AccessState{
+				MFARequired: MFARequiredNever,
 			},
 		},
 		{
@@ -5809,8 +5858,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_OFF,
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredAlways,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
 			},
 		},
 		{
@@ -5820,8 +5869,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_SESSION,
 			},
 			authPrefMFARequireType: types.RequireMFAType_OFF,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredPerRole,
+			expectState: AccessState{
+				MFARequired: MFARequiredPerRole,
 			},
 		},
 		{
@@ -5831,8 +5880,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_SESSION,
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredAlways,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
 			},
 		},
 		{
@@ -5842,8 +5891,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_SESSION,
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredAlways,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
 			},
 		},
 		{
@@ -5853,8 +5902,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_SESSION,
 			},
 			authPrefMFARequireType: types.RequireMFAType_OFF,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredAlways,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
 			},
 		},
 		{
@@ -5864,8 +5913,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_SESSION,
 			},
 			authPrefMFARequireType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredNever,
+			expectState: AccessState{
+				MFARequired: MFARequiredNever,
 			},
 		},
 		{
@@ -5875,8 +5924,8 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
-			expectMFAParams: AccessMFAParams{
-				Required: MFARequiredNever,
+			expectState: AccessState{
+				MFARequired: MFARequiredNever,
 			},
 		},
 	}
@@ -5884,13 +5933,19 @@ func TestMFAParams(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				RequireMFAType: tc.authPrefMFARequireType,
+			})
+			require.NoError(t, err, "NewAuthPreference failed")
+
 			var set RoleSet
 			for _, roleRequirement := range tc.roleMFARequireTypes {
 				set = append(set, newRole(func(r *types.RoleV6) {
 					r.Spec.Options.RequireMFAType = roleRequirement
 				}))
 			}
-			require.Equal(t, tc.expectMFAParams, set.MFAParams(tc.authPrefMFARequireType))
+			require.Equal(t, tc.expectState, set.GetAccessState(authPref))
 		})
 	}
 }
@@ -6277,4 +6332,218 @@ func TestMatchGCPServiceAccount(t *testing.T) {
 			require.Equal(t, tt.wantMatchType, gotMatchType)
 		})
 	}
+}
+
+func TestKubeResourcesMatcher(t *testing.T) {
+	defaultRole, err := types.NewRole("kube",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      types.Wildcard,
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "nginx-*",
+					},
+				},
+			},
+			Deny: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "restricted",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	prodRole, err := types.NewRole("kube2",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "prod",
+						Name:      "pod",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	invalidRole, err := types.NewRole("kube3",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: `^[($`,
+						Name:      `^[($`,
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	type args struct {
+		resources []types.KubernetesResource
+		roles     []types.Role
+		cond      types.RoleConditionType
+	}
+	tests := []struct {
+		name               string
+		args               args
+		wantMatch          []bool
+		assertErr          require.ErrorAssertionFunc
+		unmatchedResources []string
+	}{
+		{
+			name: "user requests a valid subset of pods for defaultRole",
+			args: args{
+				roles: []types.Role{defaultRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      "pod",
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "nginx-*",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{},
+		},
+		{
+			name: "user requests a valid and invalid pod for role defaultRole",
+			args: args{
+				roles: []types.Role{defaultRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      "pod",
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "nginx*",
+					},
+				},
+			},
+			// returns true because the first resource matched but the request will fail
+			// because unmatchedResources is not empty.
+			wantMatch:          boolsToSlice(true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{"default/nginx*"},
+		},
+		{
+			name: "user requests a valid subset of pods but distributed across two roles",
+			args: args{
+				roles: []types.Role{defaultRole, prodRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "dev",
+						Name:      "pod",
+					},
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "prod",
+						Name:      "pod",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(true, true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{},
+		},
+		{
+			name: "user requests a pod that does not match any role",
+			args: args{
+				roles: []types.Role{defaultRole, prodRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "pod",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(false, false),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{"default/pod"},
+		},
+		{
+			name: "user requests a denied pod",
+			args: args{
+				roles: []types.Role{defaultRole},
+				cond:  types.Deny,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "restricted",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(true),
+			assertErr:          require.NoError,
+			unmatchedResources: []string{},
+		},
+		{
+			name: "user requests a role with wrong regex",
+			args: args{
+				roles: []types.Role{invalidRole},
+				cond:  types.Allow,
+				resources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: "default",
+						Name:      "restricted",
+					},
+				},
+			},
+			wantMatch:          boolsToSlice(false),
+			assertErr:          require.Error,
+			unmatchedResources: []string{"default/restricted"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := NewKubeResourcesMatcher(tt.args.resources)
+			// Verify each role independently. If a resource matches the role, matched
+			// is true. Later, after analyzing all roles we verify the resources that
+			// missed the match.
+			for i, role := range tt.args.roles {
+				matched, err := matcher.Match(role, tt.args.cond)
+				require.Equal(t, tt.wantMatch[i], matched)
+				tt.assertErr(t, err)
+			}
+			unmatched := matcher.Unmatched()
+			sort.Strings(unmatched)
+			require.Equal(t, tt.unmatchedResources, unmatched)
+		})
+	}
+}
+
+func boolsToSlice(v ...bool) []bool {
+	return v
 }

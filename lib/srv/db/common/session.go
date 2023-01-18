@@ -58,9 +58,10 @@ func (c *Session) String() string {
 		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
 }
 
-// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
-func (c *Session) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	params := c.Checker.MFAParams(authPrefMFARequirement)
-	params.Verified = c.Identity.MFAVerified != ""
-	return params
+// GetAccessState returns the AccessState based on the underlying
+// [services.AccessChecker] and [tlsca.Identity].
+func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.Checker.GetAccessState(authPref)
+	state.MFAVerified = c.Identity.MFAVerified != ""
+	return state
 }
