@@ -27,10 +27,9 @@ control.
 
 (!docs/pages/includes/tctl.mdx!)
 
-- A node that is a part of the Teleport cluster with
-[Server Access](https://goteleport.com/docs/server-access/introduction/) and a
-user you want to grant access to. In this guide, we will use `my-node` and
-`ci-user` respectively, replace these with values appropriate to your setup.
+- A running instance of the Teleport SSH Service that you have registered with your Teleport cluster. For instructions on setting this up, see the [Getting Started Guide](../../server-access/introduction.mdx). The SSH node must include a
+user you want to grant access to. In this guide, we will call the SSH node `my-node` and the user
+`ci-user`. Replace these with values appropriate to your setup.
 - A CircleCI project connected to a Git repository you can push to.
 
 ## Step 1/4. Configure CircleCI
