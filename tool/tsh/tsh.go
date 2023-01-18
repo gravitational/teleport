@@ -4340,7 +4340,6 @@ func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient
 	if len(outdatedClusters) == 0 {
 		return
 	}
-
-	fmt.Printf("DEPRICATED tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
-	fmt.Printf("Please re-login and update your KUBECONFIG cluster by running 'tsh kube login' command.\n\n")
+	fmt.Printf("Deprecated tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
+	fmt.Printf("Please re-login and update your KUBECONFIG cluster configuration by running the 'tsh kube login' command.\n\n")
 }
