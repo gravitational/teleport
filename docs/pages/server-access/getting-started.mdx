@@ -77,7 +77,7 @@ the rights and access to read.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-Configure and start the SSH Service instance. Change `tele.example.com` to the address of your Teleport Proxy
+Configure the SSH Service instance. Change `tele.example.com` to the address of your Teleport Proxy
 Service. Assign the `--token` flag to the path where you saved
 `token.file`.
 
@@ -88,14 +88,12 @@ $ sudo teleport node configure \
    --token=/path/to/token.file \
    --proxy=tele.example.com:443 \
    -o file
-# Start and join cluster
-$ sudo teleport start
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
-Configure and start the SSH Service instance. Change `mytenant.teleport.sh` to your Teleport Cloud tenant
+Configure the SSH Service instance. Change `mytenant.teleport.sh` to your Teleport Cloud tenant
 address. Assign the `--token` flag to the path where you saved `token.file`.
 
 ```code
@@ -105,15 +103,32 @@ $ sudo teleport node configure \
    --token=/path/to/token.file \
    --proxy=mytenant.teleport.sh:443 \
    -o file
-# Start and join cluster
-$ sudo teleport start
 ```
 
 </ScopedBlock>
 
-Now that you have the SSH Service configured you can update the configuration
-as needed, stop and restart with `sudo teleport start`. See
-[Run Teleport as a Daemon](../management/admin/daemon.mdx) for running as a daemon using systemd.
+### Start the Teleport SSH Service
+
+On the host where you will run the Teleport SSH Service, execute the
+following command, depending on whether you installed Teleport using a package
+manager or via a TAR archive:
+
+<Tabs>
+<TabItem label="Package Manager">
+
+```code
+$ sudo systemctl start teleport
+```
+</TabItem>
+<TabItem label="TAR archive">
+
+```code
+$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
+$ sudo systemctl enable teleport;
+$ sudo systemctl start teleport;
+```
+</TabItem>
+</Tabs>
 
 ### Access the Web UI
 
