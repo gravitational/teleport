@@ -1,0 +1,5650 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`renders loaded linux 1`] = `
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  margin-top: 40px;
+}
+
+.c6 {
+  box-sizing: border-box;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 24px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c17 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c20 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+  margin-top: 16px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-left: auto;
+  display: flex;
+}
+
+.c13 {
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c10 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c10 .react-select__control,
+.c10 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c10 .react-select__control:hover,
+.c10 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c10 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c10 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c10 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c10 .react-select__indicator-separator {
+  display: none;
+}
+
+.c10 .react-select__loading-indicator {
+  display: none;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 {
+  width: 210px;
+}
+
+.c9 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c9 .react-select__control,
+.c9 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c9 .react-select__control:hover,
+.c9 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c9 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c9 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c9 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c9 .react-select__indicator-separator {
+  display: none;
+}
+
+.c9 .react-select__loading-indicator {
+  display: none;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 .react-select-container {
+  background: transparent;
+}
+
+.c9 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c9 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__control:focus,
+.c9 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator,
+.c9 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator:hover,
+.c9 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c9 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c9 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c9 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c9 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder,
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 {
+  width: 210px;
+  margin-left: 16px;
+}
+
+.c11 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c11 .react-select__control,
+.c11 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c11 .react-select__control:hover,
+.c11 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c11 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c11 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c11 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c11 .react-select__indicator-separator {
+  display: none;
+}
+
+.c11 .react-select__loading-indicator {
+  display: none;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c11 .react-select-container {
+  background: transparent;
+}
+
+.c11 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c11 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator,
+.c11 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c11 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c11 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c11 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c11 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c19 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c19 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c19 > thead > tr > th .c16 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c19 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c19 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c19 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c14 {
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: gray;
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  transition: all 0.3s;
+  width: 90px;
+}
+
+.c15 {
+  box-sizing: border-box;
+  height: 12px;
+  margin-right: 8px;
+  width: 12px;
+  pointer-events: none;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Download Your License Key
+    </div>
+    <div
+      class="c3"
+    >
+      You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+       
+      and our
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Enterprise License File Guide
+      </a>
+       
+      for more details on how this file is used.
+    </div>
+    <button
+      class="c5"
+      kind="primary"
+      title="Download license"
+    >
+      Download License Key
+    </button>
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c2"
+    >
+      Download Teleport
+    </div>
+    <div
+      class="c7"
+    >
+      You will also need the binaries below for
+       
+      <a
+        about="_blank"
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+      :
+    </div>
+    <div
+      class="c8"
+    >
+      <div
+        class="c9"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Teleport
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-2-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c11"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  10.3.1
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-3-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c12"
+      >
+        <div
+          aria-label="Choose operating system"
+          class="c13"
+          role="group"
+          style="background-color: rgb(22, 32, 74);"
+        >
+          <button
+            aria-pressed="true"
+            class="c14"
+            style="background-color: rgb(81, 47, 201); color: white;"
+            value="Linux"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-linux "
+                color="light"
+              />
+            </div>
+            Linux
+          </button>
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="macOS"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-apple "
+                color="light"
+              />
+            </div>
+            macOS
+          </button>
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="Windows"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-windows "
+                color="light"
+              />
+            </div>
+            Windows
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c18"
+    >
+      <table
+        class="c19"
+        style="border-radius: 4px;"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Name
+                <span
+                  class="c16 c17 icon icon-chevron-up "
+                  color="light"
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Size
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                DownloadLink
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux ARM64/ARMv8 (64-bit) RPM
+            </td>
+            <td>
+              100.0 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm64.rpm"
+                rel="noreferrer"
+              >
+                teleport-ent-10.3.1-1.arm64.rpm
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux ARMv7 (32-bit) RPM
+            </td>
+            <td>
+              100.1 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm.rpm"
+                rel="noreferrer"
+              >
+                teleport-ent-10.3.1-1.arm.rpm
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 64-bit DEB
+            </td>
+            <td>
+              114.0 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_amd64.deb"
+                rel="noreferrer"
+              >
+                teleport-ent_10.3.1_amd64.deb
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 32-bit DEB
+            </td>
+            <td>
+              105.5 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_i386.deb"
+                rel="noreferrer"
+              >
+                teleport-ent_10.3.1_i386.deb
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 32-bit
+            </td>
+            <td>
+              105.9 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-386-bin.tar.gz"
+                rel="noreferrer"
+              >
+                teleport-ent-v10.3.1-linux-386-bin.tar.gz
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 64-bit
+            </td>
+            <td>
+              114.3 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-amd64-bin.tar.gz"
+                rel="noreferrer"
+              >
+                teleport-ent-v10.3.1-linux-amd64-bin.tar.gz
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`renders loaded macOS 1`] = `
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  margin-top: 40px;
+}
+
+.c6 {
+  box-sizing: border-box;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 24px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c17 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c20 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+  margin-top: 16px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-left: auto;
+  display: flex;
+}
+
+.c13 {
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c10 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c10 .react-select__control,
+.c10 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c10 .react-select__control:hover,
+.c10 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c10 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c10 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c10 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c10 .react-select__indicator-separator {
+  display: none;
+}
+
+.c10 .react-select__loading-indicator {
+  display: none;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 {
+  width: 210px;
+}
+
+.c9 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c9 .react-select__control,
+.c9 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c9 .react-select__control:hover,
+.c9 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c9 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c9 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c9 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c9 .react-select__indicator-separator {
+  display: none;
+}
+
+.c9 .react-select__loading-indicator {
+  display: none;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 .react-select-container {
+  background: transparent;
+}
+
+.c9 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c9 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__control:focus,
+.c9 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator,
+.c9 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator:hover,
+.c9 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c9 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c9 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c9 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c9 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder,
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 {
+  width: 210px;
+  margin-left: 16px;
+}
+
+.c11 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c11 .react-select__control,
+.c11 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c11 .react-select__control:hover,
+.c11 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c11 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c11 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c11 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c11 .react-select__indicator-separator {
+  display: none;
+}
+
+.c11 .react-select__loading-indicator {
+  display: none;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c11 .react-select-container {
+  background: transparent;
+}
+
+.c11 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c11 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator,
+.c11 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c11 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c11 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c11 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c11 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c19 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c19 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c19 > thead > tr > th .c16 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c19 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c19 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c19 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c14 {
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: gray;
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  transition: all 0.3s;
+  width: 90px;
+}
+
+.c15 {
+  box-sizing: border-box;
+  height: 12px;
+  margin-right: 8px;
+  width: 12px;
+  pointer-events: none;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Download Your License Key
+    </div>
+    <div
+      class="c3"
+    >
+      You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+       
+      and our
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Enterprise License File Guide
+      </a>
+       
+      for more details on how this file is used.
+    </div>
+    <button
+      class="c5"
+      kind="primary"
+      title="Download license"
+    >
+      Download License Key
+    </button>
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c2"
+    >
+      Download Teleport
+    </div>
+    <div
+      class="c7"
+    >
+      You will also need the binaries below for
+       
+      <a
+        about="_blank"
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+      :
+    </div>
+    <div
+      class="c8"
+    >
+      <div
+        class="c9"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Teleport
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-6-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c11"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  10.3.1
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-7-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c12"
+      >
+        <div
+          aria-label="Choose operating system"
+          class="c13"
+          role="group"
+          style="background-color: rgb(22, 32, 74);"
+        >
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="Linux"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-linux "
+                color="light"
+              />
+            </div>
+            Linux
+          </button>
+          <button
+            aria-pressed="true"
+            class="c14"
+            style="background-color: rgb(81, 47, 201); color: white;"
+            value="macOS"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-apple "
+                color="light"
+              />
+            </div>
+            macOS
+          </button>
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="Windows"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-windows "
+                color="light"
+              />
+            </div>
+            Windows
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c18"
+    >
+      <table
+        class="c19"
+        style="border-radius: 4px;"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Name
+                <span
+                  class="c16 c17 icon icon-chevron-up "
+                  color="light"
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Size
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                DownloadLink
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              MacOS Intel
+            </td>
+            <td>
+              116.3 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-darwin-amd64-bin.tar.gz"
+                rel="noreferrer"
+              >
+                teleport-ent-v10.3.1-darwin-amd64-bin.tar.gz
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`renders loaded windows 1`] = `
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  margin-top: 40px;
+}
+
+.c6 {
+  box-sizing: border-box;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 24px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c17 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c21 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-right: 8px;
+  color: #FFFFFF;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+  margin-top: 16px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 24px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-left: auto;
+  display: flex;
+}
+
+.c13 {
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c10 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c10 .react-select__control,
+.c10 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c10 .react-select__control:hover,
+.c10 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c10 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c10 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c10 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c10 .react-select__indicator-separator {
+  display: none;
+}
+
+.c10 .react-select__loading-indicator {
+  display: none;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 {
+  width: 210px;
+}
+
+.c9 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c9 .react-select__control,
+.c9 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c9 .react-select__control:hover,
+.c9 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c9 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c9 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c9 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c9 .react-select__indicator-separator {
+  display: none;
+}
+
+.c9 .react-select__loading-indicator {
+  display: none;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 .react-select-container {
+  background: transparent;
+}
+
+.c9 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c9 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__control:focus,
+.c9 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator,
+.c9 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator:hover,
+.c9 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c9 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c9 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c9 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c9 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder,
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 {
+  width: 210px;
+  margin-left: 16px;
+}
+
+.c11 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c11 .react-select__control,
+.c11 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c11 .react-select__control:hover,
+.c11 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c11 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c11 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c11 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c11 .react-select__indicator-separator {
+  display: none;
+}
+
+.c11 .react-select__loading-indicator {
+  display: none;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c11 .react-select-container {
+  background: transparent;
+}
+
+.c11 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c11 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator,
+.c11 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c11 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c11 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c11 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c11 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c19 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c19 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c19 > thead > tr > th .c16 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c19 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c19 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c19 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c14 {
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: gray;
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  transition: all 0.3s;
+  width: 90px;
+}
+
+.c15 {
+  box-sizing: border-box;
+  height: 12px;
+  margin-right: 8px;
+  width: 12px;
+  pointer-events: none;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Download Your License Key
+    </div>
+    <div
+      class="c3"
+    >
+      You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+       
+      and our
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Enterprise License File Guide
+      </a>
+       
+      for more details on how this file is used.
+    </div>
+    <button
+      class="c5"
+      kind="primary"
+      title="Download license"
+    >
+      Download License Key
+    </button>
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c2"
+    >
+      Download Teleport
+    </div>
+    <div
+      class="c7"
+    >
+      You will also need the binaries below for
+       
+      <a
+        about="_blank"
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+      :
+    </div>
+    <div
+      class="c8"
+    >
+      <div
+        class="c9"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Teleport
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-4-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c11"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  10.3.1
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-5-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c12"
+      >
+        <div
+          aria-label="Choose operating system"
+          class="c13"
+          role="group"
+          style="background-color: rgb(22, 32, 74);"
+        >
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="Linux"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-linux "
+                color="light"
+              />
+            </div>
+            Linux
+          </button>
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="macOS"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-apple "
+                color="light"
+              />
+            </div>
+            macOS
+          </button>
+          <button
+            aria-pressed="true"
+            class="c14"
+            style="background-color: rgb(81, 47, 201); color: white;"
+            value="Windows"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-windows "
+                color="light"
+              />
+            </div>
+            Windows
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c18"
+    >
+      <table
+        class="c19"
+        style="border-radius: 4px;"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Name
+                <span
+                  class="c16 c17 icon icon-chevron-up "
+                  color="light"
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Size
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                DownloadLink
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <td
+              colspan="3"
+            >
+              <div
+                class="c20"
+                color="text.primary"
+                style="display: flex; align-items: center; justify-content: center;"
+              >
+                <span
+                  class="c16 c21 icon icon-database "
+                  color="light"
+                />
+                No Downloads Found
+              </div>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`renders when license failed 1`] = `
+.c6 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c6 a {
+  color: #FFFFFF;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  margin-top: 40px;
+}
+
+.c7 {
+  box-sizing: border-box;
+}
+
+.c19 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 24px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c18 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c21 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+  margin-top: 16px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-left: auto;
+  display: flex;
+}
+
+.c14 {
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c11 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c11 .react-select__control,
+.c11 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c11 .react-select__control:hover,
+.c11 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c11 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c11 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c11 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c11 .react-select__indicator-separator {
+  display: none;
+}
+
+.c11 .react-select__loading-indicator {
+  display: none;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c10 {
+  width: 210px;
+}
+
+.c10 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c10 .react-select__control,
+.c10 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c10 .react-select__control:hover,
+.c10 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c10 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c10 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c10 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c10 .react-select__indicator-separator {
+  display: none;
+}
+
+.c10 .react-select__loading-indicator {
+  display: none;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c10 .react-select-container {
+  background: transparent;
+}
+
+.c10 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c10 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c10 .react-select__control:focus,
+.c10 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c10 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c10 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c10 .react-select__control .react-select__indicator,
+.c10 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c10 .react-select__control .react-select__indicator:hover,
+.c10 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c10 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c10 .react-select__control--menu-is-open .react-select__indicator,
+.c10 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c10 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c10 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c10 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c10 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c10 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c10 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c10 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder,
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c12 {
+  width: 210px;
+  margin-left: 16px;
+}
+
+.c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c12 .react-select__control:hover,
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c12 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c12 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c12 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c12 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c12 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c12 .react-select__indicator-separator {
+  display: none;
+}
+
+.c12 .react-select__loading-indicator {
+  display: none;
+}
+
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c12 .react-select-container {
+  background: transparent;
+}
+
+.c12 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c12 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c12 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c12 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c12 .react-select__control:focus,
+.c12 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c12 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c12 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c12 .react-select__control .react-select__indicator,
+.c12 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c12 .react-select__control .react-select__indicator:hover,
+.c12 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c12 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c12 .react-select__control--menu-is-open .react-select__indicator,
+.c12 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c12 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c12 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c12 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c12 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c12 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c12 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c12 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c12 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder,
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c20 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c20 > thead > tr > th,
+.c20 > tbody > tr > th,
+.c20 > tfoot > tr > th,
+.c20 > thead > tr > td,
+.c20 > tbody > tr > td,
+.c20 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c20 > thead > tr > th:first-child,
+.c20 > tbody > tr > th:first-child,
+.c20 > tfoot > tr > th:first-child,
+.c20 > thead > tr > td:first-child,
+.c20 > tbody > tr > td:first-child,
+.c20 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c20 > thead > tr > th:last-child,
+.c20 > tbody > tr > th:last-child,
+.c20 > tfoot > tr > th:last-child,
+.c20 > thead > tr > td:last-child,
+.c20 > tbody > tr > td:last-child,
+.c20 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c20 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c20 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c20 > thead > tr > th .c17 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c20 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c20 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c20 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c15 {
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: gray;
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  transition: all 0.3s;
+  width: 90px;
+}
+
+.c16 {
+  box-sizing: border-box;
+  height: 12px;
+  margin-right: 8px;
+  width: 12px;
+  pointer-events: none;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Download Your License Key
+    </div>
+    <div
+      class="c3"
+    >
+      You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+       
+      and our
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Enterprise License File Guide
+      </a>
+       
+      for more details on how this file is used.
+    </div>
+    <button
+      class="c5"
+      kind="primary"
+      title="Download license"
+    >
+      Download License Key
+    </button>
+  </div>
+  <div
+    class="c6"
+    kind="danger"
+  >
+    failed loading license
+  </div>
+  <div
+    class="c7"
+  >
+    <div
+      class="c2"
+    >
+      Download Teleport
+    </div>
+    <div
+      class="c8"
+    >
+      You will also need the binaries below for
+       
+      <a
+        about="_blank"
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+      :
+    </div>
+    <div
+      class="c9"
+    >
+      <div
+        class="c10"
+        width="210px"
+      >
+        <div
+          class="c11"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Teleport
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-8-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c12"
+        width="210px"
+      >
+        <div
+          class="c11"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  10.3.1
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-9-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          aria-label="Choose operating system"
+          class="c14"
+          role="group"
+          style="background-color: rgb(22, 32, 74);"
+        >
+          <button
+            aria-pressed="true"
+            class="c15"
+            style="background-color: rgb(81, 47, 201); color: white;"
+            value="Linux"
+          >
+            <div
+              class="c16"
+            >
+              <span
+                class="c17 c18 icon icon-linux "
+                color="light"
+              />
+            </div>
+            Linux
+          </button>
+          <button
+            aria-pressed="false"
+            class="c15"
+            value="macOS"
+          >
+            <div
+              class="c16"
+            >
+              <span
+                class="c17 c18 icon icon-apple "
+                color="light"
+              />
+            </div>
+            macOS
+          </button>
+          <button
+            aria-pressed="false"
+            class="c15"
+            value="Windows"
+          >
+            <div
+              class="c16"
+            >
+              <span
+                class="c17 c18 icon icon-windows "
+                color="light"
+              />
+            </div>
+            Windows
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c19"
+    >
+      <table
+        class="c20"
+        style="border-radius: 4px;"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Name
+                <span
+                  class="c17 c18 icon icon-chevron-up "
+                  color="light"
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Size
+                <span
+                  class="c17 c18 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                DownloadLink
+                <span
+                  class="c17 c18 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux ARM64/ARMv8 (64-bit) RPM
+            </td>
+            <td>
+              100.0 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c21"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm64.rpm"
+                rel="noreferrer"
+              >
+                teleport-ent-10.3.1-1.arm64.rpm
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux ARMv7 (32-bit) RPM
+            </td>
+            <td>
+              100.1 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c21"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm.rpm"
+                rel="noreferrer"
+              >
+                teleport-ent-10.3.1-1.arm.rpm
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 64-bit DEB
+            </td>
+            <td>
+              114.0 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c21"
+                href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_amd64.deb"
+                rel="noreferrer"
+              >
+                teleport-ent_10.3.1_amd64.deb
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 32-bit DEB
+            </td>
+            <td>
+              105.5 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c21"
+                href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_i386.deb"
+                rel="noreferrer"
+              >
+                teleport-ent_10.3.1_i386.deb
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 32-bit
+            </td>
+            <td>
+              105.9 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c21"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-386-bin.tar.gz"
+                rel="noreferrer"
+              >
+                teleport-ent-v10.3.1-linux-386-bin.tar.gz
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 64-bit
+            </td>
+            <td>
+              114.3 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c21"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-amd64-bin.tar.gz"
+                rel="noreferrer"
+              >
+                teleport-ent-v10.3.1-linux-amd64-bin.tar.gz
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`renders when license is loading 1`] = `
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  margin-top: 40px;
+}
+
+.c6 {
+  box-sizing: border-box;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 24px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c17 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c20 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+  margin-top: 16px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-left: auto;
+  display: flex;
+}
+
+.c13 {
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c10 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c10 .react-select__control,
+.c10 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c10 .react-select__control:hover,
+.c10 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c10 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c10 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c10 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c10 .react-select__indicator-separator {
+  display: none;
+}
+
+.c10 .react-select__loading-indicator {
+  display: none;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 {
+  width: 210px;
+}
+
+.c9 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c9 .react-select__control,
+.c9 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c9 .react-select__control:hover,
+.c9 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c9 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c9 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c9 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c9 .react-select__indicator-separator {
+  display: none;
+}
+
+.c9 .react-select__loading-indicator {
+  display: none;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c9 .react-select-container {
+  background: transparent;
+}
+
+.c9 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c9 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c9 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__control:focus,
+.c9 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c9 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator,
+.c9 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c9 .react-select__control .react-select__indicator:hover,
+.c9 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c9 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c9 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c9 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c9 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c9 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c9 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c9 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c9 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c9 .react-select--is-disabled .react-select__single-value,
+.c9 .react-select--is-disabled .react-select__placeholder,
+.c9 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 {
+  width: 210px;
+  margin-left: 16px;
+}
+
+.c11 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c11 .react-select__control,
+.c11 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c11 .react-select__control:hover,
+.c11 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c11 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c11 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c11 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c11 .react-select__indicator-separator {
+  display: none;
+}
+
+.c11 .react-select__loading-indicator {
+  display: none;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c11 .react-select-container {
+  background: transparent;
+}
+
+.c11 .react-select__option--is-focused:active {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__value-container {
+  padding: 0 8px;
+}
+
+.c11 .react-select__single-value {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__control {
+  min-height: 34px;
+  height: 34px;
+  border-color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover {
+  border-color: rgba(255,255,255,0.24);
+  background-color: #2C3A73;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator {
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator,
+.c11 .react-select__control .react-select__dropdown-indicator {
+  padding: 4px 8px;
+  color: #666;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover {
+  color: #999;
+}
+
+.c11 .react-select__control--menu-is-open {
+  background-color: #2C3A73;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+  border-color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator {
+  color: #999 !important;
+}
+
+.c11 .react-select__control--menu-is-open .react-select__indicator:hover,
+.c11 .react-select__control--menu-is-open .react-select__dropdown-indicator:hover {
+  color: #ccc !important;
+}
+
+.c11 .react-select__input {
+  color: rgba(255,255,255,0.87);
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__option {
+  padding: 4px 12px;
+}
+
+.c11 .react-select__menu {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.c11 .react-select__multi-value {
+  background-color: #111B48;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value__label {
+  color: rgba(255,255,255,0.87);
+  padding: 0 6px;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.24);
+}
+
+.c19 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c19 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c19 > thead > tr > th .c16 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c19 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c19 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c19 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c14 {
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: gray;
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  transition: all 0.3s;
+  width: 90px;
+}
+
+.c15 {
+  box-sizing: border-box;
+  height: 12px;
+  margin-right: 8px;
+  width: 12px;
+  pointer-events: none;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Download Your License Key
+    </div>
+    <div
+      class="c3"
+    >
+      You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+       
+      and our
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Enterprise License File Guide
+      </a>
+       
+      for more details on how this file is used.
+    </div>
+    <button
+      class="c5"
+      disabled=""
+      kind="primary"
+      title="Download license"
+    >
+      Download License Key
+    </button>
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c2"
+    >
+      Download Teleport
+    </div>
+    <div
+      class="c7"
+    >
+      You will also need the binaries below for
+       
+      <a
+        about="_blank"
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+      :
+    </div>
+    <div
+      class="c8"
+    >
+      <div
+        class="c9"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Teleport
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-10-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c11"
+        width="210px"
+      >
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  10.3.1
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-11-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c12"
+      >
+        <div
+          aria-label="Choose operating system"
+          class="c13"
+          role="group"
+          style="background-color: rgb(22, 32, 74);"
+        >
+          <button
+            aria-pressed="true"
+            class="c14"
+            style="background-color: rgb(81, 47, 201); color: white;"
+            value="Linux"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-linux "
+                color="light"
+              />
+            </div>
+            Linux
+          </button>
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="macOS"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-apple "
+                color="light"
+              />
+            </div>
+            macOS
+          </button>
+          <button
+            aria-pressed="false"
+            class="c14"
+            value="Windows"
+          >
+            <div
+              class="c15"
+            >
+              <span
+                class="c16 c17 icon icon-windows "
+                color="light"
+              />
+            </div>
+            Windows
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c18"
+    >
+      <table
+        class="c19"
+        style="border-radius: 4px;"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Name
+                <span
+                  class="c16 c17 icon icon-chevron-up "
+                  color="light"
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Size
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                DownloadLink
+                <span
+                  class="c16 c17 icon icon-chevrons-expand-vertical "
+                  color="light"
+                  title="sort items"
+                />
+              </a>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux ARM64/ARMv8 (64-bit) RPM
+            </td>
+            <td>
+              100.0 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm64.rpm"
+                rel="noreferrer"
+              >
+                teleport-ent-10.3.1-1.arm64.rpm
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux ARMv7 (32-bit) RPM
+            </td>
+            <td>
+              100.1 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-10.3.1-1.arm.rpm"
+                rel="noreferrer"
+              >
+                teleport-ent-10.3.1-1.arm.rpm
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 64-bit DEB
+            </td>
+            <td>
+              114.0 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_amd64.deb"
+                rel="noreferrer"
+              >
+                teleport-ent_10.3.1_amd64.deb
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 32-bit DEB
+            </td>
+            <td>
+              105.5 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent_10.3.1_i386.deb"
+                rel="noreferrer"
+              >
+                teleport-ent_10.3.1_i386.deb
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 32-bit
+            </td>
+            <td>
+              105.9 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-386-bin.tar.gz"
+                rel="noreferrer"
+              >
+                teleport-ent-v10.3.1-linux-386-bin.tar.gz
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="padding: 28px 24px; font-weight: 700;"
+            >
+              Linux 64-bit
+            </td>
+            <td>
+              114.3 MB
+            </td>
+            <td
+              style="font-size: 14px;"
+            >
+              <a
+                class="c20"
+                href="https://cdn.cloud.gravitational.io/teleport-ent-v10.3.1-linux-amd64-bin.tar.gz"
+                rel="noreferrer"
+              >
+                teleport-ent-v10.3.1-linux-amd64-bin.tar.gz
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`renders when releases are loading 1`] = `
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  margin-top: 40px;
+}
+
+.c6 {
+  box-sizing: border-box;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin: 72px;
+  text-align: center;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 24px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+  margin-top: 16px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Download Your License Key
+    </div>
+    <div
+      class="c3"
+    >
+      You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+       
+      and our
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Enterprise License File Guide
+      </a>
+       
+      for more details on how this file is used.
+    </div>
+    <button
+      class="c5"
+      kind="primary"
+      title="Download license"
+    >
+      Download License Key
+    </button>
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c2"
+    >
+      Download Teleport
+    </div>
+    <div
+      class="c7"
+    >
+      You will also need the binaries below for
+       
+      <a
+        about="_blank"
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+      :
+    </div>
+    <div
+      class="c8"
+    />
+  </div>
+</div>
+`;
+
+exports[`renders when releases failed 1`] = `
+.c8 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c8 a {
+  color: #FFFFFF;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  margin-top: 40px;
+}
+
+.c6 {
+  box-sizing: border-box;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 24px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+  margin-top: 16px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Download Your License Key
+    </div>
+    <div
+      class="c3"
+    >
+      You will need to add your license file to authorize your deployment and update it anytime your contract updates. See
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+       
+      and our
+       
+      <a
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        Enterprise License File Guide
+      </a>
+       
+      for more details on how this file is used.
+    </div>
+    <button
+      class="c5"
+      kind="primary"
+      title="Download license"
+    >
+      Download License Key
+    </button>
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c2"
+    >
+      Download Teleport
+    </div>
+    <div
+      class="c7"
+    >
+      You will also need the binaries below for
+       
+      <a
+        about="_blank"
+        class="c4"
+        color="light"
+        href="https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise"
+        rel="noreferrer"
+      >
+        Getting Started with Teleport Enterprise
+      </a>
+      :
+    </div>
+    <div
+      class="c8"
+      kind="danger"
+    >
+      failed loading releases
+    </div>
+  </div>
+</div>
+`;
