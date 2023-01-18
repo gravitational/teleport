@@ -15,19 +15,26 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -35,7 +42,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -46,13 +53,16 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 const (
@@ -225,7 +235,7 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 }
 
 func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &proto.Certs{
+	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
 		SSH:        s.Cert,
 		TLS:        s.TLSCert,
 		TLSCACerts: [][]byte{s.TLSCACert},
@@ -1236,6 +1246,14 @@ type ClientConfig struct {
 	SourceIP string
 	// EnableEscapeSequences will scan Stdin for SSH escape sequences during command/shell execution.
 	EnableEscapeSequences bool
+	// Password to use when creating a web session
+	Password string
+	// Stdin overrides standard input for the session
+	Stdin io.Reader
+	// Stderr overrides standard error for the session
+	Stderr io.Writer
+	// Stdout overrides standard output for the session
+	Stdout io.Writer
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1290,6 +1308,9 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		TLSRoutingEnabled:     i.IsSinglePortSetup,
 		Tracer:                tracing.NoopProvider().Tracer("test"),
 		EnableEscapeSequences: cfg.EnableEscapeSequences,
+		Stderr:                cfg.Stderr,
+		Stdin:                 cfg.Stdin,
+		Stdout:                cfg.Stdout,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1311,6 +1332,205 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 		return nil, trace.Wrap(err)
 	}
 	return i.AddClientCredentials(tc, cfg)
+}
+
+// CreateWebUser creates a user with the provided password which can be
+// used to create a web session.
+func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+
+	role := services.RoleForUser(user)
+	role.SetLogins(types.Allow, []string{username})
+	err = i.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	require.NoError(t, err)
+
+	user.AddRole(role.GetName())
+	err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
+	require.NoError(t, err)
+
+	err = i.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))
+	require.NoError(t, err)
+}
+
+// WebClient allows web sessions to be created as
+// if they were from the UI.
+type WebClient struct {
+	tc      *client.TeleportClient
+	i       *TeleInstance
+	token   string
+	cookies []*http.Cookie
+}
+
+// NewWebClient returns a fully configured and authenticated client
+func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
+	resp, cookies, err := CreateWebSession(i.Web, cfg.Login, cfg.Password)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract session cookie and bearer token.
+	if len(cookies) != 1 {
+		return nil, trace.BadParameter("unexpected number of cookies returned; got %d, want %d", len(cookies), 1)
+	}
+	cookie := cookies[0]
+	if cookie.Name != web.CookieName {
+		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, web.CookieName)
+	}
+
+	tc, err := i.NewUnauthenticatedClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if tc, err = i.AddClientCredentials(tc, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &WebClient{
+		tc:      tc,
+		i:       i,
+		token:   resp.Token,
+		cookies: cookies,
+	}, nil
+}
+
+// CreateWebSession establishes a web session in the same manner that the web UI
+// does. There is no MFA performed, the session will only successfully be created
+// if second factor configuration is `off`. The [web.CreateSessionResponse.Token] and
+// cookies can be used to interact with any authenticated web api endpoints.
+func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionResponse, []*http.Cookie, error) {
+	csReq, err := json.Marshal(web.CreateSessionReq{
+		User: user,
+		Pass: password,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Create POST request to create session.
+	u := url.URL{
+		Scheme: "https",
+		Host:   proxyHost,
+		Path:   "/v1/webapi/sessions/web",
+	}
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Attach CSRF token in cookie and header.
+	csrfToken, err := utils.CryptoRandomHex(32)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	req.AddCookie(&http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(csrf.HeaderName, csrfToken)
+
+	// Issue request.
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	if http.StatusOK != resp.StatusCode {
+		return nil, nil, trace.ConnectionProblem(nil, "received unexpected status code: %d", resp.StatusCode)
+	}
+
+	// Read in response.
+	var csResp *web.CreateSessionResponse
+	err = json.NewDecoder(resp.Body).Decode(&csResp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return csResp, resp.Cookies(), nil
+}
+
+// SSH establishes an SSH connection via the web api in the same manner that
+// the web UI does. The returned [web.TerminalStream] should be used as stdin/stdout
+// for the session.
+func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error) {
+	u := url.URL{
+		Host:   w.i.Web,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", w.tc.SiteName),
+	}
+	data, err := json.Marshal(termReq)
+	if err != nil {
+		return nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, w.token)
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ty, raw, err := ws.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ty != websocket.BinaryMessage {
+		return nil, trace.BadParameter("unexpected websocket message; got %d want %d", ty, websocket.BinaryMessage)
+	}
+
+	var env web.Envelope
+	err = proto.Unmarshal(raw, &env)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	type siteSessionGenerateResponse struct {
+		Session session.Session `json:"session"`
+	}
+
+	var sessResp siteSessionGenerateResponse
+	err = json.Unmarshal([]byte(env.Payload), &sessResp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stream, err := web.NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return stream, nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.
