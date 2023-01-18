@@ -288,6 +288,9 @@ parameters:
   token:
     types: String
     description: "(Required) The Teleport invite token to use when joining the cluster."
+  certificateRotation
+    types: String
+    description: "Indicates whether this discovery execution is being run as a result of a cert rotation"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
@@ -301,6 +304,7 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
+      - export CERTIFICATE_ROTATIOn='{{ certificateRotation }}'
       - export SSHD_CONFIG='{{ sshdConfigPath }}'
       - /bin/sh /tmp/installTeleport.sh '{{ token }}'
 ```
@@ -316,6 +320,18 @@ Possible agentless installer script:
   flock -n 9 || exit 1
 
   if grep -q 'TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub' "$SSHD_CONFIG"; then
+    if [ ! "$CERTIFICATE_ROTATION" = "" ]; then
+      IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+      PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" "http://169.254.169.254/latest/meta-data/public-ipv4")
+	  
+	  sudo teleport join \
+	   --openssh-config=$SSHD_CONFIG \
+	   --join-method=iam \
+	   --token="$1" \
+	   --proxy-server="{{ .PublicProxyAddr }}" \
+	   --additional-principals="$PUBLIC_IP" \
+	   --restart-sshd
+	fi
 	exit 0
   fi
 
@@ -336,16 +352,25 @@ Possible agentless installer script:
 	   --token="$1" \
 	   --proxy-server="{{ .PublicProxyAddr }}" \
 	   --additional-principals="$PUBLIC_IP" \
-	   --restart-sshd
+	   --restart-sshd \
+	   --rotate-certs
 
   systemctl restart sshd
 
 ) 9>/var/lock/teleport_install.lock
 ```
 
-The discovery agent will listen for certificate rotations and rerun the `teleport join`
-command on the agentless nodes already present in the cluster.
+### Certificate rotation
 
+A parameter will be added to the SSM document to indicate that a cert
+rotation is being done.
+
+The discovery agent will listen for certificate rotations and run
+`teleport join --rotate-certs --...` on the agentless nodes already
+present in the cluster.
+
+When rotating certs the `teleport join` command will fetch the
+OpenSSHCA and overwrite the existing file.
 
 ### Including AWS Tags as Teleport labels
 
