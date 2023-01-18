@@ -1578,17 +1578,17 @@ func (c *Cache) GetAccessPolicy(ctx context.Context, name string) (types.AccessP
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	role, err := rg.access.GetAccessPolicy(ctx, name)
+	policy, err := rg.access.GetAccessPolicy(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if role, err := c.Config.Access.GetAccessPolicy(ctx, name); err == nil {
-			return role, nil
+		if policy, err := c.Config.Access.GetAccessPolicy(ctx, name); err == nil {
+			return policy, nil
 		}
 	}
-	return role, err
+	return policy, err
 }
 
 // GetNamespace returns namespace
