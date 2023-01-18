@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -36,6 +37,12 @@ import (
 // TestWatcher verifies that kubernetes agent properly detects and applies
 // changes to kube_cluster resources.
 func TestWatcher(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t,
+			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
+			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		)
+	})
 	kubeMock, err := testingkubemock.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })

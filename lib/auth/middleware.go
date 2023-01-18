@@ -244,6 +244,12 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 // Serve starts GRPC and HTTP1.1 services on the mux listener
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
+
+	defer func() {
+		err := t.mux.Close()
+		t.log.WithError(err).Warningf("Mux serve failed.")
+	}()
+
 	go func() {
 		err := t.mux.Serve()
 		t.log.WithError(err).Warningf("Mux serve failed.")
