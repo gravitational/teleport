@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -77,6 +78,16 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+var (
+	incompleteSessionUploads = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "teleport",
+			Name:      teleport.MetricIncompleteSessionUploads,
+			Help:      "Number of sessions not yet uploaded to auth",
+		},
+	)
+)
 
 // NewUploadCompleter returns a new UploadCompleter.
 func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
