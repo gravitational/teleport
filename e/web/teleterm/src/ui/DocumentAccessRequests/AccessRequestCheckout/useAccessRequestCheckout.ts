@@ -44,6 +44,10 @@ export default function useAccessRequestCheckout() {
     workspaceAccessRequest?.getPendingAccessRequest();
 
   useEffect(() => {
+    if (!pendingAccessRequest) {
+      return;
+    }
+
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
     const req = {
       rootClusterUri,
