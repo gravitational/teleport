@@ -83,3 +83,5 @@ go.work.sum
 # Buf side-effects
 /github.com
 node_modules
+
+.air.toml
