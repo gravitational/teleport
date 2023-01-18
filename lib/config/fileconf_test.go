@@ -364,7 +364,8 @@ func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T)
 		expectError        require.ErrorAssertionFunc
 		expectSecondFactor require.ValueAssertionFunc
 	}{
-		{desc: "handle off with quotes", input: `
+		{
+			desc: "handle off with quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -375,8 +376,10 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
-		{desc: "handle off without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+		},
+		{
+			desc: "handle off without quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -387,8 +390,10 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
-		{desc: "handle on without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+		},
+		{
+			desc: "handle on without quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -399,8 +404,10 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
-		{desc: "unsupported numeric type as second_factor", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOn),
+		},
+		{
+			desc: "unsupported numeric type as second_factor", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -669,7 +676,6 @@ func TestSSHSection(t *testing.T) {
 			if testCase.expectFileCopying != nil {
 				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
 			}
-
 		})
 	}
 }
@@ -785,7 +791,8 @@ func TestDiscoveryConfig(t *testing.T) {
 						Subscriptions:  []string{"*"},
 						ResourceGroups: []string{"*"},
 					},
-				}},
+				},
+			},
 		},
 		{
 			desc:          "Azure section is filled with values",
@@ -816,7 +823,8 @@ func TestDiscoveryConfig(t *testing.T) {
 						Subscriptions:  []string{"sub1", "sub2"},
 						ResourceGroups: []string{"group1", "group2"},
 					},
-				}},
+				},
+			},
 		},
 		{
 			desc:          "AWS section is filled with defaults",
@@ -851,8 +859,10 @@ func TestDiscoveryConfig(t *testing.T) {
 						},
 						SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
 					},
-				}},
-		}, {
+				},
+			},
+		},
+		{
 			desc:          "AWS section is filled with custom configs",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
@@ -897,7 +907,26 @@ func TestDiscoveryConfig(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
+			desc:          "AWS section is filled with invalid region",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"*"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		},
+		{
 			desc:          "AWS section is filled with invalid join method",
 			expectError:   require.Error,
 			expectEnabled: require.True,
@@ -915,7 +944,8 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{},
-		}, {
+		},
+		{
 			desc:          "AWS section is filled with no token",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
@@ -923,6 +953,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
 					{
+						"regions": []string{"eu-west-1"},
 						"install": cfgMap{
 							"join_params": cfgMap{
 								"method": "iam",
@@ -937,7 +968,8 @@ func TestDiscoveryConfig(t *testing.T) {
 						SSM: AWSSSM{
 							DocumentName: defaults.AWSInstallerDocument,
 						},
-						Tags: map[string]apiutils.Strings{"*": {"*"}},
+						Regions: []string{"eu-west-1"},
+						Tags:    map[string]apiutils.Strings{"*": {"*"}},
 						InstallParams: &InstallParams{
 							JoinParams: JoinParams{
 								TokenName: defaults.IAMInviteTokenName,
