@@ -3,27 +3,42 @@ title: Getting Started with Desktop Access
 description: Access Windows systems through Teleport Desktop Access
 ---
 
+This guide will help you configure Teleport to provide secure, passwordless access
+to Windows desktops. This configuration does not require an Active Directory domain.
+
+If you are running Windows in an AD environment, consider integrating Teleport
+with Active Directory for automatic discovery by reading [Desktop Access with
+Active Directory](./active-directory.mdx). You can also mix Active Directory
+integration with the static host definitions described below.
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="12.0"
+>
+Windows Access without Active Directory is available starting from Teleport `v12`.
+Previous versions of Teleport can implement Windows Access by integrating with
+an [Active Directory domain](./active-directory.mdx).
+</Details>
+
+<Admonition type="warning">
+Teleport Desktop Access is not yet compatible with Windows Server 2022.
+</Admonition>
+
 ## Prerequisites
 
-- An existing Teleport cluster with one of the following versions:
-
-  **Open Source or Enterprise:** version 8.0 or newer
-
-  **Teleport Cloud:** version 9.0 or newer
-
-  See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
+- (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A Linux server to run the Teleport Desktop Access service on.
-
   You can reuse an existing server running any other Teleport instance.
 
-- The `tctl` administration tool version >= (=teleport.version=)
+- (!docs/pages/includes/tctl.mdx!)
 
-  (!docs/pages/includes/tctl.mdx!)
+## Step 1/4. Prepare Windows
 
-## Prepare Windows
-
-### Import the Teleport root certificate and DLL
+### Import the Teleport root certificate
 
 Use `tctl` to export the Teleport root certificate:
 
@@ -33,86 +48,58 @@ $ tctl auth export --type=windows > teleport.cer
 
 Copy this certificate to your Windows system, if you didn't run `tctl` from there.
 
+### Install the Teleport service for Windows
+
 From the Windows system, download the [Teleport service installer](#LinkToCome) {/*Rename as needed */}
 and run it. When prompted, select the Teleport certificate file from the previous step.
 Once complete, reboot the system.
 
-{/* Old steps, remove once installer is confirmed. */}
+## Step 2/4. Install the Teleport Desktop Service
 
-Import the certificate to your Windows certificate trust. Right click on the
-certificate and select **Install Certificate**:
-
-![Install the Teleport root Certificate](../../img/desktop-access/install-root-certificate@2x.png)
-
-From the Certificate Import Wizard under **Store Location** select **Local Machine**:
-
-![Select Local Machine](../../img/desktop-access/certificate-import-step1@2x.png)
-
-At the next screen, select **Place all certificates in the following store**.
-Click **Browse** and select "Trusted Root Certification Authorities":
-
-![Trusted Root Certification Authorities](../../img/desktop-access/trusted-root-certification-authorities@2x.png)
-
-At the next screen, click **Finish** to complete the certificate import.
-
-The Teleport DLL file provides support for Teleport's certificate-based
-authentication for Windows systems not connected to an Active Directory Domain.
-
-[Download the Teleport DLL](#LinkToCome), and register it in your system. From a Powershell
-window opened with Administrator Privleges, run:
-
-```code
-$ cp teleport.dll C:\Windows\System32\teleport.dll
-$ regsvr32.exe C:\Windows\System32\teleport.dll
-```
-
-Reboot the Windows system after installing the DLL.
-
-### Disable network level authenticate for RDP
-
-<Tabs>
-<TabItem label="Windows 10">
-
-Open the **Local Group Policy Editor**. You can search for "Edit group policy" from the Start Menu to find it. Navigate to:
-
-```txt
-Local Computer Policy > Computer Configuration > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
-```
-
-Open **Require user authentication for remote connections by using Network Level Authentication**, and disable it:
-
-![Disable Netowrk Level Authentication](../../img/desktop-access/disable-nla@2x.png)
-
-</TabItem>
-<TabItem label="Windows Server">
-
-Content
-
-</TabItem>
-</Tabs>
-
-{/* End old steps */}
-
-## Install the Teleport Windows service
-
-On the Linux host where you will run the Desktop service, install Teleport (if you plan on running the Windows protocol on the same host as an existing Teleport service, you can skip this step):
+On the Linux host where you will run the Desktop Service, install Teleport (if
+you plan on running the Windows protocol on the same host as an existing Teleport
+service, you can skip this step):
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Define the Windows protocol service and list the Windows systems configured for access through Teleport in `/etc/teleport.yaml`:
+Define the Desktop Access service and list the Windows systems configured for
+access through Teleport in `/etc/teleport.yaml`.
 
 ```yml
-version: v3
+version: v6
 teleport:
   nodename: example.teleport.com
 windows_desktop_service:
   enabled: yes
   listen_addr: 0.0.0.0:3028
-  hosts:
+  non_ad_hosts:
     - 192.0.2.156
 ```
 
-Start the Teleport Service. The examples below depend on how you installed Teleport (from a system package or a TAR archive):
+<Details title="Add labels to hosts">
+You can attach labels to your Windows hosts by matching to their hostnames.
+For example, to add the `cloud: ec2` label to hosts with EC2 private IP DNS names:
+
+```diff
+version: v6
+teleport:
+  nodename: example.teleport.com
+windows_desktop_service:
+  enabled: yes
+  listen_addr: 0.0.0.0:3028
+  non_ad_hosts:
+-    - 192.0.2.156
++    - ip-192-0-2-156.us-east-2.compute.internal
++ host_labels:
++    - match: '.*\.us-east-2.compute.internal'
++      labels:
++        cloud: ec2
+```
+
+</Details>
+
+Start or restart the Teleport Service. For new Teleport nodes, the examples below
+depend on how you installed Teleport (from a system package or a TAR archive):
 
 <Tabs>
 <TabItem label="System Package">
@@ -132,3 +119,53 @@ $ sudo systemctl start teleport;
 
 </TabItem>
 </Tabs>
+
+## Step 3/4. Configure Windows access
+
+In order to gain access to a remote desktop, a Teleport user needs to have the
+appropriate permissions for that desktop.
+
+Create the file `windows-desktop-admins.yaml`:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: windows-desktop-admins
+spec:
+  allow:
+    windows_desktop_labels:
+      "*": "*"
+    windows_desktop_logins: ["Administrator", "alice"]
+```
+
+You can restrict access to specific hosts by defining values for
+`windows_desktop_labels`, and adjust the array of usernames this role has access
+to in `windows_desktop_logins`.
+
+<Admonition type="warning" title="RBAC Configuration">
+Ensure that each Teleport user is only assigned Windows logins that they should
+be allowed to access.
+
+Usernames shared between domain and local users will create login conflicts.
+</Admonition>
+
+Apply the new role to your cluster:
+
+```code
+$ tctl create -f windows-desktop-admins.yaml
+```
+
+(\!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins" \!)
+
+See the [RBAC page](./rbac.mdx) for more information about setting up
+Windows Desktop Access permissions.
+
+See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
+guide for instructions on how to create or update a user with a given role.
+
+## Step 4/4. Connect
+
+You can now connect to your Windows desktops from the Teleport Web UI:
+
+![Connecting to a Windows desktop from the Web UI](../../img/desktop-access/non-ad-connect.png)
