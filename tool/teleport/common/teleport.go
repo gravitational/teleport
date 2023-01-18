@@ -64,6 +64,8 @@ type Options struct {
 	InitOnly bool
 }
 
+const agentlessKeysDir = "/etc/teleport/agentless"
+
 // Run inits/starts the process according to the provided options
 func Run(options Options) (app *kingpin.Application, executedCommand string, conf *service.Config) {
 	var err error
@@ -407,10 +409,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
 	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
 	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
-	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default("/etc/ssh").StringVar(&ccf.OpenSSHKeysPath)
+	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default(agentlessKeysDir).StringVar(&ccf.OpenSSHKeysPath)
 	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
 	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
+	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -579,9 +582,44 @@ func getAWSInstanceHostname(ctx context.Context) (string, error) {
 	return "", trace.NotFound("failed to get a valid hostname from IMDS")
 }
 
+func tryCreateDefaultAgentlesKeysDir(agentlessKeysPath string) error {
+	baseTeleportDir := filepath.Dir(agentlessKeysPath)
+	_, err := os.Stat(baseTeleportDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("%s did not exist, creating %s", baseTeleportDir, agentlessKeysPath)
+			return trace.Wrap(os.MkdirAll(agentlessKeysPath, 0700))
+		} else {
+			return trace.Wrap(err)
+		}
+	}
+
+	var alreadyExistedAndDeleted bool
+	_, err = os.Stat(agentlessKeysPath)
+	if err == nil {
+		log.Debugf("%s already existed, removing old files", agentlessKeysPath)
+		err = os.RemoveAll(agentlessKeysPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		alreadyExistedAndDeleted = true
+	}
+
+	if os.IsNotExist(err) || alreadyExistedAndDeleted {
+		log.Debugf("%s did not exist, creating", agentlessKeysPath)
+		return trace.Wrap(os.Mkdir(agentlessKeysPath, 0700))
+	}
+
+	return trace.Wrap(err)
+}
+
 func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	if err := checkSSHDConfigAlreadyUpdated(clf.OpenSSHConfigPath); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if clf.Debug {
+		log.SetLevel(log.DebugLevel)
 	}
 
 	addr, err := utils.ParseAddr(clf.ProxyServer)
@@ -663,8 +701,23 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		}
 	}
 
+	defaultKeysPath := clf.OpenSSHKeysPath == agentlessKeysDir
+	if defaultKeysPath {
+		if err := tryCreateDefaultAgentlesKeysDir(agentlessKeysDir); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	fmt.Printf("Writing Teleport keys to %s\n", clf.OpenSSHKeysPath)
 	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs, openSSHCA); err != nil {
+		if defaultKeysPath {
+			rmdirErr := os.RemoveAll(agentlessKeysDir)
+			if rmdirErr != nil {
+				if rmdirErr != nil {
+					return trace.NewAggregate(err, rmdirErr)
+				}
+			}
+		}
 		return trace.Wrap(err)
 	}
 
