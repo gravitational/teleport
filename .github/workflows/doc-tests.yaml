@@ -5,10 +5,12 @@ on:
     branches:
       - master
   pull_request:
+  merge_group:
 
 jobs:
   doc-tests:
     name: Lint (Docs)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
 
     permissions:

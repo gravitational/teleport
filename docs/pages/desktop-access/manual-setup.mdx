@@ -34,7 +34,7 @@ This guide requires you to have:
 
   **Teleport Cloud:** version 9.0 or newer
 
-  See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
+  See [Teleport Getting Started](../try-out-teleport/introduction.mdx) if you're new to Teleport.
 
 - A Linux server to run the Teleport Desktop Access service on.
 
@@ -99,6 +99,14 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"
 
 ```
+
+To save yourself time later, you can use the same prompt to get the security identifier of your new service account by running this command:
+
+```powershell
+Get-AdUser -Identity $SamAccountName | Select SID
+```
+
+Note this value (beginning with "S-") down, as it will be used as the `sid` field in the `ldap` section of your configuration file in a later step.
 
 ## Step 2/7. Prevent the service account from performing interactive logins
 
@@ -169,7 +177,7 @@ certificate-based smart card authentication, and ensuring RDP is enabled.
 
 The following step requires an existing cluster. If you don't already have a
 Teleport cluster up and running, see our general [Getting
-Started](../getting-started.mdx) guide.
+Started](../try-out-teleport/introduction.mdx) guide.
 
 <Admonition type="note" title="User CA Rotation">
 These steps will need to be repeated if Teleport's user certificate authority is rotated.
@@ -500,7 +508,8 @@ windows_desktop_service:
     # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
-    username: '$LDAP_USERNAME'
+    username: "$LDAP_USERNAME"
+    sid: "$LDAP_USER_SID"
     # This should be the path to the certificate exported in Step 4.
     der_ca_file: /path/to/cert
   discovery:
@@ -540,7 +549,8 @@ windows_desktop_service:
     # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
-    username: '$LDAP_USERNAME'
+    username: "$LDAP_USERNAME"
+    sid: "$LDAP_USER_SID"
     # This should be the path to the certificate exported in Step 5.
     der_ca_file: /path/to/cert
   discovery:

@@ -144,6 +144,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 			StaticDatabaseURI:            "postgres://localhost:5432",
 			StaticDatabaseRawLabels:      `env=prod,arch=[5m2s:/bin/uname -m "p1 p2"]`,
 			DatabaseAWSRegion:            "us-west-1",
+			DatabaseAWSExternalID:        "1234567890",
 			DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
 			DatabaseADDomain:             "EXAMPLE.com",
 			DatabaseADSPN:                "MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433",
@@ -160,6 +161,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Equal(t, flags.StaticDatabaseURI, databases.Databases[0].URI)
 		require.Equal(t, map[string]string{"env": "prod"}, databases.Databases[0].StaticLabels)
 		require.Equal(t, flags.DatabaseAWSRegion, databases.Databases[0].AWS.Region)
+		require.Equal(t, flags.DatabaseAWSExternalID, databases.Databases[0].AWS.ExternalID)
 		require.Equal(t, flags.DatabaseAWSRedshiftClusterID, databases.Databases[0].AWS.Redshift.ClusterID)
 		require.Equal(t, flags.DatabaseADDomain, databases.Databases[0].AD.Domain)
 		require.Equal(t, flags.DatabaseADSPN, databases.Databases[0].AD.SPN)

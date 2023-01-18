@@ -353,7 +353,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	srv.Authorizer, err = NewAuthorizer(AuthorizerOpts{
+		ClusterName: srv.ClusterName,
+		AccessPoint: srv.AuthServer,
+		LockWatcher: srv.LockWatcher,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -443,16 +447,18 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
+
 		certs, err := authServer.generateUserCert(certRequest{
-			publicKey:      pub,
-			user:           user,
-			ttl:            identity.TTL,
-			usage:          identity.AcceptedUsage,
-			routeToCluster: identity.RouteToCluster,
-			checker:        checker,
-			traits:         user.GetTraits(),
-			renewable:      identity.Renewable,
-			generation:     identity.Generation,
+			publicKey:        pub,
+			user:             user,
+			ttl:              identity.TTL,
+			usage:            identity.AcceptedUsage,
+			routeToCluster:   identity.RouteToCluster,
+			checker:          checker,
+			traits:           user.GetTraits(),
+			renewable:        identity.Renewable,
+			generation:       identity.Generation,
+			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -522,6 +528,17 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 	}
 	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
+		DomainName: remote.ClusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OpenSSHCA,
 		DomainName: remote.ClusterName,
 	}, false)
 	if err != nil {
@@ -959,7 +976,7 @@ type clt interface {
 }
 
 // CreateRole creates a role without assigning any users. Used in tests.
-func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
+func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)

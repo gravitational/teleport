@@ -13,6 +13,7 @@ import * as v1_database_pb from "../v1/database_pb";
 import * as v1_gateway_pb from "../v1/gateway_pb";
 import * as v1_kube_pb from "../v1/kube_pb";
 import * as v1_server_pb from "../v1/server_pb";
+import * as v1_usage_events_pb from "../v1/usage_events_pb";
 
 export class EmptyResponse extends jspb.Message { 
 

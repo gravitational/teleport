@@ -170,9 +170,15 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name:      "remote running 11.0.0",
+			name:      "remote running 12.0.0",
 			assertion: require.NoError,
-			version:   "11.0.0",
+			version:   "12.0.0",
+		},
+		{
+			name:           "remote running 11.0.0",
+			assertion:      require.NoError,
+			version:        "11.0.0",
+			oldRemoteProxy: true,
 		},
 		{
 			name:           "remote running 10.0.0",

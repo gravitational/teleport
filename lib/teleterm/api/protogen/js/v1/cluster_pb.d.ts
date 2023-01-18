@@ -34,6 +34,9 @@ export class Cluster extends jspb.Message {
     getFeatures(): Features | undefined;
     setFeatures(value?: Features): Cluster;
 
+    getAuthClusterId(): string;
+    setAuthClusterId(value: string): Cluster;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Cluster.AsObject;
@@ -54,6 +57,7 @@ export namespace Cluster {
         leaf: boolean,
         loggedInUser?: LoggedInUser.AsObject,
         features?: Features.AsObject,
+        authClusterId: string,
     }
 }
 
@@ -82,6 +86,16 @@ export class LoggedInUser extends jspb.Message {
     setActiveRequestsList(value: Array<string>): LoggedInUser;
     addActiveRequests(value: string, index?: number): string;
 
+    clearSuggestedReviewersList(): void;
+    getSuggestedReviewersList(): Array<string>;
+    setSuggestedReviewersList(value: Array<string>): LoggedInUser;
+    addSuggestedReviewers(value: string, index?: number): string;
+
+    clearRequestableRolesList(): void;
+    getRequestableRolesList(): Array<string>;
+    setRequestableRolesList(value: Array<string>): LoggedInUser;
+    addRequestableRoles(value: string, index?: number): string;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LoggedInUser.AsObject;
@@ -100,6 +114,8 @@ export namespace LoggedInUser {
         sshLoginsList: Array<string>,
         acl?: ACL.AsObject,
         activeRequestsList: Array<string>,
+        suggestedReviewersList: Array<string>,
+        requestableRolesList: Array<string>,
     }
 }
 

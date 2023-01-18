@@ -35,16 +35,17 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// ForwarderConfig is the Forwarder configuration.
-type ForwarderConfig struct {
-	// Client is an HTTP client instance used for HTTP calls.
-	Client *http.Client
+// HandlerConfig is the configuration for an Azure app-access handler.
+type HandlerConfig struct {
+	// RoundTripper is the underlying transport given to an oxy Forwarder.
+	RoundTripper http.RoundTripper
 	// Log is the Logger.
 	Log logrus.FieldLogger
 	// Clock is used to override time in tests.
@@ -54,16 +55,14 @@ type ForwarderConfig struct {
 	getAccessToken getAccessTokenFunc
 }
 
-// CheckAndSetDefaults validates the ForwarderConfig config.
-func (s *ForwarderConfig) CheckAndSetDefaults() error {
-	if s.Client == nil {
+// CheckAndSetDefaults validates the HandlerConfig.
+func (s *HandlerConfig) CheckAndSetDefaults() error {
+	if s.RoundTripper == nil {
 		tr, err := defaults.Transport()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.Client = &http.Client{
-			Transport: tr,
-		}
+		s.RoundTripper = tr
 	}
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
@@ -77,21 +76,26 @@ func (s *ForwarderConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Forwarder is an Azure CLI proxy service that forwards the requests to Azure API, but updates the authorization headers
+// handler is an Azure CLI proxy service handler that forwards the requests to Azure API, but updates the authorization headers
 // based on user identity.
-type Forwarder struct {
-	// ForwarderConfig is the Forwarder configuration.
-	ForwarderConfig
+type handler struct {
+	// config is the handler configuration.
+	HandlerConfig
 
-	// Forwarder signs and forwards the request to Azure API.
-	*forward.Forwarder
+	// fwd is used to forward requests to Azure API after the handler has rewritten them.
+	fwd *forward.Forwarder
 
 	// tokenCache caches access tokens.
 	tokenCache *utils.FnCache
 }
 
-// NewForwarder creates a new instance of Forwarder.
-func NewForwarder(ctx context.Context, config ForwarderConfig) (*Forwarder, error) {
+// NewAzureHandler creates a new instance of a http.Handler for Azure requests.
+func NewAzureHandler(ctx context.Context, config HandlerConfig) (http.Handler, error) {
+	return newAzureHandler(ctx, config)
+}
+
+// newAzureHandler creates a new instance of a handler for Azure requests. Used by NewAzureHandler and in tests.
+func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,63 +109,65 @@ func NewForwarder(ctx context.Context, config ForwarderConfig) (*Forwarder, erro
 		return nil, trace.Wrap(err)
 	}
 
-	svc := &Forwarder{
-		ForwarderConfig: config,
-		tokenCache:      tokenCache,
+	svc := &handler{
+		HandlerConfig: config,
+		tokenCache:    tokenCache,
 	}
 
 	fwd, err := forward.New(
-		forward.RoundTripper(svc),
+		forward.RoundTripper(config.RoundTripper),
 		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
-		forward.PassHostHeader(true),
+		// Explicitly passing false here to be clear that we always want the host
+		// header to be the same as the outbound request's URL host.
+		forward.PassHostHeader(false),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	svc.Forwarder = fwd
+	svc.fwd = fwd
 	return svc, nil
 }
 
 // RoundTrip handles incoming requests and forwards them to the proper API.
-func (s *Forwarder) RoundTrip(req *http.Request) (*http.Response, error) {
+func (s *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if err := s.serveHTTP(w, req); err != nil {
+		s.formatForwardResponseError(w, req, err)
+		return
+	}
+}
+
+// serveHTTP is a helper to simplify error handling in ServeHTTP.
+func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 	sessionCtx, err := common.GetSessionContext(req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	fwdRequest, err := s.prepareForwardRequest(req, sessionCtx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	resp, err := s.Client.Do(fwdRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	recorder := httplib.NewResponseStatusRecorder(w)
+	s.fwd.ServeHTTP(recorder, fwdRequest)
+	status := uint32(recorder.Status())
 
-	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, resp, nil); err != nil {
+	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, status, nil); err != nil {
+		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
 		s.Log.WithError(err).Warn("Failed to emit audit event.")
 	}
-
-	return resp, nil
+	return nil
 }
 
-func (s *Forwarder) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
+func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
+	s.Log.WithError(err).Debugf("Failed to process request.")
 	common.SetTeleportAPIErrorHeader(rw, err)
 
-	switch trace.Unwrap(err).(type) {
-	case *trace.BadParameterError:
-		s.Log.Debugf("Failed to process request: %v.", err)
-		rw.WriteHeader(http.StatusBadRequest)
-	case *trace.AccessDeniedError:
-		s.Log.Infof("Failed to process request: %v.", err)
-		rw.WriteHeader(http.StatusForbidden)
-	default:
-		s.Log.Warnf("Failed to process request: %v.", err)
-		rw.WriteHeader(http.StatusInternalServerError)
-	}
+	// Convert trace error type to HTTP and write response.
+	code := trace.ErrorToCode(err)
+	http.Error(rw, http.StatusText(code), code)
 }
 
 // prepareForwardRequest prepares a request for forwarding, updating headers and target host. Several checks are made along the way.
-func (s *Forwarder) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
+func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost := r.Header.Get("X-Forwarded-Host")
 	if !azure.IsAzureEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
@@ -179,8 +185,7 @@ func (s *Forwarder) prepareForwardRequest(r *http.Request, sessionCtx *common.Se
 
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = forwardedHost
-
-	copyHeaders(r, reqCopy)
+	reqCopy.Header = r.Header.Clone()
 
 	err = s.replaceAuthHeaders(r, sessionCtx, reqCopy)
 	if err != nil {
@@ -206,7 +211,7 @@ func getPeerKey(certs []*x509.Certificate) (crypto.PublicKey, error) {
 
 }
 
-func (s *Forwarder) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
+func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
 	auth := reqCopy.Header.Get("Authorization")
 	if auth == "" {
 		s.Log.Debugf("No Authorization header present, skipping replacement.")
@@ -234,7 +239,7 @@ func (s *Forwarder) replaceAuthHeaders(r *http.Request, sessionCtx *common.Sessi
 	return nil
 }
 
-func (s *Forwarder) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.AzureTokenClaims, error) {
+func (s *handler) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.AzureTokenClaims, error) {
 	before, after, found := strings.Cut(token, " ")
 	if !found {
 		return nil, trace.BadParameter("Unable to parse auth header")
@@ -279,26 +284,26 @@ type cacheKey struct {
 
 const getTokenTimeout = time.Second * 5
 
-func (s *Forwarder) getToken(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+func (s *handler) getToken(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 	key := cacheKey{managedIdentity, scope}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, getTokenTimeout)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	return utils.FnCacheGet(timeoutCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
-		return s.getAccessToken(ctx, managedIdentity, scope)
-	})
-}
+	var tokenResult *azcore.AccessToken
+	var errorResult error
 
-func copyHeaders(r *http.Request, reqCopy *http.Request) {
-	for key, values := range r.Header {
-		// Remove Teleport app headers.
-		if common.IsReservedHeader(key) {
-			continue
-		}
+	go func() {
+		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
+			return s.getAccessToken(ctx, managedIdentity, scope)
+		})
+		cancel()
+	}()
 
-		for _, v := range values {
-			reqCopy.Header.Add(key, v)
-		}
+	select {
+	case <-s.Clock.After(getTokenTimeout):
+		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
+	case <-cancelCtx.Done():
+		return tokenResult, errorResult
 	}
 }

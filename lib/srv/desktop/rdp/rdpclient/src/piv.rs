@@ -45,8 +45,8 @@ pub struct Card<const S: usize> {
     piv_auth_cert: Vec<u8>,
     piv_auth_key: RsaPrivateKey,
     pin: String,
-    // Pending command and response to receive/send over multiple messages when they don't fit into
-    // one.
+    // Pending command and response to receive/send over multiple messages when
+    // they don't fit into one.
     pending_command: Option<Command<S>>,
     pending_response: Option<Cursor<Vec<u8>>>,
 }

@@ -82,7 +82,7 @@ func (c *DBCertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.Loca
 // renewCerts attempts to renew the database certs for the local proxy.
 func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	var accessRequests []string
-	if profile, err := StatusCurrent(c.tc.HomePath, c.tc.WebProxyAddr, ""); err != nil {
+	if profile, err := c.tc.ProfileStatus(); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests.AccessRequests

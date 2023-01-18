@@ -21,6 +21,17 @@ const (
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
 
+	// DefaultReleaseServerAddr is the default release service URL
+	DefaultReleaseServerAddr = "rlz.teleport.sh"
+
+	// ReleaseServerEnvVar is the environment variable used to overwrite
+	// the default release server address
+	ReleaseServerEnvVar = "RELEASE_SERVER_HOSTPORT"
+
+	// EnterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
+	// releases on the release server
+	EnterpriseReleaseEndpoint = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
@@ -133,6 +144,9 @@ const (
 
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
+
+	// KindKubePod is an Kubernetes Pod resource type.
+	KindKubePod = "pod"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -286,6 +300,15 @@ const (
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
 
+	// KindInstance represents a teleport instance independent of any specific service.
+	KindInstance = "instance"
+
+	// KindLoginRule is a login rule resource.
+	KindLoginRule = "login_rule"
+
+	// V6 is the sixth version of resources.
+	V6 = "v6"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
@@ -346,6 +369,9 @@ const (
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
+
+	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
+	ADLabel = TeleportNamespace + "/ad"
 
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
@@ -537,6 +563,12 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
+	KindKubePod,
+}
+
+// KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
+var KubernetesResourcesKinds = []string{
+	KindKubePod,
 }
 
 const (

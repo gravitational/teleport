@@ -43,7 +43,7 @@ import (
 type accessRequestTestPack struct {
 	tlsServer   *TestTLSServer
 	clusterName string
-	roles       map[string]types.RoleSpecV5
+	roles       map[string]types.RoleSpecV6
 	users       map[string][]string
 	privKey     []byte
 	pubKey      []byte
@@ -63,7 +63,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	clusterName, err := tlsServer.Auth().GetClusterName()
 	require.NoError(t, err)
 
-	roles := map[string]types.RoleSpecV5{
+	roles := map[string]types.RoleSpecV6{
 		// superadmins have access to all nodes
 		"superadmins": {
 			Allow: types.RoleConditions{

@@ -1,0 +1,469 @@
+suite: ConfigMap
+templates:
+  - auth/config.yaml
+tests:
+  - it: matches snapshot for acme-off.yaml
+    values:
+      - ../.lint/acme-off.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for acme-on.yaml
+    values:
+      - ../.lint/acme-on.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for acme-uri-staging.yaml
+    values:
+      - ../.lint/acme-on.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: wears annotations (annotations.yaml)
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config-different
+          value: 2
+
+  - it: matches snapshot for auth-connector-name.yaml
+    values:
+      - ../.lint/auth-connector-name.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-disable-local.yaml
+    values:
+      - ../.lint/auth-disable-local.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-locking-mode.yaml
+    values:
+      - ../.lint/auth-locking-mode.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-passwordless.yaml
+    values:
+      - ../.lint/auth-passwordless.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-type.yaml
+    values:
+      - ../.lint/auth-type.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-type-legacy.yaml
+    values:
+      - ../.lint/auth-type-legacy.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-webauthn.yaml
+    values:
+      - ../.lint/auth-webauthn.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-webauthn-legacy.yaml
+    values:
+      - ../.lint/auth-webauthn-legacy.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws.yaml
+    values:
+      - ../.lint/aws.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws-dynamodb-autoscaling.yaml
+    values:
+      - ../.lint/aws-dynamodb-autoscaling.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws-ha.yaml
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws-ha-acme.yaml
+    values:
+      - ../.lint/aws-ha-acme.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws-ha-antiaffinity.yaml
+    values:
+      - ../.lint/aws-ha-antiaffinity.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws-ha-log.yaml
+    values:
+      - ../.lint/aws-ha-log.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for existing-tls-secret.yaml
+    values:
+      - ../.lint/existing-tls-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for existing-tls-secret-with-ca.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for gcp-ha-acme.yaml
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for gcp-ha-antiaffinity.yaml
+    values:
+      - ../.lint/gcp-ha-antiaffinity.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for gcp-ha-log.yaml
+    values:
+      - ../.lint/gcp-ha-log.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for gcp.yaml
+    values:
+      - ../.lint/gcp.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for initcontainers.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for kube-cluster-name.yaml
+    values:
+      - ../.lint/kube-cluster-name.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for log-basic.yaml
+    values:
+      - ../.lint/log-basic.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for log-extra.yaml
+    values:
+      - ../.lint/log-extra.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for log-legacy.yaml
+    values:
+      - ../.lint/log-legacy.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for priority-class-name.yaml
+    values:
+      - ../.lint/priority-class-name.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for proxy-listener-mode-multiplex.yaml
+    values:
+      - ../.lint/proxy-listener-mode-multiplex.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for proxy-listener-mode-separate.yaml
+    values:
+      - ../.lint/proxy-listener-mode-separate.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for service.yaml
+    values:
+      - ../.lint/service.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for separate-mongo-listener.yaml
+    values:
+      - ../.lint/separate-mongo-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for separate-postgres-listener.yaml
+    values:
+      - ../.lint/separate-postgres-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for public-addresses.yaml
+    values:
+      - ../.lint/public-addresses.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for session-recording.yaml
+    values:
+      - ../.lint/session-recording.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for standalone-customsize.yaml
+    values:
+      - ../.lint/standalone-customsize.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for standalone-existingpvc.yaml
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for tolerations.yaml
+    values:
+      - ../.lint/tolerations.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for version-override.yaml
+    values:
+      - ../.lint/version-override.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for volumes.yaml
+    values:
+      - ../.lint/volumes.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml

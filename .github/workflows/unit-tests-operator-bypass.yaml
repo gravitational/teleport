@@ -14,15 +14,26 @@ run-name: Skip Unit Tests (Operator) - ${{ github.run_id }} - @${{ github.actor 
 on:
   pull_request:
     paths-ignore:
-      - /go.mod
-      - /go.sum
-      - operator/**
-      - api/types/**
-      - lib/tbot/**
+      - '/go.mod'
+      - '/go.sum'
+      - 'operator/**'
+      - 'api/types/**'
+      - 'lib/tbot/**'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths-ignore:
+      - '/go.mod'
+      - '/go.sum'
+      - 'operator/**'
+      - 'api/types/**'
+      - 'lib/tbot/**'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
-    name: Skipped
+    name: Unit Tests (Operator)
     runs-on: ubuntu-latest
 
     permissions:

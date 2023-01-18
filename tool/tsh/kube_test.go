@@ -74,14 +74,6 @@ func TestListKube(t *testing.T) {
 			require.NoError(t, err)
 			return len(rootClusters) >= 2
 		}),
-		withNewTeleportOption(
-			// Disables cloud auto-imported labels when running tests in cloud envs such as
-			// Github Actions.
-			// This is required otherwise Teleport will import cloud instance labels and use them
-			// as labels in Kubernetes Service and this test would fail because the output
-			// includes unexpected labels.
-			service.WithIMDSClient(&fakeCloudMetadata{}),
-		),
 	)
 
 	mustLoginSetEnv(t, s)
@@ -141,7 +133,10 @@ func TestListKube(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			captureStdout := new(bytes.Buffer)
 			err := Run(
 				context.Background(),
@@ -193,33 +188,6 @@ func formatServiceLabels(labels map[string]string) string {
 
 	sort.Strings(labelSlice)
 	return strings.Join(labelSlice, " ")
-}
-
-type fakeCloudMetadata struct{}
-
-func (f *fakeCloudMetadata) IsAvailable(ctx context.Context) bool {
-	return true
-}
-
-// GetTags gets all of the instance's tags.
-func (f *fakeCloudMetadata) GetTags(ctx context.Context) (map[string]string, error) {
-	return map[string]string{}, nil
-}
-
-// GetHostname gets the hostname set by the cloud instance that Teleport
-// should use, if any.
-func (f *fakeCloudMetadata) GetHostname(ctx context.Context) (string, error) {
-	return "hostname", nil
-}
-
-// GetType gets the cloud instance type.
-func (f *fakeCloudMetadata) GetType() types.InstanceMetadataType {
-	return types.InstanceMetadataTypeDisabled
-}
-
-// GetID gets the cloud instance ID.
-func (f *fakeCloudMetadata) GetID(ctx context.Context) (string, error) {
-	return "id", nil
 }
 
 func newKubeSelfSubjectServer(t *testing.T) string {

@@ -14,6 +14,11 @@ on:
       - '**.tf'
       - '**.tf.json'
       - '**.hcl'
+  merge_group:
+    paths:
+      - '**.tf'
+      - '**.tf.json'
+      - '**.hcl'
   workflow_dispatch:
 
 jobs:

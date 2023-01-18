@@ -108,6 +108,9 @@ build_teleport_api_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/aws \
     FuzzParseElastiCacheEndpoint fuzz_parse_elasti_cache_endpoint
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/aws \
+    FuzzParseDynamoDBEndpoint fuzz_parse_dynamodb_endpoint
+
   cd -
 
 }

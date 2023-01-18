@@ -188,6 +188,9 @@ const (
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
 	DynamoDBRequestCode = "TDY01I"
+	// DynamoDBRequestFailureCode is the db.session.dynamodb.request event failure code.
+	// This is indicates that the database agent http transport failed to round trip the request.
+	DynamoDBRequestFailureCode = "TDY01E"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
