@@ -471,7 +471,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolHTTP),
 		},
-		// DELETE IN 13.0 After deprecation of KubeSNIPrefix routing prefix.
+		// DELETE IN 14.0 After deprecation of KubeSNIPrefix routing prefix.
 		{
 			name:             "kube ServerName prefix should route to kube handler",
 			ClientNextProtos: nil,

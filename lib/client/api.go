@@ -842,6 +842,20 @@ func GetKubeTLSServerName(k8host string) string {
 	return addSubdomainPrefix(k8host, constants.KubeTeleportProxyALPNPrefix)
 }
 
+// GetOldKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
+// TODO(smallinsky) DELETE IN 14.0.0 After dropping support for KubeSNIPrefix SNI routing handler.
+func GetOldKubeTLSServerName(k8host string) string {
+	isIPFormat := net.ParseIP(k8host) != nil
+
+	if k8host == "" || isIPFormat {
+		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
+		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
+		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
+		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
+	}
+	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
+}
+
 func addSubdomainPrefix(domain, prefix string) string {
 	return fmt.Sprintf("%s%s", prefix, domain)
 }
