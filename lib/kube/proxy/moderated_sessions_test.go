@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/remotecommand"
 
@@ -42,6 +43,12 @@ import (
 )
 
 func TestModeratedSessions(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t,
+			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
+			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		)
+	})
 	// enable enterprise features to have access to ModeratedSessions.
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	const (

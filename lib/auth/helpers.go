@@ -366,11 +366,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 }
 
 func (a *TestAuthServer) Close() error {
-	return trace.NewAggregate(
+	err := trace.NewAggregate(
 		a.AuthServer.Close(),
 		a.Backend.Close(),
 		a.AuditLog.Close(),
 	)
+	a.LockWatcher.Close()
+	return err
 }
 
 // GenerateUserCert takes the public key in the OpenSSH `authorized_keys`

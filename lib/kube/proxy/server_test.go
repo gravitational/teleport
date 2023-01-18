@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -241,6 +242,12 @@ func TestGetServerInfo(t *testing.T) {
 }
 
 func TestHeartbeat(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t,
+			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
+			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		)
+	})
 	kubeCluster1 := "kubeCluster1"
 	kubeCluster2 := "kubeCluster2"
 

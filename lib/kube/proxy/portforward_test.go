@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
@@ -35,6 +36,12 @@ import (
 )
 
 func TestPortForwardKubeService(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t,
+			goleak.IgnoreTopFunction("math/big.nat.montgomery"),
+			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		)
+	})
 	const (
 		localPort = 9084
 	)
