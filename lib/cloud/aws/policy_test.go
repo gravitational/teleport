@@ -265,6 +265,75 @@ func TestIAMPolicy(t *testing.T) {
 	}, policy)
 }
 
+func TestPolicyEnsureStatements(t *testing.T) {
+	policy := NewPolicyDocument(
+		&Statement{
+			Effect:    EffectAllow,
+			Actions:   []string{"action-1"},
+			Resources: []string{"resource-1"},
+		},
+		&Statement{
+			Effect:    EffectDeny,
+			Actions:   []string{"action-1"},
+			Resources: []string{"resource-2"},
+		},
+	)
+
+	policy.EnsureStatements(
+		// Existing/new action and existing resource.
+		&Statement{
+			Effect:    EffectAllow,
+			Actions:   []string{"action-1", "action-2"},
+			Resources: []string{"resource-1"},
+		},
+		// Existing action and new resource.
+		&Statement{
+			Effect:    EffectAllow,
+			Actions:   []string{"action-1"},
+			Resources: []string{"resource-3"},
+		},
+		// New actions and new resources.
+		&Statement{
+			Effect:    EffectAllow,
+			Actions:   []string{"action-2", "action-3", "action-4"},
+			Resources: []string{"resource-4"},
+		},
+		// Test nil.
+		nil,
+		// Existing action and resource.
+		&Statement{
+			Effect:    EffectDeny,
+			Actions:   []string{"action-1"},
+			Resources: []string{"resource-2"},
+		},
+	)
+	require.Equal(t, &PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{
+			{
+				Effect:    EffectAllow,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-1", "resource-3"},
+			},
+			{
+				Effect:    EffectDeny,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-2"},
+			},
+			{
+				Effect:    EffectAllow,
+				Actions:   []string{"action-2"},
+				Resources: []string{"resource-1", "resource-4"},
+			},
+			{
+				Effect:    EffectAllow,
+				Actions:   []string{"action-3", "action-4"},
+				Resources: []string{"resource-4"},
+			},
+		},
+	}, policy)
+}
+
 func TestRetrievePolicy(t *testing.T) {
 	ctx := context.Background()
 

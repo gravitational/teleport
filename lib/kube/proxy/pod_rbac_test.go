@@ -225,8 +225,9 @@ func TestListPodRBAC(t *testing.T) {
 				getTestPodResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
-						Message: "[00] access denied",
+						Message: "pods \"test\" is forbidden: User \"limited_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
 						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
 					},
 				},
 			},

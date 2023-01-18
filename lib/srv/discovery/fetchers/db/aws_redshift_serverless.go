@@ -57,6 +57,12 @@ func (c *redshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+type redshiftServerlessWorkgroupWithTags struct {
+	*redshiftserverless.Workgroup
+
+	Tags []*redshiftserverless.Tag
+}
+
 // redshiftServerlessFetcher retrieves Redshift Serverless databases.
 type redshiftServerlessFetcher struct {
 	awsFetcher
@@ -108,13 +114,14 @@ func (f *redshiftServerlessFetcher) String() string {
 	return fmt.Sprintf("redshiftServerlessFetcher(Region=%v, Labels=%v)", f.cfg.Region, f.cfg.Labels)
 }
 
-func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Context) (types.Databases, []*redshiftserverless.Workgroup, error) {
+func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Context) (types.Databases, []*redshiftServerlessWorkgroupWithTags, error) {
 	workgroups, err := f.getWorkgroups(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	var databases types.Databases
+	var workgroupsWithTags []*redshiftServerlessWorkgroupWithTags
 	for _, workgroup := range workgroups {
 		if !services.IsAWSResourceAvailable(workgroup, workgroup.Status) {
 			f.log.Debugf("The current status of Redshift Serverless workgroup %v is %v. Skipping.", aws.StringValue(workgroup.WorkgroupName), aws.StringValue(workgroup.Status))
@@ -127,12 +134,17 @@ func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Conte
 			f.log.WithError(err).Infof("Could not convert Redshift Serverless workgroup %q to database resource.", aws.StringValue(workgroup.WorkgroupName))
 			continue
 		}
+
 		databases = append(databases, database)
+		workgroupsWithTags = append(workgroupsWithTags, &redshiftServerlessWorkgroupWithTags{
+			Workgroup: workgroup,
+			Tags:      tags,
+		})
 	}
-	return databases, workgroups, nil
+	return databases, workgroupsWithTags, nil
 }
 
-func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*redshiftserverless.Workgroup) (types.Databases, error) {
+func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*redshiftServerlessWorkgroupWithTags) (types.Databases, error) {
 	endpoints, err := f.getVPCEndpoints(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -151,8 +163,9 @@ func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Con
 			continue
 		}
 
-		tags := f.getResourceTags(ctx, endpoint.EndpointArn)
-		database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
+		// VPC endpoints do not have resource tags attached to them. Use the
+		// tags from the workgroups instead.
+		database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup.Workgroup, workgroup.Tags)
 		if err != nil {
 			f.log.WithError(err).Infof("Could not convert Redshift Serverless endpoint %q to database resource.", aws.StringValue(endpoint.EndpointName))
 			continue
@@ -196,7 +209,7 @@ func (f *redshiftServerlessFetcher) getVPCEndpoints(ctx context.Context) ([]*red
 	return flatten(pages), libcloudaws.ConvertRequestFailureError(err)
 }
 
-func findWorkgroupWithName(workgroups []*redshiftserverless.Workgroup, name string) (*redshiftserverless.Workgroup, bool) {
+func findWorkgroupWithName(workgroups []*redshiftServerlessWorkgroupWithTags, name string) (*redshiftServerlessWorkgroupWithTags, bool) {
 	for _, workgroup := range workgroups {
 		if aws.StringValue(workgroup.WorkgroupName) == name {
 			return workgroup, true

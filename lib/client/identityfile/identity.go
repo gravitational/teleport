@@ -67,6 +67,10 @@ const (
 	// database instance for mutual TLS.
 	FormatDatabase Format = "db"
 
+	// FormatWindows produces a certificate suitable for logging
+	// in to Windows via Active Directory.
+	FormatWindows = "windows"
+
 	// FormatMongo produces CA and key pair in the format suitable for
 	// configuring a MongoDB database for mutual TLS authentication.
 	FormatMongo Format = "mongodb"
@@ -102,8 +106,8 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{
-	FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla,
+	FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatWindows,
+	FormatMongo, FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla,
 }
 
 // String returns human-readable version of FormatList, ex:
@@ -253,6 +257,20 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+	case FormatWindows:
+		for k, cert := range cfg.Key.WindowsDesktopCerts {
+			certPath := cfg.OutputPath + "." + k + ".der"
+			filesWritten = append(filesWritten, certPath)
+			if err := checkOverwrite(writer, cfg.OverwriteDestination, certPath); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			err = writer.WriteFile(certPath, cert, identityfile.FilePermissions)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatElasticsearch, FormatScylla:
