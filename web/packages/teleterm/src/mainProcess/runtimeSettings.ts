@@ -20,7 +20,9 @@ const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
 // We default to webapps/../teleport/build/tsh.
 // prettier-ignore
 const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
-  __dirname, '..', '..', '..', '..', '..', '..', '..', 'teleport', 'build', 'tsh',
+  __dirname,
+  '..', '..', '..', '..', '..', '..', '..', '..',
+  'teleport', 'build', 'tsh',
 );
 
 const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
