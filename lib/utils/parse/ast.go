@@ -32,7 +32,7 @@ type Expr interface {
 	// Kind indicates the expression kind.
 	Kind() reflect.Kind
 	// Evaluate evaluates the expression given the evaluation context.
-	Evaluate(ctx EvaluateContext) (any, error)
+	Evaluate(ctx EvaluateContext) (interface{}, error)
 }
 
 // EvaluateContext is the evaluation context.
@@ -137,12 +137,12 @@ func (e *RegexpNotMatchExpr) Kind() reflect.Kind {
 }
 
 // Evaluate evaluates the StringLitExpr given the evaluation context.
-func (e *StringLitExpr) Evaluate(ctx EvaluateContext) (any, error) {
+func (e *StringLitExpr) Evaluate(ctx EvaluateContext) (interface{}, error) {
 	return []string{e.value}, nil
 }
 
 // Evaluate evaluates the VarExpr given the evaluation context.
-func (e *VarExpr) Evaluate(ctx EvaluateContext) (any, error) {
+func (e *VarExpr) Evaluate(ctx EvaluateContext) (interface{}, error) {
 	if e.namespace == LiteralNamespace {
 		return []string{e.name}, nil
 	}
@@ -150,7 +150,7 @@ func (e *VarExpr) Evaluate(ctx EvaluateContext) (any, error) {
 }
 
 // Evaluate evaluates the EmailLocalExpr given the evaluation context.
-func (e *EmailLocalExpr) Evaluate(ctx EvaluateContext) (any, error) {
+func (e *EmailLocalExpr) Evaluate(ctx EvaluateContext) (interface{}, error) {
 	input, err := e.email.Evaluate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -186,7 +186,7 @@ func (e *EmailLocalExpr) Evaluate(ctx EvaluateContext) (any, error) {
 }
 
 // Evaluate evaluates the RegexpReplaceExpr given the evaluation context.
-func (e *RegexpReplaceExpr) Evaluate(ctx EvaluateContext) (any, error) {
+func (e *RegexpReplaceExpr) Evaluate(ctx EvaluateContext) (interface{}, error) {
 	input, err := e.source.Evaluate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -202,17 +202,17 @@ func (e *RegexpReplaceExpr) Evaluate(ctx EvaluateContext) (any, error) {
 }
 
 // Evaluate evaluates the RegexpMatchExpr given the evaluation context.
-func (e *RegexpMatchExpr) Evaluate(ctx EvaluateContext) (any, error) {
+func (e *RegexpMatchExpr) Evaluate(ctx EvaluateContext) (interface{}, error) {
 	return e.re.MatchString(ctx.MatcherInput), nil
 }
 
 // Evaluate evaluates the RegexpNotMatchExpr given the evaluation context.
-func (e *RegexpNotMatchExpr) Evaluate(ctx EvaluateContext) (any, error) {
+func (e *RegexpNotMatchExpr) Evaluate(ctx EvaluateContext) (interface{}, error) {
 	return !e.re.MatchString(ctx.MatcherInput), nil
 }
 
 // stringListMap maps a list of strings.
-func stringListMap(input any, f func(string) (string, error)) ([]string, error) {
+func stringListMap(input interface{}, f func(string) (string, error)) ([]string, error) {
 	v, ok := input.([]string)
 	if !ok {
 		return nil, trace.BadParameter("expected []string, got %T", input)
@@ -237,7 +237,7 @@ func stringListMap(input any, f func(string) (string, error)) ([]string, error) 
 //     hoping that the literal is part of a "literal[string]".
 //
 // Otherwise, an error is returned.
-func buildVarExpr(fields []string) (any, error) {
+func buildVarExpr(fields []string) (interface{}, error) {
 	switch len(fields) {
 	case 2:
 		// If the initial input was "literal.literal",
@@ -267,7 +267,7 @@ func buildVarExpr(fields []string) (any, error) {
 
 // buildVarExprFromProperty builds a VarExpr from a property that has
 // an incomplete VarExpr as map value and a string as a map key.
-func buildVarExprFromProperty(mapVal any, mapKey any) (any, error) {
+func buildVarExprFromProperty(mapVal interface{}, mapKey interface{}) (interface{}, error) {
 	// Validate that the map value is a variable.
 	varExpr, ok := mapVal.(*VarExpr)
 	if !ok {
@@ -316,7 +316,7 @@ func validateNamespace(namespace string) error {
 }
 
 // buildEmailLocalExpr builds a EmailLocalExpr.
-func buildEmailLocalExpr(emailArg any) (Expr, error) {
+func buildEmailLocalExpr(emailArg interface{}) (Expr, error) {
 	// Validate first argument.
 	var email Expr
 	switch v := emailArg.(type) {
@@ -337,7 +337,7 @@ func buildEmailLocalExpr(emailArg any) (Expr, error) {
 }
 
 // buildRegexpReplaceExpr builds a RegexpReplaceExpr.
-func buildRegexpReplaceExpr(sourceArg, matchArg, replacementArg any) (Expr, error) {
+func buildRegexpReplaceExpr(sourceArg, matchArg, replacementArg interface{}) (Expr, error) {
 	// Validate first argument.
 	var source Expr
 	switch v := sourceArg.(type) {
@@ -395,7 +395,7 @@ func buildRegexpMatchExprFromLit(raw string) (Expr, error) {
 }
 
 // buildRegexpMatchExpr builds a RegexpMatchExpr.
-func buildRegexpMatchExpr(matchArg any) (Expr, error) {
+func buildRegexpMatchExpr(matchArg interface{}) (Expr, error) {
 	re, err := buildRegexpMatchFnExpr(RegexpMatchFnName, matchArg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -404,7 +404,7 @@ func buildRegexpMatchExpr(matchArg any) (Expr, error) {
 }
 
 // buildRegexpNotMatchExpr builds a RegexpNotMatchExpr.
-func buildRegexpNotMatchExpr(matchArg any) (Expr, error) {
+func buildRegexpNotMatchExpr(matchArg interface{}) (Expr, error) {
 	re, err := buildRegexpMatchFnExpr(RegexpNotMatchFnName, matchArg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -412,7 +412,7 @@ func buildRegexpNotMatchExpr(matchArg any) (Expr, error) {
 	return &RegexpNotMatchExpr{re: re}, nil
 }
 
-func buildRegexpMatchFnExpr(functionName string, matchArg any) (*regexp.Regexp, error) {
+func buildRegexpMatchFnExpr(functionName string, matchArg interface{}) (*regexp.Regexp, error) {
 	// Validate first argument.
 	// For now, only support a single match expression. In the future, we could
 	// consider handling variables and transforms by propagating user traits to
