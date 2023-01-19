@@ -66,12 +66,12 @@ Define the Desktop Access service and list the Windows systems configured for
 access through Teleport in `/etc/teleport.yaml`.
 
 ```yml
-version: v6
+version: v3
 teleport:
   nodename: example.teleport.com
+  proxy_server: teleport-proxy.example.com:443
 windows_desktop_service:
   enabled: yes
-  listen_addr: 0.0.0.0:3028
   non_ad_hosts:
     - 192.0.2.156
 ```
@@ -81,12 +81,12 @@ You can attach labels to your Windows hosts by matching to their hostnames.
 For example, to add the `cloud: ec2` label to hosts with EC2 private IP DNS names:
 
 ```diff
-version: v6
+version: v3
 teleport:
   nodename: example.teleport.com
+  proxy_server: teleport-proxy.example.com:443
 windows_desktop_service:
   enabled: yes
-  listen_addr: 0.0.0.0:3028
   non_ad_hosts:
 -    - 192.0.2.156
 +    - ip-192-0-2-156.us-east-2.compute.internal
@@ -146,8 +146,6 @@ to in `windows_desktop_logins`.
 <Admonition type="warning" title="RBAC Configuration">
 Ensure that each Teleport user is only assigned Windows logins that they should
 be allowed to access.
-
-Usernames shared between domain and local users will create login conflicts.
 </Admonition>
 
 Apply the new role to your cluster:
