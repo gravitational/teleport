@@ -244,6 +244,70 @@ List all available applications:
 $ tsh apps ls
 ```
 
+### tsh gcloud
+
+Proxy `gcloud` CLI commands through the Teleport Application Service. `gcloud`
+is a tool for interacting with Google Cloud. A user must already be
+authenticated to a Google Cloud application in Teleport before they can execute
+`tsh gcloud` commands.
+
+```code
+$ tsh gcloud [--app] [<command>] 
+```
+
+#### Arguments
+
+`command`: A `gcloud` command to run, including arguments and flags.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
+
+#### Examples
+
+```code
+$ tsh gcloud compute instances list 
+```
+
+### tsh gsutil
+
+Proxy `gsutil` CLI commands through the Teleport Application Service. `gsutil`
+is a tool for interacting with Google Cloud Storage. A user must already be
+authenticated to a Google Cloud application in Teleport before they can execute
+`tsh gsutil` commands.
+
+```code
+$ tsh gsutil [--app] [<command>] 
+```
+
+#### Arguments
+
+`command`: A `gsutil` command to run, including arguments and flags.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
+
+#### Examples
+
+```code
+$ tsh gsutil ls
+```
+
 ### tsh join
 
 Joins an active session:
@@ -636,6 +700,40 @@ $ tsh apps logins awsapp2
 $ tsh proxy aws --port=10700 --app=awsapp2
 # Set env variables from output
 $ aws s3 ls
+```
+
+### tsh proxy gcloud
+
+Start a local proxy for Google Cloud API access. The user must already be logged
+in to at least one Google Cloud application via Teleport before the proxy can
+start.
+
+```code
+$ tsh proxy gcloud [<flags>] 
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | Currently logged in Google Cloud app | string | Optional name of the Google Cloud application (as shown in `tsh apps ls`) to use if logged in to multiple |
+| `-p, --port` | none | port number | Specify the source port for the local proxy |
+| ` -e, --endpoint-url` | HTTP Proxy | Endpoint URL | Run the local proxy to serve as an AWS endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
+| `-f, --format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the Google Cloud proxy |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```code
+$ tsh apps login google-cloud-app
+$ tsh proxy gcloud
+# Set env variables from output
+$ gcloud compute instances list 
+$ gsutil ls
 ```
 
 ### tsh scp
