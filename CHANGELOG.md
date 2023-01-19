@@ -1,5 +1,21 @@
 # Changelog
 
+## 11.2.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue connecting to leaf cluster nodes via web UI with per-session MFA. [#20238](https://github.com/gravitational/teleport/pull/20238)
+* Fixed issue with `max_kubernetes_connections` leading to access denied errors. [#20174](https://github.com/gravitational/teleport/pull/20174)
+* Fixed issue with `kube-agent` Helm chart leaving state behind after `helm uninstall`. [#20169](https://github.com/gravitational/teleport/pull/20169)
+* Fixed X.509 issue after updating RDS database resource. [#20099](https://github.com/gravitational/teleport/pull/20099)
+* Fixed issue with some `tsh` HTTP requests missing extra headers. [#20071](https://github.com/gravitational/teleport/pull/20071)
+* Improved auto-discovery config validation. [#20288](https://github.com/gravitational/teleport/pull/20288)
+* Improved graceful shutdown stability. [#20225](https://github.com/gravitational/teleport/pull/20225)
+* Improved application access authentication flow. [#20165](https://github.com/gravitational/teleport/pull/20165)
+* Reduced auth load by ensure proxy uses cache for periodic operations. [#20153](https://github.com/gravitational/teleport/pull/20153)
+* Updated Rust to `1.66.1`. [#20201](https://github.com/gravitational/teleport/pull/20201)
+* Updated macOS binaries to be signed and notarized. [#20305](https://github.com/gravitational/teleport/pull/20305)
+
 ## 11.2.1
 
 This release of Teleport contains multiple improvements and bug fixes.
