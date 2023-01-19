@@ -25,7 +25,7 @@ import (
 
 // Plugin represents a plugin instance
 type Plugin interface {
-	// Resource provides common resource methods.
+	// ResourceWithSecrets provides common resource methods.
 	ResourceWithSecrets
 	Clone() Plugin
 	SetCredentials(PluginCredentials) error
