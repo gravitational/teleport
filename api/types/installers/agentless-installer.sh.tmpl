@@ -55,7 +55,7 @@ set -o nounset
     --join-method=iam \
     --token="$1" \
     --proxy-server="{{ .PublicProxyAddr }}" \
-    --additional-principals="$PUBLIC_IP" \
+    --additional-principals="$PRINCIPALS" \
     --restart-sshd
 
 ) 9>/var/lock/teleport_install.lock
