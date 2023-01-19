@@ -55,7 +55,6 @@ func newKubePipeline(name string) pipeline {
 	}
 }
 
-//nolint:deadcode,unused
 func newExecPipeline(name string) pipeline {
 	return pipeline{
 		comment: generatedComment(),

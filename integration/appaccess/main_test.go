@@ -18,11 +18,11 @@ package appaccess
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/integration/helpers"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
-	native.PrecomputeTestKeys(m)
+	helpers.TestMainImplementation(m)
 }

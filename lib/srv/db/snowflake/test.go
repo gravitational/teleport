@@ -18,7 +18,6 @@
 
 package snowflake
 
-//nolint:goimports
 import (
 	"context"
 	"crypto/tls"

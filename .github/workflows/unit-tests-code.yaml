@@ -10,10 +10,20 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
     name: Unit Tests (Go)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-32core
 
     permissions:

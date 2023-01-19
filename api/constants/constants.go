@@ -146,6 +146,9 @@ const (
 	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
 	DatabaseCAMinVersion = "10.0.0"
 
+	// OpenSSHCAMinVersion is the minimum Teleport version that supports OpenSSH Certificate Authority.
+	OpenSSHCAMinVersion = "12.0.0"
+
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 )
@@ -237,6 +240,23 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// DeviceTrustMode is the mode of verification for trusted devices.
+// DeviceTrustMode is always "off" for OSS.
+// Defaults to "optional" for Enterprise.
+type DeviceTrustMode = string
+
+const (
+	// DeviceTrustModeOff disables both device authentication and authorization.
+	DeviceTrustModeOff DeviceTrustMode = "off"
+	// DeviceTrustModeOptional allows both device authentication and
+	// authorization, but doesn't enforce the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeOptional DeviceTrustMode = "optional"
+	// DeviceTrustModeRequired enforces the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeRequired DeviceTrustMode = "required"
+)
+
 const (
 	// ChanTransport is a channel type that can be used to open a net.Conn
 	// through the reverse tunnel server. Used for trusted clusters and dial back
@@ -317,36 +337,15 @@ const (
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
+
+	// TraitAzureIdentities is the name of the role variable used to store
+	// allowed Azure identity names.
+	TraitAzureIdentities = "azure_identities"
+
+	// TraitGCPServiceAccounts is the name of the role variable used to store
+	// allowed GCP service accounts.
+	TraitGCPServiceAccounts = "gcp_service_accounts"
 )
-
-// Constants for AWS discovery
-const (
-	AWSServiceTypeEC2 = "ec2"
-	AWSServiceTypeEKS = "eks"
-)
-
-// SupportedAWSDiscoveryServices is list of AWS services currently
-// supported by the Teleport discovery service
-var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEKS}
-
-// Constants for Azure discovery.
-const (
-	AzureServiceTypeKubernetes = "aks"
-	AzureServiceTypeVM         = "vm"
-)
-
-// SupportedAzureDiscoveryServices is list of Azure services currently
-// supported by the Teleport discovery service.
-var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
-
-// Constants for GCP discovery.
-const (
-	GCPServiceTypeKubernetes = "gke"
-)
-
-// SupportedGCPDiscoveryServices is list of GCP services currently
-// supported by the Teleport discovery service.
-var SupportedGCPDiscoveryServices = []string{GCPServiceTypeKubernetes}
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh

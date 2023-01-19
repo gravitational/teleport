@@ -250,7 +250,7 @@ func TestPingConnection(t *testing.T) {
 		for i := 0; i < nWrites/2; i++ {
 			select {
 			case <-ctx.Done():
-				require.Fail(t, "timout write")
+				require.Fail(t, "timeout write")
 			case err := <-writeChan:
 				require.NoError(t, err)
 			}

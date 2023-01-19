@@ -103,7 +103,7 @@ func TestExecKubeService(t *testing.T) {
 				// is merged into k8s go-client.
 				// For now go-client does not support connections over websockets.
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
-					return newWebSocketExecutor(c, s, u)
+					return newWebSocketClient(c, s, u)
 				},
 			},
 		},
@@ -139,7 +139,7 @@ func TestExecKubeService(t *testing.T) {
 			exec, err := tt.args.executorBuilder(config, http.MethodPost, req.URL())
 			require.NoError(t, err)
 
-			err = exec.Stream(streamOpts)
+			err = exec.StreamWithContext(testCtx.ctx, streamOpts)
 			require.NoError(t, err)
 
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stdout.String())

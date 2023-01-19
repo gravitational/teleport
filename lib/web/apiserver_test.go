@@ -57,6 +57,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -166,6 +167,8 @@ func newWebSuite(t *testing.T) *WebSuite {
 type webSuiteConfig struct {
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	authPreferenceSpec *types.AuthPreferenceSpecV2
+
+	disableDiskBasedRecording bool
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -190,16 +193,32 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
-	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+	authCfg := auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
 			ClusterName:             "localhost",
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
-			AuthPreferenceSpec:      cfg.authPreferenceSpec,
+
+			AuthPreferenceSpec: cfg.authPreferenceSpec,
 		},
-	})
+	}
+
+	if cfg.disableDiskBasedRecording {
+		authCfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	}
+
+	s.server, err = auth.NewTestServer(authCfg)
 	require.NoError(t, err)
+
+	if cfg.disableDiskBasedRecording {
+		// use a sync recording mode because the disk-based uploader
+		// that runs in the background introduces races with test cleanup
+		recConfig := types.DefaultSessionRecordingConfig()
+		recConfig.SetMode(types.RecordAtNodeSync)
+		err := s.server.AuthServer.AuthServer.SetSessionRecordingConfig(context.Background(), recConfig)
+		require.NoError(t, err)
+	}
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
@@ -224,11 +243,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
+	nodeID := "node"
+
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
 		&authproto.HostCertsRequest{
 			HostID:       hostID,
-			NodeName:     s.server.ClusterName(),
+			NodeName:     nodeID,
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
@@ -238,7 +259,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
-	nodeID := "node"
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -270,7 +290,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	node, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		s.server.ClusterName(),
+		nodeID,
 		[]ssh.Signer{signer},
 		nodeClient,
 		nodeDataDir,
@@ -473,12 +493,92 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	return s
 }
 
+func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address string) *regular.Server {
+	priv, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// start node
+	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+		&authproto.HostCertsRequest{
+			HostID:       uuid,
+			NodeName:     hostname,
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
+	require.NoError(t, err)
+
+	nodeClient, err := s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     types.RoleNode,
+			Username: uuid,
+		},
+	})
+	require.NoError(t, err)
+
+	nodeLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    nodeClient,
+		},
+	})
+	require.NoError(t, err)
+
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     uuid,
+	})
+	require.NoError(t, err)
+
+	// create SSH service:
+	node, err := regular.New(
+		context.Background(),
+		utils.NetAddr{AddrNetwork: "tcp", Addr: address},
+		hostname,
+		[]ssh.Signer{signer},
+		nodeClient,
+		t.TempDir(),
+		"",
+		utils.NetAddr{},
+		nodeClient,
+		regular.SetUUID(uuid),
+		regular.SetNamespace(apidefaults.Namespace),
+		regular.SetShell("/bin/sh"),
+		regular.SetEmitter(nodeClient),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
+		regular.SetClock(s.clock),
+		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
+	)
+	require.NoError(t, err)
+	require.NoError(t, node.Start())
+
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		node.Wait()
+	})
+
+	return node
+}
+
 func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 
 func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Response {
-	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	resp, err := r.clt.PostJSON(ctx, r.clt.Endpoint("webapi", "sessions", "web", "renew"), nil)
 	require.NoError(t, err)
 	return resp
 }
@@ -675,7 +775,7 @@ func TestWebSessionsCRUD(t *testing.T) {
 	// now delete session
 	_, err = pack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests trying to use this session will fail
@@ -827,7 +927,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	}
 	for i, req := range reqs {
 		t.Run(fmt.Sprintf("tc %v", i), func(t *testing.T) {
-			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions"), req)
+			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions", "web"), req)
 			require.Error(t, err)
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -883,11 +983,13 @@ func TestClusterNodesGet(t *testing.T) {
 			Labels:      []ui.Label{},
 			SSHLogins:   []string{pack.login},
 		},
-		{ClusterName: clusterName,
-			Name:      "server2",
-			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
-			Tunnel:    false,
-			SSHLogins: []string{pack.login}},
+		{
+			ClusterName: clusterName,
+			Name:        "server2",
+			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:      false,
+			SSHLogins:   []string{pack.login},
+		},
 	})
 
 	// Get nodes using shortcut.
@@ -1027,7 +1129,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					ID: session.ID("not a uuid"),
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "login: missing login",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1035,7 +1138,8 @@ func TestNewTerminalHandler(t *testing.T) {
 					Login: "",
 				},
 			},
-		}, {
+		},
+		{
 			expectedErr: "server: missing server",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
@@ -1317,7 +1421,7 @@ func TestTerminal(t *testing.T) {
 			name: "node recording mode",
 			recordingConfig: types.SessionRecordingConfigV2{
 				Spec: types.SessionRecordingConfigSpecV2{
-					Mode: types.RecordAtNode,
+					Mode: types.RecordAtNodeSync,
 				},
 			},
 		},
@@ -1351,6 +1455,95 @@ func TestTerminal(t *testing.T) {
 			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
 			require.NoError(t, waitForOutput(stream, "teleport"))
+		})
+	}
+}
+
+func TestTerminalRouting(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+
+	// add nodes with various conflicting values
+	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
+	s.addNode(t, uuid.NewString(), "llamas", "127.0.0.1:0")
+	alpaca1 := s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
+	s.addNode(t, uuid.NewString(), "alpaca", "127.0.0.1:0")
+
+	closeNoError := func(t *testing.T, err error) {
+		require.NoError(t, err)
+	}
+
+	closeOkNetworkError := func(t *testing.T, err error) {
+		if err == nil {
+			return
+		}
+
+		require.True(t, utils.IsOKNetworkError(err), "websocket closure should have return an error indicating that the server already terminated the connection")
+	}
+
+	cases := []struct {
+		name             string
+		target           string
+		output           string
+		wsCloseAssertion func(t *testing.T, err error)
+	}{
+		{
+			name:             "exact match by uuid",
+			target:           llama.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:             "exact match by hostname",
+			target:           "llama",
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:             "exact match by ip",
+			target:           llama.Addr(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:   "ambiguous host",
+			target: "alpaca",
+			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
+		},
+		{
+			name:             "connect by uuid successful when multiple hostnames match",
+			target:           alpaca1.ID(),
+			output:           "teleport",
+			wsCloseAssertion: closeNoError,
+		},
+		{
+			name:   "ambiguous ip",
+			target: "127.0.0.1",
+			output: "error: ambiguous host could match multiple nodes",
+			// failed resolution results in the server closing the socket first, so expect an ok close error
+			wsCloseAssertion: closeOkNetworkError,
+		},
+	}
+
+	for i, tt := range cases {
+		i, tt := i, tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ws, _, err := s.makeTerminal(t, s.authPack(t, fmt.Sprintf("foo-%d", i)), withServer(tt.target))
+			require.NoError(t, err)
+			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
+
+			termHandler := newTerminalHandler()
+			stream := termHandler.asTerminalStream(ws)
+
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, tt.output))
 		})
 	}
 }
@@ -1614,7 +1807,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 
 func TestWebAgentForward(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
@@ -1730,7 +1923,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	_, err = stream.Read(out)
 	require.NoError(t, err)
 
-	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// wait until we timeout or detect that connection has been closed
@@ -1840,7 +2033,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	clt := s.client(t)
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	ua := "test-ua"
 	req.Header.Set("User-Agent", ua)
@@ -1880,7 +2073,7 @@ func TestLogin(t *testing.T) {
 
 	clt := s.client(t)
 	ua := "test-ua"
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", ua)
 
@@ -2331,7 +2524,7 @@ func TestGetClusterDetails(t *testing.T) {
 func TestTokenGeneration(t *testing.T) {
 	const username = "test-user@example.com"
 	// Users should be able to create Tokens even if they can't update them
-	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindToken,
@@ -2455,7 +2648,7 @@ func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
 
 	// Users should be able to create Tokens even if they can't update them
-	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindToken,
@@ -2574,7 +2767,7 @@ func TestSignMTLS(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, byte(tar.TypeReg), header.Typeflag)
-		require.Equal(t, int64(0600), header.Mode)
+		require.Equal(t, int64(0o600), header.Mode)
 		tarContentFileNames = append(tarContentFileNames, header.Name)
 	}
 
@@ -2598,7 +2791,7 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 	clusterName := env.server.ClusterName()
 	username := "test-user@example.com"
 
-	roleUserUpdate, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+	roleUserUpdate, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindUser, []string{types.VerbUpdate}),
@@ -2991,6 +3184,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
+
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	query := url.Values{"sort": []string{"name"}}
@@ -3049,6 +3243,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
+	// Test without defined database names or users in role.
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
@@ -3070,6 +3265,49 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Protocol: "test-protocol",
 		Hostname: "test-uri",
 	}})
+
+	// Test with a role that defines database names and users.
+	extraRole := &types.RoleV6{
+		Metadata: types.Metadata{Name: "extra-role"},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				DatabaseNames: []string{"name1"},
+				DatabaseUsers: []string{"user1"},
+				DatabaseLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+	}
+
+	pack = proxy.authPack(t, "test-user2@example.com", services.NewRoleSet(extraRole))
+	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Name:          "db1",
+		Desc:          "test-description",
+		Protocol:      "test-protocol",
+		Type:          types.DatabaseTypeSelfHosted,
+		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Hostname:      "test-uri",
+		DatabaseUsers: []string{"user1"},
+		DatabaseNames: []string{"name1"},
+	}, {
+		Name:          "db2",
+		Type:          types.DatabaseTypeSelfHosted,
+		Labels:        []ui.Label{},
+		Protocol:      "test-protocol",
+		Hostname:      "test-uri",
+		DatabaseUsers: []string{"user1"},
+		DatabaseNames: []string{"name1"},
+	}})
+
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3111,7 +3349,7 @@ func TestClusterDatabaseGet(t *testing.T) {
 			userRoles: func(tt *testing.T) []types.Role {
 				role, err := types.NewRole(
 					"myrole",
-					types.RoleSpecV5{
+					types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							DatabaseLabels: types.Labels{
 								"env": apiutils.Strings{"staging"},
@@ -3133,7 +3371,7 @@ func TestClusterDatabaseGet(t *testing.T) {
 			userRoles: func(tt *testing.T) []types.Role {
 				roleWithDBName, err := types.NewRole(
 					"myroleWithDBName",
-					types.RoleSpecV5{
+					types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							DatabaseLabels: types.Labels{
 								"env": apiutils.Strings{"prod"},
@@ -3159,7 +3397,7 @@ func TestClusterDatabaseGet(t *testing.T) {
 			userRoles: func(tt *testing.T) []types.Role {
 				roleWithDBName, err := types.NewRole(
 					"myroleWithDBName",
-					types.RoleSpecV5{
+					types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							DatabaseLabels: types.Labels{
 								"env": apiutils.Strings{"prod"},
@@ -3172,7 +3410,7 @@ func TestClusterDatabaseGet(t *testing.T) {
 
 				roleWithDBUser, err := types.NewRole(
 					"myroleWithDBUser",
-					types.RoleSpecV5{
+					types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							DatabaseLabels: types.Labels{
 								"env": apiutils.Strings{"prod"},
@@ -3253,9 +3491,9 @@ func TestClusterKubesGet(t *testing.T) {
 
 	proxy := env.proxies[0]
 
-	extraRole := &types.RoleV5{
+	extraRole := &types.RoleV6{
 		Metadata: types.Metadata{Name: "extra-role"},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				KubeUsers:  []string{"user1"},
 				KubeGroups: []string{"group1"},
@@ -3406,7 +3644,8 @@ func TestClusterAppsGet(t *testing.T) {
 		App: &types.AppV3{
 			Metadata: types.Metadata{Name: "app2"},
 			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	// Test URIs with tcp is filtered out of result.
@@ -3415,7 +3654,8 @@ func TestClusterAppsGet(t *testing.T) {
 		App: &types.AppV3{
 			Metadata: types.Metadata{Name: "app3"},
 			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	// Register apps.
@@ -3454,7 +3694,6 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}})
-
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -3543,7 +3782,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Len(t, sessions, len(applications))
 
 	// Logout from Telport.
-	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
@@ -4160,7 +4399,10 @@ func TestCreateAppSession(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.outUsername, sess.GetUser())
+			require.NotEmpty(t, response.CookieValue)
 			require.Equal(t, response.CookieValue, sess.GetName())
+			require.NotEmpty(t, response.SubjectCookieValue, "every session should create a secret token")
+			require.Equal(t, response.SubjectCookieValue, sess.GetBearerToken())
 		})
 	}
 }
@@ -4286,7 +4528,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// now delete session
 	_, err = newPack.clt.Delete(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
+		pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// subsequent requests to use this session will fail
@@ -4735,7 +4977,7 @@ func TestDesktopActive(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
 
-	role, err := types.NewRole("admin", types.RoleSpecV5{
+	role, err := types.NewRole("admin", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			WindowsDesktopLabels: types.Labels{"environment": []string{"dev"}},
 		},
@@ -4817,7 +5059,7 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	ctx := context.Background()
 	username := "someuser"
 	diagName := "diag1"
-	roleROConnectionDiagnostics, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+	roleROConnectionDiagnostics, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindConnectionDiagnostic,
@@ -4891,7 +5133,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NotEmpty(t, osUsername)
 
 	roleWithFullAccess := func(username string, login string) []types.Role {
-		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -4907,7 +5149,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NotNil(t, roleWithFullAccess)
 
 	rolesWithoutAccessToNode := func(username string, login string) []types.Role {
-		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				NodeLabels: types.Labels{"forbidden": []string{"yes"}},
@@ -4923,7 +5165,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NotNil(t, rolesWithoutAccessToNode)
 
 	roleWithPrincipal := func(username string, principal string) []types.Role {
-		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -5137,7 +5379,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 }
 
 func TestDiagnoseKubeConnection(t *testing.T) {
-
 	var (
 		validKubeUsers              = []string{}
 		multiKubeUsers              = []string{"user1", "user2"}
@@ -5149,7 +5390,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	roleWithFullAccess := func(username string, kubeUsers, kubeGroups []string) []types.Role {
-		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:       []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -5158,6 +5399,13 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 				KubeGroups: kubeGroups,
 				KubeUsers:  kubeUsers,
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -5166,7 +5414,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	require.NotNil(t, roleWithFullAccess)
 
 	rolesWithoutAccessToKubeCluster := func(username string, kubeUsers, kubeGroups []string) []types.Role {
-		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:       []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{"forbidden": []string{"yes"}},
@@ -5175,6 +5423,13 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 				KubeGroups: kubeGroups,
 				KubeUsers:  kubeUsers,
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -5193,6 +5448,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 		marshalValidPodList(t, w)
 	})
 	testKube := httptest.NewTLSServer(rt)
+
 	t.Cleanup(func() {
 		testKube.Close()
 	})
@@ -5372,7 +5628,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			},
 		},
 		{
-			name:             "user choosed to impersonate invalid kube_users",
+			name:             "user chose to impersonate invalid kube_users",
 			roleFunc:         roleWithFullAccess,
 			kubeGroups:       validKubeGroups,
 			kubeUsers:        multiKubeUsers,
@@ -5397,7 +5653,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			},
 		},
 		{
-			name:               "user choosed to impersonate invalid kube_group",
+			name:               "user chose to impersonate invalid kube_group",
 			roleFunc:           roleWithFullAccess,
 			kubeGroups:         validKubeGroups,
 			kubeUsers:          multiKubeUsers,
@@ -5581,8 +5837,10 @@ func TestCreateDatabase(t *testing.T) {
 
 	ctx := context.Background()
 	username := "someuser"
-	roleCreateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+	roleCreateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			DatabaseNames: []string{"name1"},
+			DatabaseUsers: []string{"user1"},
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabase,
 					[]string{types.VerbCreate}),
@@ -5612,6 +5870,12 @@ func TestCreateDatabase(t *testing.T) {
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
+				Labels: []ui.Label{
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
+					},
+				},
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -5626,6 +5890,10 @@ func TestCreateDatabase(t *testing.T) {
 					{
 						Name:  "env",
 						Value: "prod",
+					},
+					{
+						Name:  "teleport.dev/origin",
+						Value: "dynamic",
 					},
 				},
 			},
@@ -5705,6 +5973,21 @@ func TestCreateDatabase(t *testing.T) {
 			require.Contains(t, databaseLabels, label.Name, "label not found")
 			require.Equal(t, label.Value, databaseLabels[label.Name], "label exists but has unexpected value")
 		}
+
+		// Check response value:
+		if tt.expectedStatus == http.StatusOK {
+			result := ui.Database{}
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
+			require.Equal(t, result, ui.Database{
+				Name:          tt.req.Name,
+				Protocol:      tt.req.Protocol,
+				Type:          types.DatabaseTypeSelfHosted,
+				Labels:        tt.req.Labels,
+				Hostname:      "someuri",
+				DatabaseUsers: []string{"user1"},
+				DatabaseNames: []string{"name1"},
+			})
+		}
 	}
 }
 
@@ -5714,7 +5997,7 @@ func TestUpdateDatabase(t *testing.T) {
 	ctx := context.Background()
 	databaseName := "somedb"
 	username := "someuser"
-	roleCreateUpdateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+	roleCreateUpdateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabase,
@@ -5824,6 +6107,10 @@ func withSessionID(sid session.ID) terminalOpt {
 	return func(t *TerminalRequest) { t.SessionID = sid }
 }
 
+func withServer(target string) terminalOpt {
+	return func(t *TerminalRequest) { t.Server = target }
+}
+
 func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
 }
@@ -5910,12 +6197,15 @@ func waitForOutput(stream *terminalStream, substr string) error {
 		}
 
 		out := make([]byte, 100)
-		_, err := stream.Read(out)
+		n, err := stream.Read(out)
+
+		// check for the string before checking the error,
+		// as it's valid for n > 0 even when there is an error
+		if n > 0 && strings.Contains(removeSpace(string(out[:n])), substr) {
+			return nil
+		}
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		if strings.Contains(removeSpace(string(out)), substr) {
-			return nil
 		}
 	}
 }
@@ -5952,7 +6242,7 @@ func (s *WebSuite) login(clt *TestWebClient, cookieToken string, reqToken string
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -6048,11 +6338,12 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
+	const nodeID = "node"
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
 		&authproto.HostCertsRequest{
 			HostID:       hostID,
-			NodeName:     server.TLS.ClusterName(),
+			NodeName:     nodeID,
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
@@ -6063,7 +6354,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 	hostSigners := []ssh.Signer{signer}
 
-	const nodeID = "node"
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -6097,7 +6387,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	node, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		server.TLS.ClusterName(),
+		nodeID,
 		hostSigners,
 		nodeClient,
 		nodeDataDir,
@@ -6580,7 +6870,7 @@ func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqDa
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -6625,7 +6915,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	requestableRolename := "requestable-role"
 
 	// Create user's base role with the ability to request the requestable role.
-	baseRole, err := types.NewRole(baseRoleName, types.RoleSpecV5{
+	baseRole, err := types.NewRole(baseRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{requestableRolename},
@@ -6638,23 +6928,27 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	pack := proxy.authPack(t, username, []types.Role{baseRole})
 
 	// Create the requestable role.
-	requestableRole, err := types.NewRole(requestableRolename, types.RoleSpecV5{})
+	requestableRole, err := types.NewRole(requestableRolename, types.RoleSpecV6{})
 	require.NoError(t, err)
 	err = env.server.Auth().UpsertRole(ctx, requestableRole)
 	require.NoError(t, err)
+
+	identity := tlsca.Identity{
+		Expires: env.clock.Now().Add(1 * time.Hour),
+	}
 
 	// Create and approve an access request for the requestable role.
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq)
+	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
 	accessRequestID := accessReq.GetMetadata().Name
 
 	// Make a request to renew the session with the ID of the access request.
-	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "renew"), renewSessionRequest{
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "web", "renew"), renewSessionRequest{
 		AccessRequestID: accessRequestID,
 	})
 	require.NoError(t, err)
@@ -6671,6 +6965,40 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 
 	// Verify that the userContext returned contains the correct Access Request ID.
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
+}
+
+func TestWithLimiterHandlerFunc(t *testing.T) {
+	const burst = 20
+	limiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{
+				Period:  time.Minute,
+				Average: 10,
+				Burst:   burst,
+			},
+		},
+		Clock: &timetools.FreezedTime{
+			CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+		},
+	})
+	require.NoError(t, err)
+	h := &Handler{limiter: limiter}
+	hf := h.WithLimiterHandlerFunc(func(http.ResponseWriter, *http.Request, httprouter.Params) (interface{}, error) {
+		return nil, nil
+	})
+
+	// Verify that a valid burst is allowed.
+	r := &http.Request{}
+	for i := 0; i < burst; i++ {
+		r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", i)
+		_, err = hf(nil, r, nil)
+		require.NoError(t, err, "WithLimiterHandlerFunc failed unexpectedly")
+	}
+
+	// Verify that exceeding the limit causes errors.
+	r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", burst)
+	_, err = hf(nil, r, nil)
+	require.True(t, trace.IsLimitExceeded(err), "WithLimiterHandlerFunc returned err = %T, want trace.LimitExceededError", err)
 }
 
 // kubeClusterConfig defines the cluster to be created
@@ -6749,11 +7077,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(
-		cfg.authServer.ClusterName(),
-		proxyAuthClient,
-		proxyLockWatcher,
-	)
+	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: cfg.authServer.ClusterName(),
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
@@ -6862,8 +7190,8 @@ func marshalRBACError(t *testing.T, w http.ResponseWriter) {
 func marshalValidPodList(t *testing.T, w http.ResponseWriter) {
 	result := &corev1.PodList{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "",
-			APIVersion: "",
+			Kind:       "PodList",
+			APIVersion: "v1",
 		},
 		ListMeta: metav1.ListMeta{
 			SelfLink:           "",
@@ -7118,4 +7446,60 @@ func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlp.R
 	m.spans = append(m.spans, protoSpans...)
 	m.uploadReceived <- struct{}{}
 	return m.uploadError
+}
+
+func TestLogout(t *testing.T) {
+	ctx := context.Background()
+	t.Parallel()
+	env := newWebPack(t, 2)
+
+	// create a logged in user for proxy 1
+	pack := env.proxies[0].authPack(t, "llama", nil /* roles */)
+
+	// ensure the client is authenticated
+	re, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	var clusters []ui.Cluster
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// create a client for proxy 2 with the token and cookies from proxy 1
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	jar.SetCookies(&env.proxies[1].webURL, pack.cookies)
+	clt2 := env.proxies[1].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
+
+	// ensure the second client is authenticated
+	re, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// logout from proxy 1
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
+	require.NoError(t, err)
+
+	// ensure proxy 1 invalidated the session
+	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.AccessDenied("missing session cookie"))
+
+	// should still be authenticated to proxy 2 until the expiration loop kicks in
+	re, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+	require.Len(t, clusters, 1)
+
+	// advance the clock to fire the expiration ticker
+	env.clock.Advance(time.Second)
+
+	// wait for the expiration loop to purge the session
+	require.Eventually(t, func() bool {
+		return env.proxies[1].handler.handler.auth.ActiveSessions() == 0
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// ensure proxy 2 invalidated the session
+	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }

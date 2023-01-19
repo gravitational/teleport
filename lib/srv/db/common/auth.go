@@ -623,7 +623,10 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 		// of replica set the driver may dial multiple servers and will set
 		// ServerName itself.
 		return nil
-
+	case defaults.ProtocolDynamoDB:
+		// Don't set the server name for DynamoDB - the engine may dial different endpoints
+		// based on the client request and will set ServerName itself.
+		return nil
 	case defaults.ProtocolRedis:
 		// Azure Redis servers always serve the certificates with the proper
 		// hostnames. However, OSS cluster mode may redirect to an IP address,

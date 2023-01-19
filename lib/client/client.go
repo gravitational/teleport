@@ -871,6 +871,30 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	return ws, nil
 }
 
+// GetAppSession creates a new application access session.
+func (proxy *ProxyClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/GetAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	clusterName, err := proxy.RootClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authClient, err := proxy.ConnectToCluster(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ws, err := authClient.GetAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
+}
+
 // DeleteAppSession removes the specified application access session.
 func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string) error {
 	ctx, span := proxy.Tracer.Start(
@@ -1290,11 +1314,6 @@ func nodeName(node string) string {
 	return n
 }
 
-type proxyResponse struct {
-	isRecord bool
-	err      error
-}
-
 // clusterDetails retrieves information about the current cluster needed to connect to nodes.
 func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterDetails, error) {
 	ctx, span := proxy.Tracer.Start(
@@ -1310,83 +1329,12 @@ func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterD
 		return details, trace.Wrap(err)
 	}
 
-	// server understood the ClusterDetailsReqType
 	if ok {
 		err = ssh.Unmarshal(resp, &details)
 		return details, trace.Wrap(err)
 	}
 
-	// talking to an older server which doesn't know about ClusterDetailsReqType
-	// fallback to sending multiple requests
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
-	if err != nil {
-		return details, trace.Wrap(err)
-	}
-
-	pong, err := proxy.CurrentCluster().Ping(ctx)
-	if err != nil {
-		return details, trace.Wrap(err)
-	}
-
-	details.RecordingProxy = recordingProxy
-	details.FIPSEnabled = pong.IsBoring
-
-	return details, nil
-}
-
-// isRecordingProxy returns true if the proxy is in recording mode. Note, this
-// function can only be called after authentication has occurred and should be
-// called before the first session is created.
-//
-// DEPRECATED: clusterDetails should be used instead to avoid multiple round trips for
-// cluster information.
-// TODO(tross):DELETE IN 12.0
-func (proxy *ProxyClient) isRecordingProxy(ctx context.Context) (bool, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/isRecordingProxy",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	responseCh := make(chan proxyResponse)
-
-	// we have to run this in a goroutine because older version of Teleport handled
-	// global out-of-band requests incorrectly: Teleport would ignore requests it
-	// does not know about and never reply to them. So if we wait a second and
-	// don't hear anything back, most likley we are trying to connect to an older
-	// version of Teleport and we should not try and forward our agent.
-	go func() {
-		ok, responseBytes, err := proxy.Client.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
-		if err != nil {
-			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
-			return
-		}
-		if !ok {
-			responseCh <- proxyResponse{isRecord: false, err: trace.AccessDenied("unable to determine proxy type")}
-			return
-		}
-
-		recordingProxy, err := strconv.ParseBool(string(responseBytes))
-		if err != nil {
-			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
-			return
-		}
-
-		responseCh <- proxyResponse{isRecord: recordingProxy, err: nil}
-	}()
-
-	select {
-	case resp := <-responseCh:
-		if resp.err != nil {
-			return false, trace.Wrap(resp.err)
-		}
-		return resp.isRecord, nil
-	case <-time.After(1 * time.Second):
-		// probably the older version of the proxy or at least someone that is
-		// responding incorrectly, don't forward agent to it
-		return false, nil
-	}
+	return details, trace.BadParameter("failed to get cluster details")
 }
 
 // dialAuthServer returns auth server connection forwarded via proxy

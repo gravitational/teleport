@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,14 +36,14 @@ var userGroups = []string{"system:serviceaccounts", "system:serviceaccounts:name
 
 var boundTokenKubernetesVersion = version.Info{
 	Major:      "1",
-	Minor:      "22",
-	GitVersion: "1.22",
+	Minor:      "23+",
+	GitVersion: "v1.23.13-eks-fb459a0",
 }
 
 var legacyTokenKubernetesVersion = version.Info{
 	Major:      "1",
 	Minor:      "19",
-	GitVersion: "1.19",
+	GitVersion: "v1.19.7",
 }
 
 // tokenReviewMock creates a testing.ReactionFunc validating the tokenReview request and answering it
@@ -144,8 +145,11 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 					},
 				},
 			},
-			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.BadParameter("legacy SA tokens are not accepted as kubernetes version 1.22 supports bound tokens"),
+			kubeVersion: &boundTokenKubernetesVersion,
+			expectedError: trace.BadParameter(
+				"legacy SA tokens are not accepted as kubernetes version %s supports bound tokens",
+				boundTokenKubernetesVersion.GitVersion,
+			),
 		},
 		{
 			token: "valid-but-not-serviceaccount",
@@ -216,6 +220,41 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			} else {
 				require.ErrorIs(t, err, tt.expectedError)
 			}
+		})
+	}
+}
+
+func Test_kubernetesSupportsBoundTokens(t *testing.T) {
+	tests := []struct {
+		name              string
+		gitVersion        string
+		supportBoundToken bool
+		expectErr         assert.ErrorAssertionFunc
+	}{
+		{
+			name:              "No token support",
+			gitVersion:        legacyTokenKubernetesVersion.String(),
+			supportBoundToken: false,
+			expectErr:         assert.NoError,
+		},
+		{
+			name:              "Token support",
+			gitVersion:        boundTokenKubernetesVersion.String(),
+			supportBoundToken: true,
+			expectErr:         assert.NoError,
+		},
+		{
+			name:              "Invalid version",
+			gitVersion:        "v123",
+			supportBoundToken: false,
+			expectErr:         assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := kubernetesSupportsBoundTokens(tt.gitVersion)
+			tt.expectErr(t, err)
+			require.Equal(t, tt.supportBoundToken, result)
 		})
 	}
 }

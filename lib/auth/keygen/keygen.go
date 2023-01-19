@@ -219,6 +219,15 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.PrivateKeyPolicy != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionPrivateKeyPolicy] = string(c.PrivateKeyPolicy)
 	}
+	if devID := c.DeviceID; devID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDeviceID] = devID
+	}
+	if assetTag := c.DeviceAssetTag; assetTag != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDeviceAssetTag] = assetTag
+	}
+	if credID := c.DeviceCredentialID; credID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
+	}
 
 	if c.SourceIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {

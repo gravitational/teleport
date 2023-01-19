@@ -179,6 +179,8 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	require.NoError(t, err)
 	go pack.cassandra.Serve()
 	t.Cleanup(func() { pack.cassandra.Close() })
+
+	helpers.WaitForDatabaseServers(t, pack.Cluster.Process.GetAuthServer(), conf.Databases.Databases)
 }
 
 type testOptions struct {
@@ -438,6 +440,7 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 		server.Close()
 	})
 
+	helpers.WaitForDatabaseServers(t, p.Root.Cluster.Process.GetAuthServer(), conf.Databases.Databases)
 	return server, authClient
 }
 

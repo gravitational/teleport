@@ -56,10 +56,17 @@ const (
 	casDir = "cas"
 	// fileExtPem is the extension of a file where a public certificate is stored.
 	fileExtPem = ".pem"
+	// currentProfileFileName is a file containing the name of the current profile
+	currentProfileFilename = "current-profile"
+	// profileFileExt is the suffix of a profile file.
+	profileFileExt = ".yaml"
 )
 
 // Here's the file layout of all these keypaths.
 // ~/.tsh/							   --> default base directory
+// ├── current-profile                 --> file containing the name of the currently active profile
+// ├── one.example.com.yaml            --> file containing profile details for proxy "one.example.com"
+// ├── two.example.com.yaml            --> file containing profile details for proxy "two.example.com"
 // ├── known_hosts                     --> trusted certificate authorities (their keys) in a format similar to known_hosts
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
@@ -105,6 +112,20 @@ const (
 // <baseDir>/keys
 func KeyDir(baseDir string) string {
 	return filepath.Join(baseDir, sessionKeyDir)
+}
+
+// CurrentProfile returns the path to the current profile file.
+//
+// <baseDir>/current-profile
+func CurrentProfileFilePath(baseDir string) string {
+	return filepath.Join(baseDir, currentProfileFilename)
+}
+
+// ProfileFilePath returns the path to the profile file for the given profile.
+//
+// <baseDir>/<profileName>.yaml
+func ProfileFilePath(baseDir, profileName string) string {
+	return filepath.Join(baseDir, profileName+profileFileExt)
 }
 
 // KnownHostsPath returns the path to the known hosts file.
@@ -188,12 +209,6 @@ func PPKFilePath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>-ssh/<cluster>-cert.pub
 func SSHCertPath(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(SSHDir(baseDir, proxy, username), cluster+fileExtSSHCert)
-}
-
-// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
-// DELETE IN 8.0.0
-func OldSSHCertPath(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtSSHCert)
 }
 
 // AppDir returns the path to the user's app directory

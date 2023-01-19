@@ -21,6 +21,17 @@ const (
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
 
+	// DefaultReleaseServerAddr is the default release service URL
+	DefaultReleaseServerAddr = "rlz.teleport.sh"
+
+	// ReleaseServerEnvVar is the environment variable used to overwrite
+	// the default release server address
+	ReleaseServerEnvVar = "RELEASE_SERVER_HOSTPORT"
+
+	// EnterpriseReleaseEndpoint is the endpoint of Teleport Enterprise
+	// releases on the release server
+	EnterpriseReleaseEndpoint = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
@@ -122,6 +133,9 @@ const (
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
+	// KindDatabaseService is a database service resource.
+	KindDatabaseService = "db_service"
+
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
@@ -130,6 +144,9 @@ const (
 
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
+
+	// KindKubePod is an Kubernetes Pod resource type.
+	KindKubePod = "pod"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -276,9 +293,21 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindDownload represents Teleport binaries downloads.
+	KindDownload = "download"
+
 	// KindUsageEvent is an external cluster usage event. Similar to
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
+
+	// KindInstance represents a teleport instance independent of any specific service.
+	KindInstance = "instance"
+
+	// KindLoginRule is a login rule resource.
+	KindLoginRule = "login_rule"
+
+	// V6 is the sixth version of resources.
+	V6 = "v6"
 
 	// V5 is the fifth version of resources.
 	V5 = "v5"
@@ -341,6 +370,9 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
+	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
+	ADLabel = TeleportNamespace + "/ad"
+
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = "defaults"
@@ -379,6 +411,9 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
+	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -477,6 +512,9 @@ const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels
 	TeleportInternalLabelPrefix = "teleport.internal/"
 
+	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels
+	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"
 
@@ -525,6 +563,12 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
+	KindKubePod,
+}
+
+// KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
+var KubernetesResourcesKinds = []string{
+	KindKubePod,
 }
 
 const (

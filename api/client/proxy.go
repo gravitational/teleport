@@ -33,7 +33,8 @@ func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, e
 	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
 }
 
-// DialProxyWithDialer creates a connection to a server via an HTTP or SOCKS5 Proxy using a specified dialer.
+// DialProxyWithDialer creates a connection to a server via an HTTP or SOCKS5
+// Proxy using a specified dialer.
 func DialProxyWithDialer(
 	ctx context.Context,
 	proxyURL *url.URL,
@@ -104,7 +105,7 @@ func dialProxyWithHTTPDialer(
 	// and then hand off the underlying connection to the caller.
 	// resp.Body.Close() would drain conn and close it, we don't need to do it
 	// here. Disabling bodyclose linter for this edge case.
-	//nolint:bodyclose
+	//nolint:bodyclose // avoid draining the connection
 	resp, err := http.ReadResponse(br, connectReq)
 	if err != nil {
 		conn.Close()

@@ -28,9 +28,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 	"github.com/keys-pub/go-libfido2"
 	log "github.com/sirupsen/logrus"
@@ -78,10 +78,12 @@ type FIDODevice interface {
 }
 
 // fidoDeviceLocations and fidoNewDevice are used to allow testing.
-var fidoDeviceLocations = libfido2.DeviceLocations
-var fidoNewDevice = func(path string) (FIDODevice, error) {
-	return libfido2.NewDevice(path)
-}
+var (
+	fidoDeviceLocations = libfido2.DeviceLocations
+	fidoNewDevice       = func(path string) (FIDODevice, error) {
+		return libfido2.NewDevice(path)
+	}
+)
 
 // isLibfido2Enabled returns true if libfido2 is available in the current build.
 func isLibfido2Enabled() bool {
@@ -275,7 +277,8 @@ func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, all
 }
 
 func pickAssertion(
-	assertions []*libfido2.Assertion, prompt LoginPrompt, user string, passwordless bool) (*libfido2.Assertion, error) {
+	assertions []*libfido2.Assertion, prompt LoginPrompt, user string, passwordless bool,
+) (*libfido2.Assertion, error) {
 	switch l := len(assertions); {
 	// Shouldn't happen, but let's be safe and handle it anyway.
 	case l == 0:
@@ -540,9 +543,11 @@ type deviceWithInfo struct {
 	info *deviceInfo
 }
 
-type deviceFilterFunc func(dev FIDODevice, info *deviceInfo) error
-type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
-type pinAwareCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error)
+type (
+	deviceFilterFunc     func(dev FIDODevice, info *deviceInfo) error
+	deviceCallbackFunc   func(dev FIDODevice, info *deviceInfo, pin string) error
+	pinAwareCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error)
+)
 
 // runPrompt defines the prompt operations necessary for runOnFIDO2Devices.
 // (RegisterPrompt happens to match the minimal interface required.)
@@ -552,7 +557,8 @@ func runOnFIDO2Devices(
 	ctx context.Context,
 	prompt runPrompt,
 	filter deviceFilterFunc,
-	deviceCallback deviceCallbackFunc) error {
+	deviceCallback deviceCallbackFunc,
+) error {
 	// About to select, prompt user.
 	if err := prompt.PromptTouch(); err != nil {
 		return trace.Wrap(err)
@@ -887,7 +893,8 @@ func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
 
 func selectDevice(
 	ctx context.Context,
-	pin string, dev *deviceWithInfo, cb pinAwareCallbackFunc) (requiresPIN bool, err error) {
+	pin string, dev *deviceWithInfo, cb pinAwareCallbackFunc,
+) (requiresPIN bool, err error) {
 	// Spin a goroutine to run the callback so we can deal with context
 	// cancellation.
 	done := make(chan struct{})

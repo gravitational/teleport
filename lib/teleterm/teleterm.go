@@ -53,6 +53,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: grpcCredentials.tshdEvents,
+		PrehogAddr:                      cfg.PrehogAddr,
 	})
 	if err != nil {
 		return trace.Wrap(err)

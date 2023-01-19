@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -597,6 +598,15 @@ func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
 // "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
 	return devicepb.NewDeviceTrustServiceClient(c.conn)
+}
+
+// LoginRuleClient returns an unadorned Login Rule client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a login rule client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
+	return loginrulepb.NewLoginRuleServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -1191,16 +1201,52 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 
 // GetAppSessions gets all application web sessions.
 func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	resp, err := c.grpc.GetAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	var (
+		nextToken string
+		sessions  []types.WebSession
+	)
+
+	// Leverages ListAppSessions instead of GetAppSessions to prevent
+	// the server from having to send all sessions in a single message.
+	// If there are enough sessions it can cause the max message size to be
+	// exceeded.
+	for {
+		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return sessions, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListAppSessions(
+		ctx,
+		&proto.ListAppSessionsRequest{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			User:      user,
+		},
+		c.callOpts...,
+	)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, "", trail.FromGRPC(err)
 	}
 
 	out := make([]types.WebSession, 0, len(resp.GetSessions()))
 	for _, v := range resp.GetSessions() {
 		out = append(out, v)
 	}
-	return out, nil
+	return out, resp.NextPageToken, nil
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
@@ -1221,10 +1267,12 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    req.Username,
-		PublicAddr:  req.PublicAddr,
-		ClusterName: req.ClusterName,
-		AWSRoleARN:  req.AWSRoleARN,
+		Username:          req.Username,
+		PublicAddr:        req.PublicAddr,
+		ClusterName:       req.ClusterName,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1454,7 +1502,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	r, ok := role.(*types.RoleV5)
+	r, ok := role.(*types.RoleV6)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
@@ -2433,6 +2481,32 @@ func (c *Client) DeleteAllDatabases(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// UpsertDatabaseService creates or updates existing DatabaseService resource.
+func (c *Client) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	serviceV1, ok := service.(*types.DatabaseServiceV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported DatabaseService type %T", serviceV1)
+	}
+	keepAlive, err := c.grpc.UpsertDatabaseService(ctx, &proto.UpsertDatabaseServiceRequest{
+		Service: serviceV1,
+	}, c.callOpts...)
+
+	return keepAlive, trail.FromGRPC(err)
+}
+
+// DeleteDatabaseService deletes a specific DatabaseService resource.
+func (c *Client) DeleteDatabaseService(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDatabaseService(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllDatabaseServices deletes all DatabaseService resources.
+// If an error occurs, a partial delete may happen.
+func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDatabaseServices(ctx, &proto.DeleteAllDatabaseServicesRequest{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{}, c.callOpts...)
@@ -2659,6 +2733,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
 			resources[i] = respResource.GetDatabaseServer()
+		case types.KindDatabaseService:
+			resources[i] = respResource.GetDatabaseService()
 		case types.KindAppServer:
 			resources[i] = respResource.GetAppServer()
 		case types.KindNode:
@@ -2918,4 +2994,23 @@ func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
 
 	return trail.FromGRPC(err)
+}
+
+// GetLicense returns the license used to start the teleport enterprise auth server
+func (c *Client) GetLicense(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetLicense(ctx, &proto.GetLicenseRequest{})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return string(resp.License), nil
+}
+
+// ListReleases returns a list of teleport enterprise releases
+func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) ([]*types.Release, error) {
+	resp, err := c.grpc.ListReleases(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.Releases, nil
 }

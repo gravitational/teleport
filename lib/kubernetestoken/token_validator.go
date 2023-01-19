@@ -18,14 +18,13 @@ package kubernetestoken
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/strings/slices"
@@ -37,7 +36,7 @@ const (
 	extraDataPodNameField    = "authentication.kubernetes.io/pod-name"
 	// Kubernetes should support bound tokens on 1.20 and 1.21,
 	// but we can have an apiserver running 1.21 and kubelets running 1.19.
-	kubernetesBoundTokenSupportMinor = 22
+	kubernetesBoundTokenSupportVersion = "1.22.0"
 )
 
 type Validator struct {
@@ -109,7 +108,7 @@ func (v *Validator) Validate(ctx context.Context, token string) (*v1.UserInfo, e
 		return nil, trace.WrapWithMessage(err, "error during the kubernetes version check")
 	}
 
-	boundTokenSupport, err := kubernetesSupportsBoundTokens(kubeVersion)
+	boundTokenSupport, err := kubernetesSupportsBoundTokens(kubeVersion.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,18 +125,16 @@ func (v *Validator) Validate(ctx context.Context, token string) (*v1.UserInfo, e
 	return &reviewResult.Status.User, nil
 }
 
-func kubernetesSupportsBoundTokens(info *version.Info) (bool, error) {
-	major, err := strconv.Atoi(info.Major)
+func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
+	kubeVersion, err := version.ParseSemantic(gitVersion)
 	if err != nil {
-		return false, err
-	}
-	minor, err := strconv.Atoi(info.Minor)
-	if err != nil {
-		return false, err
+		return false, trace.Wrap(err)
 	}
 
-	if major > 1 {
-		return true, nil
+	minKubeVersion, err := version.ParseSemantic(kubernetesBoundTokenSupportVersion)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
-	return minor >= kubernetesBoundTokenSupportMinor, nil
+
+	return kubeVersion.AtLeast(minKubeVersion), nil
 }

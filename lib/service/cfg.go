@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
@@ -152,7 +153,7 @@ type Config struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Events is events service
 	Events types.Events
@@ -258,6 +259,12 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
+	AdditionalReadyEvents []string
+
+	// InstanceMetadataClient specifies the instance metadata client.
+	InstanceMetadataClient cloud.InstanceMetadata
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -489,6 +496,10 @@ type ProxyConfig struct {
 
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
+
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration
 
 	// ACME is ACME protocol support config
 	ACME ACME
@@ -862,6 +873,8 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	ExternalID string
 	// RedshiftServerless contains AWS Redshift Serverless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless
 }
@@ -940,7 +953,9 @@ func (d *DatabaseAD) IsEmpty() bool {
 // DatabaseAzure contains Azure database configuration.
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
-	ResourceID string `yaml:"resource_id,omitempty"`
+	ResourceID string
+	// IsFlexiServer is true if the database is an Azure Flexible server.
+	IsFlexiServer bool
 }
 
 // CheckAndSetDefaults validates database Active Directory configuration.
@@ -1022,8 +1037,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ServerVersion: d.MySQL.ServerVersion,
 		},
 		AWS: types.AWS{
-			AccountID: d.AWS.AccountID,
-			Region:    d.AWS.Region,
+			AccountID:  d.AWS.AccountID,
+			ExternalID: d.AWS.ExternalID,
+			Region:     d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
 			},
@@ -1060,7 +1076,8 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			KDCHostName: d.AD.KDCHostName,
 		},
 		Azure: types.Azure{
-			ResourceID: d.Azure.ResourceID,
+			ResourceID:    d.Azure.ResourceID,
+			IsFlexiServer: d.Azure.IsFlexiServer,
 		},
 	})
 }
@@ -1114,7 +1131,10 @@ type App struct {
 	Rewrite *Rewrite
 
 	// AWS contains additional options for AWS applications.
-	AWS *AppAWS `yaml:"aws,omitempty"`
+	AWS *AppAWS
+
+	// Cloud identifies the cloud instance the app represents.
+	Cloud string
 }
 
 // CheckAndSetDefaults validates an application.
@@ -1123,7 +1143,11 @@ func (a *App) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing application name")
 	}
 	if a.URI == "" {
-		return trace.BadParameter("missing application %q URI", a.Name)
+		if a.Cloud != "" {
+			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
+		} else {
+			return trace.BadParameter("missing application %q URI", a.Name)
+		}
 	}
 	// Check if the application name is a valid subdomain. Don't allow names that
 	// are invalid subdomains because for trusted clusters the name is used to
@@ -1266,6 +1290,9 @@ type WindowsDesktopConfig struct {
 	ListenAddr utils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
 
@@ -1274,7 +1301,15 @@ type WindowsDesktopConfig struct {
 
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
+	// Hosts is an optional list of static, AD-connected Windows hosts. This gives users
+	// a way to specify AD-connected hosts that won't be found by the filters
+	// specified in Discovery (or if Discovery is omitted).
 	Hosts []utils.NetAddr
+
+	// NonADHosts is an optional list of static Windows hosts to expose through this
+	// service. These hosts are not part of Active Directory.
+	NonADHosts []utils.NetAddr
+
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
@@ -1282,20 +1317,21 @@ type WindowsDesktopConfig struct {
 	Labels     map[string]string
 }
 
+// LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
 type LDAPDiscoveryConfig struct {
 	// BaseDN is the base DN to search for desktops.
 	// Use the value '*' to search from the root of the domain,
 	// or leave blank to disable desktop discovery.
-	BaseDN string `yaml:"base_dn"`
+	BaseDN string
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
-	Filters []string `yaml:"filters"`
+	Filters []string
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
-	LabelAttributes []string `yaml:"label_attributes"`
+	LabelAttributes []string
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
@@ -1351,6 +1387,8 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.
@@ -1426,7 +1464,7 @@ func ParseHeaders(headers []string) (headersOut []Header, err error) {
 // AppAWS contains additional options for AWS applications.
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
-	ExternalID string `yaml:"external_id,omitempty"`
+	ExternalID string
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

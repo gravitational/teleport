@@ -148,9 +148,7 @@ func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: user,
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, user),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit password change event.")
 	}

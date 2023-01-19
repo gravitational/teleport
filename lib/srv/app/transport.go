@@ -45,17 +45,12 @@ type transportConfig struct {
 	publicPort   string
 	cipherSuites []uint16
 	jwt          string
-	audit        common.Audit
 	traits       wrappers.Traits
 	log          logrus.FieldLogger
-	user         string
 }
 
 // Check validates configuration.
 func (c *transportConfig) Check() error {
-	if c.audit == nil {
-		return trace.BadParameter("audit writer missing")
-	}
 	if c.app == nil {
 		return trace.BadParameter("app missing")
 	}
@@ -77,7 +72,7 @@ func (c *transportConfig) Check() error {
 type transport struct {
 	closeContext context.Context
 
-	c *transportConfig
+	*transportConfig
 
 	tr http.RoundTripper
 
@@ -109,11 +104,11 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	}
 
 	return &transport{
-		closeContext: ctx,
-		c:            c,
-		uri:          uri,
-		tr:           tr,
-		ws:           newWebsocketTransport(uri, tr.TLSClientConfig, c),
+		closeContext:    ctx,
+		transportConfig: c,
+		uri:             uri,
+		tr:              tr,
+		ws:              newWebsocketTransport(uri, tr.TLSClientConfig.Clone(), c),
 	}, nil
 }
 
@@ -145,7 +140,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sessionCtx, err := common.GetSessionContext(r)
+	sessCtx, err := common.GetSessionContext(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -155,9 +150,10 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	status := uint32(resp.StatusCode)
 
 	// Emit the event to the audit log.
-	if err := t.c.audit.OnRequest(t.closeContext, sessionCtx, r, resp, nil /*aws endpoint*/); err != nil {
+	if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, status, nil /*aws endpoint*/); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -176,7 +172,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Host = t.uri.Host
 
 	// Add headers from rewrite configuration.
-	rewriteHeaders(r, t.c)
+	rewriteHeaders(r, t.transportConfig)
 
 	return nil
 }
@@ -237,7 +233,7 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort),
+		Host:   net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort),
 		Path:   uriPath,
 	}
 	return u.String(), true
@@ -246,7 +242,7 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 // rewriteResponse applies any rewriting rules to the response before returning it.
 func (t *transport) rewriteResponse(resp *http.Response) error {
 	switch {
-	case t.c.app.GetRewrite() != nil && len(t.c.app.GetRewrite().Redirect) > 0:
+	case t.app.GetRewrite() != nil && len(t.app.GetRewrite().Redirect) > 0:
 		err := t.rewriteRedirect(resp)
 		if err != nil {
 			return trace.Wrap(err)
@@ -267,9 +263,9 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 		// If the redirect location is one of the hosts specified in the list of
 		// redirects, rewrite the header.
-		if slices.Contains(t.c.app.GetRewrite().Redirect, host(u.Host)) {
+		if slices.Contains(t.app.GetRewrite().Redirect, host(u.Host)) {
 			u.Scheme = "https"
-			u.Host = net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort)
+			u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
 		}
 		resp.Header.Set("Location", u.String())
 	}

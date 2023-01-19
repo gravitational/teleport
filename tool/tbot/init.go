@@ -252,7 +252,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		err = botfs.VerifyACL(path, params.aclOptions)
-		//nolint:staticcheck
+		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
 				log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)

@@ -155,7 +155,7 @@ func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users, 
 	var auditOnce sync.Once
 	return func(ctx context.Context, conn *redis.Conn) error {
 		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
+			services.AccessState{MFAVerified: true},
 			role.DatabaseRoleMatchers(
 				defaults.ProtocolRedis,
 				sessionCtx.DatabaseUser,

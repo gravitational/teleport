@@ -3,7 +3,7 @@ gitref.go
 .data
 debug
 default.etcd
-darwin
+/darwin
 
 # web asset directory
 /lib/web/build
@@ -83,3 +83,7 @@ go.work.sum
 
 # Buf side-effects
 /github.com
+node_modules
+
+.air.toml
+webassets/

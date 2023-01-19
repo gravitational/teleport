@@ -443,7 +443,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		AWSCredentials:     cred,
+		HTTPMiddleware:     &AWSAccessMiddleware{AWSCredentials: cred},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -452,7 +452,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		hs.Close()
 	})
 	go func() {
-		err := lp.StartAWSAccessProxy(context.Background())
+		err := lp.StartHTTPAccessProxy(context.Background())
 		assert.NoError(t, err)
 	}()
 	return lp

@@ -244,6 +244,10 @@ type IdentityContext struct {
 // and other resources. SessionContext also holds a ServerContext which can be
 // used to access resources on the underlying server. SessionContext can also
 // be used to attach resources that should be closed once the session closes.
+//
+// Any events that need to be recorded should be emitted via session and not
+// ServerContext directly. Failure to use the session emitted will result in
+// incorrect event indexes that may ultimately cause events to be overwritten.
 type ServerContext struct {
 	// ConnectionContext is the parent context which manages connection-level
 	// resources.
@@ -972,16 +976,19 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			if expr.Namespace() != teleport.TraitExternalPrefix && expr.Namespace() != parse.LiteralNamespace {
-				return nil, trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
+			varValidation := func(namespace, name string) error {
+				if namespace != teleport.TraitExternalPrefix && namespace != parse.LiteralNamespace {
+					return trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
+				}
+				return nil
 			}
 
-			result, err := expr.Interpolate(traits)
+			result, err := expr.Interpolate(varValidation, traits)
 			if err != nil {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
 				if trace.IsNotFound(err) {
-					c.Logger.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
+					c.Logger.WithError(err).Warnf("Attempted to interpolate custom PAM environment with external trait but received SAML response does not contain claim")
 					continue
 				}
 
@@ -1050,12 +1057,32 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
+func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadata {
+	if cert == nil {
+		return nil
+	}
+
+	devID := cert.Extensions[teleport.CertExtensionDeviceID]
+	assetTag := cert.Extensions[teleport.CertExtensionDeviceAssetTag]
+	credID := cert.Extensions[teleport.CertExtensionDeviceCredentialID]
+	if devID == "" && assetTag == "" && credID == "" {
+		return nil
+	}
+
+	return &apievents.DeviceMetadata{
+		DeviceId:     devID,
+		AssetTag:     assetTag,
+		CredentialId: credID,
+	}
+}
+
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	return apievents.UserMetadata{
 		Login:          id.Login,
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
+		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
 	}
 }
 

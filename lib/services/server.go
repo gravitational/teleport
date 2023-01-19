@@ -62,6 +62,11 @@ func CompareServers(a, b types.Resource) int {
 			return compareDatabaseServers(dbA, dbB)
 		}
 	}
+	if dbServiceA, ok := a.(types.DatabaseService); ok {
+		if dbServiceB, ok := b.(types.DatabaseService); ok {
+			return compareDatabaseServices(dbServiceA, dbServiceB)
+		}
+	}
 	if winA, ok := a.(types.WindowsDesktopService); ok {
 		if winB, ok := b.(types.WindowsDesktopService); ok {
 			return compareWindowsDesktopServices(winA, winB)
@@ -145,6 +150,25 @@ func compareApplicationServers(a, b types.AppServer) int {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareDatabaseServices(a, b types.DatabaseService) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if !cmp.Equal(a.GetResourceMatchers(), b.GetResourceMatchers()) {
+		return Different
+	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}

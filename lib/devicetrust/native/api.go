@@ -34,3 +34,8 @@ func CollectDeviceData() (*devicepb.DeviceCollectedData, error) {
 func SignChallenge(chal []byte) (sig []byte, err error) {
 	return signChallenge(chal)
 }
+
+// GetDeviceCredential returns the current device credential, if it exists.
+func GetDeviceCredential() (*devicepb.DeviceCredential, error) {
+	return getDeviceCredential()
+}

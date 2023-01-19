@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -194,6 +195,28 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	prevIDExpires, err := time.Parse(time.RFC3339, parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 	require.NoError(t, err)
 	require.Equal(t, clock.Now().Add(time.Hour), prevIDExpires)
+
+	t.Run("device extensions", func(t *testing.T) {
+		const devID = "deviceid1"
+		const devTag = "devicetag1"
+		const devCred = "devicecred1"
+		certRaw, err := s.A.GenerateUserCert(services.UserCertParams{
+			CASigner:           caSigner,          // Required.
+			PublicUserKey:      pub,               // Required.
+			Username:           "llama",           // Required.
+			AllowedLogins:      []string{"llama"}, // Required.
+			DeviceID:           devID,
+			DeviceAssetTag:     devTag,
+			DeviceCredentialID: devCred,
+		})
+		require.NoError(t, err, "GenerateUserCert failed")
+
+		sshCert, err := sshutils.ParseCertificate(certRaw)
+		require.NoError(t, err, "ParseCertificate failed")
+		assert.Equal(t, devID, sshCert.Extensions[teleport.CertExtensionDeviceID], "DeviceID mismatch")
+		assert.Equal(t, devTag, sshCert.Extensions[teleport.CertExtensionDeviceAssetTag], "AssetTag mismatch")
+		assert.Equal(t, devCred, sshCert.Extensions[teleport.CertExtensionDeviceCredentialID], "CredentialID mismatch")
+	})
 }
 
 func checkCertExpiry(cert []byte, after, before time.Time) error {

@@ -223,6 +223,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
 		e = &events.MFADeviceDelete{}
+	case DeviceEvent:
+		e = &events.DeviceEvent{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
@@ -271,6 +273,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DesktopSharedDirectoryRead{}
 	case DesktopSharedDirectoryWriteEvent:
 		e = &events.DesktopSharedDirectoryWrite{}
+	case BotJoinEvent:
+		e = &events.BotJoin{}
+	case InstanceJoinEvent:
+		e = &events.InstanceJoin{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
