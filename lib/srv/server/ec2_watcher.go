@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -105,12 +106,17 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
 	}}
 
-	for key, val := range cfg.Labels {
-		tagFilters = append(tagFilters, &ec2.Filter{
-			Name:   aws.String("tag:" + key),
-			Values: aws.StringSlice(val),
-		})
+	if _, ok := cfg.Labels["*"]; !ok {
+		for key, val := range cfg.Labels {
+			tagFilters = append(tagFilters, &ec2.Filter{
+				Name:   aws.String("tag:" + key),
+				Values: aws.StringSlice(val),
+			})
+		}
+	} else {
+		log.Debug("Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
 	}
+
 	fetcherConfig := ec2InstanceFetcher{
 		EC2:          cfg.EC2Client,
 		Filters:      tagFilters,
