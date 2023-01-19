@@ -56,8 +56,7 @@ $ docker version
 We provide pre-built `amd64`, `arm`, and `arm64` Docker images for every version of Teleport.
 
 These images are hosted on Amazon ECR Public. All tags under `public.ecr.aws/gravitational/teleport` [are Teleport Open Source images](https://gallery.ecr.aws/gravitational/teleport).
-Versions without a architecture postfix type are `amd64` architecute. (public.ecr.aws/gravitational/teleport:(=teleport.major_version=)). All architecture versions are available 
-with the postfix type (ex: `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)-arm64`).
+You can specify the architecture of a Teleport Docker image by adding a postfix to the image tag, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)-arm64`. Versions without an architecture postfix use the `amd64` architecture, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`. 
 
 The table below gives an idea of how our image naming scheme works. We offer images that
 point to a static version of Teleport, as well as images that are automatically rebuilt
