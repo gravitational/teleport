@@ -798,6 +798,14 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
     }
 }
 
+/// encodes png from the uncompressed bitmap data
+///
+/// # Arguments
+///
+/// * `dest` - buffer that will contain the png data
+/// * `width` - width of the png
+/// * `height` - height of the png
+/// * `data` - buffer that contains uncompressed bitmap data
 pub fn encode_png(dest: &mut Vec<u8>, width: u16, height: u16, mut data: Vec<u8>) {
     convert_bgra_to_rgba(&mut data);
 
