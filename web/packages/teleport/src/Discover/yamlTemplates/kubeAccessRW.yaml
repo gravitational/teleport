@@ -1,0 +1,19 @@
+kind: role
+spec:
+  allow:
+    # Define Kubernetes groups for this role.
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    - kubeGroup1
+    - kubeGroup2
+    # Define Kubernetes users for this role.
+    kubernetes_users:
+    - '{{internal.kubernetes_users}}'
+    - kubeUser1
+    - kubeUser2
+    rules:
+    # Rule that allows users to define their own Kubernetes users and groups.
+    - resources:
+      - user
+      verbs:
+      - update

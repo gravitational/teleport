@@ -34,14 +34,7 @@ const releasesHost = "https://releases-prod.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(b buildType) []string {
-	var commands []string
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
-		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
-	}
-
-	commands = append(commands,
+	return []string{
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
@@ -50,23 +43,6 @@ func tagCheckoutCommands(b buildType) []string {
 		`mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
 		`git submodule update --init e`,
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`git submodule update --init --recursive webassets || true`,
-	)
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): this can be removed after webapps migration
-		// clone webapps for the Teleport Connect Source code
-		commands = append(commands,
-			`cd /go/src/github.com/gravitational/webapps`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
-			`git submodule update --init packages/webapps.e`,
-			`cd -`,
-		)
-	}
-
-	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
 		// create necessary directories
 		`mkdir -p /go/cache /go/artifacts`,
@@ -77,8 +53,7 @@ if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
   exit 1
 fi
 echo "$$VERSION" > /go/.version.txt`,
-	)
-	return commands
+	}
 }
 
 // tagBuildCommands generates a list of commands for Drone to build an artifact as part of a tag build
@@ -114,7 +89,6 @@ func tagBuildCommands(b buildType) []string {
 		case "linux":
 			commands = append(commands, `make -C build.assets teleterm`)
 		}
-
 	}
 
 	if b.os == "windows" {
@@ -175,7 +149,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm" -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;`,
+			`find /go/src/github.com/gravitational/teleport/web/packages/teleterm/build/release -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm" -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;`,
 		)
 	}
 
