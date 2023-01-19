@@ -577,6 +577,21 @@ Here is an example of creating trust between a leaf and a root node.
 ![Tunnels](../../../img/trusted-clusters/setting-up-trust.png)
 </Details>
 
+<Details
+  type="tip"
+  title="Update role mappings"
+>
+
+You can update the role mappings within the `trusted_cluster` resource we created earlier by modifying the resource definition (`trusted_cluster.yaml`) to indicate the new role mappings in the `role_map` field.
+
+Then, update the trusted cluster resource on the leaf cluster side:
+
+```code
+$ tctl create --force trusted_cluster.yaml
+```
+
+</Details>
+
 Log out of the leaf cluster and log back in to the root cluster. When you run
 `tsh clusters`, you should see listings for both the root cluster and the leaf
 cluster:
@@ -803,21 +818,6 @@ these pieces of data from it. It then performs the following actions:
   the leaf cluster cannot see or connect to Nodes in the root cluster.
 
 </Admonition>
-
-<Details
-  type="tip"
-  title="Update role mappings"
->
-
-You can update the role mappings within the `trusted_cluster` resource we created earlier by modifying the resource definition (`trusted_cluster.yaml`) to indicate the new role mappings in the `role_map` field.
-
-Then, update the trusted cluster resource on the leaf cluster side:
-
-```code
-$ tctl create --force trusted_cluster.yaml
-```
-
-</Details>
 
 ## Step 5/5. Remove trust between your clusters
 
