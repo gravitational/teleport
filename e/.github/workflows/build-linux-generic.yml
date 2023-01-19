@@ -44,11 +44,6 @@ on:
         required: true
         type: string
 
-    secrets:
-      webassets_e_deploy_key:
-        description: 'Deployment key to grant access to webassets.e'
-        required: true
-
 jobs:
   build-release-artifacts:
     permissions:
@@ -87,30 +82,6 @@ jobs:
           ref: ${{ env.TELEPORT_E_REF }}
           path: e
 
-      - name: Determine OSS webassets reference
-        run: echo WEBASSETS_REF=$(git rev-parse @:webassets) >> $GITHUB_ENV
-
-      - name: Checkout Webassets
-        uses: actions/checkout@v3
-        with:
-          repository: gravitational/webassets
-          path: webassets
-          ref: ${{ env.WEBASSETS_REF }}
-
-      - name: Determine enterprise webassets reference
-        if: inputs.release == 'enterprise'
-        run: echo WEBASSETS_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
-        working-directory: ./webassets
-
-      - name: Checkout Webassets.e
-        if: inputs.release == 'enterprise'
-        uses: actions/checkout@v3
-        with:
-          repository: gravitational/webassets.e
-          path: webassets/e
-          ref: ${{ env.WEBASSETS_E_REF }}
-          ssh-key: ${{ secrets.webassets_e_deploy_key }}
-
       # We are not guaranteed to have an available `make` at this point, (e.g.
       # when using the self-hosted ARM runners) so for now we will scrape the
       # info we need directly out of the makefile using grep. This is not
@@ -148,7 +119,6 @@ jobs:
               GOMODCACHE=${{ env.GOMODCACHE }}                             \
               GOCACHE=${{ env.GOCACHE }}                                   \
               WORKSPACE=${{ github.workspace  }}
-
 
       - name: Gather artifacts
         if: ${{ inputs.save-artifacts }}
