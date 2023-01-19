@@ -23,6 +23,7 @@ on:
 jobs:
   test:
     name: Unit Tests (Rust)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
 
     permissions:

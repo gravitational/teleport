@@ -177,7 +177,7 @@ func darwinTagPipeline() pipeline {
 		arch: "amd64",
 		os:   "darwin",
 	}
-	toolchainConfig := toolchainConfig{golang: true, rust: true}
+	toolchainConfig := toolchainConfig{golang: true, rust: true, nodejs: true}
 	artifactConfig := onlyBinaries
 
 	p := newDarwinPipeline("build-darwin-amd64")
@@ -256,23 +256,9 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 		`chmod 600 $WORKSPACE_DIR/.ssh/known_hosts`,
 	}
 
-	// clone github.com/gravitational/webapps for the Teleport Connect source code
-	if artifactConfig == binariesWithConnect || artifactConfig == onlyConnectWithBundledTshApp {
-		commands = append(commands,
-			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
-			`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init packages/webapps.e`,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
-		)
-	}
-
 	commands = append(commands,
 		// fetch enterprise submodules
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e`,
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
 		`mkdir -p $WORKSPACE_DIR/go/cache`,
 	)
@@ -499,6 +485,8 @@ func buildMacArtifactsStep(workspacePath string, b buildType, toolchainConfig to
 			"ARCH":              {raw: b.arch},
 			"WORKSPACE_DIR":     {raw: workspacePath},
 			"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
+			"APPLE_USERNAME":    {fromSecret: "APPLE_USERNAME"},
+			"APPLE_PASSWORD":    {fromSecret: "APPLE_PASSWORD"},
 		},
 		Commands: darwinBuildCommands(toolchainConfig, artifactConfig),
 	}
@@ -576,7 +564,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 
 		commands = append(commands,
 			// Build and package Connect
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			// c.extraMetadata.version overwrites the version property from package.json to $VERSION
 			// https://www.electron.build/configuration/configuration.html#Configuration-extraMetadata
 			`yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION`,
@@ -604,7 +592,7 @@ func darwinConnectCopyDmgArtifactCommands() []string {
 	commands := []string{
 		`set -u`,
 		// copy dmg to artifact directory
-		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
+		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/web/packages/teleterm/build/release`,
 		`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
 		// generate checksums
 		`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,

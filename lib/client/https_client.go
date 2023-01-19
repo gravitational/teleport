@@ -37,39 +37,30 @@ import (
 )
 
 func NewInsecureWebClient() *http.Client {
-	// Because Teleport clients can't be configured (yet), they take the default
-	// list of cipher suites from Go.
-	tlsConfig := utils.TLSConfig(nil)
-	transport := http.Transport{
-		TLSClientConfig: tlsConfig,
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		},
-	}
+	return newClient(true, nil, nil)
+}
+
+func newClient(insecure bool, pool *x509.CertPool, extraHeaders map[string]string) *http.Client {
 	return &http.Client{
 		Transport: otelhttp.NewTransport(
-			apiproxy.NewHTTPFallbackRoundTripper(&transport, true /* insecure */),
+			apiproxy.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
 		),
 	}
 }
 
-func newClientWithPool(pool *x509.CertPool) *http.Client {
+func httpTransport(insecure bool, pool *x509.CertPool) *http.Transport {
 	// Because Teleport clients can't be configured (yet), they take the default
 	// list of cipher suites from Go.
 	tlsConfig := utils.TLSConfig(nil)
+	tlsConfig.InsecureSkipVerify = insecure
 	tlsConfig.RootCAs = pool
 
-	return &http.Client{
-		Transport: otelhttp.NewTransport(
-			&http.Transport{
-				TLSClientConfig: tlsConfig,
-				Proxy: func(req *http.Request) (*url.URL, error) {
-					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-				},
-			},
-			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-		),
+	return &http.Transport{
+		TLSClientConfig: tlsConfig,
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
 	}
 }
 
@@ -105,6 +96,11 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 		return httplib.ConvertResponse(resp, httpsErr)
 	}
 
+	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
+	if !allowHTTPFallback {
+		return nil, trace.Wrap(httpsErr)
+	}
+
 	// Parse out the endpoint into its constituent parts. We will need the
 	// hostname to decide if we're allowed to fall back to HTTPS, and we will
 	// re-use this for re-writing the endpoint URL later on anyway.
@@ -113,10 +109,11 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 		return nil, trace.Wrap(err)
 	}
 
-	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
+	// If we're allowed to try plain HTTP, but we're not on the loopback address,
+	// bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
-	// if the caller says its OK
-	if !(allowHTTPFallback && apiutils.IsLoopback(u.Host)) {
+	// if the caller says its OK.
+	if !apiutils.IsLoopback(u.Host) {
 		return nil, trace.Wrap(httpsErr)
 	}
 

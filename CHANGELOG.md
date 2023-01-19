@@ -600,8 +600,7 @@ Some of the things you can do with Machine ID:
 - Configure role-based access controls and locking for machines.
 - Capture access events in the audit log.
 
-Machine ID getting started guide:
-https://goteleport.com/docs/ver/9.0/machine-id/getting-started/.
+[Machine ID getting started guide](docs/pages/machine-id/getting-started.mdx)
 
 ### Database Access
 
@@ -611,8 +610,7 @@ You can now use Database Access to connect to a self-hosted Redis instance or
 Redis cluster and view Redis commands in the Teleport audit log. We will be
 adding support for AWS Elasticache in the coming weeks.
 
-Self-hosted Redis guide:
-https://goteleport.com/docs/ver/9.0/database-access/guides/redis/.
+[Self-hosted Redis guide](docs/pages/database-access/guides/redis.mdx)
 
 #### SQL Server (Preview)
 
@@ -621,8 +619,7 @@ Directory authentication support for Database Access. Audit logging of query
 activity is not included in the preview release and will be implemented in a
 later 9.x release.
 
-SQL Server guide:
-https://goteleport.com/docs/ver/9.0/database-access/guides/sql-server-ad/.
+[SQL Server guide](docs/pages/database-access/guides/sql-server-ad.mdx)
 
 #### RDS MariaDB
 
@@ -630,8 +627,7 @@ Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
 MariaDB databases using IAM authentication. The minimum MariaDB version that
 supports IAM authentication is 10.6.
 
-Updated RDS guide:
-https://goteleport.com/docs/ver/9.0/database-access/guides/rds/.
+[Updated RDS guide](docs/pages/database-access/guides/rds.mdx)
 
 #### Other Improvements
 
@@ -642,8 +638,9 @@ and "teleport db configure bootstrap", which configures IAM permissions for the
 Database Service when running on AWS.
 
 CLI commands reference:
-https://goteleport.com/docs/ver/9.0/database-access/reference/cli/#teleport-db-configure-create
-https://goteleport.com/docs/ver/9.0/database-access/reference/cli/#teleport-db-configure-bootstrap
+- [`teleport db configure
+  create`](./docs/pages/database-access/reference/cli.mdx#teleport-db-configure-create)
+- [`teleport db configure bootstrap`](./docs/pages/database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
 
 ### Moderated Sessions
 
@@ -651,8 +648,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-Moderated Sessions guide:
-https://goteleport.com/docs/ver/9.0/access-controls/guides/moderated-sessions/.
+[Moderated Sessions guide](docs/pages/access-controls/guides/moderated-sessions.mdx)
 
 ### Breaking Changes
 
@@ -680,7 +676,7 @@ Teleport users can connect to Active Directory enrolled Windows hosts running
 Windows 10, Windows Server 2012 R2 and newer Windows versions.
 
 To try this feature yourself, check out our
-[Getting Started Guide](https://goteleport.com/docs/ver/8.0/desktop-access/getting-started/).
+[Getting Started Guide](docs/pages/desktop-access/getting-started.mdx).
 
 Review the Desktop Access design in:
 
@@ -717,7 +713,8 @@ Teleport application access extends AWS console support to CLI . Users are able
 to log into their AWS console using `tsh app login` and use `tsh aws` commands
 to interact with AWS APIs.
 
-See more info in the [documentation](https://goteleport.com/docs/ver/8.0/application-access/guides/aws-console/#step-8-using-aws-cli).
+See more info in the
+[documentation](docs/pages/application-access/guides/aws-console.mdx).
 
 #### Application and Database Dynamic Registration
 
@@ -726,9 +723,9 @@ without needing to update static YAML configuration or restart application or
 database agents.
 
 See dynamic registration guides for
-[apps](https://goteleport.com/docs/ver/8.0/application-access/guides/dynamic-registration/)
+[apps](docs/pages/application-access/guides/dynamic-registration.mdx)
 and
-[databases](https://goteleport.com/docs/ver/8.0/database-access/guides/dynamic-registration/).
+[databases](docs/pages/database-access/guides/dynamic-registration.mdx).
 
 #### RDS Automatic Discovery
 
@@ -736,7 +733,7 @@ With RDS auto discovery Teleport database agents can automatically discover RDS
 instances and Aurora clusters in an AWS account.
 
 See updated
-[RDS guide](https://goteleport.com/docs/ver/8.0/database-access/guides/rds/) for
+[RDS guide](docs/pages/database-access/guides/rds.mdx) for
 more information.
 
 #### WebAuthn
@@ -840,19 +837,19 @@ Teleport 7.0 is a major release of Teleport that contains new features, improvem
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport Database Access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 
-View the [Database Access with MongoDB](https://goteleport.com/docs/ver/7.0/database-access/guides/mongodb-self-hosted/) for more details.
+View the [Database Access with MongoDB](docs/pages/database-access/guides/mongodb-self-hosted.mdx) for more details.
 
 #### Cloud SQL MySQL
 
 Added support for [GCP Cloud SQL MySQL](https://cloud.google.com/sql/docs/mysql) to Teleport Database Access. [#7302](https://github.com/gravitational/teleport/pull/7302)
 
-View the Cloud SQL MySQL [guide](https://goteleport.com/docs/ver/7.0/database-access/guides/mysql-cloudsql/) for more details.
+View the Cloud SQL MySQL [guide](docs/pages/database-access/guides/mysql-cloudsql.mdx) for more details.
 
 #### AWS Console
 
 Added support for [AWS Console](https://aws.amazon.com/console) to Teleport Application Access. [#7590](https://github.com/gravitational/teleport/pull/7590)
 
-Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](https://goteleport.com/docs/ver/7.0/application-access/guides/aws-console/) for more details.
+Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/application-access/guides/aws-console.mdx) for more details.
 
 #### Restricted Sessions
 
@@ -909,7 +906,7 @@ before upgrading.
 
 Added support for [Amazon Redshift](https://aws.amazon.com/redshift) to Teleport Database Access.[#6479](https://github.com/gravitational/teleport/pull/6479).
 
-View the [Database Access with Redshift on AWS Guide](https://goteleport.com/docs/ver/6.2/database-access/guides/postgres-redshift/) for more details.
+View the [Database Access with Redshift on AWS Guide](docs/pages/database-access/guides/postgres-redshift.mdx) for more details.
 
 ### Improvements
 

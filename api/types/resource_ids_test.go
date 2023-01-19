@@ -94,6 +94,56 @@ func TestResourceIDs(t *testing.T) {
 			}},
 			expected: `["/one/node/really\"--,bad resource\\\"\\\\\"name"]`,
 		},
+		{
+			desc: "resource name with slash",
+			in: []ResourceID{{
+				ClusterName: "one",
+				Kind:        KindNode,
+				Name:        "node/id",
+			}},
+			expected: `["/one/node/node/id"]`,
+		},
+		{
+			desc: "pod resource name in cluster with slash",
+			in: []ResourceID{{
+				ClusterName:     "one",
+				Kind:            KindKubePod,
+				Name:            "cluster/1",
+				SubResourceName: "namespace/pod*",
+			}},
+			expected: `["/one/pod/cluster/1/namespace/pod*"]`,
+		},
+		{
+			desc: "pod resource name",
+			in: []ResourceID{{
+				ClusterName:     "one",
+				Kind:            KindKubePod,
+				Name:            "cluster",
+				SubResourceName: "namespace/pod*",
+			}},
+			expected: `["/one/pod/cluster/namespace/pod*"]`,
+		},
+		{
+			desc: "pod resource name with missing namespace",
+			in: []ResourceID{{
+				ClusterName:     "one",
+				Kind:            KindKubePod,
+				Name:            "cluster",
+				SubResourceName: "/pod*",
+			}},
+			expected:         `["/one/pod/cluster//pod*"]`,
+			expectParseError: true,
+		},
+		{
+			desc: "pod resource name with missing namespace and pod name",
+			in: []ResourceID{{
+				ClusterName: "one",
+				Kind:        KindKubePod,
+				Name:        "cluster",
+			}},
+			expected:         `["/one/pod/cluster"]`,
+			expectParseError: true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {

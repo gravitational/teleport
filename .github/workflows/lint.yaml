@@ -9,6 +9,7 @@ on:
 
 jobs:
   lint:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
 

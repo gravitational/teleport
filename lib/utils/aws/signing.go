@@ -146,6 +146,13 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	reqCopy := req.Clone(ctx)
 	reqCopy.Body = io.NopCloser(req.Body)
 
+	// Only keep the headers signed in the original request for signing. This
+	// not only avoids signing extra headers injected by Teleport along the
+	// way, but also preserves the signing logic of the original AWS client.
+	//
+	// For example, Athena ODBC driver sends query requests with "Expect:
+	// 100-continue" headers without being signed, otherwise the Athena service
+	// would reject the requests.
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
 	credentials := s.GetSigningCredentials(s.Session, signCtx.Expiry, signCtx.SessionName, signCtx.AWSRoleArn, signCtx.AWSExternalID)
 	signer := NewSigner(credentials, signCtx.SigningName)

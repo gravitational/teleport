@@ -508,6 +508,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -539,6 +541,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -561,6 +565,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
 			process := TeleportProcess{
 				Config: cfg,
+				// Setting Supervisor so that `ExitContext` can be called.
+				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
 				ServerIdentity: &auth.Identity{

@@ -25,7 +25,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
@@ -561,6 +563,82 @@ func (m *ARMSQLManagedServerMock) NewListByResourceGroupPager(resourceGroupName 
 		return armsql.ManagedInstancesClientListByResourceGroupResponse{
 			ManagedInstanceListResult: armsql.ManagedInstanceListResult{
 				Value: m.ResourceGroupServers,
+			},
+		}, nil
+	})
+}
+
+type ARMMySQLFlexServerMock struct {
+	NoAuth  bool
+	Servers []*armmysqlflexibleservers.Server
+}
+
+func (m *ARMMySQLFlexServerMock) NewListPager(_ *armmysqlflexibleservers.ServersClientListOptions) *runtime.Pager[armmysqlflexibleservers.ServersClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armmysqlflexibleservers.ServersClientListResponse, error) {
+		return armmysqlflexibleservers.ServersClientListResponse{
+			ServerListResult: armmysqlflexibleservers.ServerListResult{
+				Value: m.Servers,
+			},
+		}, nil
+	})
+}
+
+func (m *ARMMySQLFlexServerMock) NewListByResourceGroupPager(group string, _ *armmysqlflexibleservers.ServersClientListByResourceGroupOptions) *runtime.Pager[armmysqlflexibleservers.ServersClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armmysqlflexibleservers.ServersClientListByResourceGroupResponse, error) {
+		var servers []*armmysqlflexibleservers.Server
+		for _, server := range m.Servers {
+			id, err := arm.ParseResourceID(StringVal(server.ID))
+			if err != nil {
+				return armmysqlflexibleservers.ServersClientListByResourceGroupResponse{}, trace.Wrap(err)
+			}
+			if group == id.ResourceGroupName {
+				servers = append(servers, server)
+			}
+		}
+		if len(servers) == 0 {
+			return armmysqlflexibleservers.ServersClientListByResourceGroupResponse{}, trace.NotFound("no resources found")
+		}
+		return armmysqlflexibleservers.ServersClientListByResourceGroupResponse{
+			ServerListResult: armmysqlflexibleservers.ServerListResult{
+				Value: servers,
+			},
+		}, nil
+	})
+}
+
+type ARMPostgresFlexServerMock struct {
+	NoAuth  bool
+	Servers []*armpostgresqlflexibleservers.Server
+}
+
+func (m *ARMPostgresFlexServerMock) NewListPager(_ *armpostgresqlflexibleservers.ServersClientListOptions) *runtime.Pager[armpostgresqlflexibleservers.ServersClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armpostgresqlflexibleservers.ServersClientListResponse, error) {
+		return armpostgresqlflexibleservers.ServersClientListResponse{
+			ServerListResult: armpostgresqlflexibleservers.ServerListResult{
+				Value: m.Servers,
+			},
+		}, nil
+	})
+}
+
+func (m *ARMPostgresFlexServerMock) NewListByResourceGroupPager(group string, _ *armpostgresqlflexibleservers.ServersClientListByResourceGroupOptions) *runtime.Pager[armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse, error) {
+		var servers []*armpostgresqlflexibleservers.Server
+		for _, server := range m.Servers {
+			id, err := arm.ParseResourceID(StringVal(server.ID))
+			if err != nil {
+				return armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse{}, trace.Wrap(err)
+			}
+			if group == id.ResourceGroupName {
+				servers = append(servers, server)
+			}
+		}
+		if len(servers) == 0 {
+			return armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse{}, trace.NotFound("no resources found")
+		}
+		return armpostgresqlflexibleservers.ServersClientListByResourceGroupResponse{
+			ServerListResult: armpostgresqlflexibleservers.ServerListResult{
+				Value: servers,
 			},
 		}, nil
 	})

@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     name: OS Compatibility Build
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -172,6 +173,12 @@ func MatchAWSRequests(req *http.Request) bool {
 func MatchAzureRequests(req *http.Request) bool {
 	h := req.URL.Hostname()
 	return azure.IsAzureEndpoint(h) || types.TeleportAzureMSIEndpoint == h
+}
+
+// MatchGCPRequests is a MatchFunc that returns true if request is an GCP API request.
+func MatchGCPRequests(req *http.Request) bool {
+	h := req.URL.Hostname()
+	return gcp.IsGCPEndpoint(h)
 }
 
 // ForwardToHostHandler is a CONNECT request handler that forwards requests to

@@ -485,7 +485,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 			localClusterName: clusterName,
 			signature:        signature,
 			cert:             []byte{0x01},
-			wantErr:          "expected PEM-encoded block",
+			wantErr:          "x509: malformed certificate",
 		},
 		{
 			desc:             "mangled signature",

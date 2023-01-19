@@ -36,6 +36,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/license"
 	reporting "github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1019,7 +1020,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	// SAML connector validation requires the roles in mappings exist.
-	role, err := types.NewRole("dummy", types.RoleSpecV5{})
+	role, err := types.NewRole("dummy", types.RoleSpecV6{})
 	require.NoError(t, err)
 	err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
@@ -2701,6 +2702,25 @@ func TestCAGeneration(t *testing.T) {
 	}
 }
 
+func TestGetLicense(t *testing.T) {
+	s := newAuthSuite(t)
+
+	// GetLicense should return error if license is not set
+	_, err := s.a.GetLicense(context.Background())
+	assert.NotNil(t, err)
+
+	// GetLicense should return cert and key pem concatenated, when license is set
+	l := license.License{
+		CertPEM: []byte("cert"),
+		KeyPEM:  []byte("key"),
+	}
+	s.a.SetLicense(&l)
+
+	actual, err := s.a.GetLicense(context.Background())
+	assert.Nil(t, err)
+	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
+}
+
 type mockEnforcer struct {
 	services.Enforcer
 	notifications []reporting.Notification
@@ -2781,5 +2801,4 @@ func TestInstallerCRUD(t *testing.T) {
 	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
-
 }

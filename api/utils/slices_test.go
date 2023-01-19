@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,22 @@ func TestDeduplicate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expected, Deduplicate(tc.in))
+		})
+	}
+}
+
+func TestDeduplicateAny(t *testing.T) {
+	tests := []struct {
+		name         string
+		in, expected [][]byte
+	}{
+		{name: "empty slice", in: [][]byte{}, expected: [][]byte{}},
+		{name: "slice with unique elements", in: [][]byte{{0}, {1}}, expected: [][]byte{{0}, {1}}},
+		{name: "slice with duplicate elements", in: [][]byte{{0}, {1}, {1}, {0}, {2}}, expected: [][]byte{{0}, {1}, {2}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, DeduplicateAny(tc.in, bytes.Equal))
 		})
 	}
 }

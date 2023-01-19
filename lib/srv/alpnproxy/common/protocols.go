@@ -59,6 +59,10 @@ const (
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
+	// ProtocolProxySSHGRPC is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport Proxy on the SSH port.
+	ProtocolProxySSHGRPC Protocol = "teleport-proxy-ssh-grpc"
+
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
 
@@ -112,6 +116,8 @@ var SupportedProtocols = append(
 		ProtocolReverseTunnel,
 		ProtocolAuth,
 		ProtocolTCP,
+		ProtocolProxySSHGRPC,
+		ProtocolProxyGRPC,
 	}, DatabaseProtocols...)...,
 )
 

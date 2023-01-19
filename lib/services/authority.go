@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -44,7 +45,18 @@ import (
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+	return cmp.Equal(lhs, rhs,
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		// Optimize types.CAKeySet comparison.
+		cmp.Comparer(func(a, b types.CAKeySet) bool {
+			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
+			// plus using proto.Equal is more efficient than cmp.Equal.
+			aClone := a.Clone()
+			bClone := b.Clone()
+			return proto.Equal(&aClone, &bClone)
+		}),
+	)
 }
 
 // ValidateCertAuthority validates the CertAuthority
@@ -57,6 +69,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkUserOrHostCA(ca)
 	case types.DatabaseCA:
 		err = checkDatabaseCA(ca)
+	case types.OpenSSHCA:
+		err = checkOpenSSHCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
 	default:
@@ -121,6 +135,29 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 	}
 
 	return nil
+}
+
+// checkOpenSSHCA checks if provided certificate authority contains a valid SSH key pair.
+func checkOpenSSHCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.SSH) == 0 {
+		return trace.BadParameter("certificate authority missing SSH key pairs")
+	}
+	if _, err := sshutils.GetCheckers(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sshutils.ValidateSigners(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	// This is to force users to migrate
+	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
+		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	}
+	_, err := parseRoleMap(ca.GetRoleMap())
+	return trace.Wrap(err)
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {

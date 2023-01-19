@@ -223,7 +223,7 @@
               "slug": "/access-controls/guides/locking/"
             },
             {
-              "title": "Passwordless (Preview)",
+              "title": "Passwordless",
               "slug": "/access-controls/guides/passwordless/"
             },
             {
@@ -1002,6 +1002,14 @@
               "slug": "/machine-id/guides/github-actions/"
             },
             {
+              "title": "CircleCI",
+              "slug": "/machine-id/guides/circleci/"
+            },
+            {
+              "title": "GitHub Actions & Kubernetes",
+              "slug": "/machine-id/guides/github-actions-kubernetes/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1034,6 +1042,10 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/reference/github-actions/"
             }
           ]
         },
@@ -1185,6 +1197,10 @@
           "slug": "/architecture/nodes/"
         },
         {
+          "title": "Session Recording",
+          "slug": "/architecture/session-recording/"
+        },
+        {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
         },
@@ -1233,7 +1249,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.1.3",
+      "version": "11.2.1",
       "major_version": "11",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -2122,6 +2138,16 @@
     {
       "source": "/getting-started/",
       "destination": "/try-out-teleport/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/fluentd/",
+      "destination": "/management/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/elastic-stack/",
+      "destination": "/management/export-audit-events/elastic-stack/",
       "permanent": true
     }
   ]

@@ -412,18 +412,18 @@ type TrustedCerts struct {
 	// for host authorities that means base hostname of all servers,
 	// for user authorities that means organization name
 	ClusterName string `json:"domain_name"`
-	// HostCertificates is a list of SSH public keys that can be used to check
-	// host certificate signatures
-	HostCertificates [][]byte `json:"checking_keys"`
-	// TLSCertificates  is a list of TLS certificates of the certificate authority
+	// AuthorizedKeys is a list of SSH public keys in authorized_keys format
+	// that can be used to check host key signatures.
+	AuthorizedKeys [][]byte `json:"checking_keys"`
+	// TLSCertificates is a list of TLS certificates of the certificate authority
 	// of the authentication server
 	TLSCertificates [][]byte `json:"tls_certs"`
 }
 
 // SSHCertPublicKeys returns a list of trusted host SSH certificate authority public keys
 func (c *TrustedCerts) SSHCertPublicKeys() ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(c.HostCertificates))
-	for _, keyBytes := range c.HostCertificates {
+	out := make([]ssh.PublicKey, 0, len(c.AuthorizedKeys))
+	for _, keyBytes := range c.AuthorizedKeys {
 		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -438,9 +438,9 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 	out := make([]TrustedCerts, len(authorities))
 	for i, ca := range authorities {
 		out[i] = TrustedCerts{
-			ClusterName:      ca.GetClusterName(),
-			HostCertificates: services.GetSSHCheckingKeys(ca),
-			TLSCertificates:  services.GetTLSCerts(ca),
+			ClusterName:     ca.GetClusterName(),
+			AuthorizedKeys:  services.GetSSHCheckingKeys(ca),
+			TLSCertificates: services.GetTLSCerts(ca),
 		}
 	}
 	return out
