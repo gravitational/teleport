@@ -23,7 +23,7 @@ import (
 )
 
 func main() {
-	if err := checkTDR(); err != nil {
+	if err := checkDrone(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

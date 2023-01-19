@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/siddontang/go/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -266,7 +265,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 				// TODO: find a cleaner way of formatting the error.
 				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
 				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
-				log.Warn(errHeader)
+				l.cfg.Log.Warn(errHeader)
 			}
 			return nil
 		},

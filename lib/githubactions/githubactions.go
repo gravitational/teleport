@@ -16,6 +16,11 @@ limitations under the License.
 
 package githubactions
 
+import (
+	"github.com/gravitational/trace"
+	"github.com/mitchellh/mapstructure"
+)
+
 // GitHub Workload Identity
 //
 // GH provides workloads with two environment variables to facilitate fetching
@@ -35,8 +40,13 @@ package githubactions
 // Valuable reference:
 // - https://github.com/actions/toolkit/blob/main/packages/core/src/oidc-utils.ts
 // - https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-cloud-providers
+//
+// The GitHub Issuer's well-known OIDC document is at
+// https://token.actions.githubusercontent.com/.well-known/openid-configuration
+// For GitHub Enterprise Servers, this will be at
+// https://$HOSTNAME/_services/token/.well-known/openid-configuration
 
-const IssuerURL = "https://token.actions.githubusercontent.com"
+const DefaultIssuerHost = "token.actions.githubusercontent.com"
 
 // IDTokenClaims is the structure of claims contained within a Github issued
 // ID token.
@@ -87,4 +97,22 @@ type IDTokenClaims struct {
 	SHA string `json:"sha"`
 	// The name of the workflow.
 	Workflow string `json:"workflow"`
+}
+
+// JoinAuditAttributes returns a series of attributes that can be inserted into
+// audit events related to a specific join.
+func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &res,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := d.Decode(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }

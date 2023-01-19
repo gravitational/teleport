@@ -96,7 +96,7 @@ func TestPortForwardKubeService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// readyCh communicate when the port forward is ready to get traffic
 			readyCh := make(chan struct{})
-			// errCh receives a single error from ForwardPorts go routine.
+			// errCh receives a single error from ForwardPorts goroutine.
 			errCh := make(chan error)
 			t.Cleanup(func() { require.NoError(t, <-errCh) })
 			// stopCh control the port forwarding lifecycle. When it gets closed the

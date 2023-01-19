@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/api/constants"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
@@ -62,6 +61,48 @@ const (
 	defaultAttachUser = "username"
 )
 
+type databaseActions struct {
+	// discovery is a list of actions used for database discovery.
+	discovery []string
+	// iamAuth is a list of actions used for enabling IAM auth.
+	iamAuth []string
+	// metadata is a list of actions used for fetching database metadata
+	// (excluding the ones already in "discovery").
+	metadata []string
+	// managedUsers is a list of actions used for managing database users.
+	managedUsers []string
+	// boundary is a list of actions only used for boundary policies.
+	boundary []string
+
+	requireIAMEdit        bool
+	requireSecretsManager bool
+}
+
+func (a databaseActions) buildStatementForDiscovery() *awslib.Statement {
+	// Note that currently extra boundary policies are not required for discovery service.
+	return &awslib.Statement{
+		Effect:    awslib.EffectAllow,
+		Actions:   a.discovery,
+		Resources: []string{"*"},
+	}
+}
+
+func (a databaseActions) buildStatement(boundary bool) *awslib.Statement {
+	var actions []string
+	actions = append(actions, a.discovery...)
+	actions = append(actions, a.iamAuth...)
+	actions = append(actions, a.metadata...)
+	actions = append(actions, a.managedUsers...)
+	if boundary {
+		actions = append(actions, a.boundary...)
+	}
+	return &awslib.Statement{
+		Effect:    awslib.EffectAllow,
+		Actions:   actions,
+		Resources: []string{"*"},
+	}
+}
+
 var (
 	// defaultPolicyTags default list of tags present at the managed policies.
 	defaultPolicyTags = map[string]string{policyTeleportTagKey: policyTeleportTagValue}
@@ -69,43 +110,6 @@ var (
 	userBaseActions = []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"}
 	// roleBaseActions list of actions used when target is a role.
 	roleBaseActions = []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"}
-	// rdsInstancesActions list of actions used when giving RDS instances permissions.
-	rdsInstancesActions = []string{"rds:DescribeDBInstances", "rds:ModifyDBInstance"}
-	// auroraActions list of actions used when giving RDS Aurora permissions.
-	auroraActions = []string{"rds:DescribeDBClusters", "rds:ModifyDBCluster"}
-	// rdsProxyActions list of actions used when giving RDS Proxy permissions.
-	rdsProxyActions = []string{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"}
-	// redshiftActions list of actions used when giving Redshift auto-discovery
-	// permissions.
-	redshiftActions = []string{"redshift:DescribeClusters"}
-	// redshiftServerlessActions is a list of actions used for Redshift
-	// Serverless auto-discovery.
-	redshiftServerlessActions = []string{
-		"redshift-serverless:GetEndpointAccess",
-		"redshift-serverless:GetWorkgroup",
-		"redshift-serverless:ListWorkgroups",
-		"redshift-serverless:ListEndpointAccess",
-		"redshift-serverless:ListTagsForResource",
-	}
-	// elastiCacheActions is a list of actions used for ElastiCache
-	// auto-discovery and metadata update.
-	elastiCacheActions = []string{
-		"elasticache:ListTagsForResource",
-		"elasticache:DescribeReplicationGroups",
-		"elasticache:DescribeCacheClusters",
-		"elasticache:DescribeCacheSubnetGroups",
-		"elasticache:DescribeUsers",
-		"elasticache:ModifyUser",
-	}
-	// memoryDBActions is a list of actions used for MemoryDB auto-discovery
-	// and metadata update.
-	memoryDBActions = []string{
-		"memorydb:ListTags",
-		"memorydb:DescribeClusters",
-		"memorydb:DescribeSubnetGroups",
-		"memorydb:DescribeUsers",
-		"memorydb:UpdateUser",
-	}
 	// secretsManagerActions is a list of actions used for SecretsManager.
 	secretsManagerActions = []string{
 		"secretsmanager:DescribeSecret",
@@ -127,12 +131,79 @@ var (
 		"ssm:GetCommandInvocation",
 		"ssm:SendCommand",
 	}
-	// boundaryRDSConnectActions additional actions added to the policy boundary
-	// when policy has RDS auto-discovery.
-	boundaryRDSConnectActions = []string{"rds-db:connect"}
-	// boundaryRedshiftActions additional actions added to the policy boundary
-	// when policy has Redshift auto-discovery.
-	boundaryRedshiftActions = []string{"redshift:GetClusterCredentials"}
+	// rdsActions contains IAM actions for services.AWSMatcherRDS (RDS
+	// instances and Aurora clusters).
+	rdsActions = databaseActions{
+		discovery:      []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
+		iamAuth:        []string{"rds:ModifyDBInstance", "rds:ModifyDBCluster"},
+		boundary:       []string{"rds-db:connect"},
+		requireIAMEdit: true,
+	}
+	// rdsProxyActions contains IAM actions for services.AWSMatcherRDSProxy.
+	rdsProxyActions = databaseActions{
+		discovery: []string{
+			"rds:DescribeDBProxies",
+			"rds:DescribeDBProxyEndpoints",
+			"rds:DescribeDBProxyTargets",
+			"rds:ListTagsForResource",
+		},
+		boundary:       []string{"rds-db:connect"},
+		requireIAMEdit: true,
+	}
+	// redshiftActions contains IAM actions for services.AWSMatcherRedshift.
+	redshiftActions = databaseActions{
+		discovery:      []string{"redshift:DescribeClusters"},
+		boundary:       []string{"redshift:GetClusterCredentials"},
+		requireIAMEdit: true,
+	}
+	// redshiftServerlessActions contains IAM actions for services.AWSMatcherRedshiftServerless.
+	redshiftServerlessActions = databaseActions{
+		discovery: []string{
+			"redshift-serverless:ListWorkgroups",
+			"redshift-serverless:ListEndpointAccess",
+			"redshift-serverless:ListTagsForResource",
+		},
+		metadata: []string{
+			"redshift-serverless:GetEndpointAccess",
+			"redshift-serverless:GetWorkgroup",
+		},
+		boundary: []string{"sts:AssumeRole"},
+	}
+	// elastiCacheActions contains IAM actions for services.AWSMatcherElastiCache.
+	elastiCacheActions = databaseActions{
+		discovery: []string{
+			"elasticache:ListTagsForResource",
+			"elasticache:DescribeReplicationGroups",
+			"elasticache:DescribeCacheClusters",
+			"elasticache:DescribeCacheSubnetGroups",
+		},
+		managedUsers: []string{
+			"elasticache:DescribeUsers",
+			"elasticache:ModifyUser",
+		},
+		requireSecretsManager: true,
+	}
+	// memoryDBActions contains IAM actions for services.AWSMatcherMemoryDB.
+	memoryDBActions = databaseActions{
+		discovery: []string{
+			"memorydb:ListTags",
+			"memorydb:DescribeClusters",
+			"memorydb:DescribeSubnetGroups",
+		},
+		managedUsers: []string{
+			"memorydb:DescribeUsers",
+			"memorydb:UpdateUser",
+		},
+		requireSecretsManager: true,
+	}
+	// awsKeyspacesActions contains IAM actions for static AWS Keyspaces databases.
+	awsKeyspacesActions = databaseActions{
+		boundary: []string{"sts:AssumeRole"},
+	}
+	// dynamodbActions contains IAM actions for static AWS DynamoDB databases.
+	dynamodbActions = databaseActions{
+		boundary: []string{"sts:AssumeRole"},
+	}
 )
 
 // awsConfigurator defines the AWS database configurator.
@@ -343,12 +414,12 @@ func buildDiscoveryActions(config ConfiguratorConfig, target awslib.Identity) ([
 
 func buildCommonActions(config ConfiguratorConfig, target awslib.Identity) ([]configurators.ConfiguratorAction, error) {
 	// Generate policies.
-	policy, err := buildPolicyDocument(config.Flags, config.FileConfig, target)
+	policy, err := buildPolicyDocument(config.Flags, config.FileConfig, target, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	policyBoundary, err := buildPolicyBoundaryDocument(config.Flags, config.FileConfig, target)
+	policyBoundary, err := buildPolicyDocument(config.Flags, config.FileConfig, target, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -441,71 +512,83 @@ func policiesTarget(flags configurators.BootstrapFlags, accountID string, partit
 	return identity, nil
 }
 
-// buildPolicyBoundaryDocument builds the policy document.
-func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
-	var statements []*awslib.Statement
+// buildPolicyDocument builds the policy document.
+func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity, boundary bool) (*awslib.Policy, error) {
+	policyDoc := awslib.NewPolicyDocument()
+	policyDescription := databasePolicyDescription
+	policyName := flags.PolicyName
+
+	if boundary {
+		policyName += boundarySuffix
+	}
+
 	if flags.DiscoveryService {
+		policyDescription = discoveryServicePolicyDescription
+
 		if isEC2AutoDiscoveryEnabled(flags, fileConfig) {
-			statements = append(statements, buildEC2AutoDiscoveryStatements()...)
+			policyDoc.EnsureStatements(buildEC2AutoDiscoveryStatements()...)
 		}
-		document := awslib.NewPolicyDocument()
-		document.Statements = statements
-		return awslib.NewPolicy(
-			flags.PolicyName,
-			discoveryServicePolicyDescription,
-			defaultPolicyTags,
-			document,
-		), nil
 	}
 
-	rdsDatabases := hasRDSDatabases(flags, fileConfig)
-	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
-	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
-	redshiftServerlessDatabases := hasRedshiftServerlessDatabases(flags, fileConfig)
-	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
-	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
-	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
+	// Build statements for databases.
+	var requireSecretsManager, requireIAMEdit bool
+	var allActions []databaseActions
+	if hasRDSDatabases(flags, fileConfig) {
+		allActions = append(allActions, rdsActions)
+	}
+	if hasRDSProxyDatabases(flags, fileConfig) {
+		allActions = append(allActions, rdsProxyActions)
+	}
+	if hasRedshiftDatabases(flags, fileConfig) {
+		allActions = append(allActions, redshiftActions)
+	}
+	if hasRedshiftServerlessDatabases(flags, fileConfig) {
+		allActions = append(allActions, redshiftServerlessActions)
+	}
+	if hasElastiCacheDatabases(flags, fileConfig) {
+		allActions = append(allActions, elastiCacheActions)
+	}
+	if hasMemoryDBDatabases(flags, fileConfig) {
+		allActions = append(allActions, memoryDBActions)
+	}
+	if hasAWSKeyspacesDatabases(flags, fileConfig) {
+		allActions = append(allActions, awsKeyspacesActions)
+	}
+	if hasDynamoDBDatabases(flags, fileConfig) {
+		allActions = append(allActions, dynamodbActions)
+	}
 
-	if rdsDatabases {
-		statements = append(statements, buildRDSStatements()...)
-	}
-	if rdsProxyDatabases {
-		statements = append(statements, buildRDSProxyStatements()...)
-	}
-	if redshiftDatabases {
-		statements = append(statements, buildRedshiftStatements()...)
-	}
-	if redshiftServerlessDatabases {
-		statements = append(statements, statementWithAllowedActions(redshiftServerlessActions))
-	}
-	if elastiCacheDatabases {
-		statements = append(statements, buildElastiCacheStatements()...)
-	}
-	if memoryDBDatabases {
-		statements = append(statements, buildMemoryDBStatements()...)
+	for _, dbActions := range allActions {
+		if flags.DiscoveryService {
+			policyDoc.EnsureStatements(dbActions.buildStatementForDiscovery())
+		} else {
+			policyDoc.EnsureStatements(dbActions.buildStatement(boundary))
+
+			// Skip these for discovery service.
+			requireSecretsManager = requireSecretsManager || dbActions.requireSecretsManager
+			requireIAMEdit = requireIAMEdit || dbActions.requireIAMEdit
+		}
 	}
 
 	// For databases that need to access SecretsManager (and KMS).
 	if requireSecretsManager {
-		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
+		policyDoc.EnsureStatements(buildSecretsManagerStatements(fileConfig, target)...)
 	}
 	// For databases that need to edit IAM user/role policy.
-	if rdsDatabases || rdsProxyDatabases || redshiftDatabases {
+	if requireIAMEdit {
 		targetStatements, err := buildIAMEditStatements(target)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		statements = append(statements, targetStatements...)
+		policyDoc.EnsureStatements(targetStatements...)
 	}
 
-	document := awslib.NewPolicyDocument()
-	document.Statements = statements
 	return awslib.NewPolicy(
-		flags.PolicyName,
-		databasePolicyDescription,
+		policyName,
+		policyDescription,
 		defaultPolicyTags,
-		document,
+		policyDoc,
 	), nil
 }
 
@@ -529,7 +612,7 @@ func buildSSMDocuments(ssm ssmiface.SSMAPI, flags configurators.BootstrapFlags, 
 		return nil, err
 	}
 	for _, matcher := range fileConfig.Discovery.AWSMatchers {
-		if !slices.Contains(matcher.Types, constants.AWSServiceTypeEC2) {
+		if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
 			continue
 		}
 		ssmCreator := awsSSMDocumentCreator{
@@ -540,74 +623,6 @@ func buildSSMDocuments(ssm ssmiface.SSMAPI, flags configurators.BootstrapFlags, 
 		creators = append(creators, &ssmCreator)
 	}
 	return creators, nil
-}
-
-// buildPolicyBoundaryDocument builds the policy boundary document.
-func buildPolicyBoundaryDocument(flags configurators.BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
-	var statements []*awslib.Statement
-
-	if isEC2AutoDiscoveryEnabled(flags, fileConfig) {
-
-		statements = append(statements, buildEC2AutoDiscoveryBoundaryStatements()...)
-
-		document := awslib.NewPolicyDocument()
-		document.Statements = statements
-		return awslib.NewPolicy(
-			fmt.Sprintf("%s%s", flags.PolicyName, boundarySuffix),
-			databasePolicyDescription,
-			defaultPolicyTags,
-			document,
-		), nil
-	}
-	rdsDatabases := hasRDSDatabases(flags, fileConfig)
-	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
-	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
-	redshiftServerlessDatabases := hasRedshiftServerlessDatabases(flags, fileConfig)
-	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
-	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
-	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
-
-	if rdsDatabases {
-		statements = append(statements, buildRDSBoundaryStatements()...)
-	}
-	if rdsProxyDatabases {
-		statements = append(statements, buildRDSProxyBoundaryStatements()...)
-	}
-	if redshiftDatabases {
-		statements = append(statements, buildRedshiftBoundaryStatements()...)
-	}
-	if redshiftServerlessDatabases {
-		statements = append(statements, statementWithAllowedActions(redshiftServerlessActions))
-	}
-	if elastiCacheDatabases {
-		statements = append(statements, buildElastiCacheBoundaryStatements()...)
-	}
-	if memoryDBDatabases {
-		statements = append(statements, buildMemoryDBBoundaryStatements()...)
-	}
-
-	// For databases that need to access SecretsManager (and KMS).
-	if requireSecretsManager {
-		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
-	}
-	// For databases that need to edit IAM user/role policy.
-	if rdsDatabases || rdsProxyDatabases || redshiftDatabases {
-		targetStatements, err := buildIAMEditStatements(target)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		statements = append(statements, targetStatements...)
-	}
-
-	document := awslib.NewPolicyDocument()
-	document.Statements = statements
-	return awslib.NewPolicy(
-		fmt.Sprintf("%s%s", flags.PolicyName, boundarySuffix),
-		databasePolicyDescription,
-		defaultPolicyTags,
-		document,
-	), nil
 }
 
 func isEC2AutoDiscoveryEnabled(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
@@ -623,6 +638,11 @@ func hasRDSDatabases(flags configurators.BootstrapFlags, fileConfig *config.File
 	if flags.ForceRDSPermissions {
 		return true
 	}
+
+	if flags.DiscoveryService {
+		return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDS, fileConfig.Discovery.AWSMatchers)
+	}
+
 	// isRDSAutoDiscoveryEnabled checks if the agent needs permission for
 	// RDS/Aurora auto-discovery.
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDS, fileConfig.Databases.AWSMatchers) ||
@@ -636,6 +656,10 @@ func hasRDSProxyDatabases(flags configurators.BootstrapFlags, fileConfig *config
 		return true
 	}
 
+	if flags.DiscoveryService {
+		return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDSProxy, fileConfig.Discovery.AWSMatchers)
+	}
+
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDSProxy, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, isRDSProxyEndpoint)
 }
@@ -645,6 +669,10 @@ func hasRDSProxyDatabases(flags configurators.BootstrapFlags, fileConfig *config
 func hasRedshiftDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceRedshiftPermissions {
 		return true
+	}
+
+	if flags.DiscoveryService {
+		return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshift, fileConfig.Discovery.AWSMatchers)
 	}
 
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshift, fileConfig.Databases.AWSMatchers) ||
@@ -658,6 +686,10 @@ func hasRedshiftServerlessDatabases(flags configurators.BootstrapFlags, fileConf
 		return true
 	}
 
+	if flags.DiscoveryService {
+		return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshiftServerless, fileConfig.Discovery.AWSMatchers)
+	}
+
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshiftServerless, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, awsutils.IsRedshiftServerlessEndpoint)
 }
@@ -667,6 +699,10 @@ func hasRedshiftServerlessDatabases(flags configurators.BootstrapFlags, fileConf
 func hasElastiCacheDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceElastiCachePermissions {
 		return true
+	}
+
+	if flags.DiscoveryService {
+		return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherElastiCache, fileConfig.Discovery.AWSMatchers)
 	}
 
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherElastiCache, fileConfig.Databases.AWSMatchers) ||
@@ -680,8 +716,36 @@ func hasMemoryDBDatabases(flags configurators.BootstrapFlags, fileConfig *config
 		return true
 	}
 
+	if flags.DiscoveryService {
+		return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherMemoryDB, fileConfig.Discovery.AWSMatchers)
+	}
+
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherMemoryDB, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, awsutils.IsMemoryDBEndpoint)
+}
+
+// hasAWSKeyspacesDatabases checks if the agent needs permission for AWS Keyspaces.
+func hasAWSKeyspacesDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
+	// There is no auto discovery for AWS Keyspaces.
+	if flags.DiscoveryService {
+		return false
+	}
+
+	return findDatabaseIs(fileConfig, func(database *config.Database) bool {
+		return database.Protocol == defaults.ProtocolCassandra && database.AWS.AccountID != ""
+	})
+}
+
+// hasDynamoDBDatabases checks if the agent needs permission for AWS DynamoDB.
+func hasDynamoDBDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
+	// There is no auto discovery for AWS DynamoDB.
+	if flags.DiscoveryService {
+		return false
+	}
+
+	return findDatabaseIs(fileConfig, func(database *config.Database) bool {
+		return database.Protocol == defaults.ProtocolDynamoDB
+	})
 }
 
 // isAutoDiscoveryEnabledForMatcher returns true if provided AWS matcher type
@@ -700,8 +764,16 @@ func isAutoDiscoveryEnabledForMatcher(matcherType string, matchers []config.AWSM
 // findEndpointIs returns true if provided check returns true for any static
 // endpoint.
 func findEndpointIs(fileConfig *config.FileConfig, endpointIs func(string) bool) bool {
+	return findDatabaseIs(fileConfig, func(database *config.Database) bool {
+		return endpointIs(database.URI)
+	})
+}
+
+// findDatabaseIs returns true if provided check returns true for any static
+// database config.
+func findDatabaseIs(fileConfig *config.FileConfig, is func(*config.Database) bool) bool {
 	for _, database := range fileConfig.Databases.Databases {
-		if endpointIs(database.URI) {
+		if is(database) {
 			return true
 		}
 	}
@@ -746,14 +818,6 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 	return []*awslib.Statement{statement}, nil
 }
 
-func statementWithAllowedActions(actions []string) *awslib.Statement {
-	return &awslib.Statement{
-		Effect:    awslib.EffectAllow,
-		Actions:   actions,
-		Resources: []string{"*"},
-	}
-}
-
 // buildEC2AutoDiscoveryStatements returns IAM statements necessary for
 // EC2 instance auto-discovery.
 func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
@@ -764,113 +828,6 @@ func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
 			Resources: []string{"*"},
 		},
 	}
-}
-
-func buildEC2AutoDiscoveryBoundaryStatements() []*awslib.Statement {
-	return buildEC2AutoDiscoveryStatements()
-}
-
-// buildRDSAutoDiscoveryStatements returns IAM statements necessary for
-// RDS/Aurora databases auto-discovery.
-func buildRDSStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   append(rdsInstancesActions, auroraActions...),
-			Resources: []string{"*"},
-		},
-	}
-}
-
-// buildRDSBoundaryStatements returns IAM boundary statements
-// necessary for RDS/Aurora databases auto-discovery.
-func buildRDSBoundaryStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   append(rdsInstancesActions, append(auroraActions, boundaryRDSConnectActions...)...),
-			Resources: []string{"*"},
-		},
-	}
-}
-
-// buildRDSProxyStatements returns IAM statements necessary for
-// RDS Proxy databases auto-discovery.
-func buildRDSProxyStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   rdsProxyActions,
-			Resources: []string{"*"},
-		},
-	}
-}
-
-// buildRDSProxyBoundaryStatements returns IAM boundary statements
-// necessary for RDS Proxy databases auto-discovery.
-func buildRDSProxyBoundaryStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   append(rdsProxyActions, boundaryRDSConnectActions...),
-			Resources: []string{"*"},
-		},
-	}
-}
-
-// buildRedshiftStatements returns IAM statements necessary for Redshift
-// databases.
-func buildRedshiftStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   redshiftActions,
-			Resources: []string{"*"},
-		},
-	}
-}
-
-// buildRedshiftBoundaryStatements returns IAM boundary statements necessary for
-// Redshift databases.
-func buildRedshiftBoundaryStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   append(redshiftActions, boundaryRedshiftActions...),
-			Resources: []string{"*"},
-		},
-	}
-}
-
-// buildElastiCacheStatements returns IAM statements necessary for ElastiCache
-// databases.
-func buildElastiCacheStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   elastiCacheActions,
-			Resources: []string{"*"},
-		},
-	}
-}
-
-// buildElastiCacheBoundaryStatements returns IAM boundary statements necessary
-// for ElastiCache databases.
-func buildElastiCacheBoundaryStatements() []*awslib.Statement {
-	return buildElastiCacheStatements()
-}
-
-func buildMemoryDBStatements() []*awslib.Statement {
-	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   memoryDBActions,
-			Resources: []string{"*"},
-		},
-	}
-}
-func buildMemoryDBBoundaryStatements() []*awslib.Statement {
-	return buildMemoryDBStatements()
 }
 
 // buildSecretsManagerStatements returns IAM statements necessary for using AWS

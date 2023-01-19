@@ -23,12 +23,12 @@ import (
 )
 
 func TestNormalizeLocation(t *testing.T) {
-	require.Equal(t, "eastus", NormailizeLocation("eastus"))
-	require.Equal(t, "canadacentral", NormailizeLocation("Canada Central"))
-	require.Equal(t, "eastusstage", NormailizeLocation("East US (Stage)"))
-	require.Equal(t, "westus2stage", NormailizeLocation("(US) West US 2 (Stage)"))
-	require.Equal(t, "uk", NormailizeLocation("United Kingdom"))
-	require.Equal(t, "somenewlocation5", NormailizeLocation("Some New Location 5"))
+	require.Equal(t, "eastus", NormalizeLocation("eastus"))
+	require.Equal(t, "canadacentral", NormalizeLocation("Canada Central"))
+	require.Equal(t, "eastusstage", NormalizeLocation("East US (Stage)"))
+	require.Equal(t, "westus2stage", NormalizeLocation("(US) West US 2 (Stage)"))
+	require.Equal(t, "uk", NormalizeLocation("United Kingdom"))
+	require.Equal(t, "somenewlocation5", NormalizeLocation("Some New Location 5"))
 }
 
 func TestGetLocationDisplayName(t *testing.T) {

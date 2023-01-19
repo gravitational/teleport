@@ -17,10 +17,6 @@ limitations under the License.
 package cassandra
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/sigv4"
@@ -30,9 +26,9 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/gravitational/trace"
 
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (
@@ -201,33 +197,18 @@ func (a *authAWSSigV4Auth) getSigV4Authenticator(username string) (gocql.Authent
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cred, err := stscreds.NewCredentials(session, a.buildRoleARN(username)).Get()
+	region := a.ses.Database.GetAWS().Region
+	accountID := a.ses.Database.GetAWS().AccountID
+	cred, err := stscreds.NewCredentials(session, awsutils.BuildRoleARN(username, region, accountID)).Get()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	auth := sigv4.NewAwsAuthenticator()
-	auth.Region = a.ses.Database.GetAWS().Region
+	auth.Region = region
 	auth.AccessKeyId = cred.AccessKeyID
 	auth.SessionToken = cred.SessionToken
 	auth.SecretAccessKey = cred.SecretAccessKey
 	return auth, nil
-}
-
-func (a *authAWSSigV4Auth) buildRoleARN(username string) string {
-	if arn.IsARN(username) {
-		return username
-	}
-	resource := username
-	if !strings.Contains(resource, "/") {
-		resource = fmt.Sprintf("role/%s", username)
-	}
-
-	return arn.ARN{
-		Partition: awsutils.GetPartitionFromRegion(a.ses.Database.GetAWS().Region),
-		Service:   "iam",
-		AccountID: a.ses.Database.GetAWS().AccountID,
-		Resource:  resource,
-	}.String()
 }
 
 func (a *authAWSSigV4Auth) initPasswordAuth(clientConn *protocol.Conn, req *protocol.Packet) (*protocol.Packet, error) {

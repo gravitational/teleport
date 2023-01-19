@@ -210,6 +210,7 @@ func aksClustersToResources(t *testing.T, clusters ...*azure.AKSCluster) types.R
 	for _, cluster := range clusters {
 		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
 		require.NoError(t, err)
+		require.True(t, kubeCluster.IsAzure())
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources()

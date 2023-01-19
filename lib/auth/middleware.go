@@ -387,8 +387,18 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsInfo.State))
 	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
-	return context.WithValue(ctx, ContextUser, user), nil
+	ctx = context.WithValue(ctx, ContextUser, user)
+	return ctx, nil
+}
+
+func certFromConnState(state *tls.ConnectionState) *x509.Certificate {
+	if state == nil || len(state.PeerCertificates) != 1 {
+		return nil
+	}
+	return state.PeerCertificates[0]
 }
 
 // withAuthenticatedUserUnaryInterceptor is a gRPC unary server interceptor
@@ -598,10 +608,6 @@ func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
 
 // ServeHTTP serves HTTP requests
 func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	baseContext := r.Context()
-	if baseContext == nil {
-		baseContext = context.TODO()
-	}
 	if r.TLS == nil {
 		trace.WriteError(w, trace.AccessDenied("missing authentication"))
 		return
@@ -613,8 +619,10 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// determine authenticated user based on the request parameters
-	requestWithContext := r.WithContext(context.WithValue(baseContext, ContextUser, user))
-	a.Handler.ServeHTTP(w, requestWithContext)
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(r.TLS))
+	ctx = context.WithValue(ctx, ContextUser, user)
+	a.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // WrapContextWithUser enriches the provided context with the identity information
@@ -627,12 +635,15 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
-	user, err := a.GetUser(conn.ConnectionState())
+	tlsState := conn.ConnectionState()
+	user, err := a.GetUser(tlsState)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	requestWithContext := context.WithValue(ctx, ContextUser, user)
-	return requestWithContext, nil
+
+	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsState))
+	ctx = context.WithValue(ctx, ContextUser, user)
+	return ctx, nil
 }
 
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.

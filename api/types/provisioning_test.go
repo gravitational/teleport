@@ -257,6 +257,66 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			expectedErr: &trace.BadParameterError{},
 		},
 		{
+			desc: "github valid",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Sub: "foo",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "github ghes valid",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						EnterpriseServerHost: "example.com",
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Sub: "foo",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "github ghes invalid",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						EnterpriseServerHost: "https://example.com",
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Sub: "foo",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
 			desc: "circleci valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -403,4 +463,35 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvisionTokenV2_GetSafeName(t *testing.T) {
+	t.Run("token join method (short)", func(t *testing.T) {
+		tok, err := NewProvisionToken("1234", []SystemRole{RoleNode}, time.Now())
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "****", got)
+	})
+	t.Run("token join method (long)", func(t *testing.T) {
+		tok, err := NewProvisionToken("0123456789abcdef", []SystemRole{RoleNode}, time.Now())
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "************cdef", got)
+	})
+	t.Run("non-token join method", func(t *testing.T) {
+		tok, err := NewProvisionTokenFromSpec("12345678", time.Now(), ProvisionTokenSpecV2{
+			Roles:      []SystemRole{RoleNode},
+			JoinMethod: JoinMethodKubernetes,
+			Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+				Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+					{
+						ServiceAccount: "namespace:my-service-account",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "12345678", got)
+	})
 }

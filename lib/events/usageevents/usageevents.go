@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -49,7 +48,7 @@ func (u *UsageLogger) report(event services.UsageAnonymizable) error {
 		return nil
 	}
 
-	return trace.Wrap(u.reporter.SubmitAnonymizedUsageEvents(event))
+	return trace.Wrap(u.reporter.AnonymizeAndSubmit(event))
 }
 
 func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
@@ -107,7 +106,7 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // New creates a new usage event IAuditLog impl, which wraps another IAuditLog
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
-func New(reporter services.UsageReporter, log logrus.FieldLogger, inner events.IAuditLog) (*UsageLogger, error) {
+func New(reporter services.UsageReporter, log logrus.FieldLogger, inner apievents.Emitter) (*UsageLogger, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}

@@ -82,6 +82,15 @@ const (
 	// MetricMissingSSHTunnels returns the number of missing SSH tunnels for this proxy.
 	MetricMissingSSHTunnels = "proxy_missing_ssh_tunnels"
 
+	// MetricMigrations tracks for each migration if it is active or not.
+	MetricMigrations = "migrations"
+
+	// TagMigration is a metric tag for a migration
+	TagMigration = "migration"
+
+	// MetricIncompleteSessionUploads returns the number of incomplete session uploads
+	MetricIncompleteSessionUploads = "incomplete_session_uploads_total"
+
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 )

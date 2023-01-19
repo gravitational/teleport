@@ -111,6 +111,10 @@ type AuthPreference interface {
 	// SetLockingMode sets the cluster-wide locking mode default.
 	SetLockingMode(constants.LockingMode)
 
+	// GetDeviceTrust returns the cluster device trust settings, or nil if no
+	// explicit configurations are present.
+	GetDeviceTrust() *DeviceTrust
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -387,6 +391,15 @@ func (c *AuthPreferenceV2) SetLockingMode(mode constants.LockingMode) {
 	c.Spec.LockingMode = mode
 }
 
+// GetDeviceTrust returns the cluster device trust settings, or nil if no
+// explicit configurations are present.
+func (c *AuthPreferenceV2) GetDeviceTrust() *DeviceTrust {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.DeviceTrust
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -519,6 +532,17 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	case constants.LockingModeBestEffort, constants.LockingModeStrict:
 	default:
 		return trace.BadParameter("locking mode %q not supported", c.Spec.LockingMode)
+	}
+
+	if dt := c.Spec.DeviceTrust; dt != nil {
+		switch dt.Mode {
+		case "": // OK, "default" mode. Varies depending on OSS or Enterprise.
+		case constants.DeviceTrustModeOff,
+			constants.DeviceTrustModeOptional,
+			constants.DeviceTrustModeRequired: // OK.
+		default:
+			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
+		}
 	}
 
 	return nil

@@ -504,19 +504,20 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q).AddUserMessage("Github returned error: %v [%v]", errDesc, errParam)
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q)
+		return nil, trace.WithUserMessage(oauthErr, "Github returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
-			"code query param must be set", q).AddUserMessage("Invalid parameters received from Github.")
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "code query param must be set", q)
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
-			"missing state query param", q).AddUserMessage("Invalid parameters received from Github.")
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "missing state query param", q)
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
 	}
 	diagCtx.RequestID = stateToken
 

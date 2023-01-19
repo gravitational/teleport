@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
-	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -107,8 +107,8 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 		Clock:      clock,
 		AuthClient: new(authClientMock),
 		Clients: &cloud.TestCloudClients{
-			RedshiftServerless: &cloudtest.RedshiftServerlessMock{
-				GetCredentialsOutput: cloudtest.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
+			RedshiftServerless: &mocks.RedshiftServerlessMock{
+				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
 		},
 	})
@@ -169,7 +169,7 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectRootCAs:   awsCertPool,
 		},
 		{
-			name:             "AWS Redishift",
+			name:             "AWS Redshift",
 			sessionDatabase:  newRedshiftDatabase(t, fixtures.SAMLOktaCertPEM),
 			expectServerName: "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com",
 			expectRootCAs:    awsCertPool,
@@ -393,24 +393,24 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 		expectError   bool
 	}{
 		{
-			inputUsername: "arn:aws:iam::1234567890:role/rolename",
-			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+			inputUsername: "arn:aws:iam::123456789012:role/rolename",
+			expectRoleARN: "arn:aws:iam::123456789012:role/rolename",
 		},
 		{
-			inputUsername: "arn:aws:iam::1234567890:user/user",
+			inputUsername: "arn:aws:iam::123456789012:user/user",
 			expectError:   true,
 		},
 		{
-			inputUsername: "arn:aws:not-iam::1234567890:role/rolename",
+			inputUsername: "arn:aws:not-iam::123456789012:role/rolename",
 			expectError:   true,
 		},
 		{
 			inputUsername: "role/rolename",
-			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+			expectRoleARN: "arn:aws:iam::123456789012:role/rolename",
 		},
 		{
 			inputUsername: "rolename",
-			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+			expectRoleARN: "arn:aws:iam::123456789012:role/rolename",
 		},
 		{
 			inputUsername: "IAM:user",
@@ -520,7 +520,7 @@ func newRedshiftServerlessDatabase(t *testing.T) types.Database {
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
-		URI:      "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
+		URI:      "my-workgroup.123456789012.eu-west-2.redshift-serverless.amazonaws.com:5439",
 	})
 	require.NoError(t, err)
 	return database

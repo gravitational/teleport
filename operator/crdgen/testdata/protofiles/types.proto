@@ -168,23 +168,23 @@ message DatabaseServerV3 {
 message DatabaseServerSpecV3 {
     // Description is a free-form text describing this database server.
     //
-    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    // DEPRECATED: Moved to DatabaseSpecV3. D 9.0.
     string Description = 1 [ (gogoproto.jsontag) = "description,omitempty", deprecated = true ];
     // Protocol is the database type e.g. postgres, mysql, etc.
     //
-    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    // DEPRECATED: Moved to DatabaseSpecV3. D 9.0.
     string Protocol = 2 [ (gogoproto.jsontag) = "protocol", deprecated = true ];
     // URI is the database connection address.
     //
-    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    // DEPRECATED: Moved to DatabaseSpecV3. D 9.0.
     string URI = 3 [ (gogoproto.jsontag) = "uri", deprecated = true ];
     // CACert is an optional base64-encoded database CA certificate.
     //
-    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    // DEPRECATED: Moved to DatabaseSpecV3. D 9.0.
     bytes CACert = 4 [ (gogoproto.jsontag) = "ca_cert,omitempty", deprecated = true ];
     // AWS contains AWS specific settings for RDS/Aurora databases.
     //
-    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    // DEPRECATED: Moved to DatabaseSpecV3. D 9.0.
     AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws", deprecated = true ];
     // Version is the Teleport version that the server is running.
     string Version = 6 [ (gogoproto.jsontag) = "version" ];
@@ -194,7 +194,7 @@ message DatabaseServerSpecV3 {
     string HostID = 8 [ (gogoproto.jsontag) = "host_id" ];
     // DynamicLabels is the database server dynamic labels.
     //
-    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    // DEPRECATED: Moved to DatabaseSpecV3. D 9.0.
     map<string, CommandLabelV2> DynamicLabels = 9 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "dynamic_labels,omitempty",
@@ -205,7 +205,7 @@ message DatabaseServerSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
     // GCP contains parameters specific to GCP Cloud SQL databases.
     //
-    // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+    // DEPRECATED: Moved to DatabaseSpecV3. D 9.0.
     GCPCloudSQL GCP = 11
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
     // Database is the database proxied by this database server.
@@ -247,7 +247,7 @@ message DatabaseSpecV3 {
     string URI = 2 [ (gogoproto.jsontag) = "uri" ];
     // CACert is the PEM-encoded database CA certificate.
     //
-    // DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.
+    // DEPRECATED: Moved to TLS.CACert. D 10.0.
     string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty", deprecated = true ];
     // DynamicLabels is the database dynamic labels.
     map<string, CommandLabelV2> DynamicLabels = 4
@@ -428,7 +428,7 @@ message ServerV2 {
 }
 
 // ServerV2List is a list of servers.
-// DELETE IN 8.0.0 only used in deprecated GetNodes rpc
+// D 8.0.0 only used in deprecated GetNodes rpc
 message ServerV2List {
     // Servers is a list of servers.
     repeated ServerV2 Servers = 1;
@@ -457,7 +457,7 @@ message ServerSpecV2 {
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
     // Apps is a list of applications this server is proxying.
     //
-    // DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
+    // D 9.0. Deprecated, moved to AppServerSpecV3.
     repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty", deprecated = true ];
     // KubernetesClusters is a list of kubernetes clusters provided by this
     // Proxy or KubeService server.
@@ -547,7 +547,7 @@ message AppSpecV3 {
 
 // App is a specific application that a server proxies.
 //
-// DELETE IN 9.0. Deprecated, use AppV3.
+// D 9.0. Deprecated, use AppV3.
 message App {
     // Name is the name of the application.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -658,7 +658,7 @@ message CertAuthorityV2 {
 message CertAuthoritySpecV2 {
     // Type is either user or host certificate authority
     string Type = 1 [ (gogoproto.jsontag) = "type", (gogoproto.casttype) = "CertAuthType" ];
-    // DELETE IN(2.7.0) this field is deprecated,
+    // D(2.7.0) this field is deprecated,
     // as resource name matches cluster name after migrations.
     // and this property is enforced by the auth server code.
     // ClusterName identifies cluster name this authority serves,
@@ -1569,9 +1569,8 @@ message PluginDataUpdateParams {
     // Expect optionally indicates the expected state of fields prior to this update.
     map<string, string> Expect = 5 [ (gogoproto.jsontag) = "expect,omitempty" ];
 }
-
-// RoleV5 represents role resource specification
-message RoleV5 {
+// RoleV6 represents role resource specification
+message RoleV6 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -1584,11 +1583,11 @@ message RoleV5 {
     // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a role specification
-    RoleSpecV5 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    RoleSpecV6 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// RoleSpecV5 is role specification for RoleV5.
-message RoleSpecV5 {
+// RoleSpecV6 is role specification for RoleV6.
+message RoleSpecV6 {
     // Options is for OpenSSH options like agent forwarding.
     RoleOptions Options = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];
@@ -1871,6 +1870,28 @@ message RoleConditions {
     repeated string HostGroups = 21 [ (gogoproto.jsontag) = "host_groups,omitempty" ];
     // HostSudoers is a list of entries to include in a users sudoer file
     repeated string HostSudoers = 22 [ (gogoproto.jsontag) = "host_sudoers,omitempty" ];
+
+    // AzureIdentities is a list of Azure identities this role is allowed to assume.
+    repeated string AzureIdentities = 23 [(gogoproto.jsontag) = "azure_identities,omitempty"];
+
+  // KubernetesResources is the Kubernetes Resources this Role grants access to.
+  repeated KubernetesResource KubernetesResources = 24 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
+  ];
+}
+
+// KubernetesResource is the Kubernetes resource identifier.
+message KubernetesResource {
+  // Kind specifies the Kubernetes Resource type.
+  // At the moment only "pod" is supported.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // Namespace is the resource namespace.
+  // It supports wildcards.
+  string Namespace = 2 [(gogoproto.jsontag) = "namespace,omitempty"];
+  // Name is the resource name.
+  // It supports wildcards.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -2650,7 +2671,7 @@ message OIDCConnectorSpecV3 {
     // back to the identity provider after successful authentication.
     // This should match the URL on the Provider's side.
     //
-    // DELETE IN 11.0.0 in favor of RedirectURLs
+    // D 11.0.0 in favor of RedirectURLs
     string RedirectURL = 4 [ (gogoproto.jsontag) = "-" ];
     // ACR is an Authentication Context Class Reference value. The meaning of the ACR
     // value is context-specific and varies for identity providers.
@@ -2905,7 +2926,7 @@ message GithubConnectorSpecV3 {
     string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
     // TeamsToLogins maps Github team memberships onto allowed logins/roles.
     //
-    // DELETE IN 11.0.0
+    // D 11.0.0
     // Deprecated: use GithubTeamsToRoles instead.
     repeated TeamMapping TeamsToLogins = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
@@ -3119,7 +3140,7 @@ message GithubClaims {
 
 // TeamMapping represents a single team membership mapping.
 //
-// DELETE IN 11.0.0
+// D 11.0.0
 message TeamMapping {
     // Organization is a Github organization a user belongs to.
     string Organization = 1 [ (gogoproto.jsontag) = "organization" ];

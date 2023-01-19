@@ -200,21 +200,24 @@ func TestHeartbeatEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// The expected heartbeat count is equal to the sum of:
+	// - the number of static Databases
+	// - plus 1 because the DatabaseService heartbeats itself to the cluster
+	expectedHeartbeatCount := func(dbs types.Databases) int64 {
+		return int64(dbs.Len() + 1)
+	}
+
 	tests := map[string]struct {
 		staticDatabases types.Databases
-		heartbeatCount  int64
 	}{
 		"SingleStaticDatabase": {
 			staticDatabases: types.Databases{dbOne},
-			heartbeatCount:  1,
 		},
 		"MultipleStaticDatabases": {
 			staticDatabases: types.Databases{dbOne, dbTwo},
-			heartbeatCount:  2,
 		},
 		"EmptyStaticDatabases": {
 			staticDatabases: types.Databases{},
-			heartbeatCount:  1,
 		},
 	}
 
@@ -239,7 +242,7 @@ func TestHeartbeatEvents(t *testing.T) {
 
 			require.NotNil(t, server)
 			require.Eventually(t, func() bool {
-				return atomic.LoadInt64(&heartbeatEvents) == test.heartbeatCount
+				return atomic.LoadInt64(&heartbeatEvents) == expectedHeartbeatCount(test.staticDatabases)
 			}, 2*time.Second, 500*time.Millisecond)
 		})
 	}

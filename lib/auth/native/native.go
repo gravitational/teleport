@@ -21,7 +21,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	mathrand "math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -114,12 +113,6 @@ func precomputeTestKeys() {
 	}
 
 	for {
-		// Shuffle keys to reduce potential multiple usage of the
-		// same key in one test.
-		mathrand.Shuffle(len(testKeys), func(i, j int) {
-			testKeys[i], testKeys[j] = testKeys[j], testKeys[i]
-		})
-
 		for _, k := range testKeys {
 			precomputedKeys <- k
 		}

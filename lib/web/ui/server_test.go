@@ -50,8 +50,8 @@ func TestStripProtocolAndPort(t *testing.T) {
 }
 
 func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
-	devEnvRole := &types.RoleV5{
-		Spec: types.RoleSpecV5{
+	devEnvRole := &types.RoleV6{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				KubeUsers:  []string{"devuser"},
 				KubeGroups: []string{"devgroup"},
@@ -63,8 +63,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 		},
 	}
 
-	prodEnvRole := &types.RoleV5{
-		Spec: types.RoleSpecV5{
+	prodEnvRole := &types.RoleV6{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				KubeUsers:  []string{"produser"},
 				KubeGroups: []string{"prodgroup"},
@@ -76,8 +76,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 		},
 	}
 
-	anyEnvRole := &types.RoleV5{
-		Spec: types.RoleSpecV5{
+	anyEnvRole := &types.RoleV6{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				KubeUsers:  []string{"anyenvrole"},
 				KubeGroups: []string{"anyenvgroup"},
@@ -89,8 +89,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 		},
 	}
 
-	rootUser := &types.RoleV5{
-		Spec: types.RoleSpecV5{
+	rootUser := &types.RoleV6{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				KubeUsers:  []string{"root"},
 				KubeGroups: []string{"rootgroup"},
@@ -102,8 +102,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 		},
 	}
 
-	roleWithMultipleLabels := &types.RoleV5{
-		Spec: types.RoleSpecV5{
+	roleWithMultipleLabels := &types.RoleV6{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				KubeUsers:  []string{"multiplelabelsuser"},
 				KubeGroups: []string{"multiplelabelsgroup"},
@@ -182,8 +182,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "prod",
 			}),
-			roleSet: services.NewRoleSet(&types.RoleV5{
-				Spec: types.RoleSpecV5{
+			roleSet: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						KubeUsers:  []string{"role1", "role2", "role3"},
 						Namespaces: []string{apidefaults.Namespace},
@@ -219,8 +219,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
-			roleSet: services.NewRoleSet(&types.RoleV5{
-				Spec: types.RoleSpecV5{
+			roleSet: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						KubeGroups: []string{"anyregiongroup"},
 						Namespaces: []string{apidefaults.Namespace},
@@ -257,8 +257,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 			cluster: makeTestKubeCluster(t, map[string]string{
 				"region": "us-west-1",
 			}),
-			roleSet: services.NewRoleSet(&types.RoleV5{
-				Spec: types.RoleSpecV5{
+			roleSet: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						KubeUsers:  []string{"rolewithregexpuser"},
 						Namespaces: []string{apidefaults.Namespace},
@@ -275,8 +275,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
-			roleSet: services.NewRoleSet(devEnvRole, &types.RoleV5{
-				Spec: types.RoleSpecV5{
+			roleSet: services.NewRoleSet(devEnvRole, &types.RoleV6{
+				Spec: types.RoleSpecV6{
 					Deny: types.RoleConditions{
 						KubeUsers:  []string{"devuser"},
 						KubeGroups: []string{"devgroup"},
@@ -294,8 +294,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
-			roleSet: services.NewRoleSet(devEnvRole, &types.RoleV5{
-				Spec: types.RoleSpecV5{
+			roleSet: services.NewRoleSet(devEnvRole, &types.RoleV6{
+				Spec: types.RoleSpecV6{
 					Deny: types.RoleConditions{
 						KubeUsers:  []string{"devuser"},
 						KubeGroups: []string{"devgroup"},

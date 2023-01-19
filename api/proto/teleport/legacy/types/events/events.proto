@@ -75,11 +75,18 @@ message UserMetadata {
   // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
   string AWSRoleARN = 4 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
 
-  // AzureIdentity is the Azure identity to assume when accessing Azure API.
-  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
-
   // AccessRequests are the IDs of access requests created by the user
   repeated string AccessRequests = 5 [(gogoproto.jsontag) = "access_requests,omitempty"];
+
+  // AzureIdentity is the Azure identity user assumes when accessing Azure API.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+
+  // GCPServiceAccount is the GCP service account user assumes when accessing GCP API.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+
+  // TrustedDevice contains information about the users' trusted device.
+  // Requires a registered and enrolled device to be used during authentication.
+  DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
 }
 
 // Server is a server metadata
@@ -1210,6 +1217,12 @@ message ResourceID {
   string Kind = 2 [(gogoproto.jsontag) = "kind"];
   // Name is the name of the specific resource.
   string Name = 3 [(gogoproto.jsontag) = "name"];
+  // SubResourceName is the resource belonging to resource identified by "Name"
+  // that the user is allowed to access to.
+  // When granting access to a subresource, access to other resources is limited.
+  // Currently it just supports resources of Kind=pod and the format is the following
+  // "<kube_namespace>/<kube_pod>".
+  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
@@ -2957,7 +2970,7 @@ message CertificateCreate {
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
-// certificiate's generation counter fails to validate, possibly indicating a
+// certificate's generation counter fails to validate, possibly indicating a
 // stolen certificate and an invalid renewal attempt.
 message RenewableCertificateGenerationMismatch {
   // Metadata is a common event metadata.
@@ -2972,6 +2985,65 @@ message RenewableCertificateGenerationMismatch {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotJoin records a bot join event.
+message BotJoin {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // BotName is the name of the bot which has joined.
+  string BotName = 3 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // Method is the event field indicating what join method was used.
+  string Method = 4 [(gogoproto.jsontag) = "method,omitempty"];
+  // TokenName is the name of the provision token used to join.
+  string TokenName = 5 [(gogoproto.jsontag) = "token_name,omitempty"];
+  // Attributes is a map of attributes received from the join method provider.
+  google.protobuf.Struct Attributes = 6 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// InstanceJoin records an instance join event.
+message InstanceJoin {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // HostID is the unique host ID of the instance which attempted to join.
+  string HostID = 3 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // NodeName is the name of the instance which attempted to join.
+  string NodeName = 4 [(gogoproto.jsontag) = "node_name,omitempty"];
+  // Role is the role that the node requested when attempting to join.
+  string Role = 5 [(gogoproto.jsontag) = "role,omitempty"];
+  // Method is the event field indicating what join method was used.
+  string Method = 6 [(gogoproto.jsontag) = "method,omitempty"];
+  // TokenName is the name of the token used to join. This will be omitted
+  // for the 'token' join method where the token name is a secret value.
+  string TokenName = 7 [(gogoproto.jsontag) = "token_name,omitempty"];
+  // Attributes is a map of attributes received from the join method provider.
+  google.protobuf.Struct Attributes = 8 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 
@@ -2992,6 +3064,48 @@ message Unknown {
 
   // Data is the serialized JSON data of the unknown event.
   string Data = 4 [(gogoproto.jsontag) = "data"];
+}
+
+// OSType is the same as teleport.devicetrust.v1.OSType.
+// Duplicated because gogo doesn't play well with protoc-gen-go.
+enum OSType {
+  OS_TYPE_UNSPECIFIED = 0;
+  // Linux.
+  OS_TYPE_LINUX = 1;
+  // macOS.
+  OS_TYPE_MACOS = 2;
+  // Windows.
+  OS_TYPE_WINDOWS = 3;
+}
+
+// DeviceMetadata groups device information for events.
+message DeviceMetadata {
+  // ID of the device.
+  string device_id = 1;
+  // OS of the device.
+  OSType os_type = 2;
+  // Device inventory identifier.
+  string asset_tag = 3;
+  // Device credential identifier.
+  string credential_id = 4;
+}
+
+// DeviceEvent is a device-related event.
+// The event type (Metadata.Type) for device events is always "device". See the
+// event code (Metadata.Code) for its meaning.
+message DeviceEvent {
+  // Metadata holds common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates the outcome of the event.
+  Status status = 2;
+  // DeviceMetadata holds metadata about the user device.
+  DeviceMetadata device = 3;
+  // UserMetadata holds metadata about the user behind the event.
+  UserMetadata user = 4;
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
@@ -3106,6 +3220,9 @@ message OneOf {
     events.DesktopSharedDirectoryRead DesktopSharedDirectoryRead = 107;
     events.DesktopSharedDirectoryWrite DesktopSharedDirectoryWrite = 108;
     events.DynamoDBRequest DynamoDBRequest = 109;
+    events.BotJoin BotJoin = 110;
+    events.InstanceJoin InstanceJoin = 111;
+    events.DeviceEvent DeviceEvent = 112;
   }
 }
 
@@ -3226,6 +3343,8 @@ message Identity {
   ];
   // AzureIdentities is a list of allowed Azure identities user can assume.
   repeated string AzureIdentities = 24 [(gogoproto.jsontag) = "azure_identities,omitempty"];
+  // GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
+  repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -3242,6 +3361,8 @@ message RouteToApp {
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
   // AzureIdentity is the Azure identity ot assume when accessing Azure API.
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+  // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
+  string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

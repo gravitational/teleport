@@ -296,9 +296,10 @@ func withLeafClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOp
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRoleV3(roleName, types.RoleSpecV5{
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -368,7 +369,6 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 			ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
 			err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
 			require.NoError(t, err)
-
 		}
 	}
 }
@@ -391,7 +391,6 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 			require.NoError(t, err)
 
 			options.trustedCluster = trustedCluster
-
 		}
 	}
 }

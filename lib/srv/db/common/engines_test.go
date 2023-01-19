@@ -33,6 +33,9 @@ import (
 func TestRegisterEngine(t *testing.T) {
 	// Cleanup "test" engine in case this test is run in a loop.
 	RegisterEngine(nil, "test")
+	t.Cleanup(func() {
+		RegisterEngine(nil, "test")
+	})
 
 	ec := EngineConfig{
 		Context:      context.Background(),
@@ -48,6 +51,7 @@ func TestRegisterEngine(t *testing.T) {
 	engine, err := GetEngine("test", ec)
 	require.Nil(t, engine)
 	require.IsType(t, trace.NotFound(""), err)
+	require.IsType(t, trace.NotFound(""), CheckEngines("test"))
 
 	// Register a "test" engine.
 	RegisterEngine(func(ec EngineConfig) Engine {

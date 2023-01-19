@@ -9,7 +9,7 @@ Service, or a custom configuration to deploy resource services such as the
 Teleport Kubernetes Service or Database Service.
 
 You can
-[browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster).
+[browse the source on GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster).
 
 The `teleport-cluster` chart runs two Teleport services:
 
@@ -181,7 +181,7 @@ By default no devices are forbidden.
 
 `sessionRecording` controls the `session_recording` field in the `teleport.yaml` configuration.
 It is passed as-is in the configuration.
-For possible values, [see the Teleport Configuration Reference](../../reference/config.mdx#teleportyaml).
+For possible values, [see the Teleport Configuration Reference](../../reference/config.mdx).
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1358,6 +1358,33 @@ See the [Teleport config file reference](../../reference/config.mdx) for more de
   ```code
   --set "log.extraFields[0]=timestamp" \
   --set "log.extraFields[1]=level"
+  ```
+  </TabItem>
+</Tabs>
+
+## `nodeSelector`
+
+| Type | Default value |
+| - | - |
+| `object` | `{}` |
+
+`nodeSelector` can be used to add a map of key-value pairs to constrain the
+nodes that Teleport pods will run on.
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  nodeSelector:
+    role: bastion
+    environment: security
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set nodeSelector.role=bastion \
+  --set nodeSelector.environment=security
   ```
   </TabItem>
 </Tabs>

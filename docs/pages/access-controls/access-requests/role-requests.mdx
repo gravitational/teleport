@@ -98,7 +98,7 @@ spec:
 ```
 
 ```code
-$ tsh login teleport-cluster --request-roles=dba
+$ tsh login --request-roles=dba teleport-cluster
 # Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
 ```
 
@@ -260,7 +260,15 @@ $ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 
   older versions of Teleport, since only the issuing Auth Server needs any particular
   knowledge of the feature.
 
+## Next Steps
 
-## Integrating with an External Tool
+### Integrating with an external tool
 (!docs/pages/includes/access-request-integrations.mdx!)
 
+### Using TTLs with Access Requests
+
+Users can also create Access Requests with the `tsh request create` command.
+`tsh request create` supports flags to control TTLs for the request and
+elevated access. See the [CLI
+Reference](../../reference/cli.mdx#tsh-request-create) for more
+details.

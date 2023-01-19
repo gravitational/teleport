@@ -14,7 +14,7 @@
 
 use super::errors::try_error;
 use crate::errors::invalid_data_error;
-use crate::{util, Message, Messages};
+use crate::{util, Message, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use crate::{vchan, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -47,7 +47,7 @@ impl Client {
         Client {
             clipboard: HashMap::new(),
             on_remote_copy,
-            vchan: vchan::Client::new(),
+            vchan: vchan::Client::new(MAX_ALLOWED_VCHAN_MSG_SIZE),
             incoming_paste_formats: VecDeque::new(),
         }
     }
@@ -1113,7 +1113,7 @@ mod tests {
         let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload).unwrap();
         let header = ClipboardPDUHeader::decode(&mut payload).unwrap();
         let format_list =
-            FormatListPDU::<LongFormatName>::decode(&mut payload, header.data_len as u32).unwrap();
+            FormatListPDU::<LongFormatName>::decode(&mut payload, header.data_len).unwrap();
         assert_eq!(ClipboardPDUType::CB_FORMAT_LIST, header.msg_type);
         assert_eq!(1, format_list.format_names.len());
         assert_eq!(

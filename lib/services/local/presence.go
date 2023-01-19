@@ -1508,6 +1508,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindDatabaseServer:
 		keyPrefix = []string{dbServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToDatabaseServer
+	case types.KindDatabaseService:
+		keyPrefix = []string{databaseServicePrefix}
+		unmarshalItemFunc = backendItemToDatabaseService
 	case types.KindAppServer:
 		keyPrefix = []string{appServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToApplicationServer
@@ -1574,6 +1577,38 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	return &types.ListResourcesResponse{
 		Resources: resources,
 		NextKey:   nextKey,
+	}, nil
+}
+
+// UpsertDatabaseService creates or updates (by name) a DatabaseService resource.
+func (s *PresenceService) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	if err := service.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalDatabaseService(service)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(databaseServicePrefix, service.GetName()),
+		Value:   value,
+		Expires: service.Expiry(),
+		ID:      service.GetResourceID(),
+	}
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if service.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_DATABASE,
+		LeaseID:   lease.ID,
+		Namespace: apidefaults.Namespace,
+		Name:      service.GetName(),
+		HostID:    service.GetName(),
+		Expires:   service.Expiry(),
 	}, nil
 }
 
@@ -1721,6 +1756,16 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 // `types.DatabaseServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalDatabaseServer(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
+// backendItemToDatabaseService unmarshals `backend.Item` into a
+// `types.DatabaseService`, returning it as a `types.ResourceWithLabels`.
+func backendItemToDatabaseService(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalDatabaseService(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),

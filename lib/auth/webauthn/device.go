@@ -20,9 +20,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	wan "github.com/duo-labs/webauthn/webauthn"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 

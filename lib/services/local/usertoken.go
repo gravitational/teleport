@@ -35,17 +35,8 @@ func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken,
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 9.0.0 retrieve tokens with old prefix.
-	startKey = backend.Key(LegacyPasswordTokensPrefix)
-	oldPrefixResult, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	items := append(result.Items, oldPrefixResult.Items...)
-
 	var tokens []types.UserToken
-	for _, item := range items {
+	for _, item := range result.Items {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
 		}
@@ -73,21 +64,12 @@ func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) e
 		return trace.Wrap(err)
 	}
 
-	// DELETE IN 9.0.0 also delete any tokens with old prefix.
-	startKey = backend.ExactKey(LegacyPasswordTokensPrefix, tokenID)
-	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+	return nil
 }
 
 // GetUserToken returns a token by its ID.
 func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, paramsPrefix))
-
-	// DELETE IN 9.0.0: fallback for old prefix first.
-	if trace.IsNotFound(err) {
-		item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, paramsPrefix))
-	}
-
-	// Handle errors from either Get.
 	switch {
 	case trace.IsNotFound(err):
 		return nil, trace.NotFound("user token(%s) not found", backend.MaskKeyName(tokenID))
@@ -130,13 +112,6 @@ func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserT
 // GetUserTokenSecrets returns token secrets.
 func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
 	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, secretsPrefix))
-
-	// DELETE IN 9.0.0: fallback for old prefix first.
-	if trace.IsNotFound(err) {
-		item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, secretsPrefix))
-	}
-
-	// Handle errors from either Get.
 	switch {
 	case trace.IsNotFound(err):
 		return nil, trace.NotFound("user token(%s) secrets not found", backend.MaskKeyName(tokenID))
@@ -173,8 +148,6 @@ func (s *IdentityService) UpsertUserTokenSecrets(ctx context.Context, secrets ty
 }
 
 const (
-	// DELETE IN 9.0.0 in favor of userTokenPrefix.
-	LegacyPasswordTokensPrefix = "resetpasswordtokens"
-	userTokenPrefix            = "usertoken"
-	secretsPrefix              = "secrets"
+	userTokenPrefix = "usertoken"
+	secretsPrefix   = "secrets"
 )

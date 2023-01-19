@@ -279,7 +279,7 @@ func TestEmpty(t *testing.T) {
 	require.Len(t, s, 0)
 
 	// normal error case
-	s, err = Collect(Fail[int](fmt.Errorf("unexpeced error")))
+	s, err = Collect(Fail[int](fmt.Errorf("unexpected error")))
 	require.Error(t, err)
 	require.Len(t, s, 0)
 

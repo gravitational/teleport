@@ -387,6 +387,122 @@ $ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
 $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
 ```
 
+### tsh proxy db
+
+Start a local TLS proxy for database connections when using Teleport with TLS
+Routing enabled. Clients can connect to a Teleport-registered database through
+the local proxy.
+
+```code
+$ tsh proxy db [<flags>] <db>
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cert-file` | none | string | Path to the certificate file for configuring TLS on the local proxy.|
+| `--cluster` | none | string | The name of the Teleport cluster to connect to. |
+| `--key-file` | none | string | Path to the private key file for configuring TLS on the local proxy.|
+| `--db-name` | none | string | Optional database name to log in to. |
+| `--db-user` | none | string | Optional database user to log in as. |
+| `--port` | none | string | Source port used by the local proxy.|
+| `--tunnel` | none | Boolean | Open an authenticated tunnel using a database's client certificate so clients don't need to authenticate. |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+Proxy a DB connection to a named database
+```code
+$ tsh proxy db <db>
+```
+
+Proxy a connection to mysql db on local port 10700:
+```code
+$ tsh proxy db --port 10700  mysql-db
+# Started DB proxy on 127.0.0.1:10700
+
+# Use following credentials to connect to the mysql-db proxy:
+#  ca_file=/Users/jeff/.tsh/keys/teleport.example.com/cas/teleport.example.com.pem
+#  cert_file=/Users/jeff/.tsh/keys/teleport.example.com/jeff-db/tele1c/mysql-db-x509.pem
+#  key_file=/Users/jeff/.tsh/keys/teleport.example.com/jeff
+```
+
+Proxy a connection to mysql db with no credentials required:
+```code
+$ tsh proxy db --tunnel mysql-db
+Started authenticated tunnel for the MySQL database "mysql-db" in cluster "teleport.example.com" on 127.0.0.1:49415.
+
+Use the following command to connect to the database:
+  $ mysql --port 49415 --host localhost --protocol TCP
+```
+
+### tsh proxy ssh
+
+Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
+This is typically used as part of the SSH client configuration to use `ssh` as a client 
+through Teleport.  See the [OpenSSH Guide](../server-access/guides/openssh.mdx) guide
+on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
+within a `ProxyCommand` directive.
+
+```code
+$ tsh proxy ssh [<flags>] <[user@]host>
+```
+
+#### Arguments
+- `<[user@]host>` Remote hostname and the login to use
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | Teleport Cluster | The name of the Teleport cluster to connect to.|
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+Run the following command to generate an OpenSSH client configuration:
+
+```code
+$ tsh config
+```
+
+This command produces the following configuration: 
+
+```
+# Common flags for all example.com hosts
+Host *.example.com example.com
+    UserKnownHostsFile "/Users/jeff/.tsh/known_hosts"
+    IdentityFile "/Users/jeff/.tsh/keys/enterprise.teleportdemo.com/jeff"
+    CertificateFile "/Users/jeff/.tsh/keys/example.com/jeff-ssh/example.com-cert.pub"
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
+
+# Flags for all example.com hosts except the proxy
+Host *.example.com !example.com
+    Port 3022
+    ProxyCommand "/usr/local/bin/tsh" proxy ssh --cluster=example.com --proxy=example.com %r@%h:%p
+```
+
+This output should be placed into the default SSH Config for environment, `~/.ssh/config` for Mac/Linux or
+`.ssh\config` in the Windows User home directory. You can use this as a standalone SSH config file too.
+
+When you run an `ssh` command against a host with a subdomain of your Proxy
+Service's domain, this SSH configuration will use the `ProxyCommand` to run `tsh
+proxy ssh`:
+
+```code
+$ ssh myuser@node1.example.com
+```
+
 ### tsh proxy app
 
 Starts a local TLS proxy for Application Access connections.
@@ -406,7 +522,7 @@ $ tsh proxy app [<flags>] <app>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--port` | none | port number | Specify the source port for the local proxy |
+| `-p, --port` | none | port number | Specify the source port for the local proxy |
 
 #### [Global Flags](#tsh-global-flags)
 
@@ -421,6 +537,105 @@ $ tsh proxy app <app>
 $ tsh proxy --port 10700 app grafana &
 # Proxying connections to grafana on 127.0.0.1:10700
 $ curl http://127.0.0.1:10700/api/users
+```
+
+### tsh proxy azure
+
+Starts a local proxy server that provides secure access to an Azure managed
+service identity endpoint. This is useful for managing access to Azure from
+custom client applications. The local proxy forwards traffic to the Teleport
+Application Service, which uses an Azure managed identity to fetch an
+authentication token from Azure.
+
+```code
+$ tsh proxy azure [<flags>]
+```
+
+The command will print the address of the local proxy server along with `export`
+commands for environment variables required to connect:
+
+```text
+Started Azure proxy on http://127.0.0.1:54330.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+  export AZURE_CONFIG_DIR=/Users/myuser/.tsh/azure/my.teleport.cluster/azure
+  export HTTPS_PROXY=http://127.0.0.1:54330
+  export HTTP_PROXY=http://127.0.0.1:54330
+  export MSI_ENDPOINT=https://azure-msi.teleport.dev/eedfd5b55257c0aaa58f
+  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
+```
+
+<Notice type="tip">
+
+`tsh proxy azure` runs the local proxy in the foreground, so don't interrupt
+the process or exit the terminal where you ran the command until you're ready
+to close the local proxy.
+
+</Notice>
+
+Copy the `export` commands and paste them into a second terminal.
+
+To run the local proxy server, one of the user's roles must include the
+`spec.allow.azure_identities` field with one of the identities used by the
+Application Service. To learn how to set up secure access to Azure via
+Teleport, read [Protect the Azure CLI with Teleport Application
+Access](../application-access/guides/azure.mdx).
+
+#### Arguments
+
+This command does not accept any arguments.
+
+#### Flags
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | none | string | Name of the Teleport application representing Azure (i.e., based on `tsh apps ls`). Use this flag if your Teleport user has access to multiple Azure applications. | 
+| `--port` | none | port number | The port on `localhost` where the local proxy will listen for connections. |
+| `--format` | `powershell` if on Windows, `unix` otherwise | `text`, `unix`, `command-prompt`, or `powershell` | The format to use for listing environment variables for Azure client applications connecting to the local proxy. |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+### tsh proxy aws
+
+Start a local proxy for AWS access. The user must already be logged in to at
+least one AWS application via Teleport before the proxy can start.
+
+```code
+$ tsh proxy aws [<flags>] 
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | Currently logged in AWS app | string | Optional name of the AWS application (as shown in `tsh apps ls`) to use if logged in to multiple |
+| `-p, --port` | none | port number | Specify the source port for the local proxy |
+| ` -e, --endpoint-url` | HTTP Proxy | Endpoint URL | Run the local proxy to serve as an AWS endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
+| `-f, --format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the AWS proxy |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```code
+# Proxy a connection to AWS with the default settings
+$ tsh apps login awsapp
+$ tsh proxy aws
+# Set env variables from output
+$ aws s3 ls
+
+# Proxying connections to AWS on 127.0.0.1:10700 to app awsapp2
+$ tsh apps logins awsapp2
+$ tsh proxy aws --port=10700 --app=awsapp2
+# Set env variables from output
+$ aws s3 ls
 ```
 
 ### tsh scp
@@ -766,12 +981,12 @@ registered devices using [`tsh mfa ls`](cli.mdx#tsh-mfa-ls).
 $ tsh mfa rm <device-name>
 ```
 
-### tsh request new
+### tsh request create
 
 Create a new Access Request.
 
 ```code
-$ tsh request new [<flags>]
+$ tsh request create [<flags>]
 ```
 
 #### Flags
@@ -783,6 +998,17 @@ $ tsh request new [<flags>]
 | `--reason` | none | String | Reason for making the request (optional) |
 | `--reviewers` | none | Comma-separated strings | Suggested reviewers for the request (optional) |
 | `--nowait` | `false` | `true` or `false` | Finish without waiting for request resolution |
+| `--request-ttl` | 1 hour | Relative duration like `5s`, `2m`, or `3h`, | Defines how long the Access Request will be in a `PENDING` state before becoming invalid |
+| `--session-ttl` | Time left on current session | Relative duration like `5s`, `2m`, or `3h` | Defines how long the elevated session will be valid for |
+
+<Admonition type="tip" title="Note">
+The `--request-ttl` and `--session-ttl` values can not be greater than the
+following:
+
+- Maximum certificate lifetime.
+- Time left on an existing session (certificate).
+- Maximum session duration defined by the user's roles.
+</Admonition>
 
 ### tsh request ls
 
@@ -1129,6 +1355,7 @@ $ tctl users add [<flags>] <account>
 | - | - | - | - |
 | `--roles` | none | Comma-separated strings | List of Teleport roles to assign to the new user |
 | `--logins` | none | Comma-separated strings | List of allowed SSH logins for the new user |
+| `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--kubernetes-groups` | none | Comma-separated strings | Kubernetes groups to assign to a user, e.g. `system:masters` |
 | `--kubernetes-users` | none | Comma-separated strings | Kubernetes user to assign to a user, e.g. `jenkins` |
 | `--db-users` | none | Comma-separated strings | List of allowed database users for the new user |
@@ -1168,13 +1395,23 @@ $ tctl users update [<flags>] <account>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--set-roles` | none | a role name | Comma-separated list of roles for the user to assume, replaces current roles |
+| `--set-roles` | none | Comma-separated list of roles for the user to assume. | Assigns the user's roles to the ones provided, replacing the user's current roles. |
+| `--set-azure-identities` | none | Comma-separated list of allowed Azure identity URIs. |  Assigns the user's allowed Azure identities to the ones provided, replacing the user's currently allowed Azure identities. |
 
 #### Examples
 
+Set the user `joe`'s roles to `access` and `editor`:
+
 ```code
 $ tctl users update joe --set-roles=access,editor
-# Assigns roles "access" and "editor" to user "joe"
+```
+
+Set the user `priya`'s Azure identities to `developer` and `dba`:
+
+```code
+$ tctl users update priya --set-azure-identities \
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/developer,\
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dba
 ```
 
 ### tctl users ls
@@ -1947,12 +2184,12 @@ $ tctl create -f cluster.yaml
 Delete a resource:
 
 ```code
-$ tctl rm [<resource-type/resource-name>]
+$ tctl rm <resource-type/resource-name>
 ```
 
 #### Arguments
 
-- `[<resource-type/resource-name>]` Resource to delete
+- `<resource-type/resource-name>` Resource to delete
   - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens`]
   - `<resource name>` Resource name to delete
 
@@ -1971,14 +2208,14 @@ $ tctl rm users/admin
 Print a YAML declaration of various Teleport resources:
 
 ```code
-$ tctl get [<flags>] [<resource-type/resource-name>],...
+$ tctl get [<flags>] <resource-type/resource-name>,...
 ```
 
 #### Arguments
 
-- `[<resource-type/resource-name>]` Resource to get
-  - `<resource type>` Type of a resource \[for example: `user,cluster,token`]
-  - `<resource name>` Resource name to get
+- `<resource-type/resource-name>` The resource to get
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token`]
+  - `<resource name>` The name of the resource
 
 #### Flags
 
@@ -2023,6 +2260,61 @@ $ tctl get clusters,users
 
 </ScopedBlock>
 
+### tctl edit
+
+Modify a Teleport resource using your preferred text editor.
+
+```code
+$ tctl edit <resource-type/resource-name>
+```
+
+The text editor is selected by checking the following, in order of precedence:
+
+- the `TELEPORT_EDITOR` environment variable
+- the `VISUAL` environment variable
+- the `EDITOR` environment variable
+- defaulting to `vi`
+
+`tctl` will fetch the resource from the backend and open it in the selected editor.
+When the editor process terminates, `tctl` will push the updates to the Teleport cluster.
+To abandon the edit, close the editor without saving the file.
+
+Some graphical editors like VS Code launch a background process rather than running
+in the foreground. This prevents `tctl` from properly detecting when the editor
+process terminates. To work around this, check whether your editor supports a "wait"
+option that waits for files to be closed before terminating. For example, to edit a
+Teleport resource with VS Code, you can set `TELEPORT_EDITOR="code --wait"`.
+
+**Note:** Renaming resources with `tctl edit` is not supported since Teleport resources
+often refer to other resources by name. To rename a resource, we recommend you:
+
+- fetch the resource with `tctl get` and redirect the output to a file
+- change the name of the resource in the file
+- save the new resource with `tctl create -f`
+- update any references to the old resource
+
+#### Arguments
+
+- `<resource-type/resource-name>` The resource to edit
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token`]
+  - `<resource name>` The name of the resource
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+```code
+# edit the sre role
+$ tctl edit role/sre
+
+# edit the alice user with the nano editor
+$ TELEPORT_EDITOR=nano tctl edit user/alice
+```
+
+  
 ### tctl status
 
 Report cluster status:
@@ -2158,7 +2450,7 @@ The primary commands for `tbot` are as follows:
 | `tbot start` | Starts the Machine ID client `tbot`, fetching and writing certificates to disk at a set interval. |
 | `tbot init` | Initialize a certificate destination directory for writes from a separate bot user, configuring either file or POSIX ACL permissions. |
 | `tbot db` | Connects to databases using native clients and queries database information. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
-| `tbot proxy` | Allows for access to Teleport resources on a cluster using TLS routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
+| `tbot proxy` | Allows for access to Teleport resources on a cluster using TLS Routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
 
 ### tbot start
 
@@ -2292,7 +2584,7 @@ Additionally, be aware of the following limitations of `tbot db`:
 
 ### tbot proxy
 
-Allows for access to Teleport resources via a local TLS proxy in single-port mode.
+Allows for access to Teleport resources via a local TLS proxy in TLS Routing mode.
 The `tbot proxy` command acts as a wrapper for `tsh proxy` to provide local proxy functionality for various protocols.
 
 Note that `tsh` must be installed to make use of this command.

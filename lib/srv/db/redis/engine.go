@@ -37,12 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolRedis)
-}
-
-// newEngine create new Redis engine.
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new Redis engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
@@ -85,12 +81,12 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 // authorizeConnection does authorization check for Redis connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := e.sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		e.sessionCtx.Database.GetProtocol(),
 		e.sessionCtx.DatabaseUser,
@@ -98,7 +94,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	)
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
-		mfaParams,
+		state,
 		dbRoleMatchers...,
 	)
 	if err != nil {

@@ -65,6 +65,8 @@ const (
 	curlBin = "curl"
 	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
 	elasticsearchSQLBin = "elasticsearch-sql-cli"
+	// awsBin is the aws CLI program name.
+	awsBin = "aws"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -185,6 +187,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchCommand()
+
+	case defaults.ProtocolDynamoDB:
+		return c.getDynamoDBCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -287,6 +292,17 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 
 	if c.options.noTLS {
 		return args
+	}
+
+	// Some options used in the MySQL options file are not compatible with the
+	// "mariadb" client. Thus instead of using `--defaults-group-suffix=`,
+	// specify the proxy host and port directly as parameters. When
+	// localProxyPort is specified, the --port and --host flags are set by
+	// getMySQLCommonCmdOpts.
+	if c.options.localProxyPort == 0 {
+		host, port := c.tc.MySQLProxyHostPort()
+		args = append(args, "--port", strconv.Itoa(port))
+		args = append(args, "--host", host)
 	}
 
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
@@ -569,6 +585,24 @@ func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 		return c.options.exe.Command(elasticsearchSQLBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
 	}
 	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
+}
+
+func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
+	// we can't guess at what the user wants to do, so this command is for print purposes only,
+	// and it only works with a local proxy tunnel.
+	if !c.options.printFormat || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
+		svc := "<db>"
+		if c.db != nil && c.db.ServiceName != "" {
+			svc = c.db.ServiceName
+		}
+		return nil, trace.BadParameter("DynamoDB requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", svc)
+	}
+	args := []string{
+		"--endpoint", fmt.Sprintf("http://%v:%v/", c.options.localProxyHost, c.options.localProxyPort),
+		"[dynamodb|dynamodbstreams|dax]",
+		"<command>",
+	}
+	return c.options.exe.Command(awsBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {

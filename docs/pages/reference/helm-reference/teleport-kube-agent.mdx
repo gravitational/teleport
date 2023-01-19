@@ -8,7 +8,7 @@ runs in a remote Kubernetes cluster to provide access to resources in your
 infrastructure. 
 
 You can [browse the source on
-GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent).
+GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-kube-agent).
 
 This reference details available values for the `teleport-kube-agent` chart.
 
@@ -771,6 +771,26 @@ This can be used for joining a Teleport instance to a Teleport cluster which doe
   One option might be to use Teleport's built-in [ACME support](./teleport-cluster.mdx#acme) or enable [cert-manager support](./teleport-cluster.mdx#highavailabilitycertmanager).
 </Admonition>
 
+## `teleportConfig`
+
+`teleportConfig` contains YAML teleport configuration to pass to the Teleport pods.
+The configuration will be merged with the chart-generated configuration
+and will take precedence in case of conflict.
+
+See the [Teleport Configuration Reference](../config.mdx) for the list of supported fields.
+
+```yaml
+teleportConfig:
+  app_service:
+    debug_app: true
+  discovery_service:
+    enabled: true
+    azure:
+    - types: ["aks"]
+      tags:
+        "*":"*"
+```
+
 ## `tls`
 
 ### `existingCASecretName`
@@ -1459,9 +1479,9 @@ See the [Teleport config file reference](../../reference/config.mdx) for more de
 
 ## `affinity`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 
@@ -1493,6 +1513,42 @@ Kubernetes affinity to set for pod assignments.
   ```
   </TabItem>
 </Tabs>
+
+## `dnsConfig`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config)
+
+Kubernetes pod DNS configuration. This value can reduce the DNS load by setting `ndots` to 0.
+
+```yaml
+dnsConfig:
+  nameservers:
+    - 1.2.3.4
+  searches:
+    - ns1.svc.cluster-domain.example
+    - my.dns.search.suffix
+  options:
+    - name: ndots
+      value: "2"
+```
+
+## `dnsPolicy`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `""`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy)
+
+Kubernetes pod DNS policy.
+
+```yaml
+dnsPolicy: "Default"
+```
 
 ## `nodeSelector`
 
