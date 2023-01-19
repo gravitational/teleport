@@ -4481,6 +4481,34 @@ message ConnectionDiagnosticTrace {
   string Error = 4 [(gogoproto.jsontag) = "error"];
 }
 
+// DatabaseServiceV1 is the representation of a DatabaseService (agent) process.
+message DatabaseServiceV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  DatabaseServiceSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DatabaseServiceSpecV1 is the DatabaseService Spec.
+message DatabaseServiceSpecV1 {
+  // ResourceMatchers is the configured match for Database resources.
+  repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+}
+
+// DatabaseResourceMatcher is a set of properties that is used to match on resources.
+message DatabaseResourceMatcher {
+  wrappers.LabelValues Labels = 1 [
+    (gogoproto.jsontag) = "labels",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
 // in sorting alerts for display.
 enum AlertSeverity {

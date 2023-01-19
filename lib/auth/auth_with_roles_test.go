@@ -2763,6 +2763,148 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	require.Empty(t, cmp.Diff(testResources[:0], resp.Resources))
 }
 
+func TestListDatabaseServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	numInitialResources := 5
+
+	// Create test Database Services.
+	for i := 0; i < numInitialResources; i++ {
+		name := uuid.NewString()
+		s, err := types.NewDatabaseServiceV1(types.Metadata{
+			Name: name,
+		}, types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
+				{
+					Labels: &types.Labels{
+						"env": []string{name},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseService(ctx, s)
+		require.NoError(t, err)
+	}
+
+	listServicesResp, err := srv.Auth().ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	databaseServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+
+	testResources := make([]types.ResourceWithLabels, len(databaseServices))
+	for i, server := range databaseServices {
+		testResources[i] = server
+	}
+
+	// Create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// User is not allowed to list DatabseServices
+	_, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Read operations")
+
+	// Change the user's role to allow them to list DatabaseServices
+	currentAllowRules := role.GetRules(types.Allow)
+	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RO())))
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources)
+
+	require.Empty(t, cmp.Diff(databaseServices, usersViewDBServices))
+
+	// User is not allowed to Upsert DatabaseServices
+	extraDatabaseService, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name: "extra",
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"extra"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Create/Update operations")
+
+	currentAllowRules = role.GetRules(types.Allow)
+	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RW())))
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources+1)
+
+	// User can also delete a single or multiple DatabaseServices because they have RW permissions now
+	err = clt.DeleteDatabaseService(ctx, extraDatabaseService.GetName())
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources)
+
+	// After removing all resources, we should have 0 resources being returned.
+	err = clt.DeleteAllDatabaseServices(ctx)
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, usersViewDBServices)
+}
+
 func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

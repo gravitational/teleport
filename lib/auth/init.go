@@ -131,6 +131,9 @@ type InitConfig struct {
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
+	// DatabaseServices is a service that manages DatabaseService resources.
+	DatabaseServices services.DatabaseServices
+
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 

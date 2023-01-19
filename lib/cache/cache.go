@@ -99,6 +99,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindLock},
@@ -140,6 +141,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
@@ -405,6 +407,7 @@ type Cache struct {
 	restrictionsCache     services.Restrictions
 	appsCache             services.Apps
 	kubernetesCache       services.Kubernetes
+	databaseServicesCache services.DatabaseServices
 	databasesCache        services.Databases
 	appSessionCache       services.AppSession
 	snowflakeSessionCache services.SnowflakeSession
@@ -466,6 +469,7 @@ func (c *Cache) read() (readGuard, error) {
 			restrictions:     c.restrictionsCache,
 			apps:             c.appsCache,
 			kubernetes:       c.kubernetesCache,
+			databaseServices: c.databaseServicesCache,
 			databases:        c.databasesCache,
 			appSession:       c.appSessionCache,
 			snowflakeSession: c.snowflakeSessionCache,
@@ -487,6 +491,7 @@ func (c *Cache) read() (readGuard, error) {
 		restrictions:     c.Config.Restrictions,
 		apps:             c.Config.Apps,
 		kubernetes:       c.Config.Kubernetes,
+		databaseServices: c.Config.DatabaseServices,
 		databases:        c.Config.Databases,
 		appSession:       c.Config.AppSession,
 		snowflakeSession: c.Config.SnowflakeSession,
@@ -514,6 +519,7 @@ type readGuard struct {
 	restrictions     services.Restrictions
 	apps             services.Apps
 	kubernetes       services.Kubernetes
+	databaseServices services.DatabaseServices
 	databases        services.Databases
 	webSession       types.WebSessionInterface
 	webToken         types.WebTokenInterface
@@ -569,6 +575,8 @@ type Config struct {
 	Apps services.Apps
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
+	// DatabaseServices is a DatabaseService service.
+	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
 	// SnowflakeSession holds Snowflake sessions.
@@ -724,6 +732,7 @@ func New(config Config) (*Cache, error) {
 		restrictionsCache:     local.NewRestrictionsService(config.Backend),
 		appsCache:             local.NewAppService(config.Backend),
 		kubernetesCache:       local.NewKubernetesService(config.Backend),
+		databaseServicesCache: local.NewDatabaseServicesService(config.Backend),
 		databasesCache:        local.NewDatabasesService(config.Backend),
 		appSessionCache:       local.NewIdentityService(config.Backend),
 		snowflakeSessionCache: local.NewIdentityService(config.Backend),
