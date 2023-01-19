@@ -34,7 +34,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:
