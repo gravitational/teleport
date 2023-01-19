@@ -1,0 +1,62 @@
+{
+  "name": "@gravitational/teleterm",
+  "version": "1.0.0-dev",
+  "description": "Teleport Connect",
+  "main": "build/app/dist/main/main.js",
+  "author": {
+    "name": "Gravitational, Inc.",
+    "email": "support@goteleport.com",
+    "url": "https://goteleport.com"
+  },
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "webpack serve --config webpack.renderer.dev.config.js --progress",
+    "start-main": "webpack build --config webpack.main.config.js --mode=development --progress --watch",
+    "start-electron": "electron build/app/dist/main/main.js",
+    "build": "yarn build-main && yarn build-renderer",
+    "build-main": "webpack build --config webpack.main.config.js --progress --mode=production",
+    "build-renderer": "webpack build --config webpack.renderer.prod.config.js --progress",
+    "build-native-deps": "electron-builder install-app-deps",
+    "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
+    "package-ci": "yarn package --dir",
+    "generate-grpc-shared": "npx -y --target_arch=x64 --package=grpc_tools_node_protoc_ts@5.3.2 --package=grpc-tools@1.11.2 -- grpc_tools_node_protoc -I=src/sharedProcess/api/proto --ts_out=service=grpc-node,mode=grpc-js:src/sharedProcess/api/protogen --grpc_out=grpc_js:src/sharedProcess/api/protogen --js_out=import_style=commonjs,binary:src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravitational/webapps/webapps.git",
+    "directory": "packages/teleterm"
+  },
+  "private": true,
+  "homepage": "https://goteleport.com",
+  "dependencies": {
+    "emittery": "^1.0.1",
+    "node-pty": "0.10.0"
+  },
+  "devDependencies": {
+    "@gravitational/build": "^1.0.0",
+    "@gravitational/design": "1.0.0",
+    "@gravitational/shared": "1.0.0",
+    "@grpc/grpc-js": "1.6.7",
+    "@types/google-protobuf": "^3.10.0",
+    "@types/node-forge": "^1.0.4",
+    "clean-webpack-plugin": "4.0.0",
+    "cross-env": "5.0.5",
+    "electron": "22.0.0",
+    "electron-debug": "^3.2.0",
+    "electron-notarize": "^1.2.1",
+    "eslint-import-resolver-webpack": "0.13.2",
+    "eslint-loader": "3.0.3",
+    "google-protobuf": "^3.20.1",
+    "immer": "^9.0.7",
+    "node-forge": "^1.3.1",
+    "react-dnd": "^14.0.4",
+    "react-dnd-html5-backend": "^14.0.2",
+    "split2": "4.1.0",
+    "ts-loader": "^9.3.1",
+    "winston": "^3.3.3",
+    "xterm": "^4.15.0",
+    "xterm-addon-fit": "^0.5.0",
+    "zod": "^3.20.0"
+  },
+  "productName": "Teleport Connect"
+}
