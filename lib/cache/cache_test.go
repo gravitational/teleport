@@ -82,6 +82,7 @@ type testPack struct {
 	webSessionS       types.WebSessionInterface
 	webTokenS         types.WebTokenInterface
 	windowsDesktops   services.WindowsDesktops
+	plugins           services.Plugins
 }
 
 func (t *testPack) Close() {
@@ -196,6 +197,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.plugins = local.NewPluginsService(p.backend)
 
 	return p, nil
 }
@@ -229,6 +231,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
+		Plugins:          p.plugins,
 		MaxRetryPeriod:   200 * time.Millisecond,
 		EventsC:          p.eventsC,
 	}))
@@ -610,6 +613,7 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseServices: p.databaseServices,
 			Databases:        p.databases,
 			WindowsDesktops:  p.windowsDesktops,
+			Plugins:          p.plugins,
 			MaxRetryPeriod:   200 * time.Millisecond,
 			EventsC:          p.eventsC,
 		}))
@@ -673,6 +677,7 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
+		Plugins:          p.plugins,
 		MaxRetryPeriod:   200 * time.Millisecond,
 		EventsC:          p.eventsC,
 	}))
@@ -848,6 +853,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
+		Plugins:          p.plugins,
 		MaxRetryPeriod:   200 * time.Millisecond,
 		EventsC:          p.eventsC,
 		neverOK:          true, // ensure reads are never healthy
@@ -921,6 +927,7 @@ func initStrategy(t *testing.T) {
 		DatabaseServices: p.databaseServices,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
+		Plugins:          p.plugins,
 		MaxRetryPeriod:   200 * time.Millisecond,
 		EventsC:          p.eventsC,
 	}))
@@ -2736,6 +2743,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
 		types.KindInstaller:               &types.InstallerV1{},
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
+		types.KindPlugin:                  &types.PluginV1{},
 	}
 
 	for name, cfg := range cases {
