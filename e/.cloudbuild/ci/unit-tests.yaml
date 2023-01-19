@@ -1,19 +1,17 @@
 steps:
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport13
     id: pull-buildbox-image
     args: ["echo", "done"]
 
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport13
     id: checkout
-    secretEnv:
-      - WEBASSETS_DEPLOYMENT_KEY
     entrypoint: /bin/bash
     args:
       - "-c"
       - "go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH"
 
   # Build and run unit tests.
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport13
     id: run-tests
     dir: /tmp/teleport/
     entrypoint: bash
@@ -21,11 +19,6 @@ steps:
       - -c
       - go build ./e/tool/{tctl,teleport} && make -C e/ test
     timeout: 25m
-
-availableSecrets:
-  secretManager:
-  - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/2
-    env: WEBASSETS_DEPLOYMENT_KEY
 
 timeout: 30m
 

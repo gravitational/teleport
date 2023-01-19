@@ -63,31 +63,6 @@ func initSSH() error {
 		return fmt.Errorf("failed setting known_hosts permissions: %w", err)
 	}
 
-	fmt.Printf(">>> Configuring deployment SSH keys\n")
-
-	webassetsKeyFile := path.Join(sshConfigDir, "webassets-e")
-	err = os.WriteFile(
-		webassetsKeyFile,
-		[]byte(os.Getenv("WEBASSETS_DEPLOYMENT_KEY")),
-		0600)
-	if err != nil {
-		return fmt.Errorf("failed writing deployment SSH key: %w", err)
-	}
-
-	sshConfigPath := path.Join(sshConfigDir, "config")
-	configFile, err := os.OpenFile(sshConfigPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		return fmt.Errorf("failed opening ssh config file %q: %w", sshConfigPath, err)
-	}
-	defer configFile.Close()
-
-	for _, keyFile := range []string{webassetsKeyFile} {
-		_, err := fmt.Fprintf(configFile, "IdentityFile %s\n", keyFile)
-		if err != nil {
-			return fmt.Errorf("failed adding deployment SSH key %q: %w", keyFile, err)
-		}
-	}
-
 	return nil
 }
 
@@ -131,14 +106,6 @@ func initWorkspace(teleportPath string, branch string, workspaceDir string) erro
 
 	fmt.Printf(">>> Checked out branch teleport:%s at ", branch)
 	git("rev-parse", "HEAD")
-
-	// This may fail in pre-4.3 Teleport versions that don't use the webassets
-	// submodule - remove this error check if porting to old branches.
-	fmt.Printf(">>> Fetching Webassets...\n")
-	err = git("submodule", "update", "--init", "--recursive", "webassets")
-	if err != nil {
-		return fmt.Errorf("failed fetching webassets: %w", err)
-	}
 
 	fmt.Printf(">>> Copying workspace into teleport/e\n")
 	submoduleDir := path.Join(teleportPath, "e")
