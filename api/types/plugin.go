@@ -183,7 +183,7 @@ func (p *PluginV1) SetCredentials(creds PluginCredentials) error {
 	case *PluginCredentialsV1:
 		p.Credentials = creds
 	default:
-		return trace.BadParameter("unsupported plugin type %T", creds)
+		return trace.BadParameter("unsupported plugin credential type %T", creds)
 	}
 	return nil
 }
