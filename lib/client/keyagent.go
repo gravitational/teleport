@@ -381,7 +381,6 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 	return func(key ssh.PublicKey, addr string) bool {
 		// Check the local cache (where all Teleport CAs are placed upon login) to
 		// see if any of them match.
-
 		keys, err := a.clientStore.GetTrustedHostKeys(clusters...)
 		if err != nil {
 			a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
@@ -525,11 +524,6 @@ func (a *LocalKeyAgent) addKey(key *Key) error {
 
 	// Save the new key to the keystore (usually into ~/.tsh).
 	if err := a.clientStore.AddKey(key); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Save the new key to the keystore (usually into ~/.tsh).
-	if err := a.clientStore.SaveTrustedCerts(key.ProxyHost, key.TrustedCerts); err != nil {
 		return trace.Wrap(err)
 	}
 

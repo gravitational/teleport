@@ -294,7 +294,8 @@ func TestIdentityRead(t *testing.T) {
 
 	var a net.Addr
 	// host auth callback must succeed
-	cb := k.HostKeyCallback("proxy.example.com")
+	cb, err := k.HostKeyCallback(true)
+	require.NoError(t, err)
 	require.NoError(t, cb(hosts[0], a, cert))
 
 	// load an identity which include TLS certificates
