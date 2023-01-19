@@ -54,13 +54,13 @@ type Conn struct {
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rw io.ReadWriteCloser) *Conn {
+func NewConn(rwc io.ReadWriteCloser) *Conn {
 	c := &Conn{
-		rwc:  rw,
-		bufr: bufio.NewReader(rw),
+		rwc:  rwc,
+		bufr: bufio.NewReader(rwc),
 	}
 
-	if tc, ok := rw.(srv.TrackingConn); ok {
+	if tc, ok := rwc.(srv.TrackingConn); ok {
 		c.localAddr = tc.LocalAddr()
 		c.remoteAddr = tc.RemoteAddr()
 	}

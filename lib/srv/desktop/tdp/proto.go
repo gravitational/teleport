@@ -168,7 +168,7 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 }
 
 // PNGFrame is the PNG frame message
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
+// | message type (2) | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
 type PNGFrame struct {
 	Img image.Image
 
@@ -217,13 +217,13 @@ func decodePNGFrame(in byteReader) (PNGFrame, error) {
 }
 
 // PNG2Frame is a newer version of PNGFrame that includes the
-// length of the PNG data.
-type PNG2Frame struct {
-	// Msg is already encoded PNG2Frame message
-	Msg []byte
-}
+// length of the PNG data. It's represented as a fully encoded
+// byte slice to optimize for speed and simplicity of encoding/decoding.
+// | message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
+type PNG2Frame []byte
 
 func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
+	// Read PNG length so we can allocate buffer that will fit PNG2Frame message
 	var pngLength uint32
 	if err := binary.Read(in, binary.BigEndian, &pngLength); err != nil {
 		return PNG2Frame{}, trace.Wrap(err)
@@ -232,23 +232,26 @@ func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 	// Allocate buffer that will fit PNG2Frame message
 	// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#27---png-frame-2
 	// message type (1) + png length (4) + left, right, top, bottom (4 x 4) + data => 21 + data
-	b := make([]byte, 21+pngLength)
-	b[0] = byte(TypePNG2Frame)
+	png2frame := make([]byte, 21+pngLength)
 
-	binary.BigEndian.PutUint32(b[1:5], pngLength)
+	// Write message type and png length into the buffer
+	png2frame[0] = byte(TypePNG2Frame)
+	binary.BigEndian.PutUint32(png2frame[1:5], pngLength)
 
-	if _, err := io.ReadFull(in, b[5:]); err != nil {
+	// Write left, top, right, bottom, and the png itself into the buffer
+	if _, err := io.ReadFull(in, png2frame[5:]); err != nil {
 		return PNG2Frame{}, trace.Wrap(err)
 	}
-	return PNG2Frame{b}, nil
+
+	return png2frame, nil
 }
 
 func (f PNG2Frame) Encode() ([]byte, error) {
-	return f.Msg, nil
+	return f, nil
 }
 
 // MouseMove is the mouse movement message.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#3---mouse-move
+// | message type (3) | x uint32 | y uint32 |
 type MouseMove struct {
 	X, Y uint32
 }
@@ -285,7 +288,7 @@ const (
 )
 
 // MouseButton is the mouse button press message.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#4---mouse-button
+// | message type (4) | button byte | state byte |
 type MouseButton struct {
 	Button MouseButtonType
 	State  ButtonState
@@ -302,7 +305,7 @@ func decodeMouseButton(in byteReader) (MouseButton, error) {
 }
 
 // KeyboardButton is the keyboard button press message.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#4---keyboard-input
+// | message type (5) | key_code uint32 | state byte |
 type KeyboardButton struct {
 	KeyCode uint32
 	State   ButtonState
@@ -323,7 +326,7 @@ func decodeKeyboardButton(in byteReader) (KeyboardButton, error) {
 }
 
 // ClientScreenSpec is the client screen specification.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
+// | message type (1) | width uint32 | height uint32 |
 type ClientScreenSpec struct {
 	Width  uint32
 	Height uint32
@@ -344,7 +347,7 @@ func decodeClientScreenSpec(in io.Reader) (ClientScreenSpec, error) {
 }
 
 // ClientUsername is the client username.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#7---client-username
+// | message type (7) | username_length uint32 | username []byte |
 type ClientUsername struct {
 	Username string
 }
@@ -377,6 +380,7 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 // Error is used to send a fatal error message to the browser.
 // In Teleport 12 and up, Error is deprecated and Notification
 // should be preferred.
+// | message type (9) | message_length uint32 | message []byte |
 type Error struct {
 	Message string
 }
@@ -409,6 +413,7 @@ const (
 // Notification is an informational message sent from Teleport
 // to the Web UI. It can be used for fatal errors or non-fatal
 // warnings.
+// | message type (28) | message_length uint32 | message []byte | severity byte |
 type Notification struct {
 	Message  string
 	Severity Severity
@@ -445,7 +450,7 @@ const (
 )
 
 // MouseWheel is the mouse wheel scroll message.
-// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#8---mouse-wheel
+// | message type (8) | axis byte | delta int16 |
 type MouseWheel struct {
 	Axis  MouseWheelAxis
 	Delta int16
@@ -467,6 +472,7 @@ func decodeMouseWheel(in io.Reader) (MouseWheel, error) {
 }
 
 // ClipboardData represents shared clipboard data.
+// | message type (6) | length uint32 | data []byte |
 type ClipboardData []byte
 
 func (c ClipboardData) Encode() ([]byte, error) {
@@ -500,6 +506,8 @@ func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 
 const maxMFADataLength = 1024 * 1024
 
+// MFA represents a MFA challenge or response.
+// | message type (10) | mfa_type byte | length uint32 | JSON []byte |
 type MFA struct {
 	// Type should be defaults.WebsocketWebauthnChallenge
 	Type byte
@@ -627,6 +635,8 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	}, nil
 }
 
+// SharedDirectoryAnnounce announces a new directory to be shared.
+// | message type (11) | directory_id uint32 | name_length uint32 | name []byte |
 type SharedDirectoryAnnounce struct {
 	DirectoryID uint32
 	Name        string
@@ -663,6 +673,8 @@ func decodeSharedDirectoryAnnounce(in io.Reader) (SharedDirectoryAnnounce, error
 	}, nil
 }
 
+// SharedDirectoryAcknowledge acknowledges a SharedDirectoryAnnounce was received.
+// | message type (12) | err_code uint32 | directory_id uint32 |
 type SharedDirectoryAcknowledge struct {
 	ErrCode     uint32
 	DirectoryID uint32
@@ -682,6 +694,8 @@ func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// SharedDirectoryInfoRequest requests information about a file or directory.
+// | message type (13) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
 type SharedDirectoryInfoRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -721,6 +735,8 @@ func decodeSharedDirectoryInfoRequest(in io.Reader) (SharedDirectoryInfoRequest,
 	}, nil
 }
 
+// SharedDirectoryInfoResponse returns information about a file or directory.
+// | message type (14) | completion_id uint32 | err_code uint32 | file_system_object fso |
 type SharedDirectoryInfoResponse struct {
 	CompletionID uint32
 	ErrCode      uint32
@@ -762,6 +778,8 @@ func decodeSharedDirectoryInfoResponse(in byteReader) (SharedDirectoryInfoRespon
 	}, nil
 }
 
+// FileSystemObject represents a file or directory.
+// | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
 type FileSystemObject struct {
 	LastModified uint64
 	Size         uint64
@@ -816,6 +834,8 @@ func decodeFileSystemObject(in byteReader) (FileSystemObject, error) {
 	}, nil
 }
 
+// SharedDirectoryCreateRequest is sent by the TDP server to the client to request the creation of a new file or directory.
+// | message type (15) | completion_id uint32 | directory_id uint32 | file_type uint32 | path_length uint32 | path []byte |
 type SharedDirectoryCreateRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -864,6 +884,8 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 
 }
 
+// SharedDirectoryCreateResponseis sent by the TDP client to the server with information from an executed SharedDirectoryCreateRequest.
+// | message type (16) | completion_id uint32 | err_code uint32 | file_system_object fso |
 type SharedDirectoryCreateResponse struct {
 	CompletionID uint32
 	ErrCode      uint32
@@ -906,6 +928,8 @@ func decodeSharedDirectoryCreateResponse(in byteReader) (SharedDirectoryCreateRe
 	}, err
 }
 
+// SharedDirectoryDeleteRequest is sent by the TDP server to the client to request the deletion of a file or directory.
+// | message type (17) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
 type SharedDirectoryDeleteRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -946,6 +970,8 @@ func decodeSharedDirectoryDeleteRequest(in io.Reader) (SharedDirectoryDeleteRequ
 	}, nil
 }
 
+// SharedDirectoryDeleteResponse is sent by the TDP client to the server with information from an executed SharedDirectoryDeleteRequest.
+// | message type (18) | completion_id uint32 | err_code uint32 |
 type SharedDirectoryDeleteResponse struct {
 	CompletionID uint32
 	ErrCode      uint32
@@ -965,6 +991,8 @@ func decodeSharedDirectoryDeleteResponse(in io.Reader) (SharedDirectoryDeleteRes
 	return res, err
 }
 
+// SharedDirectoryListRequest is sent by the TDP server to the client to request a directory listing.
+// | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
 type SharedDirectoryListRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -1005,6 +1033,7 @@ func decodeSharedDirectoryListRequest(in io.Reader) (SharedDirectoryListRequest,
 	}, nil
 }
 
+// SharedDirectoryListResponse is sent by the TDP client to the server with the information from an executed SharedDirectoryListRequest.
 // | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
 type SharedDirectoryListResponse struct {
 	CompletionID uint32
@@ -1061,8 +1090,9 @@ func decodeSharedDirectoryListResponse(in byteReader) (SharedDirectoryListRespon
 	}, nil
 }
 
-// SharedDirectoryReadRequest is a message sent by the server to the client to request
+// SharedDirectoryReadRequest is a message sent by the TDP server to the client to request
 // bytes to be read from the file at the path and starting at byte offset.
+// | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
 type SharedDirectoryReadRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -1122,8 +1152,9 @@ func decodeSharedDirectoryReadRequest(in io.Reader) (SharedDirectoryReadRequest,
 	}, nil
 }
 
-// SharedDirectoryReadResponse is a message sent by the client to the server
+// SharedDirectoryReadResponse is a message sent by the TDP client to the server
 // in response to the SharedDirectoryReadRequest.
+// | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
 type SharedDirectoryReadResponse struct {
 	CompletionID   uint32
 	ErrCode        uint32
@@ -1177,8 +1208,9 @@ func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirec
 	}, nil
 }
 
-// SharedDirectoryWriteRequest is a message sent by the server to the client to request
+// SharedDirectoryWriteRequest is a message sent by the TDP server to the client to request
 // bytes to be written the file at the path and starting at byte offset.
+// | message type (21) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | write_data_length uint32 | write_data []byte |
 type SharedDirectoryWriteRequest struct {
 	CompletionID    uint32
 	DirectoryID     uint32
@@ -1253,8 +1285,9 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 
 }
 
-// SharedDirectoryWriteResponse is a message sent by the client to the server
+// SharedDirectoryWriteResponse is a message sent by the TDP client to the server
 // in response to the SharedDirectoryWriteRequest.
+// | message type (22) | completion_id uint32 | err_code uint32 | bytes_written uint32 |
 type SharedDirectoryWriteResponse struct {
 	CompletionID uint32
 	ErrCode      uint32
@@ -1278,6 +1311,7 @@ func decodeSharedDirectoryWriteResponse(in io.Reader) (SharedDirectoryWriteRespo
 
 // SharedDirectoryMoveRequest is sent from the TDP server to the client
 // to request a file at original_path be moved to new_path.
+// | message type (23) | completion_id uint32 | directory_id uint32 | original_path_length uint32 | original_path []byte | new_path_length uint32 | new_path []byte |
 type SharedDirectoryMoveRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -1325,6 +1359,9 @@ func decodeSharedDirectoryMoveRequest(in io.Reader) (SharedDirectoryMoveRequest,
 	}, nil
 }
 
+// SharedDirectoryMoveResponse is sent from the TDP client to the server
+// to acknowledge a SharedDirectoryMoveRequest was executed.
+// | message type (24) | completion_id uint32 | err_code uint32 |
 type SharedDirectoryMoveResponse struct {
 	CompletionID uint32
 	ErrCode      uint32
