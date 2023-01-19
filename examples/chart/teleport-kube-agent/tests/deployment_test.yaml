@@ -336,12 +336,19 @@ tests:
       extraEnv:
         - name: HTTPS_PROXY
           value: "http://username:password@my.proxy.host:3128"
+        - name: KUBE_CLUSTER
+          value: "{{ .Values.kubeClusterName }}"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: HTTPS_PROXY
             value: "http://username:password@my.proxy.host:3128"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBE_CLUSTER
+            value: helm-lint.example.com
       - matchSnapshot:
           path: spec.template.spec
 
