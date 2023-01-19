@@ -3232,6 +3232,10 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.KeysDir = c.HomePath
 	}
 
+	if cf.IdentityFileIn != "" {
+		c.SkipLocalAuth = true
+	}
+
 	tc, err := client.NewClient(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
