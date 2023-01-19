@@ -207,7 +207,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		Log:          log,
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
-		Emitter:      conn.Client,
+		Emitter:      conn.Client, // TODO(zmb3): consider using an async emitter here
 		TLS:          tlsConfig,
 		AccessPoint:  accessPoint,
 		ConnLimiter:  connLimiter,

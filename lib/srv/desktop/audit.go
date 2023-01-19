@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
+func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -65,10 +65,10 @@ func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emit
 		event.Error = trace.Unwrap(err).Error()
 		event.UserMessage = err.Error()
 	}
-	s.emit(ctx, emitter, event)
+	s.emit(ctx, s.cfg.Emitter, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sid string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sid string, desktop types.WindowsDesktop) {
 	// Ensure audit cache gets cleaned up
 	s.auditCache.Delete(sessionID(sid))
 
@@ -99,7 +99,7 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitte
 		// There can only be 1 participant, desktop sessions are not join-able.
 		Participants: []string{userMetadata.User},
 	}
-	s.emit(ctx, emitter, event)
+	s.emit(ctx, s.cfg.Emitter, event)
 }
 
 func (s *WindowsService) onClipboardSend(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {

@@ -399,6 +399,13 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 }
 
 func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libevents.StreamWriter, error) {
+	// AuditWriter doesn't always respect the RecordOutput field,
+	// so ensure the session isn't recorded by using a discard stream writer
+	// See https://github.com/gravitational/teleport/issues/16773
+	if !record {
+		return &libevents.DiscardStream{}, nil
+	}
+
 	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
 		Component:    teleport.ComponentWindowsDesktop,
 		Namespace:    apidefaults.Namespace,
@@ -428,7 +435,7 @@ func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.Sessio
 		return nil, trace.Wrap(err)
 	}
 
-	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
+	return fileStreamer, nil
 }
 
 func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
@@ -855,7 +862,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 	})
 	if err != nil {
-		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
@@ -889,18 +896,18 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
+	s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
 	err = rdpc.Run(ctx)
-	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
+	s.onSessionEnd(ctx, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, recorder events.Emitter, delay func() int64,
 	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
@@ -920,7 +927,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
 				// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
 				s.cfg.Log.Warnf("refusing to record %d byte PNG frame, image too large", len(b))
-			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
+			} else if err := recorder.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
 		case byte(tdp.TypeClipboardData):
@@ -928,25 +935,25 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// the TDP send handler emits a clipboard receive event, because we
 				// received clipboard data from the remote desktop and are sending
 				// it on the TDP connection
-				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
+				s.onClipboardReceive(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, int32(len(clip)))
 			}
 		case byte(tdp.TypeSharedDirectoryAcknowledge):
 			if message, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
-				s.onSharedDirectoryAcknowledge(ctx, emitter, id, sessionID, desktopAddr, message)
+				s.onSharedDirectoryAcknowledge(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, message)
 			}
 		case byte(tdp.TypeSharedDirectoryReadRequest):
 			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
-				s.onSharedDirectoryReadRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
+				s.onSharedDirectoryReadRequest(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, message, tdpConn)
 			}
 		case byte(tdp.TypeSharedDirectoryWriteRequest):
 			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
-				s.onSharedDirectoryWriteRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
+				s.onSharedDirectoryWriteRequest(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, message, tdpConn)
 			}
 		}
 	}
 }
 
-func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, recorder events.Emitter, delay func() int64,
 	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
@@ -967,20 +974,20 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
 				s.cfg.Log.Warnf("refusing to record %d byte %T message", len(b), m)
-			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
+			} else if err := recorder.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
 		case tdp.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
-			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
+			s.onClipboardSend(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, int32(len(msg)))
 		case tdp.SharedDirectoryAnnounce:
-			s.onSharedDirectoryAnnounce(ctx, emitter, id, sessionID, desktopAddr, m.(tdp.SharedDirectoryAnnounce), tdpConn)
+			s.onSharedDirectoryAnnounce(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, m.(tdp.SharedDirectoryAnnounce), tdpConn)
 		case tdp.SharedDirectoryReadResponse:
-			s.onSharedDirectoryReadResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
+			s.onSharedDirectoryReadResponse(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, msg)
 		case tdp.SharedDirectoryWriteResponse:
-			s.onSharedDirectoryWriteResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
+			s.onSharedDirectoryWriteResponse(ctx, s.cfg.Emitter, id, sessionID, desktopAddr, msg)
 		}
 	}
 }
@@ -1082,19 +1089,18 @@ func timer() func() int64 {
 // generateUserCert queries LDAP for the passed username's SID and generates
 // a private key / public certificate pair for the given Windows username.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop) (certDER, keyDER []byte, err error) {
-	// Find the user's SID
-	s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
-	filters := []string{
-		fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
-		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
-		fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
-	}
-
 	var activeDirectorySID string
 	if !desktop.NonAD() {
+		s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
+		filters := []string{
+			fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
+			fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
+			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
+		}
+
 		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, trace.WrapWithMessage(err, "fetching SID for user %v", username)
 		}
 		if len(entries) == 0 {
 			return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
@@ -1106,9 +1112,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			return nil, nil, trace.Wrap(err)
 		}
 		s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
-		// Generate credentials with the user's SID
-
 	}
+
 	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
 }
 
