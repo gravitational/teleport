@@ -1,0 +1,49 @@
+{
+  "name": "@gravitational/namespaces",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "Apache-2.0",
+  "scripts": {
+    "storybook": "start-storybook -p 9002 -c .storybook -s .storybook/public",
+    "test": "jest",
+    "test-coverage": "jest --coverage && scripts/print-coverage-link.sh",
+    "test-update-snapshot": "yarn test -- --updateSnapshot",
+    "tdd": "jest --watch",
+    "package-term": "yarn workspace @gravitational/teleterm package",
+    "package-term-ci": "yarn workspace @gravitational/teleterm package-ci",
+    "build-term": "yarn workspace @gravitational/teleterm build",
+    "build-native-deps-for-term": "yarn workspace @gravitational/teleterm build-native-deps",
+    "build-and-package-term": "yarn build-term && yarn package-term",
+    "build-and-package-term-ci": "yarn build-term && yarn package-term-ci",
+    "start-term": "yarn workspace @gravitational/teleterm start",
+    "start-teleport": "yarn workspace @gravitational/teleport start",
+    "start-teleport-e": "yarn workspace @gravitational/teleport.e start",
+    "build-teleport": "yarn build-teleport-oss && yarn build-teleport-e",
+    "build-teleport-oss": "yarn workspace @gravitational/teleport build --output-path=../../../webassets/teleport/app",
+    "build-teleport-e": "yarn workspace @gravitational/teleport.e build --output-path=../../../webassets/e/teleport/app",
+    "build-oss": "yarn build-teleport-oss",
+    "build-e": "yarn build-teleport-e",
+    "lint": "yarn prettier-check && yarn eslint",
+    "eslint": "eslint --quiet --ext .js,.jsx,.ts,.tsx packages/",
+    "type-check": "tsc --noEmit",
+    "prettier-check": "yarn prettier --check 'packages/**/*.{ts,tsx,js,jsx,md}'",
+    "prettier-write": "yarn prettier --write 'packages/**/*.{ts,tsx,js,jsx,md}'",
+    "nop": "exit 0"
+  },
+  "private": true,
+  "resolutions": {
+    "react": "16.14.0",
+    "**/minimist": "^1.2.5",
+    "**/@types/react": "^16.8.19"
+  },
+  "workspaces": {
+    "packages": [
+      "packages/build/**",
+      "packages/design/**",
+      "packages/shared/**",
+      "packages/teleport",
+      "../e/web/**",
+      "packages/teleterm"
+    ]
+  }
+}
