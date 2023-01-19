@@ -54,19 +54,19 @@ metadata:
 }
 
 func TestCheckResourceUpsertableByError(t *testing.T) {
-	err := CheckResourceUpsertableByError(trace.BadParameter(""), "POST", "")
+	err := CheckResourceUpsert(trace.BadParameter(""), "POST", "")
 	require.True(t, trace.IsBadParameter(err))
 
-	err = CheckResourceUpsertableByError(nil, "POST", "")
+	err = CheckResourceUpsert(nil, "POST", "")
 	require.True(t, trace.IsAlreadyExists(err))
 
-	err = CheckResourceUpsertableByError(trace.NotFound(""), "POST", "")
+	err = CheckResourceUpsert(trace.NotFound(""), "POST", "")
 	require.Nil(t, err)
 
-	err = CheckResourceUpsertableByError(nil, "PUT", "")
+	err = CheckResourceUpsert(nil, "PUT", "")
 	require.Nil(t, err)
 
-	err = CheckResourceUpsertableByError(trace.NotFound(""), "PUT", "")
+	err = CheckResourceUpsert(trace.NotFound(""), "PUT", "")
 	require.True(t, trace.IsNotFound(err))
 }
 
