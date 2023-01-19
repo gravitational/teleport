@@ -144,7 +144,9 @@ acmeURI: ""
 # Set enterprise to true to use enterprise image
 # You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
+# Alternatively, you can specify an existing secret containing the license data using 'licenseSecretName' whose default value is 'license'.
 enterprise: false
+# licenseSecretName: ""
 
 # CRDs are installed by default when the operator is enabled. This manual override allows to disable CRD installation
 # when deploying multiple releases in the same cluster.

@@ -243,7 +243,7 @@ spec:
 {{- if $auth.enterprise }}
       - name: license
         secret:
-          secretName: "license"
+          secretName: {{ $auth.licenseSecretName | quote | default "license" }}
 {{- end }}
 {{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
       - name: gcp-credentials
