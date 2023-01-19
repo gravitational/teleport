@@ -60,17 +60,17 @@ metadata:
 
 func TestCheckResourceUpsert(t *testing.T) {
 	tests := []struct {
-		desc       string
-		httpMethod string
-		httpParams httprouter.Params
+		desc                string
+		httpMethod          string
+		httpParams          httprouter.Params
 		payloadResourceName string
-		exists resourceExists
-		assertErr require.ErrorAssertionFunc
+		exists              resourceExists
+		assertErr           require.ErrorAssertionFunc
 	}{
 		{
-			desc:       "creating non-existing resource succeeds",
-			httpMethod: "POST",
-			httpParams: httprouter.Params{},
+			desc:                "creating non-existing resource succeeds",
+			httpMethod:          "POST",
+			httpParams:          httprouter.Params{},
 			payloadResourceName: "my-resource",
 			exists: func(ctx context.Context, name string) error {
 				// Resource does not exist.
@@ -79,9 +79,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc:       "creating existing resource fails",
-			httpMethod: "POST",
-			httpParams: httprouter.Params{},
+			desc:                "creating existing resource fails",
+			httpMethod:          "POST",
+			httpParams:          httprouter.Params{},
 			payloadResourceName: "my-resource",
 			exists: func(ctx context.Context, name string) error {
 				// Resource does exist.
@@ -93,9 +93,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			},
 		},
 		{
-			desc:       "updating resource without name HTTP param fails",
-			httpMethod: "PUT",
-			httpParams: httprouter.Params{},
+			desc:                "updating resource without name HTTP param fails",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{},
 			payloadResourceName: "my-resource",
 			exists: func(ctx context.Context, name string) error {
 				// Resource does exist.
@@ -107,9 +107,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			},
 		},
 		{
-			desc:       "updating non-existing resource fails",
-			httpMethod: "PUT",
-			httpParams: httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
+			desc:                "updating non-existing resource fails",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
 			payloadResourceName: "my-resource",
 			exists: func(ctx context.Context, name string) error {
 				// Resource does not exist.
@@ -121,9 +121,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			},
 		},
 		{
-			desc:       "updating existing resource succeeds",
-			httpMethod: "PUT",
-			httpParams: httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
+			desc:                "updating existing resource succeeds",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
 			payloadResourceName: "my-resource",
 			exists: func(ctx context.Context, name string) error {
 				// Resource does exist.
@@ -132,9 +132,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc:       "renaming existing resource fails",
-			httpMethod: "PUT",
-			httpParams: httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
+			desc:                "renaming existing resource fails",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
 			payloadResourceName: "my-resource-new-name",
 			exists: func(ctx context.Context, name string) error {
 				// Resource does exist.
