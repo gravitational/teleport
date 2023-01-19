@@ -45,8 +45,9 @@ export function AuthConnectors(props: State) {
       : 'Editing github connector';
 
   function handleOnSave(content: string) {
+    const name = resources.item.name;
     const isNew = resources.status === 'creating';
-    return save(content, isNew);
+    return save(name, content, isNew);
   }
 
   return (
