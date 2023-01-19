@@ -31,14 +31,14 @@ export default function useTrustedClusters() {
     });
   }
 
-  function save(yaml: string, isNew: boolean) {
+  function save(name: string, yaml: string, isNew: boolean) {
     if (isNew) {
       return teleContext.resourceService
         .createTrustedCluster(yaml)
         .then(fetchData);
     }
     return teleContext.resourceService
-      .updateTrustedCluster(yaml)
+      .updateTrustedCluster(name, yaml)
       .then(fetchData);
   }
 
