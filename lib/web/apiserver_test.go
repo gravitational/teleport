@@ -1700,6 +1700,9 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
+
+	err = tdpConn.WriteMessage(tdp.Notification{Message: "test", Severity: tdp.SeverityWarning})
+	require.NoError(t, err)
 }
 
 func TestDesktopAccessMFARequiresMfa(t *testing.T) {
@@ -1772,7 +1775,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
-			require.IsType(t, tdp.PNG2Frame{}, msg)
+			require.IsType(t, tdp.Notification{}, msg)
 		})
 	}
 }
