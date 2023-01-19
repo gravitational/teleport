@@ -2115,7 +2115,7 @@ should set nodeSelector when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.12
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
