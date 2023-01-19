@@ -143,7 +143,10 @@ type Client struct {
 	// we reuse the same image to avoid allocating on each bitmap
 	img *image.RGBA
 
-	bitmapMsgBuffer []byte
+	// png2FrameBuffer is used in the handleBitmap function
+	// to avoid allocation of the buffer on each bitmap as
+	// that part of the code is performance-sensitive.
+	png2FrameBuffer []byte
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
@@ -605,16 +608,16 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	uptr := (*uint8)(ptr)
 	data := unsafe.Slice(uptr, int(cb.data_len))
 
-	c.bitmapMsgBuffer = c.bitmapMsgBuffer[:0]
-	c.bitmapMsgBuffer = append(c.bitmapMsgBuffer, byte(tdp.TypePNG2Frame))
-	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(len(data)))
-	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_left))
-	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_top))
-	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_right))
-	c.bitmapMsgBuffer = binary.BigEndian.AppendUint32(c.bitmapMsgBuffer, uint32(cb.dest_bottom))
-	c.bitmapMsgBuffer = append(c.bitmapMsgBuffer, data...)
+	c.png2FrameBuffer = c.png2FrameBuffer[:0]
+	c.png2FrameBuffer = append(c.png2FrameBuffer, byte(tdp.TypePNG2Frame))
+	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(len(data)))
+	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_left))
+	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_top))
+	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_right))
+	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_bottom))
+	c.png2FrameBuffer = append(c.png2FrameBuffer, data...)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.PNG2Frame{c.bitmapMsgBuffer}); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.PNG2Frame{c.png2FrameBuffer}); err != nil {
 		c.cfg.Log.Errorf("failed to write PNG2Frame: %v", err)
 		return C.ErrCodeFailure
 	}
