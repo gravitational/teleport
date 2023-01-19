@@ -1,0 +1,3 @@
+[submodule "packages/webapps.e"]
+	path = packages/webapps.e
+	url = git@github.com:gravitational/webapps.e.git

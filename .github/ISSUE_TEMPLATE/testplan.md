@@ -26,6 +26,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Adding Trusted Cluster Valid Short-lived Token
   - [ ] Adding Trusted Cluster Invalid Token
   - [ ] Removing Trusted Cluster
+  - [ ] Changing role map of existing Trusted Cluster
 
 - [ ] RBAC
 
