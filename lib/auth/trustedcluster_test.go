@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -341,4 +342,141 @@ func TestRemoteDBCAMigration(t *testing.T) {
 	require.Equal(t, remoteHostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs.GetActiveKeys().TLS[0].Cert)
 	// Private key should be empty.
 	require.Nil(t, dbCAs.GetActiveKeys().TLS[0].Key)
+}
+
+func TestUpsertTrustedCluster(t *testing.T) {
+	ctx := context.Background()
+	testAuth, err := NewTestAuthServer(TestAuthServerConfig{
+		ClusterName: "localcluster",
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	a := testAuth.AuthServer
+
+	const validToken = "validtoken"
+	tks, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles: []types.SystemRole{types.RoleTrustedCluster},
+			Token: validToken,
+		}},
+	})
+	require.NoError(t, err)
+
+	err = a.SetStaticTokens(tks)
+	require.NoError(t, err)
+
+	trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		types.TrustedClusterSpecV2{
+			Enabled: true,
+			RoleMap: []types.RoleMapping{
+				{
+					Local:  []string{"someRole"},
+					Remote: "someRole",
+				},
+			},
+			ProxyAddress: "localhost",
+		})
+	require.NoError(t, err)
+
+	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "trustedcluster"))
+	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token:           validToken,
+		CAs:             []types.CertAuthority{leafClusterCA},
+		TeleportVersion: teleport.Version,
+	})
+	require.NoError(t, err)
+
+	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
+	require.NoError(t, err)
+
+	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
+	err = a.addCertAuthorities(trustedCluster, []types.CertAuthority{ca})
+	require.NoError(t, err)
+
+	err = a.UpsertCertAuthority(ca)
+	require.NoError(t, err)
+
+	err = a.createReverseTunnel(trustedCluster)
+	require.NoError(t, err)
+
+	t.Run("Invalid role change", func(t *testing.T) {
+		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+			types.TrustedClusterSpecV2{
+				Enabled: true,
+				RoleMap: []types.RoleMapping{
+					{
+						Local:  []string{"someNewRole"},
+						Remote: "someRole",
+					},
+				},
+				ProxyAddress: "localhost",
+			})
+		require.NoError(t, err)
+		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
+		require.ErrorContains(t, err, "someNewRole")
+	})
+	t.Run("Change role map of existing enabled trusted cluster", func(t *testing.T) {
+		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+			types.TrustedClusterSpecV2{
+				Enabled: true,
+				RoleMap: []types.RoleMapping{
+					{
+						Local:  []string{constants.DefaultImplicitRole},
+						Remote: "someRole",
+					},
+				},
+				ProxyAddress: "localhost",
+			})
+		require.NoError(t, err)
+		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
+		require.NoError(t, err)
+	})
+	t.Run("Disable existing trusted cluster", func(t *testing.T) {
+		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+			types.TrustedClusterSpecV2{
+				Enabled: false,
+				RoleMap: []types.RoleMapping{
+					{
+						Local:  []string{constants.DefaultImplicitRole},
+						Remote: "someRole",
+					},
+				},
+				ProxyAddress: "localhost",
+			})
+		require.NoError(t, err)
+		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
+		require.NoError(t, err)
+	})
+	t.Run("Change role map of existing disabled trusted cluster", func(t *testing.T) {
+		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+			types.TrustedClusterSpecV2{
+				Enabled: false,
+				RoleMap: []types.RoleMapping{
+					{
+						Local:  []string{constants.DefaultImplicitRole},
+						Remote: "someOtherRole",
+					},
+				},
+				ProxyAddress: "localhost",
+			})
+		require.NoError(t, err)
+		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
+		require.NoError(t, err)
+	})
+	t.Run("Enable existing trusted cluster", func(t *testing.T) {
+		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+			types.TrustedClusterSpecV2{
+				Enabled: true,
+				RoleMap: []types.RoleMapping{
+					{
+						Local:  []string{constants.DefaultImplicitRole},
+						Remote: "someOtherRole",
+					},
+				},
+				ProxyAddress: "localhost",
+			})
+		require.NoError(t, err)
+		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
+		require.NoError(t, err)
+	})
 }
