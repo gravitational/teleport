@@ -42,34 +42,64 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 type makeRequest func(url string, provider client.ConfigProvider) error
 
 func s3Request(url string, provider client.ConfigProvider) error {
+	return s3RequestWithTransport(url, provider, nil)
+}
+func s3RequestByAssumedRole(url string, provider client.ConfigProvider) error {
+	return s3RequestWithTransport(url, provider, &requestByAssumedRoleTransport{})
+}
+func s3RequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
 	s3Client := s3.New(provider, &aws.Config{
 		Endpoint:   &url,
 		MaxRetries: aws.Int(0),
-		HTTPClient: &http.Client{Timeout: 5 * time.Second},
+		HTTPClient: &http.Client{
+			Transport: transport,
+			Timeout:   5 * time.Second,
+		},
 	})
 	_, err := s3Client.ListBuckets(&s3.ListBucketsInput{})
 	return err
 }
 
 func dynamoRequest(url string, provider client.ConfigProvider) error {
+	return dynamoRequestWithTransport(url, provider, nil)
+}
+func dynamoRequestByAssumedRole(url string, provider client.ConfigProvider) error {
+	return dynamoRequestWithTransport(url, provider, &requestByAssumedRoleTransport{})
+}
+func dynamoRequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
 	dynamoClient := dynamodb.New(provider, &aws.Config{
 		Endpoint:   &url,
 		MaxRetries: aws.Int(0),
-		HTTPClient: &http.Client{Timeout: 5 * time.Second},
+		HTTPClient: &http.Client{
+			Transport: transport,
+			Timeout:   5 * time.Second,
+		},
 	})
 	_, err := dynamoClient.Scan(&dynamodb.ScanInput{
 		TableName: aws.String("test-table"),
 	})
 	return err
+}
+
+type requestByAssumedRoleTransport struct {
+}
+
+func (r requestByAssumedRoleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Simulate how a request by an assumed role is modified by "tsh".
+	req.Header.Add(common.TeleportAWSAssumedRole, mocks.AssumedRoleARN)
+	utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, common.TeleportAWSAssumedRoleAuthorization)
+	return http.DefaultTransport.RoundTrip(req)
 }
 
 func hasStatusCode(wantStatusCode int) require.ErrorAssertionFunc {
@@ -100,6 +130,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		wantAuthCredRegion  string
 		wantAuthCredKeyID   string
 		wantEventType       events.AuditEvent
+		wantAssumedRole     string
 		errAssertionFns     []require.ErrorAssertionFunc
 	}{
 		{
@@ -155,6 +186,27 @@ func TestAWSSignerHandler(t *testing.T) {
 			},
 		},
 		{
+			name: "s3 access by assumed role",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
+					AccessKeyID:     "assumedRoleKeyID",
+					SecretAccessKey: "assumedRoleKeySecret",
+				}}),
+				Region: aws.String("us-west-2"),
+			})),
+			request:             s3RequestByAssumedRole,
+			wantHost:            "s3.us-west-2.amazonaws.com",
+			wantAuthCredKeyID:   "assumedRoleKeyID", // not using service's access key ID
+			wantAuthCredService: "s3",
+			wantAuthCredRegion:  "us-west-2",
+			wantEventType:       &events.AppSessionRequest{},
+			wantAssumedRole:     mocks.AssumedRoleARN, // verifies assumed role is recorded in audit
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
 			name: "DynamoDB access",
 			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
@@ -206,6 +258,27 @@ func TestAWSSignerHandler(t *testing.T) {
 				hasStatusCode(http.StatusBadRequest),
 			},
 		},
+		{
+			name: "DynamoDB access by assumed role",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
+					AccessKeyID:     "assumedRoleKeyID",
+					SecretAccessKey: "assumedRoleKeySecret",
+				}}),
+				Region: aws.String("us-east-1"),
+			})),
+			request:             dynamoRequestByAssumedRole,
+			wantHost:            "dynamodb.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:   "assumedRoleKeyID", // not using service's access key ID
+			wantAuthCredService: "dynamodb",
+			wantAuthCredRegion:  "us-east-1",
+			wantEventType:       &events.AppSessionDynamoDBRequest{},
+			wantAssumedRole:     mocks.AssumedRoleARN, // verifies assumed role is recorded in audit
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -238,6 +311,7 @@ func TestAWSSignerHandler(t *testing.T) {
 					require.Equal(t, tc.wantHost, appSessionEvent.AWSHost)
 					require.Equal(t, tc.wantAuthCredService, appSessionEvent.AWSService)
 					require.Equal(t, tc.wantAuthCredRegion, appSessionEvent.AWSRegion)
+					require.Equal(t, tc.wantAssumedRole, appSessionEvent.AWSAssumedRole)
 					j, err := appSessionEvent.Body.MarshalJSON()
 					require.NoError(t, err)
 					require.Empty(t, cmp.Diff(`{"TableName":"test-table"}`, string(j)))
@@ -247,6 +321,7 @@ func TestAWSSignerHandler(t *testing.T) {
 					require.Equal(t, tc.wantHost, appSessionEvent.AWSHost)
 					require.Equal(t, tc.wantAuthCredService, appSessionEvent.AWSService)
 					require.Equal(t, tc.wantAuthCredRegion, appSessionEvent.AWSRegion)
+					require.Equal(t, tc.wantAssumedRole, appSessionEvent.AWSAssumedRole)
 				default:
 					require.FailNow(t, "wrong event type", "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
 				}

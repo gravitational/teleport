@@ -59,8 +59,8 @@ import (
 // resolveEndpoint extracts the aws-service on and aws-region from the request
 // authorization header and resolves the aws-service and aws-region to AWS
 // endpoint.
-func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
-	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
+func resolveEndpoint(r *http.Request, headerKey string) (*endpoints.ResolvedEndpoint, error) {
+	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(headerKey))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
