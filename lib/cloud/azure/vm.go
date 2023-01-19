@@ -89,7 +89,10 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 
 	var identities []Identity
 	if resp.Identity != nil {
-		identities = append(identities, Identity{ResourceID: *resp.Identity.PrincipalID})
+		if systemAssigned := StringVal(resp.Identity.PrincipalID); systemAssigned != "" {
+			identities = append(identities, Identity{ResourceID: systemAssigned})
+		}
+
 		for identityID := range resp.Identity.UserAssignedIdentities {
 			identities = append(identities, Identity{ResourceID: identityID})
 		}
