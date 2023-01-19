@@ -909,12 +909,12 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ap, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := actx.MFAParams(ap.GetRequireMFAType())
+	state := actx.GetAccessState(authPref)
 
 	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterName)
 	var roleMatchers services.RoleMatchers
@@ -941,7 +941,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			continue
 		}
 
-		if err := actx.Checker.CheckAccess(ks, mfaParams, roleMatchers...); err != nil {
+		if err := actx.Checker.CheckAccess(ks, state, roleMatchers...); err != nil {
 			return trace.AccessDenied(notFoundMessage)
 		}
 		// If the user has active Access requests we need to validate that they allow

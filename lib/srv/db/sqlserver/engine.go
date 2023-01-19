@@ -191,13 +191,13 @@ func (e *Engine) handleLogin7(sessionCtx *common.Session) (*protocol.Login7Packe
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
-	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
+	state := sessionCtx.GetAccessState(authPref)
+	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state,
 		&services.DatabaseUserMatcher{
 			User: sessionCtx.DatabaseUser,
 		})

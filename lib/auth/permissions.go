@@ -179,15 +179,16 @@ func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, 
 	return nil
 }
 
-// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
-func (c *Context) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	params := c.Checker.MFAParams(authPrefMFARequirement)
+// GetAccessState returns the AccessState based on the underlying
+// [services.AccessChecker] and [tlsca.Identity].
+func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.Checker.GetAccessState(authPref)
 
 	// Builtin services (like proxy_service and kube_service) are not gated
 	// on MFA and only need to pass normal RBAC action checks.
 	_, isService := c.Identity.(BuiltinRole)
-	params.Verified = isService || c.Identity.GetIdentity().MFAVerified != ""
-	return params
+	state.MFAVerified = isService || c.Identity.GetIdentity().MFAVerified != ""
+	return state
 }
 
 // Authorize authorizes user based on identity supplied via context
