@@ -154,7 +154,7 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 	}
 }
 
-// StreamServerInterceptor is a gPRC stream interceptor that rate limits
+// StreamServerInterceptor is a gRPC stream interceptor that rate limits
 // incoming requests by client IP.
 func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())

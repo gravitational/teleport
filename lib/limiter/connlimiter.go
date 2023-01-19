@@ -29,9 +29,10 @@ import (
 // ConnectionsLimiter is a network connection limiter and tracker
 type ConnectionsLimiter struct {
 	*connlimit.ConnLimiter
-	sync.Mutex
-	connections    map[string]int64
 	maxConnections int64
+
+	sync.Mutex
+	connections map[string]int64
 }
 
 // NewConnectionsLimiter returns new connection limiter, in case if connection
@@ -79,7 +80,7 @@ func (l *ConnectionsLimiter) AcquireConnection(token string) error {
 		return trace.LimitExceeded("too many connections from %v: %v, max is %v", token, numberOfConnections, l.maxConnections)
 	}
 
-	l.connections[token]++
+	l.connections[token] = numberOfConnections + 1
 	return nil
 }
 
@@ -101,7 +102,7 @@ func (l *ConnectionsLimiter) ReleaseConnection(token string) {
 	if numberOfConnections <= 1 {
 		delete(l.connections, token)
 	} else {
-		l.connections[token]--
+		l.connections[token] = numberOfConnections - 1
 	}
 }
 
