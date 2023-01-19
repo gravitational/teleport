@@ -713,9 +713,7 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		if defaultKeysPath {
 			rmdirErr := os.RemoveAll(agentlessKeysDir)
 			if rmdirErr != nil {
-				if rmdirErr != nil {
-					return trace.NewAggregate(err, rmdirErr)
-				}
+				return trace.NewAggregate(err, rmdirErr)
 			}
 		}
 		return trace.Wrap(err)
