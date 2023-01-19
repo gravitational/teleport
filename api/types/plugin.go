@@ -34,6 +34,21 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface{}
 
+// NewPluginV1 creates a new PluginV1 resource.
+func NewPluginV1(name string, spec PluginSpecV1, creds *PluginCredentialsV1) *PluginV1 {
+	p := &PluginV1{
+		Metadata: Metadata{
+			Name: name,
+		},
+		Spec: spec,
+	}
+	if creds != nil {
+		p.SetCredentials(creds)
+	}
+
+	return p
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (p *PluginV1) CheckAndSetDefaults() error {
 	p.setStaticFields()
