@@ -254,7 +254,7 @@ More information keyless signing:
 
 All Teleport images shall be scanned with [trivy](https://github.com/aquasecurity/trivy-action#using-trivy-with-github-code-scanning) immediately after build, and the 
 results will by uploaded to the GitHub Code Scanning service. From there, our Panther 
-SIEM can observe any alerts and instigate remedial action.
+SIEM can observe any alerts and instigate corrective action.
 
 ### Software Bill-of-Materials
 
@@ -326,7 +326,7 @@ graph TD
 Troubleshooting a distroless image is hard, as there are no tools baked into
 the image to aid in debugging a deployment.
 
-In addtion to the main distroless image sets, the `distroless` team also supplies 
+In addition to the main distroless image sets, the `distroless` team also supplies 
 a `debug`-tagged image that includes `busybox` (that is, a basic shell and some
 utilities). In order to provide tooling for troubleshooting a Teleport installation,
 we will create a parallel `teleport-debug` image, based on a distroless `debug` image.
@@ -341,14 +341,14 @@ We have clients relying on the existing behaviour (and contents) of our images. 
 should treat releasing these distroless images as a compatibility break, and make 
 our customers aware of our intentions well in advance so that they can prepare.
 
-## 2. Maintaininece 
+## 2. Maintenance
 
 ### Collecting data 
 
 We are already using the scanning tools built-in to AWS ECR, which periodically scans our 
 images and results of the scan into our Panther SIEM instance.
 
-To increase the size and quality of the vulnetrability database we scan with, we should 
+To increase the size and quality of the vulnerability database we scan with, we should 
 also use `trivy` for ongoing scans of our published (i.e. public) images, in addition
 to the build-time scans described above. 
 
