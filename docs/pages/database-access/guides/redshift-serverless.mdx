@@ -30,8 +30,8 @@ This guide will help you to:
 ## Step 1/5. Create an IAM policy for Teleport
 
 <Admonition type="note" title="Example Access Control">
-This guide provides an example configuration of IAM access roles as a model,
-and uses an EC2 instance to serve the Teleport Database Access service.
+This guide provides an example configuration of IAM roles as a model,
+and uses an EC2 instance to serve the Teleport Database Service.
 The level of access provided may not suit your needs, or may not fit your
 organization's access conventions. You should adjust the AWS IAM permissions to
 fit your needs.
@@ -40,7 +40,7 @@ fit your needs.
 Teleport needs AWS IAM permissions to be able to:
 
 - Discover and register Redshift Serverless workgroups and their associated VPC endpoints.
-- Manage IAM user or IAM role policies.
+- Manage IAM user and role policies.
 
 If you don't already have one, create a role to apply to the EC2 instance that
 the Teleport Database Service will run on. This guide uses the example name
@@ -223,7 +223,7 @@ $ teleport db configure create \
    --redshift-serverless-discovery=us-west-1
 ```
 
-- Replace `teleport.example.com` with your Teleport proxy URI or cloud tenant
+- Replace `teleport.example.com` with your Teleport Proxy Service URI or cloud tenant
   address (e.g. `mytenant.teleport.sh`).
 - Provide the token from the previous step to the `--token` flag.
 - Update the value of `--redshift-serverless-discovery` to match your AWS region.
@@ -250,7 +250,7 @@ this command in automatic or manual mode:
 - In automatic mode, Teleport will attempt to create appropriate IAM policies
   and attach them to the specified IAM identity (user or role). This requires the
   IAM permissions we applied to the `teleport-redshift-serverless-node` role earlier.
-- In manual mode, Teleport will print required IAM policies. You can then create
+- In manual mode, Teleport will print the required IAM policies. You can then create
   and attach them manually using the AWS management console.
 
 <Admonition type="note" title="AWS credentials">
