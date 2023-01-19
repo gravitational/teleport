@@ -415,6 +415,16 @@
             "type": "object",
             "default": {}
         },
+        "dnsConfig": {
+            "$id": "#/properties/dnsConfig",
+            "type": "object",
+            "default": {}
+        },
+        "dnsPolicy": {
+            "$id": "#/properties/dnsPolicy",
+            "type": "string",
+            "default": ""
+        },
         "extraLabels": {
             "$id": "#/properties/extraLabels",
             "type": "object",

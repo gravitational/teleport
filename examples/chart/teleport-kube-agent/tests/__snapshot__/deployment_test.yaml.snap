@@ -1129,6 +1129,17 @@ should set default serviceAccountName when not set in values if action is Upgrad
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
+should set dnsConfig when set in values if action is Upgrade:
+  1: |
+    nameservers:
+    - 1.2.3.4
+    options:
+    - name: ndots
+      value: "2"
+    - name: edns0
+    searches:
+    - ns1.svc.cluster-domain.example
+    - my.dns.search.suffix
 should set environment when extraEnv set in values if action is Upgrade:
   1: |
     containers:
