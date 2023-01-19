@@ -2126,6 +2126,16 @@
       "source": "/getting-started/",
       "destination": "/try-out-teleport/introduction/",
       "permanent": true
+    },
+    {
+      "source": "/management/guides/fluentd/",
+      "destination": "/management/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/elastic-stack/",
+      "destination": "/management/export-audit-events/elastic-stack/",
+      "permanent": true
     }
   ]
 }
