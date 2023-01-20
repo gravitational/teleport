@@ -233,9 +233,10 @@ teleterm: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
+# Builds webassets inside Docker.
 .PHONY:ui
 ui: buildbox
-	docker run -v "$$(pwd)/../":/teleport $(BUILDBOX) \
+	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
 
 # grpc generates GRPC stubs from inside the buildbox
