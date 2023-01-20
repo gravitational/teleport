@@ -134,6 +134,9 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyLockWatcher.Close()
+	})
 	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
 		ClusterName: testCtx.clusterName,
 		AccessPoint: proxyAuthClient,
