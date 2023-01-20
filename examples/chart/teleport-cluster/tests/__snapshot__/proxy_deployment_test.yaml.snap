@@ -78,9 +78,6 @@ should set nodeSelector when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
       - containerPort: 3080
         name: tls
         protocol: TCP
@@ -95,6 +92,9 @@ should set nodeSelector when set in values:
         protocol: TCP
       - containerPort: 3036
         name: mysql
+        protocol: TCP
+      - containerPort: 3000
+        name: diag
         protocol: TCP
       readinessProbe:
         failureThreshold: 12
@@ -171,9 +171,6 @@ should set resources when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
       - containerPort: 3080
         name: tls
         protocol: TCP
@@ -188,6 +185,9 @@ should set resources when set in values:
         protocol: TCP
       - containerPort: 3036
         name: mysql
+        protocol: TCP
+      - containerPort: 3000
+        name: diag
         protocol: TCP
       readinessProbe:
         failureThreshold: 12
@@ -253,9 +253,6 @@ should set securityContext when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
       - containerPort: 3080
         name: tls
         protocol: TCP
@@ -270,6 +267,9 @@ should set securityContext when set in values:
         protocol: TCP
       - containerPort: 3036
         name: mysql
+        protocol: TCP
+      - containerPort: 3000
+        name: diag
         protocol: TCP
       readinessProbe:
         failureThreshold: 12
