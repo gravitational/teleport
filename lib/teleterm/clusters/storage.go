@@ -127,7 +127,9 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, er
 	return cluster, nil
 }
 
-// addCluster adds a new cluster
+// addCluster adds a new cluster. This makes the underlying profile .yaml file to be saved to the
+// tsh home dir without logging in the user yet. Adding a cluster makes it show up in the UI as the
+// list of clusters depends on the profiles in the home dir of tsh.
 func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (*Cluster, error) {
 	if webProxyAddress == "" {
 		return nil, trace.BadParameter("cluster address is missing")
@@ -141,6 +143,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	cfg.WebProxyAddr = webProxyAddress
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
+	cfg.ClientStore = client.NewFSClientStore(s.Dir)
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 
 	profileName := parseName(webProxyAddress)
@@ -150,13 +153,9 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
-	// verify that cluster is reachable
-	_, err = clusterClient.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	webConfig, err := clusterClient.GetWebConfig(ctx)
+	// Ping verifies that the cluster is reachable. It also updates a couple of TeleportClient fields
+	// automatically based on the ping response – those fields are then saved to the profile file.
+	pingResponse, err := clusterClient.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,8 +165,10 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	}
 
 	return &Cluster{
-		URI:           clusterURI,
-		Name:          webConfig.ProxyClusterName,
+		URI: clusterURI,
+		// The cluster name cannot be deduced from the web proxy address alone. The name of the cluster
+		// might be different than the address of the proxy.
+		Name:          pingResponse.ClusterName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
@@ -221,10 +222,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		}
 
 		if err := clusterClient.LoadKeyForCluster(status.Cluster); err != nil {
-			s.Log.WithError(err).Infof("Could not load key for %s into the local agent.", status.Cluster)
-			if !trace.IsNotImplemented(err) && !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
+			return nil, trace.Wrap(err)
 		}
 	}
 	if err != nil && !trace.IsNotFound(err) {

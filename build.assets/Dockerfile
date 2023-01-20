@@ -222,7 +222,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.11.0" && \
+    VERSION="1.12.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
@@ -235,6 +235,18 @@ COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
 
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
+
+# Install Nodejs
+ARG NODE_VERSION
+ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
+ENV NODE_PATH="/usr/local/lib/nodejs-linux"
+ENV PATH="$PATH:${NODE_PATH}/bin"
+RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
+     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
+     mkdir -p ${NODE_PATH} && \
+     curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
+RUN corepack enable yarn
 
 # Install Rust
 ARG RUST_VERSION

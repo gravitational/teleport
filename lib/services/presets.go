@@ -74,8 +74,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-					types.NewRule(types.KindLicense, RO()),
-					types.NewRule(types.KindDownload, RO()),
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
@@ -115,6 +113,13 @@ func NewPresetAccessRole() types.Role {
 				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -134,6 +139,7 @@ func NewPresetAccessRole() types.Role {
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
 	role.SetAzureIdentities(types.Allow, []string{teleport.TraitInternalAzureIdentities})
+	role.SetGCPServiceAccounts(types.Allow, []string{teleport.TraitInternalGCPServiceAccounts})
 	return role
 }
 

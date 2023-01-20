@@ -10,10 +10,6 @@ GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
 
-# delete after webapps migration to teleport
-WEBAPPSSRCDIR=/go/src/github.com/gravitational/webapps
-WEBAPPSDOCKERFLAGS := $(DOCKERFLAGS) -v "$$(pwd)/../../webapps":$(WEBAPPSSRCDIR)
-
 ADDFLAGS ?=
 BATSFLAGS :=
 NOROOT=-u $$(id -u):$$(id -g)
@@ -23,12 +19,12 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.19.4
+GOLANG_VERSION ?= go1.19.5
 
 NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.66.0
+RUST_VERSION ?= 1.66.1
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -135,6 +131,7 @@ buildbox:
 			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
+			--build-arg NODE_VERSION=$(NODE_VERSION) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -151,7 +148,9 @@ buildbox-fips:
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
+			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+			--build-arg NODE_VERSION=$(NODE_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
@@ -169,6 +168,7 @@ buildbox-centos7:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -186,6 +186,7 @@ buildbox-centos7-fips:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
@@ -235,7 +236,6 @@ buildbox-teleterm: buildbox
 		--cache-from $(BUILDBOX_TELETERM) \
 		--tag $(BUILDBOX_TELETERM) -f Dockerfile-teleterm .
 
-
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
 CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
@@ -244,14 +244,16 @@ endif
 #
 # Builds Teleport Connect inside the buildbox-teleterm container.
 #
-#   Note: this assumes that gravitational/webapps already exists on the filesystem
-#         and is a sibling directory to Teleport. This is temporary and will be
-#         resolved when the webapps code is moved into this repository.
-#
 .PHONY:teleterm
 teleterm: buildbox-teleterm
-	docker run $(WEBAPPSDOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
-		bash -c "cd ../webapps && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
+		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+
+# Builds webassets inside Docker.
+.PHONY:ui
+ui: buildbox
+	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
+		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
@@ -392,6 +394,7 @@ enter/teleterm: buildbox-teleterm
 #
 .PHONY:release
 release: buildbox
+	@echo "Build Assets Release"
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
@@ -433,17 +436,17 @@ release-arm64: buildbox-arm
 # #############################################################################
 
 #
-# The `release-oss` and `release-enterprise` make targets are for building OSS 
+# The `release-oss` and `release-enterprise` make targets are for building OSS
 # and Enterprise releases from GitHub actions. These make targets execute in a
 # container based on a caller-supplied `BUILDBOX` image.
 #
 # Unlike the other release targets, these release targets do not attempt to
-# automatically construct the buildbox image at build time - the build box 
-# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the 
+# automatically construct the buildbox image at build time - the build box
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the
 # make command line
 #
-# Separating the construction of build environment from the actual build itself 
-# allows us to use the appropriate GHA actions to pre-build the buildbox 
+# Separating the construction of build environment from the actual build itself
+# allows us to use the appropriate GHA actions to pre-build the buildbox
 # image, so that the image construction works nicely with GHA.
 #
 

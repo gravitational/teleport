@@ -1060,6 +1060,8 @@ type certRequest struct {
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
 	azureIdentity string
+	// gcpServiceAccount is the GCP service account to generate certificate for.
+	gcpServiceAccount string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -1196,6 +1198,8 @@ type AppTestCertRequest struct {
 	AWSRoleARN string
 	// AzureIdentity is the optional Azure identity a user wants to assume to encode.
 	AzureIdentity string
+	// GCPServiceAccount is optional GCP service account a user wants to assume to encode.
+	GCPServiceAccount string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1232,11 +1236,12 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   sessionID,
-		appPublicAddr:  req.PublicAddr,
-		appClusterName: req.ClusterName,
-		awsRoleARN:     req.AWSRoleARN,
-		azureIdentity:  req.AzureIdentity,
+		appSessionID:      sessionID,
+		appPublicAddr:     req.PublicAddr,
+		appClusterName:    req.ClusterName,
+		awsRoleARN:        req.AWSRoleARN,
+		azureIdentity:     req.AzureIdentity,
+		gcpServiceAccount: req.GCPServiceAccount,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1323,7 +1328,8 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *Context, opts *AugmentUserCertificateOpts) (*proto.Certs, error) {
+	authCtx *Context, opts *AugmentUserCertificateOpts,
+) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
 		return nil, trace.BadParameter("authCtx required")
@@ -1719,6 +1725,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Enumerate allowed GCP service accounts.
+	gcpAccounts, err := req.checker.CheckGCPServiceAccounts(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
@@ -1732,12 +1744,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:     req.appSessionID,
-			PublicAddr:    req.appPublicAddr,
-			ClusterName:   req.appClusterName,
-			Name:          req.appName,
-			AWSRoleARN:    req.awsRoleARN,
-			AzureIdentity: req.azureIdentity,
+			SessionID:         req.appSessionID,
+			PublicAddr:        req.appPublicAddr,
+			ClusterName:       req.appClusterName,
+			Name:              req.appName,
+			AWSRoleARN:        req.awsRoleARN,
+			AzureIdentity:     req.azureIdentity,
+			GCPServiceAccount: req.gcpServiceAccount,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -1753,6 +1766,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ClientIP:                req.clientIP,
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
+		GCPServiceAccounts:      gcpAccounts,
 		ActiveRequests:          req.activeRequests.AccessRequests,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
@@ -2286,9 +2300,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			Code:        events.MFADeviceDeleteEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: user,
-		},
+		UserMetadata:      ClientUserMetadataWithUser(ctx, user),
 		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -2389,9 +2401,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: req.username,
-		},
+		UserMetadata:      ClientUserMetadataWithUser(ctx, req.username),
 		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit add mfa device event.")
@@ -3851,12 +3861,12 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
 	case services.MFARequiredNever:
@@ -3906,7 +3916,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		for _, n := range matches {
 			err := checker.CheckAccess(
 				n,
-				services.AccessMFAParams{},
+				services.AccessState{},
 				services.NewLoginMatcher(t.Node.Login),
 			)
 
@@ -3939,7 +3949,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessMFAParams{})
+		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -3968,7 +3978,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		)
 		noMFAAccessErr = checker.CheckAccess(
 			db,
-			services.AccessMFAParams{},
+			services.AccessState{},
 			dbRoleMatchers...,
 		)
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
@@ -3981,7 +3991,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		noMFAAccessErr = checker.CheckAccess(desktops[0],
-			services.AccessMFAParams{},
+			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	default:
@@ -4273,6 +4283,13 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.OpenSSHCA:
+		// OpenSSH CA only contains a SSH key pair.
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.SSH = append(keySet.SSH, sshKeyPair)
 	case types.JWTSigner:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
 		if err != nil {

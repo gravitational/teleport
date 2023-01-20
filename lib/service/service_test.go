@@ -565,6 +565,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
 			process := TeleportProcess{
 				Config: cfg,
+				// Setting Supervisor so that `ExitContext` can be called.
+				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
 				ServerIdentity: &auth.Identity{

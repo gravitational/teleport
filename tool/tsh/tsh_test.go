@@ -313,7 +313,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRoleV3("populist", types.RoleSpecV6{
+	populist, err := types.NewRole("populist", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -326,7 +326,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV6{})
+	dictator, err := types.NewRole("dictator", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -916,16 +916,18 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{user.Username},
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
 
-	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV6{
+	perSessionMFARole, err := types.NewRole("mfa-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{user.Username},
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 		Options: types.RoleOptions{RequireSessionMFA: true},
 	})
@@ -1525,7 +1527,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	requester, err := types.NewRoleV3("requester", types.RoleSpecV6{
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"access"},

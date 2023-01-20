@@ -24,9 +24,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/usagereporter"
 )
 
 const (
@@ -45,11 +47,20 @@ func New(cfg Config) (*Service, error) {
 
 	closeContext, cancel := context.WithCancel(context.Background())
 
+	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	go connectUsageReporter.Run(closeContext)
+
 	return &Service{
-		cfg:          &cfg,
-		closeContext: closeContext,
-		cancel:       cancel,
-		gateways:     make(map[string]*gateway.Gateway),
+		cfg:           &cfg,
+		closeContext:  closeContext,
+		cancel:        cancel,
+		gateways:      make(map[string]*gateway.Gateway),
+		usageReporter: connectUsageReporter,
 	}, nil
 }
 
@@ -619,6 +630,8 @@ type Service struct {
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
+	// usageReporter batches the events and sends them to prehog
+	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest]
 }
 
 type CreateGatewayParams struct {

@@ -688,7 +688,6 @@ func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.Ce
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if !ver10orAbove {
 		s.logger.Debugf("Connected to remote cluster of version %s. Database CA won't be propagated.", remoteClusterVersion)
 		return types.CertAuthorityFilter{
@@ -697,10 +696,25 @@ func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.Ce
 		}, nil
 	}
 
+	// DELETE IN 13.0.0.
+	ver12orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.OpenSSHCAMinVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !ver12orAbove {
+		s.logger.Debugf("Connected to remote cluster of version %s. OpenSSH CA won't be propagated.", remoteClusterVersion)
+		return types.CertAuthorityFilter{
+			types.HostCA:     s.srv.ClusterName,
+			types.UserCA:     s.srv.ClusterName,
+			types.DatabaseCA: s.srv.ClusterName,
+		}, nil
+	}
+
 	return types.CertAuthorityFilter{
 		types.HostCA:     s.srv.ClusterName,
 		types.UserCA:     s.srv.ClusterName,
 		types.DatabaseCA: s.srv.ClusterName,
+		types.OpenSSHCA:  s.srv.ClusterName,
 	}, nil
 }
 

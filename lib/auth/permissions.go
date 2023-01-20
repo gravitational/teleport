@@ -179,15 +179,16 @@ func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, 
 	return nil
 }
 
-// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
-func (c *Context) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	params := c.Checker.MFAParams(authPrefMFARequirement)
+// GetAccessState returns the AccessState based on the underlying
+// [services.AccessChecker] and [tlsca.Identity].
+func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.Checker.GetAccessState(authPref)
 
 	// Builtin services (like proxy_service and kube_service) are not gated
 	// on MFA and only need to pass normal RBAC action checks.
 	_, isService := c.Identity.(BuiltinRole)
-	params.Verified = isService || c.Identity.GetIdentity().MFAVerified != ""
-	return params
+	state.MFAVerified = isService || c.Identity.GetIdentity().MFAVerified != ""
+	return state
 }
 
 // Authorize authorizes user based on identity supplied via context
@@ -703,6 +704,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
+						types.NewRule(types.KindSemaphore, services.RW()),
 					},
 				},
 			})
@@ -743,9 +745,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
+						types.NewRule(types.KindDatabase, services.RW()),
 					},
 					// wildcard any cluster available.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	}
@@ -891,14 +895,13 @@ func ClientImpersonator(ctx context.Context) string {
 // did not come from an HTTP request, metadata for teleport.UserSystem is
 // returned.
 func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
+	identityGetter, ok := ctx.Value(ContextUser).(IdentityGetter)
 	if !ok {
 		return apievents.UserMetadata{
 			User: teleport.UserSystem,
 		}
 	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := identityGetter.GetIdentity().GetUserMetadata()
 	if meta.User == "" {
 		meta.User = teleport.UserSystem
 	}
@@ -909,14 +912,7 @@ func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
 // by a remote client making a call, with the specified username overriding the one
 // from the remote client.
 func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
-		return apievents.UserMetadata{
-			User: user,
-		}
-	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := ClientUserMetadata(ctx)
 	meta.User = user
 	return meta
 }

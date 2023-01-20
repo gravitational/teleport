@@ -177,7 +177,22 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{hostCA, userCA, dbCA}, nil
+	osshCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.OpenSSHCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     s.PrivKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      s.PubKey,
+			}},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []types.CertAuthority{hostCA, userCA, dbCA, osshCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -483,7 +498,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        i.Hostname,
+			Addr:        i.Web,
 		},
 		{
 			AddrNetwork: "tcp",
@@ -542,12 +557,18 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
 func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
-	ctx := context.TODO()
 	tconf, err := i.GenerateConfig(t, trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	return i.CreateWithConf(t, tconf)
+}
+
+// CreateWithConf creates a new instance of Teleport using the supplied config
+func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *service.Config) error {
 	i.Config = tconf
+	var err error
 	i.Process, err = service.NewTeleport(tconf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -562,6 +583,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 	// create users and roles if they don't exist, or sign their keys if they're
 	// already present
 	auth := i.Process.GetAuthServer()
+	ctx := context.TODO()
 
 	for _, user := range i.Secrets.Users {
 		teleUser, err := types.NewUser(user.Username)

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -60,10 +61,10 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var arn string
+	var awsRoleARN string
 	if app.IsAWSConsole() {
 		var err error
-		arn, err = getARNFromFlags(cf, profile, app)
+		awsRoleARN, err = getARNFromFlags(cf, profile, app)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -79,12 +80,23 @@ func onAppLogin(cf *CLIConf) error {
 		log.Debugf("Azure identity is %q", azureIdentity)
 	}
 
+	var gcpServiceAccount string
+	if app.IsGCP() {
+		var err error
+		gcpServiceAccount, err = getGCPServiceAccountFromFlags(cf, profile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Debugf("GCP service account is %q", gcpServiceAccount)
+	}
+
 	request := types.CreateAppSessionRequest{
-		Username:      tc.Username,
-		PublicAddr:    app.GetPublicAddr(),
-		ClusterName:   tc.SiteName,
-		AWSRoleARN:    arn,
-		AzureIdentity: azureIdentity,
+		Username:          tc.Username,
+		PublicAddr:        app.GetPublicAddr(),
+		ClusterName:       tc.SiteName,
+		AWSRoleARN:        awsRoleARN,
+		AzureIdentity:     azureIdentity,
+		GCPServiceAccount: gcpServiceAccount,
 	}
 
 	ws, err := tc.CreateAppSession(cf.Context, request)
@@ -95,12 +107,13 @@ func onAppLogin(cf *CLIConf) error {
 	params := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp: proto.RouteToApp{
-			Name:          app.GetName(),
-			SessionID:     ws.GetName(),
-			PublicAddr:    app.GetPublicAddr(),
-			ClusterName:   tc.SiteName,
-			AWSRoleARN:    arn,
-			AzureIdentity: azureIdentity,
+			Name:              app.GetName(),
+			SessionID:         ws.GetName(),
+			PublicAddr:        app.GetPublicAddr(),
+			ClusterName:       tc.SiteName,
+			AWSRoleARN:        awsRoleARN,
+			AzureIdentity:     azureIdentity,
+			GCPServiceAccount: gcpServiceAccount,
 		},
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 	}
@@ -117,6 +130,7 @@ func onAppLogin(cf *CLIConf) error {
 		return awsCliTpl.Execute(os.Stdout, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
+			"awsRoleARN": awsRoleARN,
 		})
 	}
 	if app.IsAzureCloud() {
@@ -147,12 +161,18 @@ func onAppLogin(cf *CLIConf) error {
 			"identity": azureIdentity,
 		})
 	}
+	if app.IsGCP() {
+		return gcpCliTpl.Execute(os.Stdout, map[string]string{
+			"appName":        app.GetName(),
+			"serviceAccount": gcpServiceAccount,
+		})
+	}
 	if app.IsTCP() {
 		return appLoginTCPTpl.Execute(os.Stdout, map[string]string{
 			"appName": app.GetName(),
 		})
 	}
-	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, arn, azureIdentity)
+	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -187,9 +207,16 @@ Then connect to the application through this proxy.
 // awsCliTpl is the message that gets printed to a user upon successful login
 // into an AWS Console application.
 var awsCliTpl = template.Must(template.New("").Parse(
-	`Logged into AWS app {{.awsAppName}}. Example AWS CLI command:
+	`Logged into AWS app "{{.awsAppName}}".
 
+Your IAM role:
+  {{.awsRoleARN}}
+
+Example AWS CLI command:
   tsh aws {{.awsCmd}}
+
+Or start a local proxy:
+  tsh proxy aws --app {{.awsAppName}}
 `))
 
 // azureCliTpl is the message that gets printed to a user upon successful login
@@ -198,6 +225,14 @@ var azureCliTpl = template.Must(template.New("").Parse(
 	`Logged into Azure app "{{.appName}}".
 Your identity: {{.identity}}
 Example Azure CLI command: tsh az vm list
+`))
+
+// gcpCliTpl is the message that gets printed to a user upon successful login
+// into a GCP application.
+var gcpCliTpl = template.Must(template.New("").Parse(
+	`Logged into GCP app "{{.appName}}".
+Your service account: {{.serviceAccount}}
+Example command: tsh gcloud compute instances list
 `))
 
 // getRegisteredApp returns the registered application with the specified name.
@@ -278,7 +313,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "", app.AWSRoleARN, app.AzureIdentity)
+	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "", app.AWSRoleARN, app.AzureIdentity, app.GCPServiceAccount)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -286,7 +321,7 @@ func onAppConfig(cf *CLIConf) error {
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster, awsARN, azureIdentity string) (string, error) {
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster, awsARN, azureIdentity, gcpServiceAccount string) (string, error) {
 	var uri string
 	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
 		uri = fmt.Sprintf("https://%v", appPublicAddr)
@@ -321,14 +356,15 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		return curlCmd, nil
 	case appFormatJSON, appFormatYAML:
 		appConfig := &appConfigInfo{
-			Name:          appName,
-			URI:           uri,
-			CA:            profile.CACertPathForCluster(cluster),
-			Cert:          profile.AppCertPath(appName),
-			Key:           profile.KeyPath(),
-			Curl:          curlCmd,
-			AWSRoleARN:    awsARN,
-			AzureIdentity: azureIdentity,
+			Name:              appName,
+			URI:               uri,
+			CA:                profile.CACertPathForCluster(cluster),
+			Cert:              profile.AppCertPath(appName),
+			Key:               profile.KeyPath(),
+			Curl:              curlCmd,
+			AWSRoleARN:        awsARN,
+			AzureIdentity:     azureIdentity,
+			GCPServiceAccount: gcpServiceAccount,
 		}
 		out, err := serializeAppConfig(appConfig, format)
 		if err != nil {
@@ -336,20 +372,26 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		}
 		return out, nil
 	case "", "default":
-		cfg := fmt.Sprintf(`Name:      %v
-URI:       %v
-CA:        %v
-Cert:      %v
-Key:       %v
-`, appName, uri, profile.CACertPathForCluster(cluster),
-			profile.AppCertPath(appName), profile.KeyPath())
+		t := asciitable.MakeHeadlessTable(2)
+		// additional spaces after `Name:` are there to enforce minimum column width,
+		// which helps to visually separate the two columns.
+		t.AddRow([]string{"Name:     ", appName})
+		t.AddRow([]string{"URI:", uri})
+		t.AddRow([]string{"CA:", profile.CACertPathForCluster(cluster)})
+		t.AddRow([]string{"Cert:", profile.AppCertPath(appName)})
+		t.AddRow([]string{"Key:", profile.KeyPath()})
+
 		if awsARN != "" {
-			cfg = cfg + fmt.Sprintf("AWS ARN:   %v\n", awsARN)
+			t.AddRow([]string{"AWS ARN:", awsARN})
 		}
 		if azureIdentity != "" {
-			cfg = cfg + fmt.Sprintf("Azure Id:  %v\n", azureIdentity)
+			t.AddRow([]string{"Azure Id:", azureIdentity})
 		}
-		return cfg, nil
+		if gcpServiceAccount != "" {
+			t.AddRow([]string{"GCP Service Account:", gcpServiceAccount})
+		}
+
+		return t.AsBuffer().String(), nil
 	default:
 		acceptedFormats := []string{
 			"", "default",
@@ -362,14 +404,15 @@ Key:       %v
 }
 
 type appConfigInfo struct {
-	Name          string `json:"name"`
-	URI           string `json:"uri"`
-	CA            string `json:"ca"`
-	Cert          string `json:"cert"`
-	Key           string `json:"key"`
-	Curl          string `json:"curl"`
-	AWSRoleARN    string `json:"aws_role_arn,omitempty"`
-	AzureIdentity string `json:"azure_identity,omitempty"`
+	Name              string `json:"name"`
+	URI               string `json:"uri"`
+	CA                string `json:"ca"`
+	Cert              string `json:"cert"`
+	Key               string `json:"key"`
+	Curl              string `json:"curl"`
+	AWSRoleARN        string `json:"aws_role_arn,omitempty"`
+	AzureIdentity     string `json:"azure_identity,omitempty"`
+	GCPServiceAccount string `json:"gcp_service_account,omitempty"`
 }
 
 func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error) {

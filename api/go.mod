@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/api
 
-go 1.18
+go 1.19
 
 require (
 	github.com/go-piv/piv-go v1.10.0

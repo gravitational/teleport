@@ -2364,7 +2364,7 @@ func (process *TeleportProcess) initSSH() error {
 
 			// Start the SSH server. This kicks off updating labels, starting the
 			// heartbeat, and accepting connections.
-			go s.Serve(listener)
+			go s.Serve(limiter.WrapListener(listener))
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
@@ -2660,6 +2660,8 @@ func (process *TeleportProcess) initMetricsService() error {
 		}
 		log.Infof("Exited.")
 	})
+
+	process.BroadcastEvent(Event{Name: MetricsReady, Payload: nil})
 	return nil
 }
 
@@ -2816,6 +2818,8 @@ func (process *TeleportProcess) initTracingService() error {
 		}
 		process.log.Info("Exited.")
 	})
+
+	process.BroadcastEvent(Event{Name: TracingReady, Payload: nil})
 	return nil
 }
 
@@ -3394,7 +3398,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Client:    accessPoint,
 		},
 		AuthorityGetter: accessPoint,
-		Types:           []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+		Types: []types.CertAuthType{
+			types.HostCA,
+			types.UserCA,
+			types.DatabaseCA,
+			types.OpenSSHCA,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3433,7 +3442,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ID:                            process.Config.HostUUID,
 				ClusterName:                   clusterName,
 				ClientTLS:                     clientTLSConfig,
-				Listener:                      listeners.reverseTunnel,
+				Listener:                      reverseTunnelLimiter.WrapListener(listeners.reverseTunnel),
 				HostSigners:                   []ssh.Signer{conn.ServerIdentity.KeySigner},
 				LocalAuthClient:               conn.Client,
 				LocalAccessPoint:              accessPoint,
@@ -3470,7 +3479,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			// notify parties that we've started reverse tunnel server
 			process.BroadcastEvent(Event{Name: ProxyReverseTunnelReady, Payload: tsrv})
-			tsrv.Wait()
+			tsrv.Wait(process.ExitContext())
 			return nil
 		})
 	}
@@ -3715,6 +3724,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	sshGRPCServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			utils.GRPCServerUnaryErrorInterceptor,
+			otelgrpc.UnaryServerInterceptor(),
+		),
+		grpc.ChainStreamInterceptor(
+			utils.GRPCServerStreamErrorInterceptor,
+			otelgrpc.StreamServerInterceptor(),
+		),
+		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+	)
+
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
@@ -3722,26 +3743,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start ssh server
 		go func() {
-			if err := sshProxy.Serve(listeners.ssh); err != nil && !utils.IsOKNetworkError(err) {
+			if err := sshProxy.Serve(proxyLimiter.WrapListener(listeners.ssh)); err != nil && !utils.IsOKNetworkError(err) {
 				log.WithError(err).Error("SSH proxy server terminated unexpectedly")
 			}
 		}()
 
-		grpcServer := grpc.NewServer(
-			grpc.ChainUnaryInterceptor(
-				utils.GRPCServerUnaryErrorInterceptor,
-				otelgrpc.UnaryServerInterceptor(),
-			),
-			grpc.ChainStreamInterceptor(
-				utils.GRPCServerStreamErrorInterceptor,
-				otelgrpc.StreamServerInterceptor(),
-			),
-			grpc.Creds(credentials.NewTLS(serverTLSConfig)),
-		)
-
 		// start grpc server
 		go func() {
-			if err := grpcServer.Serve(listeners.sshGRPC); !errors.Is(err, grpc.ErrServerStopped) {
+			if err := sshGRPCServer.Serve(proxyLimiter.WrapListener(listeners.sshGRPC)); !errors.Is(err, grpc.ErrServerStopped) {
 				log.WithError(err).Error("SSH gRPC server terminated unexpectedly")
 			}
 		}()
@@ -3994,7 +4003,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServerAddresses()), jwtSigner, conn.ServerIdentity.TLSCertBytes)
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
+			tsrv,
+			clusterName,
+			utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+			jwtSigner,
+			conn.ServerIdentity.XCert.Raw)
 
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
@@ -4060,6 +4074,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(minimalWebHandler.Close(), log)
 			}
 			warnOnErr(sshProxy.Close(), log)
+			sshGRPCServer.Stop()
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close(), log)
 			}
@@ -4076,6 +4091,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(tsrv.DrainConnections(ctx), log)
 			}
 			warnOnErr(sshProxy.Shutdown(ctx), log)
+			sshGRPCServer.GracefulStop()
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx), log)
 			}
@@ -4113,7 +4129,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	})
 
 	return nil
-
 }
 
 func (process *TeleportProcess) getJWTSigner(ident *auth.Identity) (*jwt.Key, error) {
@@ -4203,9 +4218,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
-	if !acmeCfg.Enabled {
-		tlsConfig = utils.TLSConfig(cfg.CipherSuites)
-	} else {
+	if acmeCfg.Enabled {
 		process.Config.Log.Infof("Managing certs using ACME https://datatracker.ietf.org/doc/rfc8555/.")
 
 		acmePath := filepath.Join(process.Config.DataDir, teleport.ComponentACME)
@@ -4241,16 +4254,17 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 			},
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
-	}
-
-	for _, pair := range process.Config.Proxy.KeyPairs {
-		process.Config.Log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
-
-		certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
-		if err != nil {
+	} else {
+		certReloader := NewCertReloader(CertReloaderConfig{
+			KeyPairs:               process.Config.Proxy.KeyPairs,
+			KeyPairsReloadInterval: process.Config.Proxy.KeyPairsReloadInterval,
+		})
+		if err := certReloader.Run(process.ExitContext()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+
+		tlsConfig = utils.TLSConfig(cfg.CipherSuites)
+		tlsConfig.GetCertificate = certReloader.GetCertificate
 	}
 
 	setupTLSConfigALPNProtocols(tlsConfig)
@@ -4358,7 +4372,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	// authentication information makes it into the gRPC credentials.
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc:  alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSHGRPC),
-		Handler:    sshProxyListener.HandleConnection,
+		Handler:    sshGRPCListener.HandleConnection,
 		ForwardTLS: true,
 	})
 	listeners.sshGRPC = sshGRPCListener

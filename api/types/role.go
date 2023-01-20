@@ -149,6 +149,11 @@ type Role interface {
 	// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
 	SetAzureIdentities(RoleConditionType, []string)
 
+	// GetGCPServiceAccounts returns a list of GCP service accounts this role is allowed to assume.
+	GetGCPServiceAccounts(RoleConditionType) []string
+	// SetGCPServiceAccounts sets a list of GCP service accounts this role is allowed to assume.
+	SetGCPServiceAccounts(RoleConditionType, []string)
+
 	// GetWindowsDesktopLabels gets the Windows desktop labels this role
 	// is allowed or denied access to.
 	GetWindowsDesktopLabels(RoleConditionType) Labels
@@ -212,22 +217,6 @@ type Role interface {
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
 	role := RoleV6{
 		Version: V6,
-		Metadata: Metadata{
-			Name: name,
-		},
-		Spec: spec,
-	}
-	if err := role.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &role, nil
-}
-
-// NewRoleV3 constructs new standard V3 role.
-// This is mostly a legacy function and will create a role with V3 RBAC semantics.
-func NewRoleV3(name string, spec RoleSpecV6) (Role, error) {
-	role := RoleV6{
-		Version: V3,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -629,6 +618,23 @@ func (r *RoleV6) SetAzureIdentities(rct RoleConditionType, identities []string) 
 	}
 }
 
+// GetGCPServiceAccounts returns a list of GCP service accounts this role is allowed to assume.
+func (r *RoleV6) GetGCPServiceAccounts(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.GCPServiceAccounts
+	}
+	return r.Spec.Deny.GCPServiceAccounts
+}
+
+// SetGCPServiceAccounts sets a list of GCP service accounts this role is allowed to assume.
+func (r *RoleV6) SetGCPServiceAccounts(rct RoleConditionType, accounts []string) {
+	if rct == Allow {
+		r.Spec.Allow.GCPServiceAccounts = accounts
+	} else {
+		r.Spec.Deny.GCPServiceAccounts = accounts
+	}
+}
+
 // GetWindowsDesktopLabels gets the desktop labels this role is allowed or denied access to.
 func (r *RoleV6) GetWindowsDesktopLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
@@ -888,6 +894,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	for _, identity := range r.Spec.Allow.AzureIdentities {
 		if identity == Wildcard {
 			return trace.BadParameter("wildcard matcher is not allowed in allow.azure_identities")
+		}
+	}
+	for _, identity := range r.Spec.Allow.GCPServiceAccounts {
+		if identity == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in allow.gcp_service_accounts")
 		}
 	}
 	checkWildcardSelector := func(labels Labels) error {
@@ -1423,4 +1434,10 @@ func validateKubeResources(kubeResources []KubernetesResource) error {
 		}
 	}
 	return nil
+}
+
+// ClusterResource returns the resource name in the following format
+// <namespace>/<name>.
+func (k *KubernetesResource) ClusterResource() string {
+	return k.Namespace + "/" + k.Name
 }

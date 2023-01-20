@@ -535,7 +535,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dummyUserRole, err := types.NewRoleV3("dummy-user-role", types.RoleSpecV6{})
+	dummyUserRole, err := types.NewRole("dummy-user-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	dummyUser, err := CreateUser(srv.Auth(), "dummy-user", dummyUserRole)
@@ -1164,7 +1164,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 func TestStreamSessionEventsRBAC(t *testing.T) {
 	t.Parallel()
 
-	role, err := types.NewRoleV3("deny-sessions", types.RoleSpecV6{
+	role, err := types.NewRole("deny-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{
 				"*": []string{types.Wildcard},
@@ -2143,7 +2143,7 @@ func TestKindClusterConfig(t *testing.T) {
 	})
 
 	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRoleV3("test-role", types.RoleSpecV6{
+		role, err := types.NewRole("test-role", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
@@ -3267,7 +3267,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// creates roles that deny the given labels
 	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
-		role, err := types.NewRoleV3(name, types.RoleSpecV6{
+		role, err := types.NewRole(name, types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
 					"*": []string{types.Wildcard},

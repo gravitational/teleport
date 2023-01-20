@@ -387,31 +387,33 @@ func isTeleportAgentKey(key *agent.Key) bool {
 	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
 }
 
-// AsAgentKey converts PrivateKey to a agent.AddedKey. If the given PrivateKey is not
-// supported as an agent key, a trace.NotImplemented error is returned.
+// AsAgentKeys converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
+// can be added to a local agent (keyring), nut non-standard keys cannot be added
+// to an SSH system agent through the ssh agent protocol. Check canAddToSystemAgent
+// before adding this key to an SSH system agent.
 func (k *Key) AsAgentKey() (agent.AddedKey, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
 		return agent.AddedKey{}, trace.Wrap(err)
 	}
 
-	switch k.Signer.(type) {
+	return agent.AddedKey{
+		PrivateKey:       k.Signer,
+		Certificate:      sshCert,
+		Comment:          teleportAgentKeyComment(k.KeyIndex),
+		LifetimeSecs:     0,
+		ConfirmBeforeUse: false,
+	}, nil
+}
+
+// canAddToSystemAgent returns whether this agent key can be added to an SSH system agent.
+// Non-standard private keys will return false.
+func canAddToSystemAgent(agentKey agent.AddedKey) bool {
+	switch agentKey.PrivateKey.(type) {
 	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		return agent.AddedKey{
-			PrivateKey:       k.Signer,
-			Certificate:      sshCert,
-			Comment:          teleportAgentKeyComment(k.KeyIndex),
-			LifetimeSecs:     0,
-			ConfirmBeforeUse: false,
-		}, nil
+		return true
 	default:
-		// We return a not implemented error because agent.AddedKey only
-		// supports plain RSA, ECDSA, and ED25519 keys. Non-standard private
-		// keys, like hardware-based private keys, will require custom solutions
-		// which may not be included in their initial implementation. This will
-		// only affect functionality related to agent forwarding, so we give the
-		// caller the ability to handle the error gracefully.
-		return agent.AddedKey{}, trace.NotImplemented("cannot create an agent key using private key signer of type %T", k.Signer)
+		return false
 	}
 }
 

@@ -76,6 +76,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
 		dbConfigCreateFlags              createDatabaseConfigFlags
 		systemdInstallFlags              installSystemdFlags
+		waitFlags                        waitFlags
 	)
 
 	// define commands:
@@ -249,7 +250,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("memorydb-discovery", "List of AWS regions in which the agent will discover MemoryDB clusters.").StringsVar(&dbConfigCreateFlags.MemoryDBDiscoveryRegions)
 	dbConfigureCreate.Flag("aws-tags", "(Only for AWS discoveries) Comma-separated list of AWS resource tags to match, for example env=dev,dept=it").StringVar(&dbConfigCreateFlags.AWSRawTags)
 	dbConfigureCreate.Flag("azure-mysql-discovery", "List of Azure regions in which the agent will discover MySQL servers.").StringsVar(&dbConfigCreateFlags.AzureMySQLDiscoveryRegions)
-	dbConfigureCreate.Flag("azure-postgres-discovery", "List of Azure regions in which the agent will discover Postgres servers.").StringsVar(&dbConfigCreateFlags.AzurePostgresDiscoveryRegions)
+	dbConfigureCreate.Flag("azure-postgres-discovery", "List of Azure regions in which the agent will discover PostgreSQL servers.").StringsVar(&dbConfigCreateFlags.AzurePostgresDiscoveryRegions)
 	dbConfigureCreate.Flag("azure-redis-discovery", "List of Azure regions in which the agent will discover Azure Cache For Redis servers.").StringsVar(&dbConfigCreateFlags.AzureRedisDiscoveryRegions)
 	dbConfigureCreate.Flag("azure-sqlserver-discovery", "List of Azure regions in which the agent will discover Azure SQL Databases and Managed Instances.").StringsVar(&dbConfigCreateFlags.AzureSQLServerDiscoveryRegions)
 	dbConfigureCreate.Flag("azure-subscription", "List of Azure subscription IDs for Azure discoveries. Default is \"*\".").Default(types.Wildcard).StringsVar(&dbConfigCreateFlags.AzureSubscriptions)
@@ -376,6 +377,17 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes")
 	dumpNodeConfigure.Flag("node-name", "Name for the teleport node.").StringVar(&dumpFlags.NodeName)
 
+	waitCmd := app.Command(teleport.WaitSubCommand, "Used internally by Teleport to onWait until a specific condition is reached.").Hidden()
+	waitNoResolveCmd := waitCmd.Command("no-resolve", "Used internally to onWait until a domain stops resolving IP addresses.")
+	waitNoResolveCmd.Arg("domain", "Domain that is resolved.").StringVar(&waitFlags.domain)
+	waitNoResolveCmd.Flag("period", "Resolution try period. A jitter is applied.").Default(waitNoResolveDefaultPeriod).DurationVar(&waitFlags.period)
+	waitNoResolveCmd.Flag("timeout", "Stops waiting after this duration and exits in error.").Default(waitNoResolveDefaultTimeout).DurationVar(&waitFlags.timeout)
+	waitDurationCmd := waitCmd.Command("duration", "Used internally to onWait a given duration before exiting.")
+	waitDurationCmd.Arg("duration", "Duration to onWait before exit.").DurationVar(&waitFlags.duration)
+
+	kubeState := app.Command("kube-state", "Used internally by Teleport to operate Kubernetes Secrets where Teleport stores its state.").Hidden()
+	kubeStateDelete := kubeState.Command("delete", "Used internally to delete Kubernetes states when the helm chart is uninstalled.").Hidden()
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -431,6 +443,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
 		srv.RunAndExit(teleport.ParkSubCommand)
+	case waitNoResolveCmd.FullCommand():
+		err = onWaitNoResolve(waitFlags)
+	case waitDurationCmd.FullCommand():
+		err = onWaitDuration(waitFlags)
+	case kubeStateDelete.FullCommand():
+		err = onKubeStateDelete()
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():

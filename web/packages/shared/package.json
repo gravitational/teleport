@@ -1,0 +1,28 @@
+{
+  "name": "@gravitational/shared",
+  "version": "1.0.0",
+  "description": "Gravitational library of shared components",
+  "main": "index.js",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravitational/webapps/webapps.git",
+    "directory": "packages/shared"
+  },
+  "dependencies": {
+    "ace-builds": "1.4.6",
+    "create-react-class": "^15.6.3",
+    "cross-env": "5.0.5",
+    "lodash": "^4.17.21",
+    "date-fns": "^2.28.0",
+    "react": "^16.8.4",
+    "react-day-picker": "7.3.2",
+    "react-dom": "^16.8.4",
+    "react-router": "5.1.1",
+    "react-router-dom": "5.1.1",
+    "react-select": "^3.0.8",
+    "tslib": "^2.4.0",
+    "whatwg-fetch": "^3.0.0",
+    "@gravitational/design": "1.0.0"
+  }
+}

@@ -37,9 +37,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.19.4
+  RUNTIME: go1.19.5
   UID: "1000"
 trigger:
   event:
@@ -62,25 +62,17 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
-  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - git submodule update --init webassets || true
   - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
     chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
-  - cd /go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
-  - git submodule update --init packages/webapps.e
-  - cd -
   - rm -f /root/.ssh/id_rsa
   environment:
     GITHUB_PRIVATE_KEY:
@@ -150,9 +142,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.19.4
+  RUNTIME: go1.19.5
   UID: "1000"
 trigger:
   event:
@@ -181,12 +173,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - git submodule update --init webassets || true
   - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
     chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
   environment:
@@ -255,9 +245,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.19.4
+  RUNTIME: go1.19.5
   UID: "1000"
 trigger:
   event:
@@ -286,12 +276,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - git submodule update --init webassets || true
   - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
     chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
   - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
@@ -364,9 +352,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.19.4
+  RUNTIME: go1.19.5
   UID: "1000"
 trigger:
   event:
@@ -395,12 +383,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - git submodule update --init webassets || true
   - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
     chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
   environment:
@@ -510,17 +496,8 @@ steps:
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
   - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init packages/webapps.e
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   environment:
@@ -535,7 +512,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.4
+    RUNTIME: go1.19.5
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -594,9 +571,13 @@ steps:
   - security find-identity -v
   - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - export CONNECT_TSH_BIN_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build/tsh
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
@@ -676,7 +657,7 @@ platform:
   os: windows
   arch: amd64
 node:
-  buildbox_version: teleport12
+  buildbox_version: teleport13
 clone:
   disable: true
 steps:
@@ -685,17 +666,12 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
     }
   - New-Item -Path $TeleportSrc -ItemType Directory | Out-Null
   - cd $TeleportSrc
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout $TeleportRev
-  - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
-  - cd $WebappsSrc
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Checkout Submodules
@@ -703,14 +679,10 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
-  - git submodule update --init --recursive webassets
-  - cd $WebappsSrc
-  - git submodule update --init packages/webapps.e
   - Reset-Git -Workspace $Workspace
   environment:
     GITHUB_PRIVATE_KEY:
@@ -778,13 +750,10 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -ToolchainDir "$Workspace/toolchains"
   - Push-Location $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - Pop-Location
-  - cd $WebappsSrc
   - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - yarn install --frozen-lockfile
   - yarn build-term
@@ -961,7 +930,7 @@ platform:
   os: windows
   arch: amd64
 node:
-  buildbox_version: teleport12
+  buildbox_version: teleport13
 clone:
   disable: true
 depends_on:
@@ -974,17 +943,12 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
     }
   - New-Item -Path $TeleportSrc -ItemType Directory | Out-Null
   - cd $TeleportSrc
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout $TeleportRev
-  - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
-  - cd $WebappsSrc
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Checkout Submodules
@@ -992,14 +956,10 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
-  - git submodule update --init --recursive webassets
-  - cd $WebappsSrc
-  - git submodule update --init packages/webapps.e
   - Reset-Git -Workspace $Workspace
   environment:
     GITHUB_PRIVATE_KEY:
@@ -1067,13 +1027,10 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -ToolchainDir "$Workspace/toolchains"
   - Push-Location $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - Pop-Location
-  - cd $WebappsSrc
   - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - yarn install --frozen-lockfile
   - yarn build-term
@@ -1106,13 +1063,12 @@ steps:
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - $AwsSharedCredentialsFile = "$Workspace/credentials"
   - $OutputsDir="$Workspace/outputs"
   - New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null
-  - Get-ChildItem "$WebappsSrc/packages/teleterm/build/release
-  - Copy-Item -Path "$WebappsSrc/packages/teleterm/build/release/Teleport Connect
+  - Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release
+  - Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect
     Setup*.exe" -Destination $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
@@ -1164,9 +1120,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.19.4
+  RUNTIME: go1.19.5
   UID: "1000"
 trigger:
   event:
@@ -1195,12 +1151,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - git submodule update --init webassets || true
   - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
     chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
   environment:
@@ -1269,9 +1223,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.19.4
+  RUNTIME: go1.19.5
   UID: "1000"
 trigger:
   event:
@@ -1300,12 +1254,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - git submodule update --init webassets || true
   - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
     chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
   environment:
@@ -1623,7 +1575,7 @@ steps:
   - name: Download chart repo contents
     image: amazon/aws-cli
     environment:
-      AWS_REGION: us-west-2        
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -1688,8 +1640,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.4
+  BUILDBOX_VERSION: teleport13
+  RUNTIME: go1.19.5
 trigger:
   event:
     include:
@@ -1718,7 +1670,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -1877,8 +1828,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.4
+  BUILDBOX_VERSION: teleport13
+  RUNTIME: go1.19.5
 trigger:
   event:
     include:
@@ -1907,7 +1858,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -2065,8 +2015,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.4
+  BUILDBOX_VERSION: teleport13
+  RUNTIME: go1.19.5
 trigger:
   event:
     include:
@@ -2087,7 +2037,6 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
-  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -2096,12 +2045,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
-  - cd /go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
-  - git submodule update --init packages/webapps.e
-  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -2148,7 +2091,7 @@ steps:
     \;
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
-  - find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - find /go/src/github.com/gravitational/teleport/web/packages/teleterm/build/release
     -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm"
     -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
@@ -2266,8 +2209,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.4
+  BUILDBOX_VERSION: teleport13
+  RUNTIME: go1.19.5
 trigger:
   event:
     include:
@@ -2296,7 +2239,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -2480,7 +2422,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -2744,7 +2685,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -2997,7 +2937,6 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
-  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -3006,12 +2945,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
-  - cd /go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
-  - git submodule update --init packages/webapps.e
-  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -3261,7 +3194,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -3480,8 +3412,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.4
+  BUILDBOX_VERSION: teleport13
+  RUNTIME: go1.19.5
 trigger:
   event:
     include:
@@ -3510,7 +3442,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -3694,7 +3625,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -3958,7 +3888,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -4222,8 +4151,6 @@ steps:
   - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -4241,7 +4168,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.4
+    RUNTIME: go1.19.5
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -4255,11 +4182,32 @@ steps:
   - rustup toolchain install $RUST_VERSION
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Install Node Toolchain
+  commands:
+  - set -u
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - mkdir -p $TOOLCHAIN_DIR
+  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
+  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
+  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
+  - export PATH=$NODE_DIR/bin:$PATH
+  - corepack enable yarn
+  - echo Node reporting version $(node --version)
+  - echo Yarn reporting version $(yarn --version)
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac artifacts (binaries)
   commands:
   - set -u
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export PATH=$NODE_HOME/bin:$PATH
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
   - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
@@ -4273,6 +4221,10 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
@@ -4451,8 +4403,6 @@ steps:
   - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -4652,8 +4602,6 @@ steps:
   - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -4811,8 +4759,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.4
+  BUILDBOX_VERSION: teleport13
+  RUNTIME: go1.19.5
 trigger:
   event:
     include:
@@ -4841,7 +4789,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -4997,9 +4944,9 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.19.4
+  RUNTIME: go1.19.5
   UID: "1000"
 trigger:
   event:
@@ -5025,12 +4972,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - git submodule update --init webassets || true
   - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
     chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
   environment:
@@ -5086,7 +5031,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -5336,7 +5280,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -5586,7 +5529,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -5850,7 +5792,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -6086,8 +6027,8 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.19.4
+  BUILDBOX_VERSION: teleport13
+  RUNTIME: go1.19.5
 trigger:
   event:
     include:
@@ -6116,7 +6057,6 @@ steps:
     && chmod 600 /root/.ssh/id_rsa
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
-  - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -6624,7 +6564,7 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
-  BUILDBOX_VERSION: teleport12
+  BUILDBOX_VERSION: teleport13
   GID: "1000"
   UID: "1000"
 trigger:
@@ -7806,17 +7746,8 @@ steps:
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
   - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init packages/webapps.e
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init --recursive webassets || true
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -7896,7 +7827,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational
   - pkgutil --expand-full tsh-$${VERSION}.pkg tsh
   - export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     APPLE_PASSWORD:
@@ -7913,7 +7844,7 @@ steps:
 - name: Copy dmg artifact
   commands:
   - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/web/packages/teleterm/build/release
   - cp *.dmg $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE"
     > "$FILE.sha256"; done && ls -l
@@ -8931,7 +8862,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
@@ -8968,7 +8899,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
@@ -9005,7 +8936,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
@@ -12810,7 +12741,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
@@ -12849,7 +12780,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
@@ -12888,7 +12819,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
@@ -15476,7 +15407,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-amd64-builder"
@@ -15515,7 +15446,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm-builder"
@@ -15554,7 +15485,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm64-builder"
@@ -18265,6 +18196,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: e9ffa236a8278e936ee07c87e6950fab79b6e4f063fb6cb90f990c9b2c6266b7
+hmac: 6b5da87020674e14fd257475a809160f81cda8d554a347516950c9c9d04d22fe
 
 ...

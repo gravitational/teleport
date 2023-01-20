@@ -1,0 +1,95 @@
+{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- if $proxy.validateConfigOnDeploy }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-proxy-test
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+{{- if $proxy.affinity }}
+      affinity: {{- toYaml $proxy.affinity | nindent 8 }}
+{{- end }}
+{{- if $proxy.tolerations }}
+      tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: "teleport"
+        image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
+        imagePullPolicy: {{ $proxy.imagePullPolicy }}
+{{- if or $proxy.extraEnv $proxy.tls.existingCASecretName }}
+        env:
+  {{- if (gt (len $proxy.extraEnv) 0) }}
+    {{- toYaml $proxy.extraEnv | nindent 8 }}
+  {{- end }}
+  {{- if $proxy.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+  {{- end }}
+{{- end }}
+        command:
+          - "teleport"
+          - "configure"
+        args:
+          - "--test"
+          - "/etc/teleport/teleport.yaml"
+{{- if $proxy.securityContext }}
+        securityContext: {{- toYaml $proxy.securityContext | nindent 10 }}
+{{- end }}
+        volumeMounts:
+{{- if $proxy.highAvailability.certManager.enabled }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+{{- else if $proxy.tls.existingSecretName }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+{{- end }}
+{{- if $proxy.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+{{- end }}
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{- if $proxy.extraVolumeMounts }}
+  {{- toYaml $proxy.extraVolumeMounts | nindent 8 }}
+{{- end }}
+      volumes:
+{{- if $proxy.highAvailability.certManager.enabled }}
+      - name: teleport-tls
+        secret:
+          secretName: teleport-tls
+          # this avoids deadlock during initial setup
+          optional: true
+{{- else if $proxy.tls.existingSecretName }}
+      - name: teleport-tls
+        secret:
+          secretName: {{ $proxy.tls.existingSecretName }}
+{{- end }}
+{{- if $proxy.tls.existingCASecretName }}
+      - name: teleport-tls-ca
+        secret:
+          secretName: {{ $proxy.tls.existingCASecretName }}
+{{- end }}
+      - name: "config"
+        configMap:
+          name: {{ .Release.Name }}-proxy-test
+      - name: "data"
+        emptyDir: {}
+{{- if $proxy.extraVolumes }}
+  {{- toYaml $proxy.extraVolumes | nindent 6 }}
+{{- end }}
+{{- end }}

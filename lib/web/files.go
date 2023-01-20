@@ -49,7 +49,7 @@ type fileTransferRequest struct {
 func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
-		cluster:        p.ByName("site"),
+		cluster:        site.GetName(),
 		login:          p.ByName("login"),
 		server:         p.ByName("server"),
 		remoteLocation: query.Get("location"),
