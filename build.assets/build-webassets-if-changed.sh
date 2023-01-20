@@ -9,6 +9,11 @@ set -eo pipefail
 ROOT_PATH="$(realpath "$(dirname "$0")/..")"
 MAKE="${MAKE:-make}"
 
+if ! command -v "$MAKE" >/dev/null; then
+  echo "Unable to find \"$MAKE\" on path."
+  exit 1
+fi
+
 if [ "$#" -lt 4 ]; then
   echo "Usage: $0 <type> <last-sha-file> <build-target> <directories...>"
   exit 1
