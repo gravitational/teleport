@@ -285,10 +285,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
-		reconcileCh: make(chan struct{}),
+		reconcileCh:  make(chan struct{}),
+		closeContext: closeContext,
+		closeFunc:    closeFunc,
 	}
-
-	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -317,6 +317,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
 
+	callClose = false
 	return s, nil
 }
 
