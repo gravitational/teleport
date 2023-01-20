@@ -237,7 +237,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Millisecond),
+					Period:  types.NewDuration(time.Second),
 					Command: []string{"expr", "1", "+", "3"},
 				},
 			}, nil,
@@ -1704,14 +1704,6 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
-func getWaitForNumberOfConnsFunc(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
-	return func() bool {
-		connNumber, err := limiter.GetNumConnection(token)
-		require.NoError(t, err)
-		return connNumber == num
-	}
-}
-
 // fakeClock is a wrapper around clockwork.FakeClock that satisfies the timetoools.TimeProvider interface.
 // We are wrapping this so we can use the same mocked clock across the server and rate limiter.
 type fakeClock struct {
@@ -1740,6 +1732,14 @@ func TestLimiter(t *testing.T) {
 	fClock := &fakeClock{
 		clock: f.clock,
 	}
+
+	getConns := func(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
+		return func() bool {
+			connNumber, err := limiter.GetNumConnection(token)
+			return err == nil && connNumber == num
+		}
+	}
+
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
 			Clock:          fClock,
@@ -1832,7 +1832,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	clt, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
@@ -1851,7 +1851,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	// requests rate should exceed now
