@@ -562,6 +562,7 @@ matches snapshot for aws-ha-acme.yaml:
           https_keypairs:
           - key_file: /etc/teleport-tls/tls.key
             cert_file: /etc/teleport-tls/tls.crt
+          https_keypairs_reload_interval: 12h
         ssh_service:
           enabled: false
     kind: ConfigMap
@@ -653,6 +654,7 @@ matches snapshot for aws-ha-log.yaml:
           https_keypairs:
           - key_file: /etc/teleport-tls/tls.key
             cert_file: /etc/teleport-tls/tls.crt
+          https_keypairs_reload_interval: 12h
         ssh_service:
           enabled: false
     kind: ConfigMap
@@ -781,6 +783,7 @@ matches snapshot for existing-tls-secret-with-ca.yaml:
           https_keypairs:
           - key_file: /etc/teleport-tls/tls.key
             cert_file: /etc/teleport-tls/tls.crt
+          https_keypairs_reload_interval: 12h
         ssh_service:
           enabled: false
     kind: ConfigMap
@@ -818,6 +821,7 @@ matches snapshot for existing-tls-secret.yaml:
           https_keypairs:
           - key_file: /etc/teleport-tls/tls.key
             cert_file: /etc/teleport-tls/tls.crt
+          https_keypairs_reload_interval: 12h
         ssh_service:
           enabled: false
     kind: ConfigMap
@@ -864,6 +868,7 @@ matches snapshot for gcp-ha-acme.yaml:
           https_keypairs:
           - key_file: /etc/teleport-tls/tls.key
             cert_file: /etc/teleport-tls/tls.crt
+          https_keypairs_reload_interval: 12h
         ssh_service:
           enabled: false
     kind: ConfigMap
@@ -953,6 +958,7 @@ matches snapshot for gcp-ha-log.yaml:
           https_keypairs:
           - key_file: /etc/teleport-tls/tls.key
             cert_file: /etc/teleport-tls/tls.crt
+          https_keypairs_reload_interval: 12h
         ssh_service:
           enabled: false
     kind: ConfigMap

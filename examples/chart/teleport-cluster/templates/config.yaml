@@ -158,6 +158,7 @@ data:
       https_keypairs:
       - key_file: /etc/teleport-tls/tls.key
         cert_file: /etc/teleport-tls/tls.crt
+      https_keypairs_reload_interval: 12h
   {{- else if .Values.acme }}
       acme:
         enabled: {{ .Values.acme }}
