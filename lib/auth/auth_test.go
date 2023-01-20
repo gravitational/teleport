@@ -2802,3 +2802,83 @@ func TestInstallerCRUD(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 }
+
+func TestPluginCRUD(t *testing.T) {
+	const name = "foo"
+
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
+
+	// Create: plugin with no "Settings" type set
+	plugin := types.NewPluginV1(name, types.PluginSpecV1{}, nil)
+	err := s.a.CreatePlugin(ctx, &proto.CreatePluginRequest{Plugin: plugin})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+
+	// Create: valid plugin
+	// TODO: test exchange of initial credentials to live credentials when implemented,
+	// rather than setting the live credentials directly here
+	plugin = types.NewPluginV1(name,
+		types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_SlackAccessPlugin{
+				SlackAccessPlugin: &types.PluginSlackAccessSettings{
+					FallbackChannel: "#access-requests",
+				},
+			},
+		},
+		&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_OAuth2AccessToken{
+				OAuth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
+					AccessToken:  "my-access-token",
+					RefreshToken: "my-refresh-token",
+					ExpiresAt:    time.Now().UTC(),
+				},
+			},
+		},
+	)
+
+	err = s.a.CreatePlugin(ctx, &proto.CreatePluginRequest{Plugin: plugin})
+	require.NoError(t, err)
+
+	// Get
+	got, err := s.a.GetPlugin(ctx, name, true)
+	pluginWithSecrets := got.(*types.PluginV1)
+	pluginWithSecrets.Metadata.ID = 0 // ignore ID for comparison
+	require.NoError(t, err)
+	require.Equal(t, plugin, pluginWithSecrets)
+
+	// Get without secrets
+	got, err = s.a.GetPlugin(ctx, name, false)
+	pluginWithoutSecrets := got.(*types.PluginV1)
+	require.NoError(t, err)
+	require.Equal(t, plugin.Spec, pluginWithoutSecrets.Spec)
+	require.Equal(t, plugin.Status, pluginWithoutSecrets.Status)
+	require.Nil(t, pluginWithoutSecrets.Credentials)
+
+	// SetCredentials
+	newCreds := &types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_OAuth2AccessToken{
+			OAuth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
+				AccessToken:  "my-access-token2",
+				RefreshToken: "my-refresh-token2",
+				ExpiresAt:    time.Now().UTC(),
+			},
+		},
+	}
+
+	err = s.a.SetPluginCredentials(ctx, name, newCreds)
+	require.NoError(t, err)
+
+	got, err = s.a.GetPlugin(ctx, name, true)
+	updatedPlugin := got.(*types.PluginV1)
+	require.NoError(t, err)
+	require.Equal(t, newCreds, updatedPlugin.Credentials)
+
+	// Delete
+	err = s.a.DeletePlugin(ctx, name)
+	require.NoError(t, err)
+	_, err = s.a.GetPlugin(ctx, name, false)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+}
