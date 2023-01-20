@@ -84,13 +84,12 @@ the phase transitions look like this:
   and gotchas before going with semi-automatic version.
 </Admonition>
 
-It is recommended to rotate a specific certificate authority using the 
-`--type` flag. Prior to v12 if the `--type` flag was not provided, then all
-certificate authoritaties would be rotated. The default behavior has changed
-and if you want to rotate all certificate authorities you must pass in
-`--type=all`. The `--type=all` option will be removed entirely in v13 so please
-migrate policies and procedures to rotating the certificate authorities
-individually.
+To specify which certificate authority to rotate a value must be provided via
+the `--type` flag. If no value is provided an error will be displayed and the
+command will exit. To replicate the functionality of versions prior to 12 where
+all certificate authorities were rotated by default you can pass in
+`--type=all`. Keep in mind this functionality is deprecated and will be removed
+in a future version.
 
 ## Manual rotation
 
