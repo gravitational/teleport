@@ -70,7 +70,7 @@ Administrators can abort the rotation and revert all changes any time before
 the rotation is completed by entering the `rollback` phase.
 
 ```sh
-$ tctl auth rotate --phase=rollback --type={host|user|db|openssh|jwt|all} --manual
+$ tctl auth rotate --phase=rollback --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 ```
 
 For example, if an admin has detected that some nodes failed to upgrade during
@@ -101,7 +101,7 @@ of the cluster.
 Initiate the manual rotation of host certificate authorities:
 
 ```code
-$ tctl auth rotate --phase=init --type={host|user|db|openssh|jwt|all} --manual
+$ tctl auth rotate --phase=init --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
 
@@ -145,7 +145,7 @@ transitions.
 Execute the transition from `init` to `update_clients`:
 
 ```code
-$ tctl auth rotate --phase=update_clients --type={host|user|db|openssh|jwt|all} --manual
+$ tctl auth rotate --phase=update_clients --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "update_clients". To check status use 'tctl status'
 $ tctl status
 # Cluster  acme.cluster
@@ -175,7 +175,7 @@ Now that all nodes have caught up, execute the transition from `update_clients`
 to `update_servers`:
 
 ```code
-$ tctl auth rotate --phase=update_servers --type={host|user|db|openssh|jwt|all} --manual
+$ tctl auth rotate --phase=update_servers --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "update_servers". To check status use 'tctl status'
 
 $ tctl status
@@ -216,7 +216,7 @@ $ tsh ssh hello@terminal
 </Admonition>
 
 ```code
-$ tctl auth rotate --phase=standby --type={host|user|db|openssh|jwt|all} --manual
+$ tctl auth rotate --phase=standby --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 ```
 
 Verify that the rotation has completed with `tctl`:
@@ -320,7 +320,7 @@ Rollback must be performed before the rotation enters `standby` state.
 First, enter the rollback phase with a manual phase transition:
 
 ```code
-$ tctl auth rotate --phase=rollback --type={host|user|db|openssh|jwt|all} --manual
+$ tctl auth rotate --phase=rollback --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "rollback". To check status use 'tctl status'
 ```
 
