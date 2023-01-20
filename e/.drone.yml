@@ -46,9 +46,6 @@ steps:
       # write private key
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
       # now manually clone the teleport.e repo and check out the correct commit hash
       # this ensures that tests will run against the changed teleport.e code
       - cd /go/src/github.com/gravitational/teleport/e
@@ -152,9 +149,6 @@ steps:
       # write private key
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
       # now manually clone the teleport.e repo and check out the correct commit hash
       # this ensures that tests will run against the changed teleport.e code
       - cd /go/src/github.com/gravitational/teleport/e
@@ -258,9 +252,6 @@ steps:
       # write private key
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
       # now manually clone the teleport.e repo and check out the correct commit hash
       # this ensures that tests will run against the changed teleport.e code
       - cd /go/src/github.com/gravitational/teleport/e
@@ -369,9 +360,6 @@ steps:
       # write private key
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
       # now manually clone the teleport.e repo and check out the correct commit hash
       # this ensures that tests will run against the changed teleport.e code
       - cd /go/src/github.com/gravitational/teleport/e
@@ -486,8 +474,6 @@ steps:
       - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
       - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
       - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
       # now manually clone the teleport.e repo and check out the correct commit hash
       # this ensures that tests will run against the changed teleport.e code
       - cd e
@@ -507,6 +493,24 @@ steps:
       - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
       - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
       - rm -rf $RUNTIME.darwin-amd64.tar.gz
+
+  - name: Install Node Toolchain
+    environment:
+      WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
+    commands:
+      - set -u
+      - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+        print-node-version)
+      - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+      - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+      - mkdir -p $TOOLCHAIN_DIR
+      - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
+      - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
+      - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
+      - export PATH=$NODE_DIR/bin:$PATH
+      - corepack enable yarn
+      - echo Node reporting version $(node --version)
+      - echo Yarn reporting version $(yarn --version)
 
   - name: Install Rust Toolchain
     environment:
@@ -626,9 +630,6 @@ steps:
       # write private key
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
       # now manually clone the teleport.e repo and check out the correct commit hash
       # this ensures that tests will run against the changed teleport.e code
       - cd /go/src/github.com/gravitational/teleport/e
@@ -732,9 +733,6 @@ steps:
       # write private key
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      # do a recursive submodule checkout to get both webassets and webassets/e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
       # now manually clone the teleport.e repo and check out the correct commit hash
       # this ensures that tests will run against the changed teleport.e code
       - cd /go/src/github.com/gravitational/teleport/e
@@ -792,6 +790,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ccc375531f445672125ff529db02d0c77db8ffdc7b9b3fd315220367565768af
+hmac: 3c7eb8ec23659650928feae25418d2a06e747a95ccdfe3e7b18067814311f8a3
 
 ...
