@@ -131,6 +131,8 @@ ENV GOEXPERIMENT=boringcrypto \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
+ARG BUILDARCH
+
 # Install Nodejs
 ARG NODE_VERSION
 ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
