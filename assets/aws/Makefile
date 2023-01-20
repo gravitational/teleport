@@ -1,4 +1,4 @@
- VPC ID used for builds
+# VPC ID used for builds
 BUILD_VPC_ID ?=
 
 # VPC subnet used for builds
