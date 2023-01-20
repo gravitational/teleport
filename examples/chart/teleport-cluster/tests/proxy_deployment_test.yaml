@@ -407,6 +407,31 @@ tests:
             containerPort: 3080
             protocol: TCP
 
+  - it: should not expose proxy peering port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: proxypeering
+            containerPort: 3021
+            protocol: TCP
+
+  - it: should expose proxy peering port when enterprise is true
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      enterprise: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: proxypeering
+            containerPort: 3021
+            protocol: TCP
+
   - it: should expose sshproxy port by default
     template: proxy/deployment.yaml
     set:
