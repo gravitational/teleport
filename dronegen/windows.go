@@ -22,7 +22,6 @@ const (
 	perBuildWorkspace = `$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER`
 	toolchainDir      = `/toolchains`
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
-	webappsSrc        = `/go/src/github.com/gravitational/webapps`
 
 	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.76-windows.exe`
 	relcliSha256 = `56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520`
@@ -82,13 +81,12 @@ func windowsTagPipeline() pipeline {
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
 				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-				`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 				`$AwsSharedCredentialsFile = "$Workspace/credentials"`,
 				`$OutputsDir="$Workspace/outputs"`,
 				`New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null`,
-				`Get-ChildItem "$WebappsSrc/packages/teleterm/build/release`,
-				`Copy-Item -Path "$WebappsSrc/packages/teleterm/build/release/Teleport Connect Setup*.exe" -Destination $OutputsDir`,
+				`Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release`,
+				`Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect Setup*.exe" -Destination $OutputsDir`,
 				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 				`Format-FileHashes -PathGlob "$OutputsDir/*.exe"`,
 				`Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
@@ -146,16 +144,11 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`$TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT }`,
 			`New-Item -Path $TeleportSrc -ItemType Directory | Out-Null`,
 			`cd $TeleportSrc`,
 			`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 			`git checkout $TeleportRev`,
-			`New-Item -Path $WebappsSrc -ItemType Directory | Out-Null`,
-			`cd $WebappsSrc`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)`,
 		},
 	}
 }
@@ -171,14 +164,10 @@ func updateWindowsSubreposStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY`,
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
-			`git submodule update --init --recursive webassets`,
-			`cd $WebappsSrc`,
-			`git submodule update --init packages/webapps.e`,
 			`Reset-Git -Workspace $Workspace`,
 		},
 	}
@@ -272,13 +261,10 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`Push-Location $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
-			`Pop-Location`,
-			`cd $WebappsSrc`,
 			`$Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"`,
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
