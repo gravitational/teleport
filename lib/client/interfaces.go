@@ -192,22 +192,27 @@ func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string)
 // If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
-func (k *Key) HostKeyCallback(withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
-	return sshutils.HostKeyCallback(k.AuthorizedHostKeys(), withHostKeyFallback)
+func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
+	trustedHostKeys, err := k.authorizedHostKeys()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sshutils.HostKeyCallback(trustedHostKeys, true)
 }
 
-// AuthorizedHostKeys returns all authorized host keys from this key. If any host
-// names are provided, only matching host keys will be returned.
-func (k *Key) AuthorizedHostKeys(hostnames ...string) (result [][]byte) {
+// authorizedHostKeys returns all authorized host keys from this key.
+func (k *Key) authorizedHostKeys() ([]ssh.PublicKey, error) {
+	var hostKeys []ssh.PublicKey
 	for _, ca := range k.TrustedCerts {
-		// Mirror the hosts we would find in a known_hosts entry.
-		hosts := []string{k.ProxyHost, ca.ClusterName, "*." + ca.ClusterName}
-
-		if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts) {
-			result = append(result, ca.AuthorizedKeys...)
+		for _, authorizedKey := range ca.AuthorizedKeys {
+			sshPub, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			hostKeys = append(hostKeys, sshPub)
 		}
 	}
-	return result
+	return hostKeys, nil
 }
 
 // TeleportClientTLSConfig returns client TLS configuration used
@@ -275,7 +280,7 @@ func (k *Key) ProxyClientSSHConfig(hostname string) (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig.HostKeyCallback, err = k.HostKeyCallback(true)
+	sshConfig.HostKeyCallback, err = k.HostKeyCallback()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

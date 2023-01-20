@@ -294,7 +294,7 @@ func TestIdentityRead(t *testing.T) {
 
 	var a net.Addr
 	// host auth callback must succeed
-	cb, err := k.HostKeyCallback(true)
+	cb, err := k.HostKeyCallback()
 	require.NoError(t, err)
 	require.NoError(t, cb(hosts[0], a, cert))
 
