@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -850,6 +852,7 @@ func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
 }
 
 func TestIdentityService_UpsertKeyAttestationData(t *testing.T) {
+	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 	ctx := context.Background()
 
@@ -859,7 +862,7 @@ func TestIdentityService_UpsertKeyAttestationData(t *testing.T) {
 		expectPubKeyHash string
 	}{
 		{
-			name: "standard public key",
+			name: "public key",
 			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCep78YgY5I8RrvhE5zra4k1hx
 JZoZL1NsgqBz/f49OZsck24rcxurnC0lKAJmSGtKZrv54E/XZuPtatUkrXtIFKC6
@@ -867,7 +870,7 @@ shHLLAc/LAVtDX2/E/aLgM0srYtt1/kku9H1C9+Ou7RzOIdblRkNMYcbUOhKBNld
 AnYsqjU9/7IaQSp8DwIDAQAB
 -----END PUBLIC KEY-----`,
 		}, {
-			name: "public key with // in standard hash",
+			name: "public key with // in plain sha hash",
 			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCwh1y2u/z8Rm4jD51oawtI00NO
 yHPtEsk3AcetyxYXM5jXAZuQBJwFoxQa3tlJoumigfVEsdYhETu1zwJLZhjgmYOp
@@ -897,4 +900,41 @@ Tirv9LjajEBxUnuV+wIDAQAB
 			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
 		})
 	}
+}
+
+// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
+func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	key, err := native.GenerateRSAPrivateKey()
+	require.NoError(t, err)
+
+	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+
+	attestationData := &keys.AttestationData{
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		PublicKeyDER:     pubDER,
+	}
+
+	// manually insert attestation data with old style fingerprint.
+	value, err := json.Marshal(attestationData)
+	require.NoError(t, err)
+
+	backendKey, err := local.KeyAttestationDataFingerprintV11(key.Public())
+	require.NoError(t, err)
+
+	item := backend.Item{
+		Key:   backend.Key("key_attestations", backendKey),
+		Value: value,
+	}
+	_, err = identity.Put(ctx, item)
+	require.NoError(t, err)
+
+	// Should be able to retrieve attestation data despite old fingerprint.
+	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
+	require.NoError(t, err)
+	require.Equal(t, attestationData, retrievedAttestationData)
 }
