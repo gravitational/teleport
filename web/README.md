@@ -1,16 +1,14 @@
 # Gravitational Web Applications and Packages
 
-This mono-repository contains the source code for:
+This directory contains the source code for:
 
 - the web UIs served by the `teleport` server
-  - [`packages/teleport`](packages/teleport) for the OSS version
-  - `packages/webapps.e/teleport` for the enterprise version
+  - [`packages/teleport`](web/packages/teleport)
 - the Electron app of [Teleport Connect](https://goteleport.com/connect/)
-  - [`packages/teleterm`](packages/teleterm)
-  - `packages/webapps.e/teleterm` for the enterprise version
+  - [`packages/teleterm`](web/packages/teleterm)
 
 The code is organized in terms of independent yarn packages which reside in
-the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).
+the [packages directory](web/packages).
 
 ## Getting Started with Teleport Web UI
 
@@ -30,7 +28,7 @@ $ yarn install
 To build the Teleport open source version
 
 ```
-$ yarn build-teleport-oss
+$ yarn build-ui-oss
 ```
 
 The resulting output will be in the `/packages/{package-name}/dist/` folders respectively.
@@ -45,7 +43,7 @@ $ make docker-ui
 
 ## Getting Started with Teleport Connect
 
-See [`README.md` in `packages/teleterm`](packages/teleterm).
+See [`README.md` in `packages/teleterm`](web/packages/teleterm).
 
 ## Development
 
