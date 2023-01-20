@@ -247,7 +247,7 @@ DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `web` README](web).
+For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
 #### Updating Web UI assets
 

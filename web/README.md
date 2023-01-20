@@ -3,12 +3,12 @@
 This directory contains the source code for:
 
 - the web UIs served by the `teleport` server
-  - [`packages/teleport`](web/packages/teleport)
+  - [`packages/teleport`](packages/teleport)
 - the Electron app of [Teleport Connect](https://goteleport.com/connect/)
-  - [`packages/teleterm`](web/packages/teleterm)
+  - [`packages/teleterm`](packages/teleterm)
 
 The code is organized in terms of independent yarn packages which reside in
-the [packages directory](web/packages).
+the [packages directory](packages).
 
 ## Getting Started with Teleport Web UI
 
@@ -31,7 +31,7 @@ To build the Teleport open source version
 $ yarn build-ui-oss
 ```
 
-The resulting output will be in the `/packages/{package-name}/dist/` folders respectively.
+The resulting output will be in the `packages/{package-name}/dist/` folders respectively.
 
 ### Docker Build
 
@@ -43,7 +43,7 @@ $ make docker-ui
 
 ## Getting Started with Teleport Connect
 
-See [`README.md` in `packages/teleterm`](web/packages/teleterm).
+See [`README.md` in `packages/teleterm`](packages/teleterm#readme).
 
 ## Development
 
