@@ -8,15 +8,11 @@ set -euo pipefail
 # -- (something like "export PATH=/usr/local/opt/findutils/libexec/gnubin:$PATH")
 
 # shellcheck disable=SC2086
-usage() { echo "Usage: $(basename $0) [-a <AWS account ID>] [-m terraform] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) [-a <AWS account ID>] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
 while getopts ":a:m:t:r:v:" o; do
     case "${o}" in
         a)
             a=${OPTARG}
-            ;;
-        m)
-            m=${OPTARG}
-            if [[ ${m} != "terraform" ]]; then usage; fi
             ;;
         r)
             r=${OPTARG}
@@ -35,14 +31,12 @@ while getopts ":a:m:t:r:v:" o; do
 done
 shift $((OPTIND-1))
 
-if [ -z "${a}" ] || [ -z "${m}" ] || [ -z "${r}" ] || [ -z "${t}" ] || [ -z "${v}" ]; then
+if [ -z "${a}" ]  || [ -z "${r}" ] || [ -z "${t}" ] || [ -z "${v}" ]; then
     usage
 fi
 
 # account ID that owns the public images
 AWS_ACCOUNT_ID=${a}
-# mode to run in 'terraform'
-MODE=${m}
 # comma-separated list of regions to get and update AMI IDs for
 REGIONS=${r}
 # Teleport AMI type (one of 'oss', 'ent' or 'ent-fips')
@@ -78,31 +72,29 @@ for REGION in ${REGIONS//,/ }; do
     IMAGE_IDS[${REGION}]=${IMAGE_ID}
 done
 
-if [[ "${MODE}" == "terraform" ]]; then
-    TERRAFORM_SUBDIR="../../examples/aws/terraform"
-    TERRAFORM_PATH="${TERRAFORM_SUBDIR}/AMIS.md"
-    # get a list of non-hidden directories one level under the terraform directory (one for each of our different terraform modes)
-    pushd ${TERRAFORM_SUBDIR}
-    TERRAFORM_MODES="$(find . -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' -printf '%P\n' | xargs)"
-    popd
-    if [[ "${TYPE}" == "oss" ]]; then
-        TYPE_STRING="OSS"
-    elif [[ "${TYPE}" == "ent" ]]; then
-        TYPE_STRING="Enterprise"
-    elif [[ "${TYPE}" == "ent-fips" ]]; then
-        TYPE_STRING="Enterprise FIPS"
-    fi
-    # change version numbers in TF_VAR_ami_name strings
-    # shellcheck disable=SC2086
-    for MODE in ${TERRAFORM_MODES}; do
-        echo "Updating version in README for ${MODE}"
-        sed -i -E "s/gravitational-teleport-ami-${TYPE}-([0-9.]+)/gravitational-teleport-ami-${TYPE}-${VERSION}/g" "${TERRAFORM_SUBDIR}/${MODE}/README.md"
-    done
-    # replace AMI ID in place
-    for REGION in ${REGIONS//,/ }; do
-        OLD_AMI_ID=$(grep -E "# $REGION v(.*) ${TYPE_STRING}" $TERRAFORM_PATH | sed -n -E "s/# $REGION v(.*) ${TYPE_STRING}: (ami.*)/\2/p" | tr -d " ")
-        NEW_AMI_ID=${IMAGE_IDS[$REGION]}
-        sed -i -E "s/^# $REGION v(.*) ${TYPE_STRING}: ami(.*)$/# $REGION v${VERSION} ${TYPE_STRING}: $NEW_AMI_ID/g" ${TERRAFORM_PATH}
-        echo "[${TYPE}: ${REGION}] ${OLD_AMI_ID} -> ${NEW_AMI_ID}"
-    done
+TERRAFORM_SUBDIR="../../examples/aws/terraform"
+TERRAFORM_PATH="${TERRAFORM_SUBDIR}/AMIS.md"
+# get a list of non-hidden directories one level under the terraform directory (one for each of our different terraform modes)
+pushd ${TERRAFORM_SUBDIR}
+TERRAFORM_MODES="$(find . -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' -printf '%P\n' | xargs)"
+popd
+if [[ "${TYPE}" == "oss" ]]; then
+    TYPE_STRING="OSS"
+elif [[ "${TYPE}" == "ent" ]]; then
+    TYPE_STRING="Enterprise"
+elif [[ "${TYPE}" == "ent-fips" ]]; then
+    TYPE_STRING="Enterprise FIPS"
 fi
+# change version numbers in TF_VAR_ami_name strings
+# shellcheck disable=SC2086
+for MODE in ${TERRAFORM_MODES}; do
+     echo "Updating version in README for ${MODE}"
+     sed -i -E "s/gravitational-teleport-ami-${TYPE}-([0-9.]+)/gravitational-teleport-ami-${TYPE}-${VERSION}/g" "${TERRAFORM_SUBDIR}/${MODE}/README.md"
+done
+# replace AMI ID in place
+for REGION in ${REGIONS//,/ }; do
+     OLD_AMI_ID=$(grep -E "# $REGION v(.*) ${TYPE_STRING}" $TERRAFORM_PATH | sed -n -E "s/# $REGION v(.*) ${TYPE_STRING}: (ami.*)/\2/p" | tr -d " ")
+     NEW_AMI_ID=${IMAGE_IDS[$REGION]}
+     sed -i -E "s/^# $REGION v(.*) ${TYPE_STRING}: ami(.*)$/# $REGION v${VERSION} ${TYPE_STRING}: $NEW_AMI_ID/g" ${TERRAFORM_PATH}
+     echo "[${TYPE}: ${REGION}] ${OLD_AMI_ID} -> ${NEW_AMI_ID}"
+done
