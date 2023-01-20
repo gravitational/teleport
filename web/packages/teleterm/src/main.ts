@@ -81,7 +81,7 @@ function initializeApp(): void {
     try {
       await mainProcess.dispose();
     } catch (e) {
-      logger.error('Failed to dispose main process', e);
+      logger.error('Failed to gracefully dispose of main process', e);
     } finally {
       app.exit();
     }
