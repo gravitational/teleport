@@ -9,7 +9,7 @@ set -euo pipefail
 
 # shellcheck disable=SC2086
 usage() { echo "Usage: $(basename $0) [-a <AWS account ID>] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
-while getopts ":a:m:t:r:v:" o; do
+while getopts ":a:t:r:v:" o; do
     case "${o}" in
         a)
             a=${OPTARG}
