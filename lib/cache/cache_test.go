@@ -2234,7 +2234,9 @@ func TestDatabaseServices(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	p, err := newPack(t.TempDir(), ForProxy)
+	// Proxy is not caching the DatabaseServices.
+	// Auth caches them, so we will test the CRUD using the ForAuth set of watchers.
+	p, err := newPack(t.TempDir(), ForAuth)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
