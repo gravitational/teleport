@@ -263,8 +263,8 @@ func (t *TLSServer) Close() error {
 	if t.watcher != nil {
 		t.watcher.Close()
 	}
-
-	return trace.NewAggregate(errs...)
+	listClose := t.listener.Close()
+	return trace.NewAggregate(append(errs, listClose)...)
 }
 
 // GetConfigForClient is getting called on every connection

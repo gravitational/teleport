@@ -349,7 +349,7 @@ On your local machine, create a file called `trusted_cluster.yaml` with the
 following content:
 
 ```yaml
-# cluster.yaml
+# trusted_cluster.yaml
 kind: trusted_cluster
 version: v2
 metadata:
@@ -577,21 +577,17 @@ Here is an example of creating trust between a leaf and a root node.
 ![Tunnels](../../../img/trusted-clusters/setting-up-trust.png)
 </Details>
 
-<Details title="Updating your Trusted Cluster role mapping">
+<Details
+  type="tip"
+  title="Update role mappings"
+>
 
-To update the role map for a Trusted Cluster, run the following commands on the
-leaf cluster.
+You can update the role mappings within the `trusted_cluster` resource we created earlier by modifying the resource definition (`trusted_cluster.yaml`) to indicate the new role mappings in the `role_map` field.
 
-First, remove the cluster:
-
-```code
-$ tctl rm tc/root-cluster
-```
-
-When this is complete, we can re-create the cluster:
+Then, update the trusted cluster resource on the leaf cluster side:
 
 ```code
-$ tctl create root-user-updated-role.yaml
+$ tctl create --force trusted_cluster.yaml
 ```
 
 </Details>
@@ -861,7 +857,7 @@ Make the following change to the resource:
 Update the Trusted Cluster:
 
 ```code
-$ tctl create --force cluster.yaml
+$ tctl create --force trusted_cluster.yaml
 ```
 
 This closes the reverse tunnel between your leaf cluster and your root cluster.
