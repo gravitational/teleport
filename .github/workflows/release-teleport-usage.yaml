@@ -1,7 +1,10 @@
 name: teleport-usage-release
-on: 
-  release:
-    types: ["published"]
+on:
+  push:
+    branches:    
+      - logan/teleport-usage-release
+  # release:
+  #   types: ["published"]
 permissions:
   id-token: write
   contents: read
