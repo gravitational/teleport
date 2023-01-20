@@ -154,9 +154,6 @@ spec:
           {{- toYaml $proxy.extraArgs | nindent 8 }}
         {{- end }}
         ports:
-        - name: diag
-          containerPort: 3000
-          protocol: TCP
         - name: tls
           containerPort: 3080
           protocol: TCP
@@ -184,6 +181,9 @@ spec:
           protocol: TCP
         {{- end }}
         {{- end }}
+        - name: diag
+          containerPort: 3000
+          protocol: TCP
         livenessProbe:
           httpGet:
             path: /healthz
