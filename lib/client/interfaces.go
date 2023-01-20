@@ -192,24 +192,30 @@ func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string)
 // If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
-func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
-	trustedHostKeys, err := k.authorizedHostKeys()
+func (k *Key) HostKeyCallback(hostnames ...string) (ssh.HostKeyCallback, error) {
+	trustedHostKeys, err := k.authorizedHostKeys(hostnames...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sshutils.HostKeyCallback(trustedHostKeys, true)
 }
 
-// authorizedHostKeys returns all authorized host keys from this key.
-func (k *Key) authorizedHostKeys() ([]ssh.PublicKey, error) {
+// authorizedHostKeys returns all authorized host keys from this key. If any host
+// names are provided, only matching host keys will be returned.
+func (k *Key) authorizedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 	var hostKeys []ssh.PublicKey
 	for _, ca := range k.TrustedCerts {
-		for _, authorizedKey := range ca.AuthorizedKeys {
-			sshPub, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
+		// Mirror the hosts we would find in a known_hosts entry.
+		hosts := []string{k.ProxyHost, ca.ClusterName, "*." + ca.ClusterName}
+
+		if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts) {
+			for _, authorizedKey := range ca.AuthorizedKeys {
+				sshPub, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				hostKeys = append(hostKeys, sshPub)
 			}
-			hostKeys = append(hostKeys, sshPub)
 		}
 	}
 	return hostKeys, nil
@@ -280,7 +286,7 @@ func (k *Key) ProxyClientSSHConfig(hostname string) (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig.HostKeyCallback, err = k.HostKeyCallback()
+	sshConfig.HostKeyCallback, err = k.HostKeyCallback(hostname)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
