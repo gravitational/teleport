@@ -94,7 +94,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
-		WebProxyAddr: "localhost",
+		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
