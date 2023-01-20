@@ -66,8 +66,8 @@ export function RequestList({
           {
             key: 'roles',
             headerText: 'Requested',
-            render: ({ resources, roles }) => (
-              <RequestedCell resources={resources} roles={roles} />
+            render: ({ resources, roles, id }) => (
+              <RequestedCell resources={resources} roles={roles} id={id} />
             ),
           },
           {
@@ -225,12 +225,18 @@ const renderActionCell = (
 const RequestedCell = ({
   roles,
   resources,
-}: Pick<AccessRequest, 'roles' | 'resources'>) => {
+  id,
+}: Pick<AccessRequest, 'roles' | 'resources' | 'id'>) => {
   if (resources?.length > 0) {
     return (
-      <Cell>
-        {resources.map(({ id }) => (
-          <Label mb="0" mr="1" key={`${id.kind}${id.name}`} kind="secondary">
+      <Cell key={id}>
+        {resources.map(({ id }, index) => (
+          <Label
+            mb="0"
+            mr="1"
+            key={`${id.kind}${id.name}${index}`}
+            kind="secondary"
+          >
             {id.kind}: {id.name}
           </Label>
         ))}
