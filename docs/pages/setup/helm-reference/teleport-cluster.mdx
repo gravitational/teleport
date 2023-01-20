@@ -9,7 +9,7 @@ Service, or a custom configuration to deploy resource services such as the
 Teleport Kubernetes Service or Database Service.
 
 You can
-[browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster).
+[browse the source on GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster).
 
 The `teleport-cluster` chart runs two Teleport services:
 
@@ -335,7 +335,7 @@ You can also use any other ACME-compatible server.
 | - | - | - |
 | `bool` | `true` | ✅ |
 
-By default, Teleport charts also install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-cluster/templates/psp.yaml).
+By default, Teleport charts also install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/v(=teleport.version=)/examples/chart/teleport-cluster/templates/psp.yaml).
 
 To disable this, you can set `enabled` to `false`.
 
