@@ -791,6 +791,23 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessR
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	localClusterName, err := auth.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, resourceID := range req.Spec.RequestedResourceIDs {
+		if resourceID.ClusterName != "" {
+			if resourceID.ClusterName == localClusterName.GetClusterName() {
+				continue
+			}
+			if _, err := auth.GetRemoteCluster(resourceID.ClusterName); err == nil {
+				continue
+			}
+			return nil, trace.NotFound("remote cluster %q is not found", resourceID.ClusterName)
+		}
+	}
+
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
