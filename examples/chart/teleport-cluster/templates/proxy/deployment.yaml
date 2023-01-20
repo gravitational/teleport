@@ -157,6 +157,9 @@ spec:
         - name: diag
           containerPort: 3000
           protocol: TCP
+        - name: tls
+          containerPort: 3080
+          protocol: TCP
         {{- if eq $proxy.proxyListenerMode "separate" }}
         - name: sshproxy
           containerPort: 3023
