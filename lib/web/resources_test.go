@@ -64,7 +64,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 		httpMethod          string
 		httpParams          httprouter.Params
 		payloadResourceName string
-		exists              resourceExists
+		get                 getResource
 		assertErr           require.ErrorAssertionFunc
 	}{
 		{
@@ -72,9 +72,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			httpMethod:          "POST",
 			httpParams:          httprouter.Params{},
 			payloadResourceName: "my-resource",
-			exists: func(ctx context.Context, name string) error {
+			get: func(ctx context.Context, name string) (types.Resource, error) {
 				// Resource does not exist.
-				return trace.NotFound("")
+				return nil, trace.NotFound("")
 			},
 			assertErr: require.NoError,
 		},
@@ -83,9 +83,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			httpMethod:          "POST",
 			httpParams:          httprouter.Params{},
 			payloadResourceName: "my-resource",
-			exists: func(ctx context.Context, name string) error {
+			get: func(ctx context.Context, name string) (types.Resource, error) {
 				// Resource does exist.
-				return nil
+				return nil, nil
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -97,9 +97,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			httpMethod:          "PUT",
 			httpParams:          httprouter.Params{},
 			payloadResourceName: "my-resource",
-			exists: func(ctx context.Context, name string) error {
+			get: func(ctx context.Context, name string) (types.Resource, error) {
 				// Resource does exist.
-				return nil
+				return nil, nil
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -111,9 +111,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			httpMethod:          "PUT",
 			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
 			payloadResourceName: "my-resource",
-			exists: func(ctx context.Context, name string) error {
+			get: func(ctx context.Context, name string) (types.Resource, error) {
 				// Resource does not exist.
-				return trace.NotFound("")
+				return nil, trace.NotFound("")
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -125,9 +125,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			httpMethod:          "PUT",
 			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
 			payloadResourceName: "my-resource",
-			exists: func(ctx context.Context, name string) error {
+			get: func(ctx context.Context, name string) (types.Resource, error) {
 				// Resource does exist.
-				return nil
+				return nil, nil
 			},
 			assertErr: require.NoError,
 		},
@@ -136,9 +136,9 @@ func TestCheckResourceUpsert(t *testing.T) {
 			httpMethod:          "PUT",
 			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
 			payloadResourceName: "my-resource-new-name",
-			exists: func(ctx context.Context, name string) error {
+			get: func(ctx context.Context, name string) (types.Resource, error) {
 				// Resource does exist.
-				return nil
+				return nil, nil
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -149,7 +149,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			err := CheckResourceUpsert(context.TODO(), tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.exists)
+			err := CheckResourceUpsert(context.TODO(), tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
 			tc.assertErr(t, err)
 		})
 	}
