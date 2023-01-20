@@ -78,8 +78,13 @@ function initializeApp(): void {
 
     appStateFileStorage.putAllSync();
     globalShortcut.unregisterAll();
-    await mainProcess.dispose();
-    app.exit();
+    try {
+      await mainProcess.dispose();
+    } catch (e) {
+      logger.error('Failed to dispose main process', e);
+    } finally {
+      app.exit();
+    }
   });
 
   app.on('quit', () => {
