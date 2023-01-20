@@ -382,6 +382,31 @@ tests:
             containerPort: 3000
             protocol: TCP
 
+  - it: should expose tls port
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls
+            containerPort: 3080
+            protocol: TCP
+
+  - it: should expose tls port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls
+            containerPort: 3080
+            protocol: TCP
+
   - it: should expose sshproxy port by default
     template: proxy/deployment.yaml
     set:
