@@ -498,6 +498,11 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
+	// Don't try to re-login when using an identity file / external identity.
+	if tc.SkipLocalAuth {
+		return trace.Wrap(fn())
+	}
+
 	retryWithRelogin := func() error {
 		key, err := tc.Login(ctx)
 		if err != nil {
