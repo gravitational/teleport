@@ -21,7 +21,9 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/base32"
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -3462,6 +3464,12 @@ func newTestTLSServer(t *testing.T) *TestTLSServer {
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
 
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	t.Cleanup(func() {
+		err := srv.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
 	return srv
 }
