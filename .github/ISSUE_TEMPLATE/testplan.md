@@ -26,6 +26,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Adding Trusted Cluster Valid Short-lived Token
   - [ ] Adding Trusted Cluster Invalid Token
   - [ ] Removing Trusted Cluster
+  - [ ] Changing role map of existing Trusted Cluster
 
 - [ ] RBAC
 
@@ -464,6 +465,11 @@ FIDO2 items.
   - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers platform authenticator
     - [ ] Touch ID
     - [ ] Windows Hello
+  - [ ] Exercise credential picker (register credentials for multiple users in
+        the same device)
+    - [ ] FIDO2 macOS/Linux
+    - [ ] Touch ID
+    - [ ] Windows
   - [ ] Passwordless disable switch works
         (`auth_service.authentication.passwordless = false`)
   - [ ] Cluster in passwordless mode defaults to passwordless

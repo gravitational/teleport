@@ -1,5 +1,5 @@
 steps:
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport12
+  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport13
     id: lint
     args: ['make', 'lint']
 options:
