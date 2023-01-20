@@ -212,7 +212,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			secondFactor:          constants.SecondFactorOptional,
 			inputReader:           prompt.NewFakeReader(), // no inputs
 			solveWebauthn:         solvePwdless,
-			authConnector:         constants.LocalConnector,
 			hasTouchIDCredentials: true,
 		},
 		{
@@ -224,9 +223,32 @@ func TestTeleportClient_Login_local(t *testing.T) {
 					panic("this should not be called")
 				}),
 			solveWebauthn:           solveWebauthn,
-			authConnector:           constants.LocalConnector,
 			hasTouchIDCredentials:   true,
 			authenticatorAttachment: wancli.AttachmentCrossPlatform,
+		},
+		{
+			name:         "local connector doesn't default to passwordless",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader: prompt.NewFakeReader().
+				AddString(password).
+				AddReply(func(ctx context.Context) (string, error) {
+					panic("this should not be called")
+				}),
+			solveWebauthn:         solveWebauthn,
+			authConnector:         constants.LocalConnector,
+			hasTouchIDCredentials: true,
+		},
+		{
+			name:         "OTP preferred doesn't default to passwordless",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader: prompt.NewFakeReader().
+				AddString(password).
+				AddReply(solveOTP),
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+				panic("this should not be called")
+			},
+			preferOTP:             true,
+			hasTouchIDCredentials: true,
 		},
 	}
 	for _, test := range tests {
