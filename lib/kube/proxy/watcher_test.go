@@ -40,8 +40,8 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
-	ctx := context.Background()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	reconcileCh := make(chan types.KubeClusters)
 	// Setup kubernetes server that proxies one static kube cluster and
 	// watches for kube_clusters with label group=a.
@@ -53,7 +53,11 @@ func TestWatcher(t *testing.T) {
 			}},
 		},
 		onReconcile: func(kcs types.KubeClusters) {
-			reconcileCh <- kcs
+			select {
+			case reconcileCh <- kcs:
+			case <-ctx.Done():
+				return
+			}
 		},
 	})
 
