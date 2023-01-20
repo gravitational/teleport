@@ -237,7 +237,7 @@ func (fs *FSTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) (keys []s
 func (fs *FSTrustedCertsStore) getKnownHostsFile() (knownHosts []byte, retErr error) {
 	unlock, err := utils.FSTryReadLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
 	if os.IsNotExist(err) {
-		return nil, trace.NotFound("please relogin, tsh user profile doesn't contain known_hosts: %s", fs.Dir)
+		return nil, nil
 	} else if err != nil {
 		return nil, trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
 	}
@@ -441,7 +441,7 @@ func (fs *FSTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, e
 
 	if _, err := os.Stat(dir); err != nil {
 		if os.IsNotExist(err) {
-			return nil, trace.NotFound("please relogin, tsh user profile doesn't contain CAS directory: %s", dir)
+			return nil, nil
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
