@@ -228,12 +228,10 @@ The Teleport Web UI resides in the [Gravitational Webapps](https://github.com/gr
 
 #### Rebuilding Web UI for development
 
-To clone this repository and rebuild the Teleport UI package, run the following commands:
+To rebuild the Teleport UI package, run the following command:
 
 ```bash
-git clone git@github.com:gravitational/webapps.git
-cd webapps
-make build-teleport
+make docker-ui
 ```
 
 Then you can replace Teleport Web UI files with the files from the newly-generated `/dist` folder.

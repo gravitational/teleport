@@ -40,7 +40,7 @@ The resulting output will be in the `/packages/{package-name}/dist/` folders res
 To build the Teleport community version
 
 ```
-$ make build-teleport-oss
+$ make docker-ui
 ```
 
 ## Getting Started with Teleport Connect
