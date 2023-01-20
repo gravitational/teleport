@@ -142,6 +142,7 @@ buildbox-fips:
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
+			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
