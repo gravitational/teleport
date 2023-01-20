@@ -1192,7 +1192,7 @@ ensure-webassets:
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e-sha build-ui-e web e/web
+	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web
 
 .PHONY: init-submodules-e
 init-submodules-e:
