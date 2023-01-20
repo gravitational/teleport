@@ -3,6 +3,9 @@ on:
   push:
     branches:    
       - logan/teleport-usage-release
+    tags:
+     - v12-logan-actions.*
+
   # release:
   #   types: ["published"]
 permissions:
