@@ -597,6 +597,10 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
@@ -4273,6 +4277,10 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
@@ -18265,6 +18273,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 97f9481fbf44a8eab9a70e736f02bb877a95d9feabf42fabe558c7309f3ca476
+hmac: f2e4dadf72b517d856829b7494c40b0494368caae0e773826a166cecc921a59f
 
 ...

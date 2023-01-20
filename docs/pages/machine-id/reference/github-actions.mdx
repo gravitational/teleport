@@ -3,12 +3,18 @@ title: GitHub Actions
 description: Reference for GitHub Actions joining
 ---
 
+This document acts a reference for GitHub Actions and Machine ID. You will find
+links to in-depth guides on using GitHub Actions and a full explanation of the
+configuration options available when using the GitHub join method.
+
 ## Guides
 
 You can read step-by-step guides on using Machine ID and GitHub Actions:
 
-- [GitHub Actions and SSH](../guides/github-actions.mdx)
-- [GitHub Actions and Kubernetes](../guides/github-actions-kubernetes.mdx)
+- [Using Machine ID with GitHub Actions](../guides/github-actions.mdx): How to
+  use Machine ID to SSH into Teleport nodes from GitHub Actions.
+- [Using Machine ID with GitHub Actions and Kubernetes](../guides/github-actions-kubernetes.mdx):
+  How to use Machine ID to access Kubernetes clusters from GitHub Actions.
 
 ## GitHub join token
 
@@ -30,6 +36,7 @@ metadata:
   name: github-token
   # expires is a time in the future that this token should no longer be
   # accepted. For GitHub joining, there is no need to set this to a short value.
+  # Format: YYYY-MM-DDThh:mm:ss
   expires: "3000-01-01T00:00:00Z"
 spec:
   # For Machine ID and GitHub joining, roles will always be `Bot` and
@@ -59,7 +66,7 @@ spec:
     # - repository_owner
     # - sub
     allow:
-      - # repository is full qualified (e.g including the owner) name of a
+      - # repository is a fully qualified (e.g. including the owner) name of a
         # GitHub repository.
         repository: gravitational/teleport
         # repository_owner is the name of an organization or user that a
@@ -68,20 +75,19 @@ spec:
         # workflow is the exact name of a workflow as configured in the GitHub 
         # Action workflow YAML file.
         workflow: my-workflow
-        # environment is the environment associated with the GitHub Actions run,
-        # if no environment is configured for the GitHub Actions run, this will
+        # environment is the environment associated with the GitHub Actions run.
+        # If no environment is configured for the GitHub Actions run, this will
         # be empty.
         environment: production
         # actor is the GitHub username that caused the GitHub Actions run,
-        # whether by comitting or by directly despatching the workflow.
+        # whether by committing or by directly despatching the workflow.
         actor: octocat
         # ref is the git ref that triggered the action run.
         ref: ref/heads/main
-        # ref_type is the type of the git ref that triggered the action run,
-        # for example `branch`.
+        # ref_type is the type of the git ref that triggered the action run.
         ref_type: branch
         # sub is a concatenated string of various attributes of the workflow 
-        # run, GitHub explains the format of this string at:
+        # run. GitHub explains the format of this string at:
         # https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims
         sub: repo:gravitational/example-repo:environment:production
 
@@ -90,7 +96,7 @@ spec:
 ## GitHub Actions helpers
 
 We offer a series of off-the-shelf GitHub Actions to use in your workflows when
-utilising Teleport Machine ID and GitHub Actions.
+utilizing Teleport Machine ID and GitHub Actions.
 
 More information about these individual actions can be found in their GitHub
 repositories:
