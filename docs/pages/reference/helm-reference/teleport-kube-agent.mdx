@@ -1459,9 +1459,9 @@ See the [Teleport config file reference](../../reference/config.mdx) for more de
 
 ## `affinity`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 
@@ -1493,6 +1493,42 @@ Kubernetes affinity to set for pod assignments.
   ```
   </TabItem>
 </Tabs>
+
+## `dnsConfig`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config)
+
+Kubernetes pod DNS configuration. This value can reduce the DNS load by setting `ndots` to 0.
+
+```yaml
+dnsConfig:
+  nameservers:
+    - 1.2.3.4
+  searches:
+    - ns1.svc.cluster-domain.example
+    - my.dns.search.suffix
+  options:
+    - name: ndots
+      value: "2"
+```
+
+## `dnsPolicy`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `""`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy)
+
+Kubernetes pod DNS policy.
+
+```yaml
+dnsPolicy: "Default"
+```
 
 ## `nodeSelector`
 
