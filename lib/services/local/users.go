@@ -1503,6 +1503,9 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	return encodedSHA
 }
 
+// KeyAttestationDataFingerprintV11 creates a "KeyAttestationData" fingerprint
+// compatible with older patches of Teleport v11.
+// Exposed for testing, do not use this function directly.
 // DELETE IN 13.0, old fingerprints not in use by then (Joerger).
 func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
 	sshPub, err := ssh.NewPublicKey(pub)
