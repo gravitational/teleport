@@ -3073,3 +3073,16 @@ func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds ty
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// SetPluginStatus sets the credentials for the given plugin.
+func (c *Client) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
+	v1, ok := status.(types.PluginStatusV1)
+	if !ok {
+		return trace.BadParameter("unsupported plugin status type %T", status)
+	}
+	_, err := c.grpc.SetPluginStatus(ctx, &proto.SetPluginStatusRequest{
+		Name:   name,
+		Status: &v1,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}

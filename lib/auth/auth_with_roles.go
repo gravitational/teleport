@@ -5378,6 +5378,14 @@ func (a *ServerWithRoles) SetPluginCredentials(ctx context.Context, name string,
 	return trace.Wrap(a.authServer.SetPluginCredentials(ctx, name, creds))
 }
 
+// SetPluginStatus sets the status for the given plugin.
+func (a *ServerWithRoles) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.SetPluginStatus(ctx, name, status))
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {

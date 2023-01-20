@@ -2030,6 +2030,14 @@ message SetPluginCredentialsRequest {
   types.PluginCredentialsV1 Credentials = 2 [(gogoproto.jsontag) = "credentials"];
 }
 
+// SetPluginStatusRequest is a request to set the status for an existing plugin
+message SetPluginStatusRequest {
+  // Name is the name of the plugin instance.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Status is the plugin status.
+  types.PluginStatusV1 Status = 2 [(gogoproto.jsontag) = "status"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2636,4 +2644,6 @@ service AuthService {
   rpc DeleteAllPlugins(google.protobuf.Empty) returns (google.protobuf.Empty);
   // SetPluginCredentials sets the credentials for the given plugin.
   rpc SetPluginCredentials(SetPluginCredentialsRequest) returns (google.protobuf.Empty);
+  // SetPluginCredentials sets the status for the given plugin.
+  rpc SetPluginStatus(SetPluginStatusRequest) returns (google.protobuf.Empty);
 }

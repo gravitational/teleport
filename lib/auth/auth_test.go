@@ -2875,6 +2875,18 @@ func TestPluginCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newCreds, updatedPlugin.Credentials)
 
+	// SetStatus
+	newStatus := types.PluginStatusV1{
+		Code: types.PluginStatusCode_RUNNING,
+	}
+	err = s.a.SetPluginStatus(ctx, name, newStatus)
+	require.NoError(t, err)
+
+	got, err = s.a.GetPlugin(ctx, name, false)
+	updatedPlugin = got.(*types.PluginV1)
+	require.NoError(t, err)
+	require.Equal(t, newStatus, updatedPlugin.Status)
+
 	// Delete
 	err = s.a.DeletePlugin(ctx, name)
 	require.NoError(t, err)

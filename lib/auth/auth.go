@@ -3906,6 +3906,11 @@ func (a *Server) SetPluginCredentials(ctx context.Context, name string, creds ty
 	return trace.Wrap(a.Services.Plugins.SetPluginCredentials(ctx, name, creds))
 }
 
+// SetPluginStatus sets the status for the given plugin.
+func (a *Server) SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error {
+	return trace.Wrap(a.Services.Plugins.SetPluginStatus(ctx, name, creds))
+}
+
 // Ping gets basic info about the auth server.
 func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	cn, err := a.GetClusterName()

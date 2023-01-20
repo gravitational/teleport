@@ -29,10 +29,16 @@ type Plugin interface {
 	ResourceWithSecrets
 	Clone() Plugin
 	SetCredentials(PluginCredentials) error
+	SetStatus(PluginStatus) error
 }
 
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface{}
+
+// PluginStatus is the plugin status
+type PluginStatus interface {
+	GetCode() PluginStatusCode
+}
 
 // NewPluginV1 creates a new PluginV1 resource.
 func NewPluginV1(name string, spec PluginSpecV1, creds *PluginCredentialsV1) *PluginV1 {
@@ -188,6 +194,21 @@ func (p *PluginV1) SetCredentials(creds PluginCredentials) error {
 	return nil
 }
 
+// SetStatus implements Plugin
+func (p *PluginV1) SetStatus(status PluginStatus) error {
+	if status == nil {
+		p.Status = PluginStatusV1{}
+		return nil
+	}
+	switch status := status.(type) {
+	case PluginStatusV1:
+		p.Status = status
+	default:
+		return trace.BadParameter("unsupported plugin status type %T", status)
+	}
+	return nil
+}
+
 func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 	if s.FallbackChannel == "" {
 		return trace.BadParameter("fallback_channel must be set")
@@ -216,4 +237,8 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+func (c PluginStatusV1) GetCode() PluginStatusCode {
+	return c.Code
 }

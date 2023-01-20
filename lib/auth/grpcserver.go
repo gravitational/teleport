@@ -4620,6 +4620,19 @@ func (g *GRPCServer) SetPluginCredentials(ctx context.Context, req *proto.SetPlu
 	return &emptypb.Empty{}, nil
 }
 
+// SetPluginStatus sets the status for the given plugin.
+func (g *GRPCServer) SetPluginStatus(ctx context.Context, req *proto.SetPluginStatusRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.SetPluginStatus(ctx, req.Name, req.Status)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

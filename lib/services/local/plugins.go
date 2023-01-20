@@ -140,7 +140,7 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 	return plugins, nil
 }
 
-// SetCredentials implements services.Plugins
+// SetPluginCredentials implements services.Plugins
 func (s *PluginsService) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
 	key := backend.Key(pluginsPrefix, name)
 	item, err := s.backend.Get(ctx, key)
@@ -160,6 +160,49 @@ func (s *PluginsService) SetPluginCredentials(ctx context.Context, name string, 
 	newPlugin := plugin.Clone()
 
 	err = newPlugin.SetCredentials(creds)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := plugin.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := services.MarshalPlugin(newPlugin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
+		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
+		Value:   value,
+		Expires: plugin.Expiry(),
+		ID:      plugin.GetResourceID(),
+	})
+
+	return trace.Wrap(err)
+}
+
+// SetPluginStatus implements services.Plugins
+func (s *PluginsService) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
+	key := backend.Key(pluginsPrefix, name)
+	item, err := s.backend.Get(ctx, key)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("plugin %q doesn't exist", name)
+		}
+		return trace.Wrap(err)
+	}
+
+	plugin, err := services.UnmarshalPlugin(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newPlugin := plugin.Clone()
+
+	err = newPlugin.SetStatus(status)
 	if err != nil {
 		return trace.Wrap(err)
 	}
