@@ -18,6 +18,6 @@ jobs:
         with:
           role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
           aws-region: us-west-2
-      - uses: aws-actions/amazon-ecr-login@v1
-        with:
-          registry-type: public
+      # - uses: aws-actions/amazon-ecr-login@v1
+      #   with:
+      #     registry-type: public
