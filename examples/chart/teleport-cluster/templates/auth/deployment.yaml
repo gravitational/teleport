@@ -145,6 +145,12 @@ spec:
         - name: diag
           containerPort: 3000
           protocol: TCP
+        - name: auth
+          containerPort: 3025
+          protocol: TCP
+        - name: kube
+          containerPort: 3026
+          protocol: TCP
         livenessProbe:
           httpGet:
             path: /healthz

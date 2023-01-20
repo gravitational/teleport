@@ -81,6 +81,18 @@ should set nodeSelector when set in values:
       - containerPort: 3000
         name: diag
         protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: k8s
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
       readinessProbe:
         failureThreshold: 12
         httpGet:
@@ -159,6 +171,18 @@ should set resources when set in values:
       - containerPort: 3000
         name: diag
         protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: k8s
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
       readinessProbe:
         failureThreshold: 12
         httpGet:
@@ -225,6 +249,18 @@ should set securityContext when set in values:
       ports:
       - containerPort: 3000
         name: diag
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: k8s
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
         protocol: TCP
       readinessProbe:
         failureThreshold: 12

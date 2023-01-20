@@ -157,6 +157,30 @@ spec:
         - name: diag
           containerPort: 3000
           protocol: TCP
+        {{- if eq $proxy.proxyListenerMode "separate" }}
+        - name: sshproxy
+          containerPort: 3023
+          protocol: TCP
+        - name: sshtun
+          containerPort: 3024
+          protocol: TCP
+        - name: k8s
+          containerPort: 3026
+          protocol: TCP
+        - name: mysql
+          containerPort: 3036
+          protocol: TCP
+        {{- if $proxy.separatePostgresListener }}
+        - name: postgres
+          containerPort: 5432
+          protocol: TCP
+        {{- end }}
+        {{- if $proxy.separateMongoListener }}
+        - name: mongo
+          containerPort: 27017
+          protocol: TCP
+        {{- end }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /healthz
