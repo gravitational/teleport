@@ -333,9 +333,9 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 	return len(a.noHosts) > 0
 }
 
-// CheckHostKey checks if the given host key was signed by a Teleport
+// HostKeyCallback checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
-func (a *LocalKeyAgent) CheckHostKey(addr string, remote net.Addr, hostKey ssh.PublicKey) error {
+func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ssh.PublicKey) error {
 	key, err := a.GetCoreKey()
 	if err != nil {
 		return trace.Wrap(err)
