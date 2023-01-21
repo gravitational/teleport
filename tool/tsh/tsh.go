@@ -421,7 +421,7 @@ type CLIConf struct {
 	// It shouldn't be used outside testing.
 	kubeConfigPath string
 
-	// Client only
+	// Client only version display.  Skips checking proxy version.
 	clientOnlyVersionCheck bool
 }
 
