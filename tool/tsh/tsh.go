@@ -420,6 +420,9 @@ type CLIConf struct {
 	// parallel.
 	// It shouldn't be used outside testing.
 	kubeConfigPath string
+
+	// Client only
+	clientOnlyVersionCheck bool
 }
 
 // Stdout returns the stdout writer.
@@ -610,6 +613,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	ver := app.Command("version", "Print the version of your tsh binary")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	ver.Flag("client-only", "Only display tsh binary version and do not retrieve server version.").Default("false").
+		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node").Interspersed(false)
@@ -1279,20 +1284,25 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
-	proxyVersion, err := fetchProxyVersion(cf)
-	if err != nil {
-		fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+	proxyVersionCheck := ""
+	// Do not check proxy version if client only version parameter is given
+	if !cf.clientOnlyVersionCheck {
+		proxyVersion, err := fetchProxyVersion(cf)
+		if err != nil {
+			fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+		}
+		proxyVersionCheck = proxyVersion
 	}
 
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
 		utils.PrintVersion()
-		if proxyVersion != "" {
-			fmt.Printf("Proxy version: %s\n", proxyVersion)
+		if proxyVersionCheck != "" {
+			fmt.Printf("Proxy version: %s\n", proxyVersionCheck)
 		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format, proxyVersion)
+		out, err := serializeVersion(format, proxyVersionCheck)
 		if err != nil {
 			return trace.Wrap(err)
 		}
