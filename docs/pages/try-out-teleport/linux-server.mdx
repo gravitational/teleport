@@ -95,8 +95,15 @@ enable you to access the web service securely.
 
 ### Install Teleport
 
+<ScopedBlock scope={["enterprise"]}>
 Run the appropriate commands for your environment to install the Teleport binary
 on your Linux host:
+
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+</ScopedBlock>
+
+Save your license file on the host where you will install Teleport at the path,
+`/var/lib/teleport/license.pem`.
 
 (!docs/pages/includes/install-linux.mdx!)
 
