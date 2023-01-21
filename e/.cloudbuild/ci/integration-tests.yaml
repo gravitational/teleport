@@ -1,5 +1,0 @@
-# Integration tests run as part of the unit-tests job.
-steps:
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport13
-    id: pull-buildbox-image
-    args: ["echo", "done"]
