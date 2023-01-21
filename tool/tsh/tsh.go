@@ -605,7 +605,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	ver := app.Command("version", "Print the version of your tsh binary")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	ver.Flag("client-only", "Only display tsh binary version and do not retrieve server version.").Default("false").
+	ver.Flag("client-only", "Only display tsh binary version and do not retrieve proxy version.").Default("false").
 		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
