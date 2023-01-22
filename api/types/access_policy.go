@@ -48,7 +48,7 @@ func AccessPolicyOption[T AsOption](policy *AccessPolicyV1) (T, error) {
 	var opt T
 	raw, ok := policy.Spec.Options[opt.Name()]
 	if !ok {
-		// TODO: default here=
+		// TODO: default here?
 		return opt, trace.NotFound("option %q not found", opt.Name())
 	}
 
@@ -88,11 +88,12 @@ func deserializeOptionInt(raw string) (int, error) {
 
 type AccessPolicySessionTTL time.Duration
 
+// Name is the static name of the option type.
 func (o *AccessPolicySessionTTL) Name() string {
-	// Name is the static name of the option type.
 	return "session_ttl"
 }
 
+// DeserializeInto deserializes the raw value into the receiver.
 func (o *AccessPolicySessionTTL) DeserializeInto(raw string) error {
 	d, err := deserializeOptionDuration(raw)
 	if err != nil {
@@ -110,8 +111,8 @@ const (
 	AccessPolicyLockingModeStrict
 )
 
+// Name is the static name of the option type.
 func (o *AccessPolicyLockingMode) Name() string {
-	// Name is the static name of the option type.
 	return "locking_mode"
 }
 
@@ -131,8 +132,8 @@ func (o *AccessPolicyLockingMode) DeserializeInto(raw string) error {
 
 type AccessPolicySessionMFA bool
 
+// Name is the static name of the option type.
 func (o *AccessPolicySessionMFA) Name() string {
-	// Name is the static name of the option type.
 	return "session_mfa"
 }
 
@@ -154,8 +155,8 @@ const (
 	AccessPolicySSHSessionRecordingModeStrict
 )
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHSessionRecordingMode) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.session_recording_mode"
 }
 
@@ -175,8 +176,8 @@ func (o *AccessPolicySSHSessionRecordingMode) DeserializeInto(raw string) error 
 
 type AccessPolicySSHAllowAgentForwarding bool
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHAllowAgentForwarding) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.allow_agent_forwarding"
 }
 
@@ -193,8 +194,8 @@ func (o *AccessPolicySSHAllowAgentForwarding) DeserializeInto(raw string) error 
 
 type AccessPolicySSHAllowPortForwarding bool
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHAllowPortForwarding) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.allow_port_forwarding"
 }
 
@@ -211,8 +212,8 @@ func (o *AccessPolicySSHAllowPortForwarding) DeserializeInto(raw string) error {
 
 type AccessPolicySSHAllowX11Forwarding bool
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHAllowX11Forwarding) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.allow_x11_forwarding"
 }
 
@@ -229,8 +230,8 @@ func (o *AccessPolicySSHAllowX11Forwarding) DeserializeInto(raw string) error {
 
 type AccessPolicySSHAllowFileCopying bool
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHAllowFileCopying) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.allow_file_copying"
 }
 
@@ -247,8 +248,8 @@ func (o *AccessPolicySSHAllowFileCopying) DeserializeInto(raw string) error {
 
 type AccessPolicySSHAllowExpiredCert bool
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHAllowExpiredCert) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.allow_expired_cert"
 }
 
@@ -265,8 +266,8 @@ func (o *AccessPolicySSHAllowExpiredCert) DeserializeInto(raw string) error {
 
 type AccessPolicySSHPinSourceIP bool
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHPinSourceIP) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.pin_source_ip"
 }
 
@@ -283,8 +284,8 @@ func (o *AccessPolicySSHPinSourceIP) DeserializeInto(raw string) error {
 
 type AccessPolicySSHMaxConnections int
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHMaxConnections) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.max_connections"
 }
 
@@ -301,8 +302,8 @@ func (o *AccessPolicySSHMaxConnections) DeserializeInto(raw string) error {
 
 type AccessPolicySSHMaxSessionsPerConnection int
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHMaxSessionsPerConnection) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.max_sessions_per_connection"
 }
 
@@ -319,8 +320,8 @@ func (o *AccessPolicySSHMaxSessionsPerConnection) DeserializeInto(raw string) er
 
 type AccessPolicySSHClientIdleTimeout time.Duration
 
+// Name is the static name of the option type.
 func (o *AccessPolicySSHClientIdleTimeout) Name() string {
-	// Name is the static name of the option type.
 	return "ssh.client_idle_timeout"
 }
 
