@@ -605,7 +605,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	ver := app.Command("version", "Print the version of your tsh binary")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	ver.Flag("client-only", "Only display tsh binary version and do not retrieve proxy version.").Default("false").
+	ver.Flag("client", "Only display tsh binary version and do not retrieve proxy version.").
 		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
@@ -1264,25 +1264,25 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
-	proxyVersionCheck := ""
+	proxyVersion := ""
 	// Do not check proxy version if client only version parameter is given
 	if !cf.clientOnlyVersionCheck {
-		proxyVersion, err := fetchProxyVersion(cf)
+		pv, err := fetchProxyVersion(cf)
 		if err != nil {
 			fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
 		}
-		proxyVersionCheck = proxyVersion
+		proxyVersion = pv
 	}
 
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
 		utils.PrintVersion()
-		if proxyVersionCheck != "" {
-			fmt.Printf("Proxy version: %s\n", proxyVersionCheck)
+		if proxyVersion != "" {
+			fmt.Printf("Proxy version: %s\n", proxyVersion)
 		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format, proxyVersionCheck)
+		out, err := serializeVersion(format, proxyVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
