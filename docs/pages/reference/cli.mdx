@@ -159,7 +159,7 @@ $ tsh help
 
 ### tsh version
 
-Print the version of your `tsh` binary and current profile Teleport proxy version:
+Print the version of your `tsh` binary and version of the Teleport proxy in current `tsh` profile
 
 ```code
 $ tsh version [<flags>]
@@ -168,7 +168,7 @@ $ tsh version [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `-f, --format`  | `text`  | text, json, yaml | Format for version output |
-| `--client-only` | none | none | Only display the `tsh` binary version and do not retrieve the proxy version. |
+| `--client` | none | none | Only display the `tsh` binary version and do not retrieve the proxy version. |
 
 #### Examples
 
@@ -176,6 +176,7 @@ $ tsh version [<flags>]
 $ tsh version
 Teleport v(=teleport.version=) git: go(=teleport.golang=)
 Proxy version: (=teleport.version=)
+Proxy: teleport.example.com:443
 ```
 
 Display in JSON format
@@ -187,7 +188,8 @@ $ tsh version --format=json
   "version": "(=teleport.version=)",
   "gitref": "",
   "runtime": "go(=teleport.golang=)",
-  "proxyVersion": "(=teleport.version=)"
+  "proxyVersion": "(=teleport.version=)",
+  "proxyPublicAddress": "teleport.example.com:443"
 }
 ```
 
