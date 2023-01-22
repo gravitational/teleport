@@ -524,10 +524,10 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 			log.Errorf("Failed to switch logging to syslog: %v.", err)
 		}
 	default:
-		// assume it's a file path:
-		logFile, err := os.Create(loggerConfig.Output)
+		// assume it's a file path. Create if doesn't exist or append`
+		logFile,err := os.OpenFile(loggerConfig.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
+			return trace.Wrap(err, "failed to create or open the log file")
 		}
 		logger.SetOutput(logFile)
 	}
