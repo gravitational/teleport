@@ -168,7 +168,7 @@ $ tsh version [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `-f, --format`  | `text`  | text, json, yaml | Format for version output |
-| `--client` | none | none | Only display the `tsh` binary version and do not retrieve the proxy version. |
+| `--client` | none | none | nly display the version of the `tsh` client. Does not connect to a Teleport proxy |
 
 #### Examples
 
@@ -195,7 +195,7 @@ $ tsh version --format=json
 
 Only display the `tsh` binary version
 ```code
-$ tsh version --client-only
+$ tsh version --client
 Teleport v(=teleport.version=) git: go(=teleport.golang=)
 ```
 
