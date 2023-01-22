@@ -285,6 +285,9 @@ func TestModeratedSessions(t *testing.T) {
 					if err != nil {
 						return trace.Wrap(err)
 					}
+					t.Cleanup(func() {
+						require.NoError(t, stream.Close())
+					})
 					// always send the force terminate even when the session is normally closed.
 					defer func() {
 						stream.ForceTerminate()
