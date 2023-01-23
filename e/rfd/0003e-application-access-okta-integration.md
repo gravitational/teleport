@@ -14,7 +14,8 @@ state: draft
 ## What
 
 Allow Teleport users to request access to specific applications and groups and access
-Okta applications from within Teleport.
+Okta applications from within Teleport. Additionally, users belonging to specific Teleport
+roles will be automatically assigned Okta groups based on these roles.
 
 Note: This is an enterprise only feature.
 
@@ -181,6 +182,21 @@ sequenceDiagram
   end
 ```
 
+Furthermore, `role` objects will be adjusted to contain a new field, `okta_groups` that will
+be automatically assigned based on Teleport group membership:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: example
+spec:
+  okta_groups:
+    - okta-group-1
+    - okta-group-2
+    ...
+```
+
 #### Okta to Teleport mappings
 
 Okta groups and applications will be mapped by the background synchronization into new
@@ -191,7 +207,7 @@ logged in.
 ##### Groups
 
 A new `OktaGroup` will be created for each Okta group. `OktaGroup`s will contain a list of Okta users
-that belong to this group. This will be later used for RBAC calculation.
+that belong to this group. This will be later used for access requests.
 
 ```yaml
 kind: okta_group
@@ -208,7 +224,7 @@ HTTP apps that use the `appLinks` from Okta as their URI. If there is more than 
 associated with an Okta application, it will be split into multiple applications for
 each `appLink` with the unique name of each `appLink` used to disambiguate them. The
 `teleport.dev/origin` field in the application metadata will be set to `okta`. Additionally, a
-field called `okta_application_id` will be present in the metadata that will allow for mapping
+field called `okta/application_id` will be present in the metadata that will allow for mapping
 the application to an internal `OktaApplication` object that will be created as part of the
 synchronization process. The applications will look like the following:
 
@@ -234,6 +250,7 @@ metadata:
   name: 123456789
   teleport.dev/origin: okta
 spec:
+  application_id: 123456789
   appLinks:
     - name: link1
       uri: https://my-okta-domain.okta.com/appLink
@@ -265,6 +282,8 @@ spec:
         - group.some-other-name
 ```
 
+These labels will then be applied to Okta applications and any derived Teleport applications
+from those, and Okta groups.
 ##### Okta users
 
 Okta's notion of users will be synchronized if a user is logged in. This will allow for
