@@ -1,0 +1,53 @@
+name: Build on Mac OS
+run-name: Build on Mac OS
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+
+jobs:
+  build:
+    name: Build on Mac OS
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: macos-12 # TODO(r0mant): Update with large runner when it's available
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Get Go version
+        id: go-version
+        shell: bash
+        run: echo "go-version=$(make --no-print-directory print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ steps.go-version.outputs.go-version }}
+
+      - name: Build
+        run: make binaries
