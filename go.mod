@@ -35,7 +35,7 @@ require (
 	github.com/beevik/etree v1.1.0
 	github.com/bufbuild/connect-go v1.4.1
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
-	github.com/coreos/go-semver v0.3.0
+	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.18
 	github.com/datastax/go-cassandra-native-protocol v0.0.0-20220706104457-5e8aad05cf90
 	github.com/denisenkom/go-mssqldb v0.11.0 // replaced
