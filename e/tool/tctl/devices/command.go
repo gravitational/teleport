@@ -260,6 +260,13 @@ func (c *lockCommand) Run(context.Context, auth.ClientI) error {
 	return errors.New("not implemented")
 }
 
+// findDeviceID finds the device ID when supplied with either a deviceID or
+// assetTag. If supplied with the former, no backend queries are made. It exists
+// to simplify the logic of commands that take either --device-id or --asset-tag
+// as an argument.
+// Returns the device ID and a name that can be used for CLI messages, the
+// latter matching whatever was originally supplied - the device ID or the asset
+// tag.
 func findDeviceID(ctx context.Context, devices devicepb.DeviceTrustServiceClient, deviceID, assetTag string) (id, name string, err error) {
 	if deviceID != "" {
 		// No need to query.
@@ -269,15 +276,26 @@ func findDeviceID(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	resp, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
 		IdOrTag: assetTag,
 	})
-	switch l := len(resp.Devices); {
-	case err != nil:
+	if err != nil {
 		return "", "", trace.Wrap(err)
-	case l == 0:
-		return "", "", trace.NotFound("device %q not found", assetTag)
-	case l > 1:
-		return "", "", trace.BadParameter(
-			"found multiple devices for asset tag %q, please retry using the device ID instead", assetTag)
-	default:
-		return resp.Devices[0].Id, assetTag, nil
 	}
+	for _, found := range resp.Devices {
+		// Skip ID matches.
+		if found.AssetTag != assetTag {
+			continue
+		}
+
+		// Sanity check.
+		if deviceID != "" {
+			return "", "", trace.BadParameter(
+				"found multiple devices for asset tag %q, please retry using the device ID instead", assetTag)
+		}
+
+		deviceID = found.Id
+	}
+	if deviceID == "" {
+		return "", "", trace.NotFound("device %q not found", assetTag)
+	}
+
+	return deviceID, assetTag, nil
 }
