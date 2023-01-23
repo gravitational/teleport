@@ -109,25 +109,29 @@ export function DiscoverProvider<T = any>(
   }, [selectedResource.views, resourceState]);
 
   useEffect(() => {
-    const emitAbortEvent = () => {
-      emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
+    const emitAbortOrSuccessEvent = () => {
+      if (ref.current.currEventName === DiscoverEvent.Completed) {
+        emitEvent({ stepStatus: DiscoverEventStatus.Success });
+      } else {
+        emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
+      }
     };
 
     // Emit abort event upon refreshing, going to different route
     // (eg: copy and paste url) from same page, or closing tab/browser.
     // Does not capture unmounting edge cases which is handled
     // with the unmount logic below.
-    window.addEventListener('beforeunload', emitAbortEvent);
+    window.addEventListener('beforeunload', emitAbortOrSuccessEvent);
 
     return () => {
       // Emit abort event upon unmounting from going back or
       // forward to a non-discover route or upon exiting from
       // the exit prompt.
       if (history.location.pathname !== cfg.routes.discover) {
-        emitAbortEvent();
+        emitAbortOrSuccessEvent();
       }
 
-      window.removeEventListener('beforeunload', emitAbortEvent);
+      window.removeEventListener('beforeunload', emitAbortOrSuccessEvent);
     };
 
     // Only add listener and umount logic once on init.
