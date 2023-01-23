@@ -1,116 +1,92 @@
-import { makeReleases } from './make';
+import { makeDescription, makeKind, makeOS } from './make';
 
-test('makeReleases with null', () => {
-  expect(makeReleases(null)).toEqual([]);
-});
+import type { Kind, OS } from './types';
 
-test('makeReleases with empty response', () => {
-  expect(makeReleases('')).toEqual([]);
-  expect(makeReleases([])).toEqual([]);
-});
+type MakeDescriptionInput = {
+  description: string;
+  kind: Kind;
+  os: OS;
+  url: string;
+};
 
-test('makeReleases with version and no assets', () => {
-  expect(
-    makeReleases([
-      {
-        version: 'v10.1.3',
-        assets: [],
-      },
-    ])
-  ).toEqual([{ version: 'v10.1.3', assets: [] }]);
-});
-
-test("makeReleases with missing fields on assets won't throw exceptions", () => {
-  expect(
-    makeReleases([
-      {
-        version: 'v10.1.3',
-        assets: [{}],
-      },
-    ])
-  ).toEqual([
+const makeDescriptionCases: [MakeDescriptionInput, string][] = [
+  [
     {
-      version: 'v10.1.3',
-      assets: [
-        {
-          description: '',
-          displaySize: '',
-          kind: 'Teleport',
-          name: '',
-          os: 'Linux',
-          sha256: '',
-          url: '',
-        },
-      ],
+      description: 'Linux ARMv7 (32-bit)',
+      kind: 'Teleport',
+      os: 'Linux',
+      url: '',
     },
-  ]);
+    'Linux ARMv7 (32-bit)',
+  ],
+  [
+    {
+      description: 'Linux 64-bit (FedRAMP/FIPS)',
+      kind: 'Teleport',
+      os: 'Linux',
+      url: '',
+    },
+    'Linux 64-bit (FedRAMP/FIPS)',
+  ],
+  [
+    {
+      description: 'Windows 64-bit (tsh client only)',
+      kind: 'tsh client',
+      os: 'Windows',
+      url: '',
+    },
+    'Windows 64-bit (tsh client only)',
+  ],
+  [
+    {
+      description: 'MacOS Intel',
+      kind: 'Teleport',
+      os: 'macOS',
+      url: '',
+    },
+    'MacOS Intel',
+  ],
+  [
+    {
+      description: 'Teleport Connect',
+      kind: 'Teleport Connect',
+      os: 'Linux',
+      url: ' https://cdn.cloud.gravitational.io/teleport-connect-10.2.2.x86_64.rpm',
+    },
+    'Teleport Connect 64-bit RPM',
+  ],
+  [
+    {
+      description: 'Teleport Connect',
+      kind: 'Teleport Connect',
+      os: 'Linux',
+      url: ' https://cdn.cloud.gravitational.io/teleport-connect_10.3.1_amd64.deb',
+    },
+    'Teleport Connect 64-bit DEB',
+  ],
+];
+
+test.each(makeDescriptionCases)(
+  'makeDescription(%s) should be %s',
+  (input, expected) => {
+    const { description, kind, os, url } = input;
+    expect(makeDescription(description, kind, os, url)).toBe(expected);
+  }
+);
+
+test('makeOS', () => {
+  expect(makeOS('linux')).toBe('Linux');
+  expect(makeOS('windows')).toBe('Windows');
+  expect(makeOS('macos')).toBe('macOS');
+  expect(makeOS('darwin')).toBe('macOS');
+  expect(makeOS('unknown')).toBe('Linux');
 });
 
-test('makeReleases with version assets', () => {
-  expect(
-    makeReleases([
-      {
-        version: 'v10.1.3',
-        assets: [
-          {
-            name: 'tsh-asset-name',
-            os: 'linux',
-            display_size: '100mb',
-            description: 'tsh',
-            sha256: 'sha256',
-            public_url: 'https://example.com/tsh',
-          },
-          {
-            name: 'tsh-asset-name',
-            os: 'windows',
-            display_size: '100mb',
-            description: 'tsh',
-            sha256: 'sha256',
-            public_url: 'https://example.com/tsh',
-          },
-          {
-            name: 'tsh-asset-name',
-            os: 'darwin',
-            display_size: '100mb',
-            description: 'tsh',
-            sha256: 'sha256',
-            public_url: 'https://example.com/tsh',
-          },
-        ],
-      },
-    ])
-  ).toEqual([
-    {
-      version: 'v10.1.3',
-      assets: [
-        {
-          description: 'tsh',
-          displaySize: '100mb',
-          kind: 'tsh client',
-          name: 'tsh-asset-name',
-          os: 'Linux',
-          sha256: 'sha256',
-          url: 'https://example.com/tsh',
-        },
-        {
-          description: 'tsh',
-          displaySize: '100mb',
-          kind: 'tsh client',
-          name: 'tsh-asset-name',
-          os: 'Windows',
-          sha256: 'sha256',
-          url: 'https://example.com/tsh',
-        },
-        {
-          description: 'tsh',
-          displaySize: '100mb',
-          kind: 'tsh client',
-          name: 'tsh-asset-name',
-          os: 'macOS',
-          sha256: 'sha256',
-          url: 'https://example.com/tsh',
-        },
-      ],
-    },
-  ]);
+test('makeKind', () => {
+  expect(makeKind('', 'Windows')).toBe('Teleport');
+  expect(makeKind('tsh-client', 'Linux')).toBe('tsh client');
+  expect(makeKind('Teleport Connect', 'Windows')).toBe('Teleport Connect');
+  expect(makeKind('teleport-connect', 'Linux')).toBe('Teleport Connect');
+  expect(makeKind('anything', 'Windows')).not.toBe('Teleport');
+  expect(makeKind('teleport-connect', 'Windows')).toBe('Teleport Connect');
 });

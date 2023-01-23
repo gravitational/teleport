@@ -1,4 +1,4 @@
-import type { Release, Asset, Kind, OS } from './types';
+import type { Release, Asset, Kind, OS, License } from './types';
 
 export const makeReleases = (json: any): Release[] => {
   if (!Array.isArray(json)) {
@@ -89,4 +89,12 @@ export const makeOS = (jsonOS: string): OS => {
     default:
       return 'Linux';
   }
+};
+
+export const makeLicense = (json: any): License => {
+  const expiry = json?.expiry ? new Date(json.expiry) : undefined;
+  return {
+    pem: json?.pem || '',
+    expiry,
+  };
 };

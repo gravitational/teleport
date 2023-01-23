@@ -8,16 +8,20 @@ import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { downloadObject } from 'e-teleport/services/downloads/downloads';
 
+import { License } from 'e-teleport/services/downloads/types';
+
 import type { Kind, OS, Release } from 'e-teleport/services/downloads';
 
 export type State = ReturnType<typeof useDownloads>;
 
 export const useDownloads = (ctx: TeleportContextE) => {
-  const { attempt, run } = useAttempt('processing');
-  const { attempt: licenseAttempt, run: runLicenseAttempt } = useAttempt('');
-
   const [releases, setReleases] = useState<Release[]>([]);
+  const { attempt, run } = useAttempt('processing');
+
   const [availableVersions, setAvailableVersions] = useState<string[]>([]);
+
+  const [license, setLicense] = useState<License>();
+  const { attempt: licenseAttempt, run: runLicenseAttempt } = useAttempt('');
 
   const canDownloadLicense = ctx.storeUser.getLicenceAccess().read;
   const canDownloadReleaseAssets = ctx.storeUser.getDownloadAccess().list;
@@ -36,6 +40,14 @@ export const useDownloads = (ctx: TeleportContextE) => {
     }
   }, [canDownloadReleaseAssets, ctx.downloadsService, run]);
 
+  useEffect(() => {
+    if (canDownloadLicense) {
+      runLicenseAttempt(() =>
+        ctx.downloadsService.fetchLicense().then(setLicense)
+      );
+    }
+  }, [canDownloadLicense, ctx.downloadsService, runLicenseAttempt]);
+
   // downloads filters
   const [selectedVersion, setSelectedVersion] = useState<string>(
     availableVersions.length > 0 ? availableVersions[0] : ''
@@ -44,11 +56,15 @@ export const useDownloads = (ctx: TeleportContextE) => {
   const [selectedOS, setSelectedOS] = useState<OS>('Linux');
 
   function downloadLicense() {
+    if (license) {
+      downloadObject('license.pem', license.pem);
+      return;
+    }
+
     runLicenseAttempt(() =>
       ctx.downloadsService.fetchLicense().then(license => {
-        if (license) {
-          downloadObject('license.pem', license);
-        }
+        setLicense(license);
+        downloadObject('license.pem', license.pem);
       })
     );
   }
@@ -67,6 +83,7 @@ export const useDownloads = (ctx: TeleportContextE) => {
     downloadLicense,
     canDownloadLicense,
     canDownloadReleaseAssets,
+    license,
   };
 };
 

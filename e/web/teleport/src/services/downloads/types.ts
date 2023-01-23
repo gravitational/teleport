@@ -16,3 +16,8 @@ export type Release = {
 export type Kind = 'Teleport' | 'tsh client' | 'Teleport Connect';
 
 export type OS = 'Linux' | 'macOS' | 'Windows';
+
+export type License = {
+  pem: string;
+  expiry?: Date;
+};

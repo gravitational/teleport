@@ -33,6 +33,7 @@ export const DownloadsView = ({
   licenseAttempt,
   canDownloadLicense,
   canDownloadReleaseAssets,
+  license,
 }: State) => {
   return (
     <FeatureBox>
@@ -40,6 +41,7 @@ export const DownloadsView = ({
         canDownloadLicense={canDownloadLicense}
         downloadLicense={downloadLicense}
         licenseAttempt={licenseAttempt}
+        expiry={license?.expiry}
       />
       <TeleportReleases
         canDownloadReleaseAssets={canDownloadReleaseAssets}

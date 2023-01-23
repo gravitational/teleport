@@ -7,6 +7,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -31,11 +32,25 @@ func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Requ
 	return ui.NewLicenseCheckStatus(licenseCheckResult), nil
 }
 
+// getLicense is GET handle that returns the license
 func (p *Plugin) getLicense(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	return clt.GetLicense(r.Context())
+	pem, err := clt.GetLicense(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	licensefile, err := licensefile.FromPEM([]byte(pem))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.GetLicenseResponse{
+		PEM:    pem,
+		Expiry: licensefile.License.Expiry(),
+	}, err
 }

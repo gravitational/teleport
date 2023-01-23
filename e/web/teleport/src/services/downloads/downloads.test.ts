@@ -1,92 +1,164 @@
-import { makeDescription, makeKind, makeOS } from './make';
+import api from 'teleport/services/api';
 
-import type { Kind, OS } from './types';
+import { downloadsService } from './downloads';
 
-type MakeDescriptionInput = {
-  description: string;
-  kind: Kind;
-  os: OS;
-  url: string;
-};
+test('correct formatting of release fetch response', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue(mockReleasesResponse);
 
-const makeDescriptionCases: [MakeDescriptionInput, string][] = [
-  [
+  const response = await downloadsService.fetchReleases();
+  expect(response).toEqual([
     {
-      description: 'Linux ARMv7 (32-bit)',
-      kind: 'Teleport',
-      os: 'Linux',
-      url: '',
+      version: 'v10.1.3',
+      assets: [
+        {
+          description: 'tsh',
+          displaySize: '100mb',
+          kind: 'tsh client',
+          name: 'tsh-asset-name',
+          os: 'Linux',
+          sha256: 'sha256',
+          url: 'https://example.com/tsh',
+        },
+        {
+          description: 'tsh',
+          displaySize: '100mb',
+          kind: 'tsh client',
+          name: 'tsh-asset-name',
+          os: 'Windows',
+          sha256: 'sha256',
+          url: 'https://example.com/tsh',
+        },
+        {
+          description: 'tsh',
+          displaySize: '100mb',
+          kind: 'tsh client',
+          name: 'tsh-asset-name',
+          os: 'macOS',
+          sha256: 'sha256',
+          url: 'https://example.com/tsh',
+        },
+      ],
     },
-    'Linux ARMv7 (32-bit)',
-  ],
-  [
+  ]);
+});
+
+test('correct formatting of release fetch response without assets', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue([
     {
-      description: 'Linux 64-bit (FedRAMP/FIPS)',
-      kind: 'Teleport',
-      os: 'Linux',
-      url: '',
+      version: 'v10.1.3',
+      assets: [],
     },
-    'Linux 64-bit (FedRAMP/FIPS)',
-  ],
-  [
+  ]);
+
+  const response = await downloadsService.fetchReleases();
+  expect(response).toEqual([{ version: 'v10.1.3', assets: [] }]);
+});
+
+test('no error thrown of release fetch response with missing fields', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue([
     {
-      description: 'Windows 64-bit (tsh client only)',
-      kind: 'tsh client',
-      os: 'Windows',
-      url: '',
+      version: 'v10.1.3',
+      assets: [{}],
     },
-    'Windows 64-bit (tsh client only)',
-  ],
-  [
+  ]);
+
+  const response = await downloadsService.fetchReleases();
+  expect(response).toEqual([
     {
-      description: 'MacOS Intel',
-      kind: 'Teleport',
-      os: 'macOS',
-      url: '',
+      version: 'v10.1.3',
+      assets: [
+        {
+          description: '',
+          displaySize: '',
+          kind: 'Teleport',
+          name: '',
+          os: 'Linux',
+          sha256: '',
+          url: '',
+        },
+      ],
     },
-    'MacOS Intel',
-  ],
-  [
-    {
-      description: 'Teleport Connect',
-      kind: 'Teleport Connect',
-      os: 'Linux',
-      url: ' https://cdn.cloud.gravitational.io/teleport-connect-10.2.2.x86_64.rpm',
-    },
-    'Teleport Connect 64-bit RPM',
-  ],
-  [
-    {
-      description: 'Teleport Connect',
-      kind: 'Teleport Connect',
-      os: 'Linux',
-      url: ' https://cdn.cloud.gravitational.io/teleport-connect_10.3.1_amd64.deb',
-    },
-    'Teleport Connect 64-bit DEB',
-  ],
+  ]);
+});
+
+test('null response from release fetch', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  const response = await downloadsService.fetchReleases();
+  expect(response).toEqual([]);
+});
+
+test('empty response from release fetch', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue('');
+
+  const response = await downloadsService.fetchReleases();
+  expect(response).toEqual([]);
+});
+
+test('correct formatting of license fetch response', async () => {
+  const now = new Date();
+
+  jest.spyOn(api, 'get').mockResolvedValue({
+    pem: 'pem',
+    expiry: now,
+  });
+
+  const response = await downloadsService.fetchLicense();
+  expect(response).toEqual({
+    pem: 'pem',
+    expiry: now,
+  });
+});
+
+test('null response from license fetch', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  const response = await downloadsService.fetchLicense();
+  expect(response).toEqual({ pem: '', expiry: null });
+});
+
+test('empty response from license fetch', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue('');
+
+  const response = await downloadsService.fetchLicense();
+  expect(response).toEqual({ pem: '', expiry: null });
+});
+
+test('invalid fields in response from license fetch', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({ key: 'val' });
+
+  const response = await downloadsService.fetchLicense();
+  expect(response).toEqual({ pem: '', expiry: null });
+});
+
+const mockReleasesResponse = [
+  {
+    version: 'v10.1.3',
+    assets: [
+      {
+        name: 'tsh-asset-name',
+        os: 'linux',
+        display_size: '100mb',
+        description: 'tsh',
+        sha256: 'sha256',
+        public_url: 'https://example.com/tsh',
+      },
+      {
+        name: 'tsh-asset-name',
+        os: 'windows',
+        display_size: '100mb',
+        description: 'tsh',
+        sha256: 'sha256',
+        public_url: 'https://example.com/tsh',
+      },
+      {
+        name: 'tsh-asset-name',
+        os: 'darwin',
+        display_size: '100mb',
+        description: 'tsh',
+        sha256: 'sha256',
+        public_url: 'https://example.com/tsh',
+      },
+    ],
+  },
 ];
-
-test.each(makeDescriptionCases)(
-  'makeDescription(%s) should be %s',
-  (input, expected) => {
-    const { description, kind, os, url } = input;
-    expect(makeDescription(description, kind, os, url)).toBe(expected);
-  }
-);
-
-test('makeOS', () => {
-  expect(makeOS('linux')).toBe('Linux');
-  expect(makeOS('windows')).toBe('Windows');
-  expect(makeOS('macos')).toBe('macOS');
-  expect(makeOS('darwin')).toBe('macOS');
-  expect(makeOS('unknown')).toBe('Linux');
-});
-
-test('makeKind', () => {
-  expect(makeKind('', 'Windows')).toBe('Teleport');
-  expect(makeKind('tsh-client', 'Linux')).toBe('tsh client');
-  expect(makeKind('Teleport Connect', 'Windows')).toBe('Teleport Connect');
-  expect(makeKind('teleport-connect', 'Linux')).toBe('Teleport Connect');
-  expect(makeKind('anything', 'Windows')).not.toBe('Teleport');
-  expect(makeKind('teleport-connect', 'Windows')).toBe('Teleport Connect');
-});

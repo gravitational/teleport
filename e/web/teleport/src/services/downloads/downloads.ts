@@ -2,14 +2,16 @@ import api from 'teleport/services/api';
 
 import cfg from 'e-teleport/config';
 
-import { makeReleases } from './make';
+import { makeReleases, makeLicense } from './make';
+
+import type { License } from './types';
 
 export const downloadsService = {
   fetchReleases() {
     return api.get(cfg.api.releases).then(makeReleases);
   },
-  fetchLicense(): Promise<string> {
-    return api.get(cfg.api.license);
+  fetchLicense(): Promise<License> {
+    return api.get(cfg.api.license).then(makeLicense);
   },
 };
 

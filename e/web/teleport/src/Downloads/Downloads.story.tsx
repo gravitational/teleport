@@ -195,4 +195,8 @@ const props: State = {
   setSelectedKind: () => {},
   setSelectedOS: () => {},
   setSelectedVersion: () => {},
+  license: {
+    pem: 'pem',
+    expiry: new Date('2025-12-17T12:00:00'),
+  },
 };
