@@ -1041,7 +1041,8 @@ func (s *server) onSiteTunnelClose(site siteCloser) error {
 
 	for i := range s.remoteSites {
 		if s.remoteSites[i].domainName == site.GetName() {
-			s.remoteSites = append(s.remoteSites[:i], s.remoteSites[i+1:]...)
+			s.remoteSites[i] = s.remoteSites[len(s.remoteSites)-1]
+			s.remoteSites = s.remoteSites[:len(s.remoteSites)-1]
 			return trace.Wrap(site.Close())
 		}
 	}
