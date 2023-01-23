@@ -224,22 +224,19 @@ sudo chown $USER /var/lib/teleport
 
 ### Web UI
 
-The Teleport Web UI resides in the [Gravitational Webapps](https://github.com/gravitational/webapps) repo.
+The Teleport Web UI resides in the [web](web) directory.
 
 #### Rebuilding Web UI for development
 
-To clone this repository and rebuild the Teleport UI package, run the following commands:
+To rebuild the Teleport UI package, run the following command:
 
 ```bash
-git clone git@github.com:gravitational/webapps.git
-cd webapps
-make build-teleport
+make docker-ui
 ```
 
 Then you can replace Teleport Web UI files with the files from the newly-generated `/dist` folder.
 
-To enable speedy iterations on the Web UI, you can run a
-[local web-dev server](https://github.com/gravitational/webapps/tree/master/packages/teleport).
+To enable speedy iterations on the Web UI, you can run a [local web-dev server](web#web-ui).
 
 You can also tell Teleport to load the Web UI assets from the source directory.
 To enable this behavior, set the environment variable `DEBUG=1` and rebuild with the default target:
@@ -250,7 +247,7 @@ DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md) file.
+For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
 #### Updating Web UI assets
 
