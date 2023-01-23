@@ -93,7 +93,6 @@ type SubmittedEvent[T any] struct {
 }
 
 type UsageReporter[T any] struct {
-	mtx sync.RWMutex
 	// Entry is a log entry
 	*logrus.Entry
 
@@ -142,8 +141,8 @@ type UsageReporter[T any] struct {
 	// sequencing in tests.
 	receiveFunc func()
 
-	gracefulStopScheduledC   chan struct{}
-	wasGracefulStopScheduled bool
+	eventsClosedOnce sync.Once
+	eventsClosed     chan struct{}
 	// wg is used to wait all goroutines to close
 	wg sync.WaitGroup
 }
@@ -151,14 +150,16 @@ type UsageReporter[T any] struct {
 // runSubmit starts the submission thread. It should be run as a background
 // goroutine to ensure AddEventsToQueue() never blocks.
 func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
-	r.wg.Add(1)
 	defer r.wg.Done()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case batch := <-r.submissionQueue:
+		case batch, ok := <-r.submissionQueue:
+			if !ok {
+				return
+			}
 			t0 := time.Now()
 
 			if failed, err := r.submit(r, batch); err != nil {
@@ -250,7 +251,7 @@ func (r *UsageReporter[T]) GracefulStop(ctx context.Context) error {
 		close(wait)
 	}()
 
-	close(r.gracefulStopScheduledC)
+	r.eventsClosedOnce.Do(func() { close(r.eventsClosed) })
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -261,15 +262,13 @@ func (r *UsageReporter[T]) GracefulStop(ctx context.Context) error {
 
 // Run begins processing incoming usage events. It should be run in a goroutine.
 func (r *UsageReporter[T]) Run(ctx context.Context) {
-	r.wg.Add(1)
 	defer r.wg.Done()
-
-	submitCtx, cancelSubmit := context.WithCancel(ctx)
-
 	timer := r.clock.NewTimer(r.maxBatchAge)
 
 	// Also start the submission goroutine.
-	go r.runSubmit(submitCtx)
+	r.wg.Add(1)
+	go r.runSubmit(ctx)
+	defer close(r.submissionQueue)
 
 	r.Debug("usage reporter is ready")
 
@@ -277,12 +276,8 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-r.gracefulStopScheduledC:
-			r.mtx.Lock()
-			r.wasGracefulStopScheduled = true
-			r.mtx.Unlock()
+		case <-r.eventsClosed:
 			r.enqueueBatch()
-			cancelSubmit() // it will stop runSubmit loop after a pending submit finishes
 			return
 		case <-timer.Chan():
 			// Once the timer triggers, send any non-empty batch.
@@ -323,38 +318,30 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 }
 
 func (r *UsageReporter[T]) AddEventsToQueue(events ...*T) {
-	var submitted []*SubmittedEvent[T]
-
+	submitted := make([]*SubmittedEvent[T], 0, len(events))
 	for _, e := range events {
 		submitted = append(submitted, &SubmittedEvent[T]{
 			Event:            e,
 			retriesRemaining: r.retryAttempts,
 		})
-
-		usageEventsSubmitted.Inc()
 	}
 
-	r.mtx.RLock()
-	defer r.mtx.RUnlock()
-	if r.wasGracefulStopScheduled {
-		return
-	}
-
-	r.events <- submitted
+	usageEventsSubmitted.Add(float64(len(events)))
+	r.submitEvents(submitted)
 }
 
 // resubmitEvents resubmits events that have already been processed (in case of
 // some error during submission).
 func (r *UsageReporter[T]) resubmitEvents(events []*SubmittedEvent[T]) {
 	usageEventsRequeuedTotal.Add(float64(len(events)))
+	r.submitEvents(events)
+}
 
-	r.mtx.RLock()
-	defer r.mtx.RUnlock()
-	if r.wasGracefulStopScheduled {
-		return
+func (r *UsageReporter[T]) submitEvents(events []*SubmittedEvent[T]) {
+	select {
+	case r.events <- events:
+	case <-r.eventsClosed: // unblock submitEvent when there is no receiver (because reporter closes)
 	}
-
-	r.events <- events
 }
 
 type Options[T any] struct {
@@ -401,23 +388,28 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 		options.SubmitClock = clockwork.NewRealClock()
 	}
 
-	return &UsageReporter[T]{
+	reporter := &UsageReporter[T]{
 		Entry: options.Log.WithField(
 			trace.Component,
 			teleport.Component(teleport.ComponentUsageReporting),
 		),
-		events:                 make(chan []*SubmittedEvent[T], 1),
-		submissionQueue:        make(chan []*SubmittedEvent[T], 1),
-		submit:                 options.Submit,
-		clock:                  options.Clock,
-		submitClock:            options.SubmitClock,
-		minBatchSize:           options.MinBatchSize,
-		maxBatchSize:           options.MaxBatchSize,
-		maxBatchAge:            options.MaxBatchAge,
-		maxBufferSize:          options.MaxBufferSize,
-		submitDelay:            options.SubmitDelay,
-		retryAttempts:          options.RetryAttempts,
-		gracefulStopScheduledC: make(chan struct{}),
-		wg:                     sync.WaitGroup{},
+		events:          make(chan []*SubmittedEvent[T], 1),
+		submissionQueue: make(chan []*SubmittedEvent[T], 1),
+		eventsClosed:    make(chan struct{}),
+		submit:          options.Submit,
+		clock:           options.Clock,
+		submitClock:     options.SubmitClock,
+		minBatchSize:    options.MinBatchSize,
+		maxBatchSize:    options.MaxBatchSize,
+		maxBatchAge:     options.MaxBatchAge,
+		maxBufferSize:   options.MaxBufferSize,
+		submitDelay:     options.SubmitDelay,
+		retryAttempts:   options.RetryAttempts,
 	}
+
+	// lowered when Run returns
+	reporter.wg.Add(1)
+
+	return reporter
+
 }
