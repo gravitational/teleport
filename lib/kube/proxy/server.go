@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
@@ -69,7 +70,7 @@ type TLSServerConfig struct {
 	OnReconcile func(types.KubeClusters)
 	// CloudClients is a set of cloud clients that Teleport supports.
 	CloudClients cloud.Clients
-	//StaticLabels is a map of static labels associated with this service.
+	// StaticLabels is a map of static labels associated with this service.
 	// Each cluster advertised by this kubernetes_service will include these static labels.
 	// If the service and a cluster define labels with the same key,
 	// service labels take precedence over cluster labels.
@@ -217,6 +218,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Clock:               t.Clock,
 		EnableProxyProtocol: true,
 		ID:                  t.Component,
+		// Increases deadline until the agent receives the first byte to 10s.
+		// It's required to accommodate setups with high latency and where the time
+		// between the TCP being accepted and the time for the first byte is longer
+		// than the default value -  1s.
+		ReadDeadline: 10 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -256,9 +262,7 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 // Close closes the server and cleans up all resources.
 func (t *TLSServer) Close() error {
-	var (
-		errs []error
-	)
+	var errs []error
 	// Stop the legacy heartbeat resource watcher.
 	if t.legacyHeartbeat != nil {
 		errs = append(errs, t.legacyHeartbeat.Close())
