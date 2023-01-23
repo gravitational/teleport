@@ -115,13 +115,56 @@ function filterOptions(value = '', options: Option[] = []) {
 type Option = { value: string; label: string };
 
 const StyledSelect = styled(DarkStyledSelect)`
+  .react-select__value-container {
+    padding: 0 16px;
+  }
+
   .react-select__single-value {
     transform: none;
     position: absolute;
-    left: 78px;
+    left: 86px;
     top: 4px;
     width: 270px;
     text-overflow: ellipsis;
+  }
+
+  .react-select__control {
+    min-height: 42px;
+    height: 42px;
+    border-color: #1f264b;
+
+    &:focus,
+    &:active {
+      border-color: #1f264b;
+      background: #1f264b;
+    }
+    &:hover {
+      border-color: #1f264b;
+      background: #1f264b;
+
+      .react-select__dropdown-indicator {
+        color: white;
+      }
+    }
+  }
+
+  .react-select__indicator,
+  .react-select__dropdown-indicator {
+    padding: 4px 16px;
+    color: white;
+    &:hover {
+      color: white;
+    }
+  }
+
+  .react-select__control--menu-is-open {
+    .react-select__indicator,
+    .react-select__dropdown-indicator {
+      color: white !important;
+      &:hover {
+        color: white !important;
+      }
+    }
   }
 `;
 
