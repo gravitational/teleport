@@ -353,7 +353,7 @@ func checkResourceUpdate(ctx context.Context, payloadResourceName, resourceName 
 	// Try to retrieve the resource by name.
 	_, err := get(ctx, payloadResourceName)
 
-	// If no error, then the resource already exists and cannot be created.
+	// If no error, then the resource already exists and can be updated.
 	if err == nil {
 		return nil
 	}
