@@ -26,6 +26,6 @@ module.exports = {
     '^design($|/.*)': '<rootDir>/packages/design/src/$1',
     '^teleport($|/.*)': '<rootDir>/packages/teleport/src/$1',
     '^teleterm($|/.*)': '<rootDir>/packages/teleterm/src/$1',
-    '^e-teleport/(.*)$': '<rootDir>/packages/webapps.e/teleport/src/$1',
+    '^e-teleport/(.*)$': '<rootDir>/../e/web/teleport/src/$1',
   },
 };
