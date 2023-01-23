@@ -20,6 +20,7 @@ default.etcd
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out
 build
+!/web/packages/build
 *.o
 *.a
 *.so
@@ -82,3 +83,7 @@ go.work.sum
 
 # Buf side-effects
 /github.com
+node_modules
+
+.air.toml
+webassets/

@@ -799,10 +799,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
-		mfaParams := authCtx.MFAParams(authPref.GetRequireMFAType())
+		state := authCtx.GetAccessState(authPref)
 		return authCtx.Checker.CheckAccess(
 			desktop,
-			mfaParams,
+			state,
 			services.NewWindowsLoginMatcher(login))
 	}
 

@@ -1357,24 +1357,24 @@ type resourceChecker struct {
 func (r resourceChecker) CanAccess(resource types.Resource) error {
 	// MFA is not required for operations on app resources but
 	// will be enforced at the connection time.
-	mfaParams := services.AccessMFAParams{Verified: true}
+	state := services.AccessState{MFAVerified: true}
 	switch rr := resource.(type) {
 	case types.AppServer:
-		return r.CheckAccess(rr.GetApp(), mfaParams)
+		return r.CheckAccess(rr.GetApp(), state)
 	case types.KubeServer:
-		return r.CheckAccess(rr.GetCluster(), mfaParams)
+		return r.CheckAccess(rr.GetCluster(), state)
 	case types.DatabaseServer:
-		return r.CheckAccess(rr.GetDatabase(), mfaParams)
+		return r.CheckAccess(rr.GetDatabase(), state)
 	case types.DatabaseService:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	case types.Database:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	case types.Server:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	case types.WindowsDesktop:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	case types.WindowsDesktopService:
-		return r.CheckAccess(rr, mfaParams)
+		return r.CheckAccess(rr, state)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
@@ -1439,7 +1439,7 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 			return trace.Wrap(err)
 		}
 
-		if err := k.checker.CheckAccess(k8sV3, services.AccessMFAParams{Verified: true}); err != nil {
+		if err := k.checker.CheckAccess(k8sV3, services.AccessState{MFAVerified: true}); err != nil {
 			if trace.IsAccessDenied(err) {
 				continue
 			}
@@ -1456,7 +1456,7 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 
 func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 	kube := server.GetCluster()
-	err := k.checker.CheckAccess(kube, services.AccessMFAParams{Verified: true})
+	err := k.checker.CheckAccess(kube, services.AccessState{MFAVerified: true})
 	return trace.Wrap(err)
 }
 
@@ -4050,7 +4050,7 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 		app,
 		// MFA is not required for operations on app resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -4311,18 +4311,18 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		return trace.Wrap(err)
 	}
 
-	ap, err := a.authServer.GetAuthPreference(ctx)
+	authPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := a.context.MFAParams(ap.GetRequireMFAType())
+	state := a.context.GetAccessState(authPref)
 	for _, kube := range s.GetKubernetesClusters() {
 		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
+		if err := a.context.Checker.CheckAccess(k8sV3, state); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -4343,7 +4343,7 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) er
 		cluster,
 		// MFA is not required for operations on kube clusters resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 // GetKubernetesServers returns all registered kubernetes servers.
@@ -4849,14 +4849,14 @@ func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
 	return a.context.Checker.CheckAccess(node,
 		// MFA is not required for operations on node resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
 	return a.context.Checker.CheckAccess(database,
 		// MFA is not required for operations on database resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessState{MFAVerified: true})
 }
 
 // CreateDatabase creates a new database resource.
@@ -5150,7 +5150,7 @@ func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop)
 func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) error {
 	return a.context.Checker.CheckAccess(w,
 		// MFA is not required for operations on desktop resources
-		services.AccessMFAParams{Verified: true},
+		services.AccessState{MFAVerified: true},
 		// Note: we don't use the Windows login matcher here, as we won't know what OS user
 		// the user is trying to log in as until they initiate the connection.
 	)
@@ -5160,7 +5160,8 @@ func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) er
 // authentication.
 func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	// Only windows_desktop_service should be requesting Windows certificates.
-	if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
+	// (We also allow RoleAdmin for tctl auth sign)
+	if !a.hasBuiltinRole(types.RoleWindowsDesktop, types.RoleAdmin) {
 		return nil, trace.AccessDenied("access denied")
 	}
 	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
