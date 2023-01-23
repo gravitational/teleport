@@ -73,7 +73,7 @@ By default, Webpack will store a cache in `node_modules/.cache/webpack` during d
 makes starting `webpack-dev-server` really quick after having ran it once, as it will re-use the
 cache from the last time it was running.
 
-If you want to change the location of the cache, you can set `WEBPACK_CACHE_DIRECTORY` to an 
+If you want to change the location of the cache, you can set `WEBPACK_CACHE_DIRECTORY` to an
 absolute file path of the folder where you want to store Webpack's cache.
 
 If you wish to disable the cache, you can set `WEBPACK_CACHE_DISABLED` to `yes`.
