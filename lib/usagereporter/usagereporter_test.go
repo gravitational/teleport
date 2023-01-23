@@ -73,10 +73,6 @@ func newTestingUsageReporter(
 ) (*UsageReporter[TestEvent], context.CancelFunc, chan struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentUsageReporting),
-	})
-
 	// Make a receiver callback. We'll use this channel to coordinate event
 	// receipts, since otherwise we'll be racing the clock.
 	receiveChan := make(chan struct{})
@@ -84,21 +80,19 @@ func newTestingUsageReporter(
 		receiveChan <- struct{}{}
 	}
 
-	reporter := &UsageReporter[TestEvent]{
-		Entry:           l,
-		events:          make(chan []*SubmittedEvent[TestEvent], 1),
-		submissionQueue: make(chan []*SubmittedEvent[TestEvent], 1),
-		submit:          submitter,
-		clock:           clock,
-		submitClock:     submitClock,
-		minBatchSize:    testMinBatchSize,
-		maxBatchSize:    testMaxBatchSize,
-		maxBatchAge:     testMaxBatchAge,
-		maxBufferSize:   testMaxBufferSize,
-		submitDelay:     testSubmitDelay,
-		receiveFunc:     receive,
-		retryAttempts:   testRetryAttempts,
-	}
+	reporter := NewUsageReporter[TestEvent](&Options[TestEvent]{
+		Submit:        submitter,
+		Clock:         clock,
+		SubmitClock:   submitClock,
+		MinBatchSize:  testMinBatchSize,
+		MaxBatchSize:  testMaxBatchSize,
+		MaxBatchAge:   testMaxBatchAge,
+		MaxBufferSize: testMaxBufferSize,
+		SubmitDelay:   testSubmitDelay,
+		RetryAttempts: testRetryAttempts,
+	})
+
+	reporter.receiveFunc = receive
 
 	go reporter.Run(ctx)
 
