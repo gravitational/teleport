@@ -24,10 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport"
 )
 
 const (
@@ -430,4 +427,41 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 
 	// All events should have been dropped.
 	require.Empty(t, reporter.buf)
+}
+
+// TestUsageReporterGracefulStop validates if events are sent when GracefulStop is invoked
+func TestUsageReporterGracefulStop(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClock()
+	fakeSubmitClock := clockwork.NewFakeClock()
+	submitter, batchChan := newTestSubmitter(2)
+
+	reporter, cancel, rx := newTestingUsageReporter(fakeClock, fakeSubmitClock, submitter)
+	defer cancel()
+
+	// Create a number of events that won't trigger auto-send
+	batchSizeToSent := testMinBatchSize - 1
+
+	events := createDummyEvents(0, batchSizeToSent)
+	reporter.AddEventsToQueue(events...)
+	<-rx
+
+	timeoutCtx, cancelTimeout := context.WithTimeout(context.Background(), 2*time.Second)
+
+	// Run GracefulStop in a goroutine, so it doesn't block events receiving.
+	go func() {
+		defer cancelTimeout()
+		err := reporter.GracefulStop(timeoutCtx)
+		require.NoError(t, err)
+	}()
+
+	// Receive the batch.
+	select {
+	case e := <-batchChan:
+		require.Len(t, e, batchSizeToSent)
+		compareUsageEvents(t, reporter, events[:batchSizeToSent], e)
+	case <-time.After(time.Second):
+		t.Fatalf("Did not receive expected events.")
+	}
 }
