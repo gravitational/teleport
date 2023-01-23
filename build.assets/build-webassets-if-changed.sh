@@ -8,9 +8,31 @@ set -eo pipefail
 
 ROOT_PATH="$(realpath "$(dirname "$0")/..")"
 MAKE="${MAKE:-make}"
+SHASUMS=("sha256sum" "sha512sum" "shasum -a 256")
 
 if ! command -v "$MAKE" >/dev/null; then
   echo "Unable to find \"$MAKE\" on path."
+  exit 1
+fi
+
+if [ -n "$SHASUM" ]; then
+  EXEC="$(echo "$SHASUM" | awk '{print $1}')"
+  if ! command -v "$EXEC" >/dev/null; then
+    echo "Unable to find custom SHA sum $SHASUM on path."
+    exit 1
+  fi
+else
+  for shasum in "${SHASUMS[@]}"; do
+    EXEC="$(echo "$shasum" | awk '{print $1}')"
+    if command -v "$EXEC" >/dev/null; then
+      SHASUM="$shasum"
+      break
+    fi
+  done
+fi
+
+if [ -z "$SHASUM" ]; then
+  echo "Unable to find a SHA sum executable."
   exit 1
 fi
 
@@ -30,7 +52,7 @@ SRC_DIRECTORIES=("$@")
 CURRENT_SHA="$( (for dir in "${SRC_DIRECTORIES[@]}"; do
   find "$ROOT_PATH/$dir" -type f
 done && echo "$ROOT_PATH/yarn.lock" && echo "$ROOT_PATH/package.json") | 
-  grep -v "node_modules" | xargs -I{} -n1 -P8 sha256sum {} | sort -k 2 | sha256sum |
+  grep -v "node_modules" | xargs -I{} -n1 -P8 $SHASUM {} | sort -k 2 | $SHASUM |
   cut -f1 -d' ')"
 
 BUILD=true
