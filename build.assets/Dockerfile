@@ -187,7 +187,7 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.11.0" && \
+    VERSION="1.12.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
