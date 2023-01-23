@@ -29,7 +29,8 @@ import service from 'teleport/services/apps';
 test('arn is url decoded', () => {
   jest.spyOn(service, 'createAppSession');
 
-  const launcherPath = '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
+  const launcherPath =
+    '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
   const mockHistory = createMemoryHistory({
     initialEntries: [launcherPath],
   });
