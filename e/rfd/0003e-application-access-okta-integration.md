@@ -326,7 +326,7 @@ spec:
 This should be used in concert with the Okta label rules to establish roles for requestable
 Okta applications and groups. These roles can be used as part the request configuration.
 
-#### Keeping track of Okta state
+#### Keeping track of Okta access request state
 
 We will need to independently keep track of Okta state in order to determine whether we need to
 clean up or provision any Okta application or group access requests. A new object,
@@ -436,10 +436,10 @@ A number of new audit events will be created as part of this effort:
 The `OktaGroup`, `OktaApplication`, and `OktaUser` objects should be implemented along with any database
 and gRPC modifications that are required.
 
-#### `OktaLabelRules` object
+#### `OktaLabelRules`, `OktaAccessRequestLifecycle` objects
 
-The `OktaLabelRules` object shoudl be implemented along with any database and gRPC modifications
-that are required.
+The `OktaLabelRules` and `OktaAccessRequestLifecycle` objects should be implemented along with any
+database and gRPC modifications that are required.
 
 #### Okta service configuration
 
