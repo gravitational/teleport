@@ -873,6 +873,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
+		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MessageWriter: &monitorErrorSender{
 			log:     log,
 			tdpConn: tdpConn,
