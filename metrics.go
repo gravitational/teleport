@@ -88,6 +88,9 @@ const (
 	// TagMigration is a metric tag for a migration
 	TagMigration = "migration"
 
+	// MetricIncompleteSessionUploads returns the number of incomplete session uploads
+	MetricIncompleteSessionUploads = "incomplete_session_uploads_total"
+
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 )
