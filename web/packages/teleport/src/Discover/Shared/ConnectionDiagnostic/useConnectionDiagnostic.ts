@@ -18,12 +18,12 @@ import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import type {
   ConnectionDiagnostic,
   ConnectionDiagnosticRequest,
 } from 'teleport/services/agents';
-
 import type { AgentStepProps } from '../../types';
 
 export function useConnectionDiagnostic(props: AgentStepProps) {
@@ -31,6 +31,7 @@ export function useConnectionDiagnostic(props: AgentStepProps) {
 
   const { attempt, run } = useAttempt('');
   const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
+  const { emitErrorEvent } = useDiscover();
 
   const access = ctx.storeUser.getConnectionDiagnosticAccess();
   const canTestConnection = access.create && access.edit && access.read;
@@ -38,7 +39,28 @@ export function useConnectionDiagnostic(props: AgentStepProps) {
   function runConnectionDiagnostic(req: ConnectionDiagnosticRequest) {
     setDiagnosis(null); // reset since user's can re-test connection.
     run(() =>
-      ctx.agentService.createConnectionDiagnostic(req).then(setDiagnosis)
+      ctx.agentService
+        .createConnectionDiagnostic(req)
+        .then(diag => {
+          setDiagnosis(diag);
+
+          // The request may succeed, but the connection
+          // test itself can fail:
+          if (!diag.success) {
+            // Append all possible errors:
+            const errors: string[] = [];
+            diag.traces.forEach(trace =>
+              errors.push(
+                `[${trace.traceType}] ${trace.error} (${trace.details})`
+              )
+            );
+            emitErrorEvent(`testing failed: ${errors.join('\n')}`);
+          }
+        })
+        .catch((error: Error) => {
+          emitErrorEvent(error.message);
+          throw error;
+        })
     );
   }
 

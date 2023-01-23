@@ -17,6 +17,7 @@
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 // import { usePoll } from 'teleport/Discover/Shared/usePoll';
 
 import { Database } from '../resources';
@@ -36,6 +37,7 @@ export function useCreateDatabase(props: AgentStepProps) {
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const { attempt, setAttempt } = useAttempt('');
+  const { emitErrorEvent } = useDiscover();
 
   // const [pollTimeout, setPollTimeout] = useState(0);
   // const [pollActive, setPollActive] = useState(false);
@@ -116,7 +118,12 @@ export function useCreateDatabase(props: AgentStepProps) {
     // request operation is only a CREATE operation).
     // if (!newDb || db.name != newDb.name) {
     try {
-      const createdDb = await ctx.databaseService.createDatabase(clusterId, db);
+      const createdDb = await ctx.databaseService
+        .createDatabase(clusterId, db)
+        .catch((error: Error) => {
+          emitErrorEvent(error.message);
+          throw error;
+        });
       // setNewDb(db);
       props.updateAgentMeta({
         ...(props.agentMeta as DbMeta),
