@@ -24,7 +24,7 @@ const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 const resolvePath = require('./resolvepath');
 
-const tsconfigPath = path.join(__dirname, '/../../../tsconfig.json');
+const tsconfigPath = path.join(__dirname, '/../../../../tsconfig.json');
 
 const configFactory = {
   createDefaultConfig,
