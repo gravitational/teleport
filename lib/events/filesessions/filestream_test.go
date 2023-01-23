@@ -165,3 +165,37 @@ func TestCompleteUpload(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkAuditWriter(b *testing.B) {
+	b.StopTimer()
+
+	dir := b.TempDir()
+	streamer, err := NewStreamer(dir)
+	require.NoError(b, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	b.Cleanup(cancel)
+
+	writer, err := events.NewAuditWriter(events.AuditWriterConfig{
+		ClusterName:  "cluster",
+		SessionID:    "test-session",
+		Context:      ctx,
+		RecordOutput: true,
+		Streamer:     streamer,
+	})
+	require.NoError(b, err)
+
+	events := events.GenerateTestSession(events.SessionParams{PrintEvents: 100})
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		err = writer.EmitAuditEvent(ctx, events[i%len(events)])
+		require.NoError(b, err)
+	}
+
+	b.StopTimer()
+	stats := writer.Stats()
+	b.Logf("encountered %d/%d slow writes", stats.SlowWrites, stats.AcceptedEvents)
+	writer.Close(ctx)
+}

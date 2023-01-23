@@ -49,7 +49,7 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 	writer := &AuditWriter{
 		mtx:    sync.Mutex{},
 		cfg:    cfg,
-		stream: NewCheckingStream(stream, cfg.Clock, cfg.ClusterName),
+		stream: stream,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
