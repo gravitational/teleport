@@ -20,16 +20,17 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
-// FromRawOption describes a value that can be deserialized from a raw string option value.
+// FromRawOption describes a value that can be deserialized from an intermediate option format.
 type FromRawOption interface {
 	// Name is the static name of the option type.
 	Name() string
 
-	// DeserializeInto deserializes the raw value into the receiver.
-	DeserializeInto(raw string) error
+	deserializeInto(raw string) error
+	fromRoleOptions(options RoleOptions) bool
 }
 
 func deserializeOptionDuration(raw string) (time.Duration, error) {
@@ -76,8 +77,8 @@ func (o *AccessPolicySessionTTL) Name() string {
 	return "session_ttl"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySessionTTL) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySessionTTL) deserializeInto(raw string) error {
 	d, err := deserializeOptionDuration(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,6 +97,15 @@ func (o *AccessPolicySessionTTL) combineOptions(instances ...AccessPolicySession
 	}
 }
 
+func (o *AccessPolicySessionTTL) fromRoleOptions(options RoleOptions) bool {
+	if options.MaxSessionTTL == 0 {
+		return false
+	}
+
+	*o = AccessPolicySessionTTL(options.MaxSessionTTL)
+	return true
+}
+
 type AccessPolicyLockingMode int
 
 const (
@@ -108,8 +118,8 @@ func (o *AccessPolicyLockingMode) Name() string {
 	return "locking_mode"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicyLockingMode) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicyLockingMode) deserializeInto(raw string) error {
 	switch raw {
 	case "best_effort":
 		*o = AccessPolicyLockingModeBestEffort
@@ -132,6 +142,19 @@ func (o *AccessPolicyLockingMode) combineOptions(instances ...AccessPolicyLockin
 	}
 }
 
+func (o *AccessPolicyLockingMode) fromRoleOptions(options RoleOptions) bool {
+	switch options.Lock {
+	case constants.LockingModeBestEffort:
+		*o = AccessPolicyLockingModeBestEffort
+	case constants.LockingModeStrict:
+		*o = AccessPolicyLockingModeStrict
+	default:
+		return false
+	}
+
+	return true
+}
+
 type AccessPolicySessionMFA bool
 
 // Name is the static name of the option type.
@@ -139,8 +162,8 @@ func (o *AccessPolicySessionMFA) Name() string {
 	return "session_mfa"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySessionMFA) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySessionMFA) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -160,6 +183,11 @@ func (o *AccessPolicySessionMFA) combineOptions(instances ...AccessPolicySession
 	}
 }
 
+func (o *AccessPolicySessionMFA) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySessionMFA(options.RequireSessionMFA)
+	return true
+}
+
 type AccessPolicySSHSessionRecordingMode int
 
 const (
@@ -172,8 +200,8 @@ func (o *AccessPolicySSHSessionRecordingMode) Name() string {
 	return "ssh.session_recording_mode"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHSessionRecordingMode) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHSessionRecordingMode) deserializeInto(raw string) error {
 	switch raw {
 	case "best_effort":
 		*o = AccessPolicySSHSessionRecordingModeBestEffort
@@ -196,6 +224,19 @@ func (o *AccessPolicySSHSessionRecordingMode) combineOptions(instances ...Access
 	}
 }
 
+func (o *AccessPolicySSHSessionRecordingMode) fromRoleOptions(options RoleOptions) bool {
+	switch options.Lock {
+	case constants.LockingModeBestEffort:
+		*o = AccessPolicySSHSessionRecordingModeBestEffort
+	case constants.LockingModeStrict:
+		*o = AccessPolicySSHSessionRecordingModeStrict
+	default:
+		return false
+	}
+
+	return true
+}
+
 type AccessPolicySSHAllowAgentForwarding bool
 
 // Name is the static name of the option type.
@@ -203,8 +244,8 @@ func (o *AccessPolicySSHAllowAgentForwarding) Name() string {
 	return "ssh.allow_agent_forwarding"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowAgentForwarding) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHAllowAgentForwarding) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,6 +265,11 @@ func (o *AccessPolicySSHAllowAgentForwarding) combineOptions(instances ...Access
 	}
 }
 
+func (o *AccessPolicySSHAllowAgentForwarding) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySSHAllowAgentForwarding(options.ForwardAgent)
+	return true
+}
+
 type AccessPolicySSHAllowPortForwarding bool
 
 // Name is the static name of the option type.
@@ -231,8 +277,8 @@ func (o *AccessPolicySSHAllowPortForwarding) Name() string {
 	return "ssh.allow_port_forwarding"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowPortForwarding) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHAllowPortForwarding) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -252,6 +298,15 @@ func (o *AccessPolicySSHAllowPortForwarding) combineOptions(instances ...AccessP
 	}
 }
 
+func (o *AccessPolicySSHAllowPortForwarding) fromRoleOptions(options RoleOptions) bool {
+	if options.PortForwarding == nil {
+		return false
+	}
+
+	*o = AccessPolicySSHAllowPortForwarding(options.PortForwarding.Value)
+	return true
+}
+
 type AccessPolicySSHAllowX11Forwarding bool
 
 // Name is the static name of the option type.
@@ -259,8 +314,8 @@ func (o *AccessPolicySSHAllowX11Forwarding) Name() string {
 	return "ssh.allow_x11_forwarding"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowX11Forwarding) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHAllowX11Forwarding) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -280,6 +335,11 @@ func (o *AccessPolicySSHAllowX11Forwarding) combineOptions(instances ...AccessPo
 	}
 }
 
+func (o *AccessPolicySSHAllowX11Forwarding) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySSHAllowX11Forwarding(options.PermitX11Forwarding)
+	return true
+}
+
 type AccessPolicySSHAllowFileCopying bool
 
 // Name is the static name of the option type.
@@ -287,8 +347,8 @@ func (o *AccessPolicySSHAllowFileCopying) Name() string {
 	return "ssh.allow_file_copying"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowFileCopying) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHAllowFileCopying) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -308,6 +368,15 @@ func (o *AccessPolicySSHAllowFileCopying) combineOptions(instances ...AccessPoli
 	}
 }
 
+func (o *AccessPolicySSHAllowFileCopying) fromRoleOptions(options RoleOptions) bool {
+	if options.SSHFileCopy == nil {
+		return false
+	}
+
+	*o = AccessPolicySSHAllowFileCopying(options.SSHFileCopy.Value)
+	return true
+}
+
 type AccessPolicySSHAllowExpiredCert bool
 
 // Name is the static name of the option type.
@@ -315,8 +384,8 @@ func (o *AccessPolicySSHAllowExpiredCert) Name() string {
 	return "ssh.allow_expired_cert"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowExpiredCert) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHAllowExpiredCert) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -336,6 +405,11 @@ func (o *AccessPolicySSHAllowExpiredCert) combineOptions(instances ...AccessPoli
 	}
 }
 
+func (o *AccessPolicySSHAllowExpiredCert) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySSHAllowExpiredCert(options.DisconnectExpiredCert)
+	return true
+}
+
 type AccessPolicySSHPinSourceIP bool
 
 // Name is the static name of the option type.
@@ -343,8 +417,8 @@ func (o *AccessPolicySSHPinSourceIP) Name() string {
 	return "ssh.pin_source_ip"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHPinSourceIP) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHPinSourceIP) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -364,6 +438,11 @@ func (o *AccessPolicySSHPinSourceIP) combineOptions(instances ...AccessPolicySSH
 	}
 }
 
+func (o *AccessPolicySSHPinSourceIP) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySSHPinSourceIP(options.PinSourceIP)
+	return true
+}
+
 type AccessPolicySSHMaxConnections int
 
 // Name is the static name of the option type.
@@ -371,8 +450,8 @@ func (o *AccessPolicySSHMaxConnections) Name() string {
 	return "ssh.max_connections"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHMaxConnections) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHMaxConnections) deserializeInto(raw string) error {
 	i, err := deserializeOptionInt(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -391,6 +470,11 @@ func (o *AccessPolicySSHMaxConnections) combineOptions(instances ...AccessPolicy
 	}
 }
 
+func (o *AccessPolicySSHMaxConnections) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySSHMaxConnections(options.MaxConnections)
+	return true
+}
+
 type AccessPolicySSHMaxSessionsPerConnection int
 
 // Name is the static name of the option type.
@@ -398,8 +482,8 @@ func (o *AccessPolicySSHMaxSessionsPerConnection) Name() string {
 	return "ssh.max_sessions_per_connection"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHMaxSessionsPerConnection) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHMaxSessionsPerConnection) deserializeInto(raw string) error {
 	i, err := deserializeOptionInt(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -418,6 +502,11 @@ func (o *AccessPolicySSHMaxSessionsPerConnection) combineOptions(instances ...Ac
 	}
 }
 
+func (o *AccessPolicySSHMaxSessionsPerConnection) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySSHMaxSessionsPerConnection(options.MaxSessions)
+	return true
+}
+
 type AccessPolicySSHClientIdleTimeout time.Duration
 
 // Name is the static name of the option type.
@@ -425,8 +514,8 @@ func (o *AccessPolicySSHClientIdleTimeout) Name() string {
 	return "ssh.client_idle_timeout"
 }
 
-// DeserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHClientIdleTimeout) DeserializeInto(raw string) error {
+// deserializeInto deserializes the raw value into the receiver.
+func (o *AccessPolicySSHClientIdleTimeout) deserializeInto(raw string) error {
 	d, err := deserializeOptionDuration(raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -443,4 +532,9 @@ func (o *AccessPolicySSHClientIdleTimeout) combineOptions(instances ...AccessPol
 			*o = instance
 		}
 	}
+}
+
+func (o *AccessPolicySSHClientIdleTimeout) fromRoleOptions(options RoleOptions) bool {
+	*o = AccessPolicySSHClientIdleTimeout(options.ClientIdleTimeout)
+	return true
 }

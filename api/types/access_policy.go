@@ -41,7 +41,7 @@ func AccessPolicyOption[T FromRawOption](policy *AccessPolicyV1) (T, error) {
 		return opt, trace.NotFound("option %q not found", opt.Name())
 	}
 
-	if err := opt.DeserializeInto(raw); err != nil {
+	if err := opt.deserializeInto(raw); err != nil {
 		return opt, trace.Wrap(err)
 	}
 
