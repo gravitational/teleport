@@ -14,7 +14,11 @@
     "build-native-deps-for-term": "yarn workspace @gravitational/namespaces build-native-deps-for-term",
     "build-and-package-term-ci": "yarn workspace @gravitational/namespaces build-and-package-term-ci",
     "test": "yarn workspace @gravitational/namespaces test",
-    "type-check": "yarn workspace @gravitational/namespaces type-check"
+    "lint": "yarn prettier-check && yarn eslint",
+    "eslint": "eslint --quiet --ext .js,.jsx,.ts,.tsx web/",
+    "type-check": "tsc --noEmit",
+    "prettier-check": "yarn prettier --check 'web/**/*.{ts,tsx,js,jsx,md}'",
+    "prettier-write": "yarn prettier --write 'web/**/*.{ts,tsx,js,jsx,md}'"
   },
   "private": true,
   "resolutions": {
