@@ -617,7 +617,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_bottom))
 	c.png2FrameBuffer = append(c.png2FrameBuffer, data...)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.PNG2Frame{c.png2FrameBuffer}); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.PNG2Frame(c.png2FrameBuffer)); err != nil {
 		c.cfg.Log.Errorf("failed to write PNG2Frame: %v", err)
 		return C.ErrCodeFailure
 	}
