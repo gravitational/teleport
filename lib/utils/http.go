@@ -76,8 +76,7 @@ func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
 	return
 }
 
-// RenameHeader moves all values from the old header to key to the new
-// header key.
+// RenameHeader moves all values from the old header key to the new header key.
 func RenameHeader(header http.Header, oldKey, newKey string) {
 	if oldKey == newKey {
 		return
