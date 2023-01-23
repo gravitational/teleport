@@ -310,6 +310,9 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 			// If we've accumulated enough events to trigger an early send, do
 			// so and reset the timer.
 			if len(r.buf) >= r.minBatchSize {
+				if !timer.Stop() {
+					<-timer.Chan()
+				}
 				timer.Reset(r.maxBatchAge)
 				r.enqueueBatch()
 			}
