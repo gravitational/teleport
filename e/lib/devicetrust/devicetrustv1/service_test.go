@@ -40,8 +40,9 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "BulkCreateDevice",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbCreate,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbCreate},
+				},
 			},
 			rpc: func() error {
 				_, err := devices.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{})
@@ -52,8 +53,9 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "CreateDevice",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbCreate,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbCreate},
+				},
 			},
 			rpc: func() error {
 				_, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{})
@@ -62,10 +64,27 @@ func TestService_authz(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
+			name: "CreateDevice checks for create_enroll_token",
+			checker: &fakeChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbCreate},
+					{rule: types.KindDevice, verb: types.VerbCreateEnrollToken},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+					CreateEnrollToken: true, // requires create_enroll_token
+				})
+				return err
+			},
+			assertErr: trace.IsBadParameter,
+		},
+		{
 			name: "CreateDeviceEnrollToken",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbCreateEnrollToken,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbCreateEnrollToken},
+				},
 			},
 			rpc: func() error {
 				_, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
@@ -78,8 +97,9 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "DeleteDevice",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbDelete,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbDelete},
+				},
 			},
 			rpc: func() error {
 				_, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
@@ -92,8 +112,9 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "EnrollDevice",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbEnroll,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbEnroll},
+				},
 			},
 			rpc: func() error {
 				stream, err := devices.EnrollDevice(ctx)
@@ -112,8 +133,9 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "FindDevices",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbList,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbList},
+				},
 			},
 			rpc: func() error {
 				_, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
@@ -126,8 +148,9 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "GetDevice",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbRead,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbRead},
+				},
 			},
 			rpc: func() error {
 				_, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
@@ -140,8 +163,9 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "ListDevices",
 			checker: &fakeChecker{
-				wantRule: types.KindDevice,
-				wantVerb: types.VerbList,
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbList},
+				},
 			},
 			rpc: func() error {
 				_, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{})
@@ -155,8 +179,8 @@ func TestService_authz(t *testing.T) {
 			authorizer.Checker = test.checker
 			authorizer.authorizeCount = 0
 
-			// Any "blessed" error OK, we expect the RPCs to fail after authorization.
-			// It's simpler to test this way.
+			// Any "blessed" error is OK, we expect the RPCs to fail after
+			// authorization. It's simpler to test this way.
 			if err := test.rpc(); !test.assertErr(err) {
 				t.Fatalf("RPC assertErr failed, err=%v", err)
 			}
@@ -164,8 +188,8 @@ func TestService_authz(t *testing.T) {
 			if got, want := authorizer.authorizeCount, 1; got != want {
 				t.Errorf("Authorize count mismatch: got=%v, want=%v", got, want)
 			}
-			if got, want := test.checker.checkAccessToRuleCount, 1; got != want {
-				t.Errorf("CheckAccessToRule count mismatch: got=%v, want=%v", got, want)
+			if err := test.checker.verifyMatches(); err != nil {
+				t.Errorf("Authorize: %v", err)
 			}
 		})
 	}
@@ -190,24 +214,38 @@ func (a *fakeAuthorizer) Authorize(ctx context.Context) (*auth.Context, error) {
 	}, nil
 }
 
+type wantRuleVerb struct {
+	rule, verb string
+}
+
 type fakeChecker struct {
 	services.AccessChecker
-
-	checkAccessToRuleCount int
-	wantRule, wantVerb     string
+	want []wantRuleVerb
 }
 
 func (c *fakeChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
-	c.checkAccessToRuleCount++
-	switch {
-	case namespace != defaults.Namespace:
+	if namespace != defaults.Namespace {
 		return fmt.Errorf("unexpected namespace: %v", namespace)
-	case rule != c.wantRule:
-		return fmt.Errorf("unexpected rule=%q, want %q", rule, c.wantRule)
-	case verb != c.wantVerb:
-		return fmt.Errorf("unexpected verb=%q, want %q", verb, c.wantVerb)
 	}
-	return nil
+
+	for i, want := range c.want {
+		if want.rule == rule && want.verb == verb {
+			c.want = append(c.want[:i], c.want[i+1:]...) // cut
+			return nil
+		}
+	}
+
+	return fmt.Errorf("CheckAccessToRule called with an unexpected rule+verb pair: %v %v", rule, verb)
+}
+
+// verifyMatches returns an error if any wanted matches are still unfulfilled.
+func (c *fakeChecker) verifyMatches() error {
+	// CheckAccessToRule removes c.want entries on a positive match.
+	// An empty slice means all wanted rules got a match.
+	if len(c.want) == 0 {
+		return nil
+	}
+	return fmt.Errorf("CheckAccessToRule not called for the following wanted matches: %v", c.want)
 }
 
 func TestService_CreateDevice(t *testing.T) {

@@ -80,7 +80,13 @@ func New(params ServiceParams) (*Service, error) {
 }
 
 func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbCreate); err != nil {
+	var verbs []string
+	if req.CreateEnrollToken {
+		verbs = []string{types.VerbCreate, types.VerbCreateEnrollToken}
+	} else {
+		verbs = []string{types.VerbCreate}
+	}
+	if err := s.authorizeVerbs(ctx, types.KindDevice, verbs); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -373,7 +379,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	return trace.Wrap(err)
 }
 
-func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {
+func (s *Service) authorizeVerbs(ctx context.Context, rule string, verbs []string) error {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -382,8 +388,17 @@ func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {
 	ruleCtx := &services.Context{
 		User: authCtx.User,
 	}
-	err = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, rule, verb, false /* silent */)
-	return trace.Wrap(err)
+
+	for _, verb := range verbs {
+		if err := authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, rule, verb, false /* silent */); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {
+	return s.authorizeVerbs(ctx, rule, []string{verb})
 }
 
 func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {
