@@ -368,6 +368,7 @@ spec:
   groups:
     - "group1"
     - "group2"
+  reason: "Message populated on failure."
 ```
 
 This will contain a state along with the applications and groups to grant access to. The state
@@ -435,9 +436,12 @@ A number of new audit events will be created as part of this effort:
 | `OKTA_GROUPS_UPDATE` | Emitted when groups synchronized from Okta have changed. |
 | `OKTA_APPLICATIONS_UPDATE` | Emitted when applications synchronized from Okta have have changed. |
 | `OKTA_USER` | Emitted when users synchronized from Okta have have changed. |
+| `OKTA_ROLE_SYNC` | Emitted when roles have been synchronized from Teleport to Okta. |
 | `OKTA_SYNC_FAILURE` | Emitted when an Okta synchronization attempt fails. |
 | `OKTA_ACCESS_REQUEST_APPROVED` | Emitted when a user request for an Okta resource was approved. |
 | `OKTA_ACCESS_REQUEST_DENIED` | Emitted when a user request for an Okta resource was denied. |
+| `OKTA_ACCESS_REQUEST_PROCESSED` | Emitted when a user request for an Okta resource was processed successfully or unsuccessfully. |
+| `OKTA_ACCESS_REQUEST_CLEANED_UP` | Emitted when a user request for an Okta resource was cleaned up successfully or unsuccessfully. |
 
 ### Security
 
