@@ -1,5 +1,18 @@
 # Changelog
 
+## 11.2.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh login` defaulting to passwordless ignoring `--auth` and `--mfa-mode` flags. [#20474](https://github.com/gravitational/teleport/pull/20474)
+* Fixed regression issue with AWS console access via `tsh aws`. [#20437](https://github.com/gravitational/teleport/pull/20437)
+* Fixed issue connecting to MariaDB in non TLS routing mode. [#20409](https://github.com/gravitational/teleport/pull/20409)
+* Fixed `*:*` selector in EC2 auto discovery. [#20390](https://github.com/gravitational/teleport/pull/20390)
+* Improved handling of unknown events in events search API. [#20329](https://github.com/gravitational/teleport/pull/20329)
+* Added support for multiple transformations in role templates. [#20296](https://github.com/gravitational/teleport/pull/20296)
+* Added ability to update of trusted cluster role map without recreating it. [#20286](https://github.com/gravitational/teleport/pull/20286)
+* Added `dnsConfig` support to `teleport-kube-agent` Helm chart. [#20107](https://github.com/gravitational/teleport/pull/20107)
+
 ## 11.2.2
 
 This release of Teleport contains multiple improvements and bug fixes.
