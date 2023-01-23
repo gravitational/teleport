@@ -74,7 +74,6 @@ flowchart LR
     DB[(Teleport Database)]
     App[Application Service]
     Requests[Access Requests Service]
-    IdP[SAML Identity Provider]
     WebUI[User Interface]
 
     subgraph OktaSvc[Okta Service]
@@ -83,7 +82,6 @@ flowchart LR
     end
 
     OktaSvc<-->DB
-    OktaSvc<-->IdP
     App<-->DB
     App<-->Requests
     Requests<-->DB
