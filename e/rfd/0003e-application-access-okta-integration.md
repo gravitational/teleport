@@ -156,11 +156,13 @@ sequenceDiagram
   participant AppSvc as Application Access Service
 
   loop Every 2 minutes
+    OktaSvc->>Okta: Get list of logged in users
+    OktaSvc->>AppSvc: Synchronize logged in users in Teleport
+
     OktaSvc->>Okta: Get list of applications
     OktaSvc->>AppSvc: Synchronize applications in Teleport
 
     OktaSvc->>Okta: Get list of groups
-
     OktaSvc->>AppSvc: Synchronize groups in Teleport
   end
 ```
@@ -176,7 +178,7 @@ sequenceDiagram
   participant OktaSvc as Okta Service
   participant Okta as Okta API
 
-  loop On user modification
+  loop On init or user modification
     AuthSvc->>OktaSvc: Synchronize user
     OktaSvc->>Okta: Update Okta groups for corresponding User
   end
@@ -199,10 +201,34 @@ spec:
 
 #### Okta to Teleport mappings
 
-Okta groups and applications will be mapped by the background synchronization into new
-`OktaGroup` and `OktaApplication` objects. Additionally, `okta_label_rules` can be added to
+Okta users, groups, and applications will be mapped by the background synchronization into new
+`OktaUser`, `OktaGroup`, and `OktaApplication` objects. Additionally, `okta_label_rules` can be added to
 dictate how labels are applied to these objects. Users will be updated only if they are
 logged in.
+
+##### Okta users
+
+Okta's notion of users will be synchronized if a user is known to Teleport (is returned by
+listing users from Teleport). This will allow for minimizing of API calls.
+
+```yaml
+kind: okta_user
+version: v1
+metadata:
+  name: <okta-user-id>
+  okta/id: 1234567
+  teleport.dev/origin: okta
+spec:
+  apps:
+    - "app-id-1"
+    - "app-id-2"
+  groups:
+    - "group1"
+    - "group2"
+```
+
+This will then be used by RBAC calculations to determine if a user has access to a particular
+application or group.
 
 ##### Groups
 
@@ -284,29 +310,6 @@ spec:
 
 These labels will then be applied to Okta applications and any derived Teleport applications
 from those, and Okta groups.
-##### Okta users
-
-Okta's notion of users will be synchronized if a user is logged in. This will allow for
-minimizing of API calls.
-
-```yaml
-kind: okta_user
-version: v1
-metadata:
-  name: <okta-user-id>
-  okta/id: 1234567
-  teleport.dev/origin: okta
-spec:
-  apps:
-    - "app-id-1"
-    - "app-id-2"
-  groups:
-    - "group1"
-    - "group2"
-```
-
-This will then be used by RBAC calculations to determine if a user has access to a particular
-application or group.
 
 ### Requesting access to applications and groups
 
