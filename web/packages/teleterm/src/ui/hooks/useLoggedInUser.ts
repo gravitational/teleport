@@ -35,9 +35,12 @@ export function useLoggedInUser(): LoggedInUser | undefined {
  * their workspace over their lifecycle; typically those are Document-type components and anything
  * rendered inside of them.
  *
- * It will return undefined during the logout process as ClustersService state is cleared up before
- * WorkspacesService state. There might be other situations in which it returns undefined as well,
- * so for now it's best to always guard against this.
+ * In general, the callsite should always assume that this function might return undefined.
+ * One case where it will for sure return undefined is during the logout process as
+ * ClustersService state is cleared up before WorkspacesService state. On top of that, each
+ * workspace is always rendered, even when the cluster is not connected, with at least the default
+ * document. In that scenario useWorkspaceLoggedInUser could return undefined when used within the
+ * default document.
  */
 export function useWorkspaceLoggedInUser(): LoggedInUser | undefined {
   const { clustersService } = useAppContext();
