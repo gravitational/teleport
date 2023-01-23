@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.0.0-dev
+VERSION=13.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -166,7 +166,7 @@ endif
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
-# PIV=yes and PIV=static enable static piv builds. This is used by the build 
+# PIV=yes and PIV=static enable static piv builds. This is used by the build
 # process to link a static library of libpcsclite for piv-go to connect to.
 #
 # PIV=dynamic enables dynamic piv builds. This can be used for local
@@ -228,8 +228,8 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 # Is this build targeting the same OS & architecture it is being compiled on, or
-# will it require cross-compilation? We need to know this (especially for ARM) so we 
-# can set the cross-compiler path (and possibly feature flags) correctly. 
+# will it require cross-compilation? We need to know this (especially for ARM) so we
+# can set the cross-compiler path (and possibly feature flags) correctly.
 IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
@@ -271,10 +271,10 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 #
 # 'make all' builds all 3 executables and places them in the current directory.
 #
-# IMPORTANT: the binaries will not contain the web UI assets and `teleport`
-#            won't start without setting the environment variable DEBUG=1
-#            This is the default build target for convenience of working on
-#            a web UI.
+# IMPORTANT:
+# Unless called with the `WEBASSETS_TAG` env variable set to "webassets_embed"
+# the binaries will not contain the web UI assets and `teleport` won't start
+# without setting the environment variable DEBUG=1.
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
@@ -378,7 +378,7 @@ endif
 # make full-ent - Builds Teleport enterprise binaries
 #
 .PHONY:full-ent
-full-ent:
+full-ent: ensure-webassets-e
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
 endif
@@ -387,7 +387,7 @@ endif
 # make clean - Removes all build artifacts.
 #
 .PHONY: clean
-clean:
+clean: clean-ui
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 # Check if the variable is set to prevent calling remove on the root directory.
@@ -404,13 +404,18 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 
+.PHONY: clean-ui
+clean-ui:
+	rm -rf webassets/*
+	find . -type d -name node_modules -prune -exec rm -rf {} \;
+
 #
 # make release - Produces a binary release tarball.
 #
 .PHONY:
 export
 release:
-	@echo "---> $(RELEASE_MESSAGE)"
+	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
 else ifeq ("$(OS)", "darwin")
@@ -453,9 +458,9 @@ build-archive:
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	
+
 #
-# make release-unix - Produces binary release tarballs for both OSS and 
+# make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
@@ -585,7 +590,7 @@ tooling: $(RENDER_TESTS) $(DIFF_TEST)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-ci test-api test-go test-rust test-operator
+test: test-helm test-sh test-api test-go test-rust test-operator
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
@@ -600,8 +605,9 @@ helmunit/installed:
 # The CI environment is responsible for setting HELM_PLUGINS to a directory where
 # quintish/helm-unittest is installed.
 #
-# The unittest plugin changed in teleport12, if the tests are failing, please ensure
-# you are using  https://github.com/quintush/helm-unittest and not the vbehar fork.
+# Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
+# so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true
+# environment variable.
 .PHONY: test-helm
 test-helm: helmunit/installed
 	helm unittest -3 examples/chart/teleport-cluster
@@ -673,14 +679,6 @@ test-go-chaos:
 		| tee $(TEST_LOG_DIR)/chaos.json \
 		| ${RENDER_TESTS}
 
-# Runs ci scripts tests
-.PHONY: test-ci
-test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
-	(cd .cloudbuild/scripts && \
-		go test -cover -json ./... \
-		| tee $(TEST_LOG_DIR)/ci.json \
-		| ${RENDER_TESTS})
-
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
@@ -701,7 +699,7 @@ test-go-root: $(VERSRC)
 test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-api: FLAGS ?= -race -shuffle on
 test-api: SUBJECT ?= $(shell cd api && go list ./...)
-test-api: 
+test-api:
 	cd api && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
 		| ${RENDER_TESTS}
@@ -778,7 +776,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
-lint-tools: lint-build-tooling lint-ci-scripts lint-backport
+lint-tools: lint-build-tooling lint-backport
 
 #
 # Runs the clippy linter on our rust modules
@@ -822,11 +820,6 @@ lint-build-tooling:
 lint-backport: GO_LINT_FLAGS ?=
 lint-backport:
 	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
-
-.PHONY: lint-ci-scripts
-lint-ci-scripts: GO_LINT_FLAGS ?=
-lint-ci-scripts:
-	cd .cloudbuild/scripts/ && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
 .PHONY: lint-api
@@ -905,6 +898,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
+		-ignore 'web/**' \
 		-ignore 'ignoreme'
 
 .PHONY: lint-license
@@ -933,23 +927,6 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
-	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-import-path || true
-
-# This rule updates the api module path to be in sync with the current api release version.
-# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
-#
-# It will immediately fail if:
-#  1. A suffix is present in the version - e.g. "v7.0.0-alpha"
-#  2. The major version suffix in the api module path hasn't changed. e.g:
-#    - v7.0.0 -> v7.1.0 - both use version suffix "/v7" - github.com/gravitational/teleport/api/v7
-#    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
-#
-# Note: any build flags needed to compile go files (such as build tags) should be provided below.
-.PHONY: update-api-import-path
-update-api-import-path:
-	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam desktop_access_rdp linux"
-	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -1196,36 +1173,19 @@ test-compat:
 .PHONY: ensure-webassets
 ensure-webassets:
 	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
-		$(MAKE) init-webapps-submodules; \
+		$(MAKE) build-ui; \
 	fi;
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
 	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
-		$(MAKE) init-webapps-submodules-e; \
+		$(MAKE) build-ui-e; \
 	fi;
 
-.PHONY: init-webapps-submodules
-init-webapps-submodules:
-	echo "init webassets submodule"
-	git submodule update --init webassets
-
-.PHONY: init-webapps-submodules-e
-init-webapps-submodules-e:
-	echo "init webassets oss and enterprise submodules"
-	git submodule update --init --recursive webassets
-
 .PHONY: init-submodules-e
-init-submodules-e: init-webapps-submodules-e
+init-submodules-e:
 	git submodule init e
 	git submodule update
-
-# update-webassets creates a PR in the teleport repo to update webassets submodule.
-.PHONY: update-webassets
-update-webassets: WEBASSETS_BRANCH ?= 'master'
-update-webassets: TELEPORT_BRANCH ?= 'master'
-update-webassets:
-	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
 #
@@ -1244,3 +1204,19 @@ dronegen:
 .PHONY: backport
 backport:
 	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))
+
+.PHONY: ensure-js-deps
+ensure-js-deps:
+	yarn install --ignore-scripts
+
+.PHONY: build-ui
+build-ui: ensure-js-deps
+	yarn build-ui-oss
+
+.PHONY: build-ui-e
+build-ui-e: ensure-js-deps
+	yarn build-ui-e
+
+.PHONY: docker-ui
+docker-ui:
+	$(MAKE) -C build.assets ui

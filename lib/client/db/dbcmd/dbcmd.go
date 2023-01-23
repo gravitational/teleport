@@ -294,6 +294,17 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 		return args
 	}
 
+	// Some options used in the MySQL options file are not compatible with the
+	// "mariadb" client. Thus instead of using `--defaults-group-suffix=`,
+	// specify the proxy host and port directly as parameters. When
+	// localProxyPort is specified, the --port and --host flags are set by
+	// getMySQLCommonCmdOpts.
+	if c.options.localProxyPort == 0 {
+		host, port := c.tc.MySQLProxyHostPort()
+		args = append(args, "--port", strconv.Itoa(port))
+		args = append(args, "--host", host)
+	}
+
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
 	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
