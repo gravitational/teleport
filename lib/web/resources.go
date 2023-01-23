@@ -357,7 +357,7 @@ func checkResourceUpdate(ctx context.Context, payloadResourceName, resourceName 
 
 	// If the error is not found, then the resource does not exist and cannot be updated.
 	if trace.IsNotFound(err) {
-		return trace.NotFound("resource name %q does not exist", payloadResourceName)
+		return trace.NotFound("resource with name %q does not exist", payloadResourceName)
 	}
 
 	return trace.Wrap(err)
