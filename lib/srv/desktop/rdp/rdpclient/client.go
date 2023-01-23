@@ -143,8 +143,8 @@ type Client struct {
 	// we reuse the same image to avoid allocating on each bitmap
 	img *image.RGBA
 
-	// png2FrameBuffer is used in the handleBitmap function
-	// to avoid allocation of the buffer on each bitmap as
+	// png2FrameBuffer is used in the handlePNG function
+	// to avoid allocation of the buffer on each png as
 	// that part of the code is performance-sensitive.
 	png2FrameBuffer []byte
 
@@ -284,7 +284,7 @@ func (c *Client) start() {
 		c.cfg.Log.Info("RDP output streaming starting")
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
-		// calls handle_bitmap repeatedly with the incoming bitmaps.
+		// calls handle_png repeatedly with the incoming bitmaps.
 		res := C.read_rdp_output(c.rustClient)
 
 		// Copy the returned message and free the C memory.
@@ -590,15 +590,15 @@ func (c *Client) start() {
 	}()
 }
 
-//export handle_bitmap
-func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOErrCode {
-	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
+//export handle_png
+func handle_png(handle C.uintptr_t, cb *C.CGOPNG) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).handlePNG(cb)
 }
 
-func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
+func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
-	// from the fact that a bitmap was sent.
+	// from the fact that a png was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
 	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice

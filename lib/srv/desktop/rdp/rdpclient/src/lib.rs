@@ -752,10 +752,9 @@ impl<S: Read + Write> RdpClient<S> {
     }
 }
 
-/// CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
-/// BitmapEvent is a video output update from the server.
+/// CGOPNG is a CGO-compatible version of PNG that we pass back to Go.
 #[repr(C)]
-pub struct CGOBitmap {
+pub struct CGOPNG {
     pub dest_left: u16,
     pub dest_top: u16,
     pub dest_right: u16,
@@ -766,11 +765,11 @@ pub struct CGOBitmap {
     pub data_cap: usize,
 }
 
-impl TryFrom<BitmapEvent> for CGOBitmap {
+impl TryFrom<BitmapEvent> for CGOPNG {
     type Error = RdpError;
 
     fn try_from(e: BitmapEvent) -> Result<Self, Self::Error> {
-        let mut res = CGOBitmap {
+        let mut res = CGOPNG {
             dest_left: e.dest_left,
             dest_top: e.dest_top,
             dest_right: e.dest_right,
@@ -791,7 +790,7 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
         res.data_cap = encoded.capacity();
 
         // Prevent the data field from being freed while Go handles it.
-        // It will be dropped once CGOBitmap is dropped (see below).
+        // It will be dropped once CGOPNG is dropped (see below).
         mem::forget(encoded);
 
         Ok(res)
@@ -834,7 +833,7 @@ fn convert_bgra_to_rgba(data: &mut [u8]) {
     });
 }
 
-impl Drop for CGOBitmap {
+impl Drop for CGOPNG {
     fn drop(&mut self) {
         // Reconstruct into Vec to drop the allocated buffer.
         unsafe {
@@ -1167,13 +1166,13 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
     }
 }
 
-/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
-/// handle_bitmap.
+/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref, encodes bitmap
+/// as a png and forwards them to handle_png.
 ///
 /// # Safety
 ///
 /// `client_ptr` must be a valid pointer to a Client.
-/// `handle_bitmap` *must not* free the memory of CGOBitmap.
+/// `handle_png` *must not* free the memory of CGOPNG.
 #[no_mangle]
 pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpOutputReturns {
     let client = match Client::from_ptr(client_ptr) {
@@ -1204,14 +1203,14 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
         let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
             // This callback can be called multiple times per rdp_client.read()
             // (if multiple messages were received since the last call). Therefore,
-            // we check that the previous call to handle_bitmap succeeded, so we don't
-            // have a situation where handle_bitmap fails repeatedly and creates a
+            // we check that the previous call to handle_png succeeded, so we don't
+            // have a situation where handle_png fails repeatedly and creates a
             // bunch of repetitive error messages in the logs. If it fails once,
-            // we assume the connection is broken and stop trying to send bitmaps.
+            // we assume the connection is broken and stop trying to send PNGs.
             if err == CGOErrCode::ErrCodeSuccess {
                 match rdp_event {
                     RdpEvent::Bitmap(bitmap) => {
-                        let mut cbitmap = match CGOBitmap::try_from(bitmap) {
+                        let mut cpng = match CGOPNG::try_from(bitmap) {
                             Ok(cb) => cb,
                             Err(e) => {
                                 error!(
@@ -1222,7 +1221,7 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
                             }
                         };
                         unsafe {
-                            err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
+                            err = handle_png(client_ref, &mut cpng) as CGOErrCode;
                         };
                     }
                     // No other events should be sent by the server to us.
@@ -2004,7 +2003,7 @@ pub struct CGOSharedDirectoryListRequest {
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
-    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
+    fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
 
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
