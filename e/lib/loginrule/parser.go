@@ -49,12 +49,12 @@ func (p *parseEnv) getIdentifier(fields []string) (interface{}, error) {
 func newParser(env *parseEnv) (predicate.Parser, error) {
 	parser, err := predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
-			AND: predicate.And,
-			OR:  predicate.Or,
-			NOT: predicate.Not,
+			AND: and,
+			OR:  or,
+			NOT: not,
 		},
 		GetIdentifier: env.getIdentifier,
-		GetProperty:   predicate.GetStringMapValue,
+		GetProperty:   getProperty,
 		Functions: map[string]any{
 			"set":                newSet,
 			"dict":               newDict,
@@ -76,6 +76,30 @@ func newParser(env *parseEnv) (predicate.Parser, error) {
 		},
 	})
 	return parser, trace.Wrap(err)
+}
+
+func getProperty(mapVal, keyVal any) (any, error) {
+	k, ok := keyVal.(string)
+	if !ok {
+		return nil, trace.BadParameter("unsupported key type %T", k)
+	}
+	d, ok := mapVal.(dict)
+	if !ok {
+		return nil, trace.BadParameter("unsupported type %T: cannot get property %q", mapVal, keyVal)
+	}
+	return d[k], nil
+}
+
+func and(a, b bool) bool {
+	return a && b
+}
+
+func or(a, b bool) bool {
+	return a || b
+}
+
+func not(a bool) bool {
+	return !a
 }
 
 type unknownIdentifier string
@@ -240,7 +264,7 @@ func (d dict) put(key, value any) (dict, error) {
 	}
 	valueSet, ok := value.(set)
 	if !ok {
-		return nil, trace.BadParameter("second argument (value) to dict.put must have type set, got %t", value)
+		return nil, trace.BadParameter("second argument (value) to dict.put must have type set, got %T", value)
 	}
 	copy := d.clone()
 	copy[keyStr] = valueSet
@@ -259,21 +283,10 @@ func newPair(first string, second set) pair {
 	}
 }
 
-func boolValue(expr any) (bool, error) {
-	switch v := expr.(type) {
-	case predicate.BoolPredicate:
-		return v(), nil
-	case bool:
-		return v, nil
-	default:
-		return false, trace.BadParameter("expected bool or predicate.BoolPredicate, got %T", v)
-	}
-}
-
 func ifelse(cond, valueIfTrue, valueIfFalse any) (any, error) {
-	b, err := boolValue(cond)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing first argument to ifelse")
+	b, ok := cond.(bool)
+	if !ok {
+		return nil, trace.BadParameter("first argument (cond) to ifelse must have type bool, got %T", cond)
 	}
 	if b {
 		return valueIfTrue, nil
@@ -300,9 +313,9 @@ type option struct {
 }
 
 func newOption(cond, value any) (*option, error) {
-	b, err := boolValue(cond)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing first argument to option")
+	b, ok := cond.(bool)
+	if !ok {
+		return nil, trace.BadParameter("first argument (cond) to option must have type bool, got %T", cond)
 	}
 	return &option{
 		condition: b,

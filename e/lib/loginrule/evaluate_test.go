@@ -362,6 +362,45 @@ func TestEvaluate(t *testing.T) {
 			},
 			errorContains: "arguments to choose must have type option, got bool",
 		},
+		{
+			// Test that external traits dict can by indexed like
+			// external["trait"] as well as external.trait (the latter syntax
+			// does not support traits containing hyphens or some other special
+			// characters).
+			desc: "dict index",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"test":        {`external.test`},
+					"with-hyphen": {`external["with-hyphen"]`},
+				}),
+			},
+			inputTraits: map[string][]string{
+				"test":        {"test"},
+				"with-hyphen": {"-"},
+			},
+			expectedTraits: map[string][]string{
+				"test":        {"test"},
+				"with-hyphen": {"-"},
+			},
+		},
+		{
+			// Test that return value of helper (contains) can be handled by `||`,
+			// and return value of `||` can be handled by helper (ifelse).
+			desc: "boolean expressions",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"groups": {
+						`ifelse(external.groups.contains("security") || external.groups.contains("it"),
+							external.groups.add("admins"),
+							external.groups)`,
+					},
+				}),
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"groups": {"devs", "security", "admins"},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := Evaluate(tc.rules, &EvaluationInput{Traits: tc.inputTraits})
