@@ -810,6 +810,14 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
+## Moderated session
+
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator). 
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator. 
+ - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
+
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+- [ ] `t` in any terminal should terminate the session for all participants. 
 
 ## Performance/Soak Test
 
