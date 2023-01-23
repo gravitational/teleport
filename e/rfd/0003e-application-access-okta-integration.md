@@ -60,6 +60,8 @@ application in Teleport regardless of the user's permissions within Teleport.
 * When a user requests access to an application or group, the existing approval workflow
   will be used to add this access to the user.
 * Changes will be reflected in Okta when this occurs.
+* These requests are only for short term access. Longer term access will be investigated after
+  the resolution of [RFD-6E](https://github.com/gravitational/teleport.e/pull/717).
 
 ### High level architecture
 
@@ -100,9 +102,9 @@ Teleport equivalents and new objects.  The Okta service should have its own uniq
 configuration. The following config fields will be available in the Teleport config YAML::
 
 | Name | Required | Description |
-|------|----------------------|----------|-------------|
-| `api_url` | :heavy_check_mark: | The API URL so that Teleport knows which Okta endpoint to hit.
-| `api_token_file` | :heavy_check_mark: | A file containing the Okta API token.
+|------|----------|-------------|
+| `api_endpoint` | :heavy_check_mark: | The API URL so that Teleport knows which Okta endpoint to hit.
+| `api_token_path` | :heavy_check_mark: | A file containing the Okta API token.
 
 Note that environment variables are not supported here.
 
@@ -111,8 +113,8 @@ Note that environment variables are not supported here.
 ```yaml
 okta_service:
   enabled: true
-  api_url: https://my-okta-endpoint.okta.com
-  api_token_file: /path/to/token
+  api_endpoint: https://my-okta-endpoint.okta.com
+  api_token_path: /path/to/token
 ```
 
 ### Okta user traits
@@ -160,10 +162,29 @@ sequenceDiagram
   end
 ```
 
+#### User Okta assignment synchronization
+
+When new users are created or users are changed, the Okta service will analyze the user's roles
+and assign associated Okta groups to those roles if necessary.
+
+```mermaid
+sequenceDiagram
+  participant AuthSvc as Auth Service
+  participant OktaSvc as Okta Service
+  participant Okta as Okta API
+
+  loop On user modification
+    AuthSvc->>OktaSvc: Synchronize user
+    OktaSvc->>Okta: Update Okta groups for corresponding User
+  end
+```
+
 #### Okta to Teleport mappings
 
 Okta groups and applications will be mapped by the background synchronization into new
-`OktaGroup` and `OktaApplication` objects.
+`OktaGroup` and `OktaApplication` objects. Additionally, `okta_label_rules` can be added to
+dictate how labels are applied to these objects. Users will be updated only if they are
+logged in.
 
 ##### Groups
 
@@ -176,16 +197,6 @@ version: v1
 metadata:
   name: Developers
   teleport.dev/origin: okta
-spec:
-  users:
-    - mike@goteleport.com
-    - roman@goteleport.com
-    - zac@goteleport.com
-    ...
-  applications:
-    - 123456789
-    - 234567890
-    ...
 ```
 
 ##### Applications
@@ -205,7 +216,7 @@ version: v1
 metadata:
   name: Slack
   teleport.dev/origin: okta
-  okta_application_id: 123456789
+  okta/application_id: 123456789
 spec:
   uri: https://my-okta-domain.okta.com/appLink
 ```
@@ -219,21 +230,62 @@ kind: okta_application
 version: v1
 metadata:
   name: 123456789
+  teleport.dev/origin: okta
 spec:
   appLinks:
     - name: link1
       uri: https://my-okta-domain.okta.com/appLink
-  users:
-    - mike@goteleport.com
-    - roman@goteleport.com
-    - zac@goteleport.com
-    ...
-  groups:
-    - Developers
-    - Administrators
-    ...
 ```
 
+##### Okta label rules
+
+Okta label rules are established through the user of `tctl create -f okta_label_rules.yaml` and
+these rules will be used during the synchronization process to apply labels to Okta objects that
+match the elements in the "matches" section. The matches in this section should utilize the
+grammar established in the [login rules RFD](https://github.com/gravitational/teleport/blob/master/rfd/0078-login-rules.md#predicate-helper-functions).
+
+```yaml
+kind: okta_label_rule
+version: v1
+metadata:
+  name: rules
+spec:
+  mappings:
+    - label: label1
+      value: value1
+      matches:
+        - match(application.id == "123456")
+        - match(application.name)
+    - label: label2
+      value: value2
+      matches:
+        - group.some-name
+        - group.some-other-name
+```
+
+##### Okta users
+
+Okta's notion of users will be synchronized if a user is logged in. This will allow for
+minimizing of API calls.
+
+```yaml
+kind: okta_user
+version: v1
+metadata:
+  name: <okta-user-id>
+  okta/id: 1234567
+  teleport.dev/origin: okta
+spec:
+  apps:
+    - "app-id-1"
+    - "app-id-2"
+  groups:
+    - "group1"
+    - "group2"
+```
+
+This will then be used by RBAC calculations to determine if a user has access to a particular
+application or group.
 
 ### Requesting access to applications and groups
 
@@ -246,7 +298,7 @@ action based on the request and the resource targeted.
 There are several different methods to implement, as different applications have different
 methods of elevating access.
 
-#### Application approval (top priority)
+#### Application approval
 
 When an approval request has been accepted for an application, the Okta service will assign the user
 to the application. When the approval is rescinded, the user will be removed from the application.
@@ -256,60 +308,9 @@ to the application. When the approval is rescinded, the user will be removed fro
 When an approval request has been accepted for a group, the Okta service assign the user to the given
 group using the API. When the approval is rescinded, the user will be removed from the group.
 
-#### Teleport SAML/OIDC IdP
-
-The general mechanism for this method involves using an identity provider from within
-Teleport ([associated RFD](https://github.com/gravitational/teleport.e/pull/668)) that Okta can use for authentication.
-We can use this to create special, temporary users within Okta that will only authenticate for a limited amount of time and only have
-specific rules and allowances configured for them.
-
-##### Okta external IdPs
-
-Okta can use external identity providers for its applications, and can additionally be used to authenticate directly to Okta. First, the
-external identity provider must be set up within the Okta UI. There is no apparent API that would allow us to automate this step.
-
-These can be either OIDC or SAML. For our purposes, either should work. One downside of OIDC is that Okta requires this OIDC server
-to be publicly visible on the internet. SAML may be a better choice for us as it allows for Okta to use this without direct
-access to the Teleport server, and other Teleport features may require SAML.
-
-##### Creating temporary users
-
-When an application access request is created, we can easily create a new, temporary user and assign the requested permissions
-to these users.
-
-##### Teleport IdP issuing expiring JWTs
-
-For these temporary users, Teleport's IdP will issue JWTs that have explicit expiration dates that correspond to the access
-request given, or potentially shorter lived/renewable JWTs. This will allow Teleport to ensure that these temporary users can
-only access Okta and Okta applications for a short period of time. When the access request expires or is rescinded, Teleport's
-IdP can then cease issuing new JWTs or only issue JWTs that are past expiration to prevent further access to Okta.
-One potential snag here is that, given that these users are now valid within Okta, it would potentially be possible to
-authenticate as the user outside of the Teleport IdP. We can address this with IdP routing rules, however.
-
-##### IdP routing rules
-
-Okta external IdPs can use special routing rules to ensure that users are routed to specific external identity providers for
-authentication based on arbitrary rules. I propose we use a special username prefix `+teleport-<uuid>` that we assign to all temporary users created in Okta to ensure that these users are always using Teleport's
-IdP to authenticate so that Teleport can control whether the user is able to authenticate properly or not, even if the user
-otherwise seems valid by Okta standards.
-
-##### Cleanup of temporary users
-
-These temporary users should be cleaned up once the access request expires or is rescinded. Additionally, Teleport should monitor
-temporary users and attempt to clean up any users its unable to reconcile so that Teleport doesn't leave a ton of ephemeral users
-sitting around. Cleaning these users up
-every 3 days is a good start.
-
-##### Assuming of users from the Teleport UI
-
-One snag in this process is that, once a user is logged into Okta, the session is reused for subsequent accesses to Okta.
-If you are logged in as your main user and request privileged access, even if a new user is created for you, the existing session
-will be used. We'll be able to get around this using (https://support.okta.com/help/s/article/What-are-the-use-cases-of-Deeplink-usage?language=en_US)[SAML Deeplinks].
-These Deeplinks will override the current session for access to these applications.
-
 #### What groups and applications can users request?
 
-New fields in role objects will indicate which groups useres in this role can request.
+New fields in role objects will indicate which groups users in this role can request.
 
 ```yaml
 kind: role
@@ -318,13 +319,44 @@ metadata:
   name: example
 spec:
   allow:
-    request:
-      okta_apps: ["app1", "app2"]
-      okta_groups: ["group1", "group2"]
+    okta_labels:
+      label1: value1
 ```
 
-This will not affect things if users already have access to these through the Okta, but if they don't,
-they'll be able to request these.
+This should be used in concert with the Okta label rules to establish roles for requestable
+Okta applications and groups. These roles can be used as part the request configuration.
+
+#### Keeping track of Okta state
+
+We will need to independently keep track of Okta state in order to determine whether we need to
+clean up or provision any Okta application or group access requests. A new object,
+`OktaAccessRequestLifecycle` will be created with the same name as an access request object:
+
+```yaml
+kind: okta_access_request_lifecycle
+version: v1
+metadata:
+  name: <same-as-access-request>
+  teleport.dev/origin: okta
+spec:
+  state: PROCESSED
+  okta_user: <okta-user-id>
+  apps:
+    - "app-id-1"
+    - "app-id-2"
+  groups:
+    - "group1"
+    - "group2"
+```
+
+This will contain a state along with the applications and groups to grant access to. The state
+will move through the following states:
+
+* **UNPROCESSED** for access requests that have been approved, but not yet assigned.
+* **PROCESSED** for access requests that have been approved and successfully assigned.
+* **PROCESS_FAILED** for access requests that have bene approved, but failed during assignment.
+* **CLEANED_UP** for access requests that have been cleaned up.
+* **CLEANUP_FAILED** for access requests that have failed during cleanup.
 
 #### Note about Okta administration workflows
 
@@ -336,42 +368,9 @@ unaware.
 
 ### RBAC calculation
 
-RBAC calculation will utilize the `OktaGroup` and `OktaApplication` objects to determine if a user
-has access to an application or group.
-
-`OktaGroup` has a list of associated users and associated applications, so our RBAC calculation will
-determine if a user has access to this group and access to particular applications. Similarly,
-`OktaApplication` has a list of associated users, so if a user belongs to a list of users associated
-with the application, our RBAC calculation will utilize this.
-
-### Okta service with generic identity provider interface
-
-To potentially expand to more identity providers later, we'll create a generic `IdentityProvider`
-interface that should be implemented for synchronizing with Okta.
-
-```go
-// IdentityProvider is an interface that identity providers are expected to
-// implement to support integration into the application access service.
-type IdentityProvider interface {
-  // GetAllApplications will return all applications managed by a provider. The provider
-  // is expected to do any translation work necessary to map the internal
-  // concept of applicatiosn into Teleport's application.
-  GetAllApplications() ([]types.Application, error)
-  
-  // GetAllRoles will return all roles managed by an identity provider. The provider
-  // is expected to do any translation work necessary to map the internal
-  // concept of groups/roles into Teleport's role.
-  GetAllRoles() ([]types.Role, error)
-
-  // AssignUserToApplication will assign the given user permissions to the given application. This will be
-  // used by access requests.
-  AssignUserToApplication(user types.User, app types.Application) error
-
-  // AssignUserToGroup will assign the given user to the given external group.
-  // This will be used by access requests.
-  AssignUserToGroup(user types.User, group types.ExternalGroup) error
-}
-```
+RBAC calculation will utilize the `OktaUser` object to determine if a user has access to an
+application or group. `OktaUser` will have a list of all applications and groups that a user
+belongs to, which will be used by RBAC.
 
 ### APIs used by the Okta service
 
@@ -382,6 +381,13 @@ The Okta provider will use the following APIs:
   calls.
 * [List groups](https://developer.okta.com/docs/reference/api/groups/#list-groups) for listing
 all groups known to Okta. These results are paginated and may require multiple calls.
+* [Get Assigned App Links](https://developer.okta.com/docs/reference/api/users/#get-assigned-app-links) for listing the app links assigned to a user in Okta. This will be 
+used to determine which applications a user has access to.
+* [Get User's Groups](https://developer.okta.com/docs/reference/api/users/#get-user-s-groups) for listing the groups that a user is assigned to in Okta.
+* [Add User to Group](https://developer.okta.com/docs/reference/api/groups/#add-user-to-group) for adding a user to a group.
+[ Remove User from Group](https://developer.okta.com/docs/reference/api/groups/#remove-user-from-group)) for removing a user from a group.
+* [Assign user to application for SSO](https://developer.okta.com/docs/reference/api/apps/#assign-user-to-application-for-sso) for assigning an application to a user.
+* [Remove user from application](https://developer.okta.com/docs/reference/api/apps/#remove-user-from-application) for removing a user from an application.
 
 ### Backend modifications
 
@@ -390,14 +396,14 @@ all groups known to Okta. These results are paginated and may require multiple c
 The Okta service will need to actively monitor and take action on access requests, which is a
 mechanism which does not currently exist today.
 
-#### Application metadata
+#### `OktaGroup`, `OktaApplication`, `OktaUser` objects
 
-Application metadata will include a new field for `okta_application_id` for mapping applications
-to `OktaApplication` objects.
+As described in the RFD, these three objects will be created as part of the synchronization process.
 
-#### `OktaGroup` and `OktaApplication` objects
+#### User/role `okta_labels` field
 
-As described in the RFD, these two objects will be created as part of the synchronization process.
+The user and role will now contain an `okta_labels` field that will be used to determine
+visibility to `OktaApplications` and `OktaGroups`.
 
 ### Audit events
 
@@ -407,6 +413,7 @@ A number of new audit events will be created as part of this effort:
 |------------|-------------|
 | `OKTA_GROUPS_UPDATE` | Emitted when groups synchronized from Okta have changed. |
 | `OKTA_APPLICATIONS_UPDATE` | Emitted when applications synchronized from Okta have have changed. |
+| `OKTA_USER` | Emitted when users synchronized from Okta have have changed. |
 | `OKTA_SYNC_FAILURE` | Emitted when an Okta synchronization attempt fails. |
 | `OKTA_ACCESS_REQUEST_APPROVED` | Emitted when a user request for an Okta resource was approved. |
 | `OKTA_ACCESS_REQUEST_DENIED` | Emitted when a user request for an Okta resource was denied. |
@@ -424,10 +431,15 @@ A number of new audit events will be created as part of this effort:
 
 ### Implementation plan
 
-#### `OktaGroup` and `OktaApplication` objects
+#### `OktaGroup`, `OktaApplication`, `OktaUser` objects
 
-The `OktaGroup` and `OktaApplication` objects should be implemented along with any database and
-gRPC modifications that are required.
+The `OktaGroup`, `OktaApplication`, and `OktaUser` objects should be implemented along with any database
+and gRPC modifications that are required.
+
+#### `OktaLabelRules` object
+
+The `OktaLabelRules` object shoudl be implemented along with any database and gRPC modifications
+that are required.
 
 #### Okta service configuration
 
@@ -442,7 +454,7 @@ applications and groups and synchronizing them with the Teleport backend.
 
 #### Okta RBAC calculation
 
-The Okta RBAC calculation will be updated to utilize `OktaGroup` and `OktaApplication` objects.
+The Okta RBAC calculation will be updated to utilize `OktaUser` objects.
 
 #### Application access synchronization
 
