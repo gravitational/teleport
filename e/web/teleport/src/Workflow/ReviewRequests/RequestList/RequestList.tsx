@@ -20,6 +20,8 @@ import { AccessRequest, Resource } from 'e-teleport/services/workflow';
 
 import useRequestList, { State, Row } from './useRequestList';
 
+import { formattedName } from '../formattedName';
+
 export default function Container() {
   const ctx = useTeleportE();
   const state = useRequestList(ctx);
@@ -254,10 +256,10 @@ const RequestedCell = ({
           <Label
             mb="0"
             mr="1"
-            key={`${resource.id.kind}${resource.id.name}${index}`}
+            key={`${resource.id.kind}${formattedName(resource.id)}${index}`}
             kind="secondary"
           >
-            {resource.id.kind}: {resource.id.name}
+            {resource.id.kind}: {formattedName(resource.id)}
           </Label>
         ))}
       </Cell>

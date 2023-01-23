@@ -57,9 +57,10 @@ type Resource struct {
 }
 
 type ResourceID struct {
-	Kind        string `json:"kind"`
-	Name        string `json:"name"`
-	ClusterName string `json:"clusterName"`
+	Kind            string `json:"kind"`
+	Name            string `json:"name"`
+	ClusterName     string `json:"clusterName"`
+	SubResourceName string `json:"subResourceName,omitempty"`
 }
 
 type ResourceDetails struct {
@@ -116,9 +117,10 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 	for i, r := range requestedResourceIDs {
 		resources[i] = Resource{
 			ID: ResourceID{
-				ClusterName: r.ClusterName,
-				Kind:        r.Kind,
-				Name:        r.Name,
+				ClusterName:     r.ClusterName,
+				Kind:            r.Kind,
+				Name:            r.Name,
+				SubResourceName: r.SubResourceName,
 			},
 			// If there are no details for this resource, the map lookup returns
 			// the default value which is empty details

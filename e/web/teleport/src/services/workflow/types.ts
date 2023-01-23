@@ -51,6 +51,9 @@ export type ResourceId = {
   name: string;
   // clusterName is the name of cluster.
   clusterName: string;
+  // subResourceName is the sub resource belonging to resource "name" the user
+  // is allowed to access.
+  subResourceName?: string;
 };
 
 // ResourceDetails holds optional details for a resource.

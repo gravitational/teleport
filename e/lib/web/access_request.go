@@ -60,9 +60,10 @@ func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reques
 	resourceIDs := make([]types.ResourceID, 0, len(request.ResourceIDs))
 	for _, resource := range request.ResourceIDs {
 		resourceIDs = append(resourceIDs, types.ResourceID{
-			ClusterName: resource.ClusterName,
-			Name:        resource.Name,
-			Kind:        resource.Kind,
+			ClusterName:     resource.ClusterName,
+			Name:            resource.Name,
+			Kind:            resource.Kind,
+			SubResourceName: resource.SubResourceName,
 		})
 	}
 
@@ -118,7 +119,12 @@ func getResourceRequestRoles(ctx context.Context, clt auth.ClientI, req []ui.Res
 	// This is done because the json field name for `ClusterName` is different in both.
 	var resourceIDs []types.ResourceID
 	for _, resourceID := range req {
-		resourceIDs = append(resourceIDs, types.ResourceID{Name: resourceID.Name, Kind: resourceID.Kind, ClusterName: resourceID.ClusterName})
+		resourceIDs = append(resourceIDs, types.ResourceID{
+			Name:            resourceID.Name,
+			Kind:            resourceID.Kind,
+			ClusterName:     resourceID.ClusterName,
+			SubResourceName: resourceID.SubResourceName,
+		})
 	}
 
 	accessCaps, err := clt.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{User: user, ResourceIDs: resourceIDs})

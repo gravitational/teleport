@@ -25,6 +25,7 @@ import {
 import RequestDelete from './RequestDelete';
 import RequestReview from './RequestReview';
 import RolesRequested from './RolesRequested';
+import { formattedName } from '../formattedName';
 import useRequestView, { State } from './useRequestView';
 
 export default function Container() {
@@ -334,6 +335,7 @@ function Comment({
             data={resources.map(resource => ({
               ...resource.id,
               ...resource.details,
+              formattedName: formattedName(resource.id),
             }))}
             columns={[
               {
@@ -345,7 +347,7 @@ function Comment({
                 headerText: 'Requested Resource Kind',
               },
               {
-                key: 'name',
+                key: 'formattedName',
                 headerText: 'Requested Resource ID',
               },
               {

@@ -14,6 +14,7 @@ import {
 import Table, { Cell } from 'design/DataTable';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
+import { formattedName } from 'e-teleport/Workflow/ReviewRequests/formattedName';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 export function RequestList({
@@ -234,10 +235,10 @@ const RequestedCell = ({
           <Label
             mb="0"
             mr="1"
-            key={`${id.kind}${id.name}${index}`}
+            key={`${id.kind}${formattedName(id)}${index}`}
             kind="secondary"
           >
-            {id.kind}: {id.name}
+            {id.kind}: {formattedName(id)}
           </Label>
         ))}
       </Cell>
