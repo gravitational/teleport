@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import { Prompt } from 'react-router-dom';
 
@@ -23,6 +23,8 @@ import { FeatureBox } from 'teleport/components/Layout';
 import { Navigation } from 'teleport/Discover/Navigation/Navigation';
 import { SelectResource } from 'teleport/Discover/SelectResource';
 import cfg from 'teleport/config';
+
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { findViewAtIndex } from './flow';
 
@@ -34,8 +36,27 @@ function DiscoverContent() {
     selectedResource,
     onSelectResource,
     views,
+    updateEventState,
     ...agentProps
   } = useDiscover();
+
+  useEffect(() => {
+    if (
+      agentProps.selectedResourceKind === ResourceKind.Database &&
+      !agentProps.resourceState
+    ) {
+      // resourceState hasn't been loaded yet, this state is required to
+      // determine what type of database (engine/location) user
+      // selected to send the correct event. This state gets set when
+      // user selects a database (deployment type).
+      return;
+    }
+    updateEventState();
+
+    // Only run it once on init or when resource selection
+    // or resource state has changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentProps.selectedResourceKind, agentProps.resourceState]);
 
   let content;
   // we reserve step 0 for "Select Resource Type", that is present in all resource configs
