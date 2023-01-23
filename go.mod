@@ -29,7 +29,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.8
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.8
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.21
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.78.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.80.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.0
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.1.0
@@ -130,7 +130,7 @@ require (
 	golang.org/x/sys v0.4.0
 	golang.org/x/term v0.4.0
 	golang.org/x/text v0.6.0
-	golang.org/x/tools v0.5.0
+	golang.org/x/tools v0.5.0 // indirect
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
@@ -214,7 +214,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
