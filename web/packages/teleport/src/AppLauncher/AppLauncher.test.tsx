@@ -15,16 +15,18 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
+
 import { Route } from 'teleport/components/Router';
 
 import cfg from 'teleport/config';
 
-import { AppLauncher } from './AppLauncher';
 import service from 'teleport/services/apps';
+
+import { AppLauncher } from './AppLauncher';
 
 test('arn is url decoded', () => {
   jest.spyOn(service, 'createAppSession');

@@ -2,8 +2,10 @@
 
 'use strict';
 var grpc = require('@grpc/grpc-js');
-var ptyHostService_pb = require('./ptyHostService_pb.js');
+
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
+
+var ptyHostService_pb = require('./ptyHostService_pb.js');
 
 function serialize_PtyClientEvent(arg) {
   if (!(arg instanceof ptyHostService_pb.PtyClientEvent)) {
