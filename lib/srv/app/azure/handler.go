@@ -294,7 +294,8 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	var errorResult error
 
 	// call Clock.After() before FnCacheGet gets called in a different go-routine.
-	// this ensures there is no race condition in the timeout tests
+	// this ensures there is no race condition in the timeout tests, as
+	// getAccessToken() ends up calling Clock.Advance() there
 	timeoutChan := s.Clock.After(getTokenTimeout)
 
 	go func() {
