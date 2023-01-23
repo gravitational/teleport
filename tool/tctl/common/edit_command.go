@@ -76,11 +76,12 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	}()
 
 	rc := &ResourceCommand{
-		refs:     services.Refs{e.ref},
-		format:   teleport.YAML,
-		stdout:   f,
-		filename: f.Name(),
-		force:    true,
+		refs:        services.Refs{e.ref},
+		format:      teleport.YAML,
+		stdout:      f,
+		filename:    f.Name(),
+		force:       true,
+		withSecrets: true,
 	}
 	rc.Initialize(e.app, e.config)
 
@@ -93,6 +94,11 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	}
 
 	originalSum, err := checksum(f.Name())
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+
+	originalName, err := resourceName(f.Name())
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
@@ -125,7 +131,7 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		return true, trace.Wrap(err)
 	}
 
-	if e.ref.Name != newName {
+	if originalName != newName {
 		return true, trace.NotImplemented("renaming resources is not supported with tctl edit")
 	}
 

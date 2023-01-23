@@ -182,6 +182,10 @@ func TestWriteAllFormats(t *testing.T) {
 		t.Run(string(format), func(t *testing.T) {
 			key := newClientKey(t)
 
+			key.WindowsDesktopCerts = map[string][]byte{
+				"windows-user": []byte("cert data"),
+			}
+
 			cfg := WriteConfig{
 				OutputPath: path.Join(t.TempDir(), "identity"),
 				Key:        key,
