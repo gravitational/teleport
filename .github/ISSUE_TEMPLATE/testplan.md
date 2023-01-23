@@ -132,8 +132,9 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
-    - [ ] Server ID is the ID of the node in "session_recording: node" mode
-    - [ ] Server ID is the ID of the proxy in "session_recording: proxy" mode
+    - [ ] `server_id` is the ID of the node in "session_recording: node" mode
+    - [ ] `server_id` is the ID of the node in "session_recording: proxy" mode
+    - [ ] `forwarded_by` is the ID of the proxy in "session_recording: proxy" mode
 
     Node/Proxy ID may be found at `/var/lib/teleport/host_uuid` in the
     corresponding machine.
