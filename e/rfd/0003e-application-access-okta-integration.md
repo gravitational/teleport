@@ -40,9 +40,10 @@ application in Teleport regardless of the user's permissions within Teleport.
   a list of apps sourced from Okta will appear.
 * When users click on an Okta sourced app in the UI, the application will open in a separate tab.
 * If users do not have access to an application and are able to request access to it, the link will
-  be greyed out and an option will be available in the drop down menu to the right that allows users
-  to request access to the application. If the application is not requestable, the application will
-  not appear in the list of applications belonging to the user.
+  not be displayed in the list of applications that the user has access to, but will be displayed
+  in the list of Okta applications that that the user can request under the Access Request UI.
+* Groups that the users are not a member of and can request access to will be present in the
+  Access Request UI as well.
 * These applications will *not* be behind Teleport's proxy, and will redirect to the proper Okta
   sourced URL for the application. Users will be taken through Okta's authentication process for
   this process. If users are already logged into Okta, this will be a transparent passthrough to
@@ -53,6 +54,9 @@ application in Teleport regardless of the user's permissions within Teleport.
 * Okta applications will show up when doing a `tsh apps ls` from the command line, with an origin of `okta`.
 * Okta groups will be using `tctl get oktagroups`.
 * Okta groups will be using `tctl get oktaapps`.
+* Okta Users will be using `tctl get oktausers`.
+* Okta label rules will be using `tctl get okta_label_rules`.
+* Okta access request lifecycles will be using `tctl get okta_access_request_lifecycle`.
 * Logging in (`tsh app login <app-name>`) will **not** work for Okta apps.
 
 #### Access requests
