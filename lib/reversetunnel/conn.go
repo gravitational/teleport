@@ -192,6 +192,16 @@ func (c *remoteConn) isInvalid() bool {
 	return c.invalid.Load()
 }
 
+// isOffline determines if the remoteConn has missed
+// enough heartbeats to be considered offline. Any active connections
+// still being serviced by the connection will cause a true return
+// even if the threshold has been exceeded.
+func (c *remoteConn) isOffline(now time.Time, threshold time.Duration) bool {
+	hb := c.getLastHeartbeat()
+	count := c.activeSessions()
+	return now.After(hb.Add(threshold)) && count == 0
+}
+
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
 	c.lastHeartbeat.Store(tm.UnixNano())
 }

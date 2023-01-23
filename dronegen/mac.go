@@ -499,6 +499,8 @@ func buildMacArtifactsStep(workspacePath string, b buildType, toolchainConfig to
 			"ARCH":              {raw: b.arch},
 			"WORKSPACE_DIR":     {raw: workspacePath},
 			"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
+			"APPLE_USERNAME":    {fromSecret: "APPLE_USERNAME"},
+			"APPLE_PASSWORD":    {fromSecret: "APPLE_PASSWORD"},
 		},
 		Commands: darwinBuildCommands(toolchainConfig, artifactConfig),
 	}

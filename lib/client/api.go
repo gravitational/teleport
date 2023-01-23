@@ -3304,7 +3304,12 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	if len(tc.JumpHosts) > 0 {
 		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
 		// Check if JumpHost address is a proxy web address.
-		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: sshProxyAddr, Insecure: tc.InsecureSkipVerify})
+		resp, err := webclient.Find(&webclient.Config{
+			Context:      ctx,
+			ProxyAddr:    sshProxyAddr,
+			Insecure:     tc.InsecureSkipVerify,
+			ExtraHeaders: tc.ExtraProxyHeaders,
+		})
 		// If JumpHost address is a proxy web port and proxy supports TLSRouting dial proxy with TLSWrapper.
 		if err == nil && resp.Proxy.TLSRoutingEnabled {
 			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
@@ -3591,21 +3596,25 @@ var hasTouchIDCredentials = touchid.HasCredentials
 // canDefaultToPasswordless checks without user interaction
 // if there is any registered passwordless login.
 func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
-	if !pr.Auth.AllowPasswordless {
+	// Verify if client flags are compatible with passwordless.
+	allowedConnector := tc.AuthConnector == ""
+	allowedAttachment := tc.AuthenticatorAttachment == wancli.AttachmentAuto || tc.AuthenticatorAttachment == wancli.AttachmentPlatform
+	if !allowedConnector || !allowedAttachment || tc.PreferOTP {
 		return false
 	}
-	if tc.Config.AuthenticatorAttachment == wancli.AttachmentCrossPlatform {
+
+	// Verify if server is compatible with passwordless.
+	if !pr.Auth.AllowPasswordless || pr.Auth.Webauthn == nil {
 		return false
 	}
-	if pr.Auth.Webauthn == nil {
-		return false
-	}
+
 	// Only pass on the user if explicitly set, otherwise let the credential
 	// picker kick in.
 	user := ""
 	if tc.ExplicitUsername {
 		user = tc.Username
 	}
+
 	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
@@ -3725,6 +3734,7 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 		RouteToCluster:       tc.SiteName,
 		KubernetesCluster:    tc.KubernetesCluster,
 		AttestationStatement: attestationStatement,
+		ExtraHeaders:         tc.ExtraProxyHeaders,
 	}, nil
 }
 

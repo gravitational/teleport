@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -261,6 +262,12 @@ func hasRemoteUserRole(authContext Context) bool {
 func hasLocalUserRole(authContext Context) bool {
 	_, ok := authContext.UnmappedIdentity.(LocalUser)
 	return ok
+}
+
+// LoginRuleClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles and will always panic.
+func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
+	panic("LoginRuleClient not implemented by ServerWithRoles")
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -700,6 +707,11 @@ func (a *ServerWithRoles) ActivateCertAuthority(id types.CertAuthID) error {
 
 // DeactivateCertAuthority not implemented: can only be called locally.
 func (a *ServerWithRoles) DeactivateCertAuthority(id types.CertAuthID) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateUserCARoleMap not implemented: can only be called locally.
+func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

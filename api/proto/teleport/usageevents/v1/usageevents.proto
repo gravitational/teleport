@@ -25,16 +25,12 @@ message UIBannerClickEvent {
   string alert = 1;
 }
 
-// UIOnboardGetStartedClickEvent is a UI event sent when the "get started"
-// button is clicked.
-message UIOnboardGetStartedClickEvent {
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
+// registration is complete.
+message UIOnboardCompleteGoToDashboardClickEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
 }
-
-// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
-// registration is complete.
-message UIOnboardCompleteGoToDashboardClickEvent {}
 
 // UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
 // "add first resource" button.
@@ -56,6 +52,10 @@ message UIOnboardSetCredentialSubmitEvent {
 message UIOnboardRegisterChallengeSubmitEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
+  // The type of MFA used.
+  string mfa_type = 2;
+  // The type of login used.
+  string login_flow = 3;
 }
 
 // UIRecoveryCodesContinueClickEvent is a UI event sent during
@@ -65,17 +65,34 @@ message UIRecoveryCodesContinueClickEvent {
   string username = 1;
 }
 
+// UIRecoveryCodesCopyClickEvent is a UI event sent during
+// registration when the user copies recovery codes.
+message UIRecoveryCodesCopyClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIRecoveryCodesPrintClickEvent is a UI event sent during
+// registration when the user prints recovery codes.
+message UIRecoveryCodesPrintClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
   oneof event {
     UIBannerClickEvent ui_banner_click = 1;
-    UIOnboardGetStartedClickEvent ui_onboard_get_started_click = 2;
     UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 3;
     UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 4;
     UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 5;
     UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 6;
     UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 7;
     UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 8;
+    UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 9;
+    UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 10;
   }
+  reserved 2; //UIOnboardGetStartedClickEvent
+  reserved "ui_onboard_get_started_click";
 }
