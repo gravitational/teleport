@@ -94,7 +94,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
-		WebProxyAddr: "localhost",
+		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
@@ -326,6 +326,27 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--port", "12345",
 				"--host", "localhost",
 				"--protocol", "TCP"},
+			wantErr: false,
+		},
+		{
+			name:         "mariadb (remote proxy)",
+			dbProtocol:   defaults.ProtocolMySQL,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithLocalProxy("", 0, "") /* negate default WithLocalProxy*/},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mariadb": []byte(""),
+				},
+			},
+			cmd: []string{"mariadb",
+				"--user", "myUser",
+				"--database", "mydb",
+				"--port", "3036",
+				"--host", "proxy.example.com",
+				"--ssl-key", "/tmp/keys/example.com/bob",
+				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
+				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"--ssl-verify-server-cert"},
 			wantErr: false,
 		},
 		{
