@@ -97,7 +97,7 @@ func newParser(env map[string]any) (predicate.Parser, error) {
 
 // PredicateAccessChecker checks access/permissions to access certain resources by evaluating AccessPolicy resources.
 type PredicateAccessChecker struct {
-	policies []types.AccessPolicy
+	Policies []types.AccessPolicy
 }
 
 // NewPredicateAccessChecker creates a new PredicateAccessChecker with a set of policies describing the permissions.
@@ -145,7 +145,7 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 		return b, nil
 	}
 
-	for _, policy := range c.policies {
+	for _, policy := range c.Policies {
 		if expr, ok := policy.GetDeny()[scope]; ok {
 			denied, err := evaluate(expr)
 			if err != nil {
@@ -158,7 +158,7 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 		}
 	}
 
-	for _, policy := range c.policies {
+	for _, policy := range c.Policies {
 		if expr, ok := policy.GetAllow()[scope]; ok {
 			allowed, err := evaluate(expr)
 			if err != nil {

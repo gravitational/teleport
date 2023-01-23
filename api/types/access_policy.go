@@ -34,9 +34,9 @@ type AccessPolicy interface {
 }
 
 // AccessPolicyOption retrieves and attempts to deserialize it into the provided type.
-func AccessPolicyOption[T FromRawOption](policy *AccessPolicyV1) (T, error) {
+func AccessPolicyOption[T FromRawOption[T]](policy AccessPolicy) (T, error) {
 	var opt T
-	raw, ok := policy.Spec.Options[opt.Name()]
+	raw, ok := policy.(*AccessPolicyV1).Spec.Options[opt.Name()]
 	if !ok {
 		return opt, trace.NotFound("option %q not found", opt.Name())
 	}

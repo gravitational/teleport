@@ -25,11 +25,12 @@ import (
 )
 
 // FromRawOption describes a value that can be deserialized from an intermediate option format.
-type FromRawOption interface {
+type FromRawOption[T any] interface {
 	// Name is the static name of the option type.
 	Name() string
 
 	deserializeInto(raw string) error
+	combineOptions(instances ...T)
 	fromRoleOptions(options RoleOptions) bool
 }
 
@@ -60,11 +61,7 @@ func deserializeOptionInt(raw string) (int, error) {
 	return b, nil
 }
 
-type combinableOption[T any] interface {
-	combineOptions(instances ...T)
-}
-
-func combineOptions[T combinableOption[T]](instances ...T) T {
+func CombineOptions[T FromRawOption[T]](instances ...T) T {
 	var combined T
 	combined.combineOptions(instances...)
 	return combined

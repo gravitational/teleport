@@ -30,7 +30,7 @@ const attemptTimeout = time.Second
 func (c *PredicateAccessChecker) ComputeValidNodeLogins(ctx context.Context, node *Node, limit int) ([]string, error) {
 	var constraints []partial.Constraint
 
-	for _, policy := range c.policies {
+	for _, policy := range c.Policies {
 		if expr, ok := policy.GetAllow()[AccessNodeField]; ok {
 			constraints = append(constraints, partial.Constraint{
 				Allow: true,

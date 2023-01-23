@@ -1309,3 +1309,13 @@ func (r *RoleV5) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
 	}
 	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }
+
+// RoleOption retrieves and attempts to deserialize it into the provided type.
+func RoleOption[T FromRawOption[T]](role Role) (T, error) {
+	var opt T
+	if found := opt.fromRoleOptions(role.GetOptions()); !found {
+		return opt, trace.NotFound("option %q not found", opt.Name())
+	}
+
+	return opt, nil
+}

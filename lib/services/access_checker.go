@@ -44,8 +44,11 @@ type AccessChecker interface {
 	// Roles returns the list underlying roles this AccessChecker is based on.
 	Roles() []types.Role
 
+	// AccessPolicyNames returns the list of underlying policy names this AccessChecker is based on.
+	AccessPolicyNames() []string
+
 	// AccessPolicies returns the list of underlying policies this AccessChecker is based on.
-	AccessPolicies() []string
+	AccessPolicies() []types.AccessPolicy
 
 	// Traits returns the list of underlying traits this AccessChecker is based on.
 	Traits() map[string][]string
@@ -299,9 +302,14 @@ func blendAccessDecision(a, b predicate.AccessDecision) error {
 	return trace.AccessDenied("access denied")
 }
 
-// AccessPolicies returns the list of underlying policies this AccessChecker is based on.
-func (a *accessChecker) AccessPolicies() []string {
+// AccessPolicyNames returns the list of underlying policy names this AccessChecker is based on.
+func (a *accessChecker) AccessPolicyNames() []string {
 	return a.info.AccessPolicies
+}
+
+// AccessPolicies returns the list of underlying policies this AccessChecker is based on.
+func (a *accessChecker) AccessPolicies() []types.AccessPolicy {
+	return a.PredicateAccessChecker.Policies
 }
 
 // Traits returns the list of underlying traits this AccessChecker is based on.
@@ -472,6 +480,25 @@ func (a *accessChecker) CheckLoginAccessToNode(r types.Server, login string, mfa
 // there are no resource-specific restrictions.
 func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
 	return a.info.AllowedResourceIDs
+}
+
+// RoleOption retrieves and attempts to deserialize it into the provided type.
+func RoleOption[T types.FromRawOption[T]](checker AccessChecker) (T, error) {
+	var instances []T
+
+	for _, role := range checker.Roles() {
+		if opt, err := types.RoleOption[T](role); err != nil {
+			instances = append(instances, opt)
+		}
+	}
+
+	for _, policy := range checker.AccessPolicies() {
+		if opt, err := types.AccessPolicyOption[T](policy); err != nil {
+			instances = append(instances, opt)
+		}
+	}
+
+	return types.CombineOptions(instances...), nil
 }
 
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the

@@ -1473,7 +1473,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	initiatorInfo := &predicate.User{
 		Name:     s.initiator,
-		Policies: s.scx.Identity.AccessChecker.AccessPolicies(),
+		Policies: s.scx.Identity.AccessChecker.AccessPolicyNames(),
 		Traits:   s.scx.Identity.AccessChecker.Traits(),
 	}
 
