@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+
+import { DatabaseEngine, DatabaseLocation } from '../Database/resources';
+
 import type { JoinRole } from 'teleport/services/joinToken';
+import type { Database } from '../Database/resources';
 
 export enum ResourceKind {
   Application,
@@ -36,5 +41,33 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
       return 'Kube';
     case ResourceKind.Server:
       return 'Node';
+  }
+}
+
+export function resourceKindToEventResource(
+  kind: ResourceKind,
+  resourceState: any
+): DiscoverEventResource {
+  switch (kind) {
+    case ResourceKind.Database:
+      const { engine, location } = resourceState as Database;
+      if (location === DatabaseLocation.AWS) {
+        if (engine === DatabaseEngine.PostgreSQL) {
+          return DiscoverEventResource.DatabasePostgresRds;
+        }
+      }
+
+      if (location === DatabaseLocation.SelfHosted) {
+        if (engine === DatabaseEngine.PostgreSQL) {
+          return DiscoverEventResource.DatabasePostgresSelfHosted;
+        }
+      }
+      return null;
+    case ResourceKind.Desktop:
+      return DiscoverEventResource.WindowsDesktop;
+    case ResourceKind.Kubernetes:
+      return DiscoverEventResource.Kubernetes;
+    case ResourceKind.Server:
+      return DiscoverEventResource.Server;
   }
 }

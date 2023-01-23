@@ -27,6 +27,7 @@ import { InstallActiveDirectory } from 'teleport/Discover/Desktop/InstallActiveD
 import { Resource } from 'teleport/Discover/flow';
 
 import { DesktopWrapper } from 'teleport/Discover/Desktop/DesktopWrapper';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 export const DesktopResource: Resource = {
   kind: ResourceKind.Desktop,
@@ -46,6 +47,7 @@ export const DesktopResource: Resource = {
   views: [
     {
       title: 'Select Resource Type',
+      eventName: DiscoverEvent.ResourceSelection,
     },
     {
       title: 'Install Active Directory',
@@ -54,6 +56,7 @@ export const DesktopResource: Resource = {
     {
       title: 'Connect Teleport',
       component: ConnectTeleport,
+      eventName: DiscoverEvent.DeployService,
     },
     {
       title: 'Discover Desktops',
@@ -62,6 +65,7 @@ export const DesktopResource: Resource = {
     {
       title: 'Finished',
       component: Finished,
+      eventName: DiscoverEvent.Completed,
       hide: true,
     },
   ],

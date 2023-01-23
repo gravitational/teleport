@@ -23,6 +23,7 @@ import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
 import { SetupAccess } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
 import { ResourceKind, Finished } from 'teleport/Discover/Shared';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { ServerWrapper } from './ServerWrapper';
 
@@ -39,23 +40,28 @@ export const ServerResource: Resource = {
   views: [
     {
       title: 'Select Resource Type',
+      eventName: DiscoverEvent.ResourceSelection,
     },
     {
       title: 'Configure Resource',
       component: DownloadScript,
+      eventName: DiscoverEvent.DeployService,
     },
     {
       title: 'Set Up Access',
       component: SetupAccess,
+      eventName: DiscoverEvent.SetUpAccess,
     },
     {
       title: 'Test Connection',
       component: TestConnection,
+      eventName: DiscoverEvent.TestConnection,
     },
     {
       title: 'Finished',
       component: Finished,
       hide: true,
+      eventName: DiscoverEvent.Completed,
     },
   ],
 };

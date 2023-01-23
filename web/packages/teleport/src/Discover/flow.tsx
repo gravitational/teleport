@@ -18,6 +18,7 @@ import React from 'react';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { AgentStepComponent } from 'teleport/Discover/types';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 type ViewFunction<T> = (t: T) => View[];
 
@@ -35,6 +36,7 @@ export interface View {
   hide?: boolean;
   index?: number;
   views?: View[];
+  eventName?: DiscoverEvent;
 }
 
 // computeViewChildrenSize calculates how many children a view has, without counting the first

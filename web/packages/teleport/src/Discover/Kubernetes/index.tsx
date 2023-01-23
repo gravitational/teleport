@@ -20,6 +20,7 @@ import { Kubernetes } from 'design/Icon';
 
 import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { Resource } from 'teleport/Discover/flow';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { KubeWrapper } from './KubeWrapper';
 import { SetupAccess } from './SetupAccess';
@@ -39,23 +40,28 @@ export const KubernetesResource: Resource = {
   views: [
     {
       title: 'Select Resource Type',
+      eventName: DiscoverEvent.ResourceSelection,
     },
     {
       title: 'Configure Resource',
       component: HelmChart,
+      eventName: DiscoverEvent.DeployService,
     },
     {
       title: 'Set Up Access',
       component: SetupAccess,
+      eventName: DiscoverEvent.SetUpAccess,
     },
     {
       title: 'Test Connection',
       component: TestConnection,
+      eventName: DiscoverEvent.TestConnection,
     },
     {
       title: 'Finished',
       component: Finished,
       hide: true,
+      eventName: DiscoverEvent.Completed,
     },
   ],
 };
