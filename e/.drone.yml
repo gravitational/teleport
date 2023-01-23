@@ -533,6 +533,11 @@ steps:
       WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
     commands:
       - set -u
+      - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+      - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+        print-node-version)
+      - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+      - export PATH=$NODE_DIR/bin:$PATH
       - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)
       - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
       - export RUST_HOME=$CARGO_HOME
@@ -790,6 +795,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 3c7eb8ec23659650928feae25418d2a06e747a95ccdfe3e7b18067814311f8a3
+hmac: 751d683aadb93a5dda3e7780219b9bd02f5c85ec77ff23e01404b39e874ee79e
 
 ...
