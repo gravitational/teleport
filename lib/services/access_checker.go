@@ -483,7 +483,7 @@ func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
 }
 
 // RoleOption retrieves and attempts to deserialize it into the provided type.
-func RoleOption[T types.FromRawOption[T]](checker AccessChecker) (T, error) {
+func RoleOption[T types.FromRawOption[T]](checker AccessChecker) T {
 	var instances []T
 
 	for _, role := range checker.Roles() {
@@ -498,7 +498,7 @@ func RoleOption[T types.FromRawOption[T]](checker AccessChecker) (T, error) {
 		}
 	}
 
-	return types.CombineOptions(instances...), nil
+	return types.CombineOptions(instances...)
 }
 
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the
