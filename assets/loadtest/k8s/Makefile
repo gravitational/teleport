@@ -3,7 +3,7 @@ CERT_MANAGER_VERSION ?= v1.7.1
 SOAK_TEST_DURATION ?= 30m
 BACKEND ?= etcd
 USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= public.ecr.aws/gravitational/teleport-ent:10.0.0
+TELEPORT_IMAGE ?= public.ecr.aws/gravitational/teleport-ent:12.0.0
 NAMESPACE ?= loadtest
 NODE ?=
 
@@ -31,7 +31,7 @@ ifeq ($(USE_CERT_MANAGER), yes)
 endif
 	make generate-secrets
 
-# create kubernetes secrets 
+# create kubernetes secrets
 .PHONY: generate-secrets
 generate-secrets:
 ifeq ($(BACKEND), etcd)
@@ -290,7 +290,7 @@ delete-tc:
 .PHONY: setup-tc
 setup-tc:
 	kubectl get pod -n $(NAMESPACE) -l app="tc" -o custom-columns=name:metadata.name --no-headers \
-    	| xargs -P 20 -n 1 -I {} kubectl -n $(NAMESPACE) exec {} -- tctl --config /etc/teleport/teleport.yaml create -f /etc/teleport/cluster.yaml
+	| xargs -P 20 -n 1 -I {} kubectl -n $(NAMESPACE) exec {} -- tctl --config /etc/teleport/teleport.yaml create -f /etc/teleport/cluster.yaml
 
 # scales trusted clusters to 500
 .PHONY: scale-tc-500
@@ -431,41 +431,56 @@ run-tc-scaling-test:
 	kubectl wait --for=condition=available deploy/tc -n $(NAMESPACE) --timeout=60m
 	@sleep 120
 	@make setup-tc
-	
+
 	@sleep 300
-	
+
 	@make delete-tc
 
 # collect goroutine and heap go profiles from the auth deployment
 .PHONY: collect-profiles
 collect-profiles: collect-auth collect-proxy collect-node
 
+# forwards the pods diagnostics address
+.PHONY: forward-pod-diagnostics
+forward-pod-diagnostics:
+	kubectl port-forward $(POD) 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
+
+# retrieves profiles from all pods matching the selector
+.PHONY: collect-pods
+collect-pods:
+	@for POD in $$(kubectl get pod -n $(NAMESPACE) -l $(SELECTOR) -o custom-columns=name:metadata.name --no-headers) ; do \
+make collect-pod POD=$$POD ; \
+    done
+
+# retrieves profiles from all proxy pods
 .PHONY: collect-proxy
 collect-proxy:
-	kubectl port-forward service/proxy 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
-	@echo "waiting for proxy to be available..."
-	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
-	@make fetch-profiles LOCATION=proxy-$(shell date +%s)
-	kill -s kill $$(pgrep -f 3434:3434)
+	@make collect-pods SELECTOR=teleport-role="proxy"
 
+# retrieves profiles from all auth pods
 .PHONY: collect-auth
 collect-auth:
-	kubectl port-forward service/auth 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
-	@echo "waiting for auth to be available..."
-	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
-	@make fetch-profiles LOCATION=auth-$(shell date +%s)
-	kill -s kill $$(pgrep -f 3434:3434)
+	@make collect-pods SELECTOR=teleport-role="auth"
 
-ifeq ($(NODE),)
+# retrieves profiles from a node
 .PHONY: collect-node
 collect-node:
+	@make collect-pod POD=$(NODE)
+
+# retrieves profiles from a particular pod
+ifeq ($(POD),)
+.PHONY: collect-pod
+collect-pod:
+	@echo "No pod provided; make collect-pod POD=<pod-name>"
+	exit 1
 else
-.PHONY: collect-node
-collect-node:
-	kubectl port-forward pod/$(NODE) 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
-	@echo "waiting for $(NODE) to be available..."
+.PHONY: collect-pod
+collect-pod:
+	@make forward-pod-diagnostics POD=$(POD)
+	@echo "waiting for $(POD) to be available..."
 	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
-	@make fetch-profiles LOCATION=$(NODE)-$(shell date +%s)
+	@if [ $$? -ne 0 ]; then echo "unable to reach $$POD"; exit 1; fi
+	@make fetch-profiles LOCATION=$(POD)-$(shell date +%s)
 	kill -s kill $$(pgrep -f 3434:3434)
 endif
 
@@ -475,7 +490,7 @@ fetch-profiles:
 	mkdir -p $(shell pwd)/profiles/$(LOCATION)/
 	curl -o $(shell pwd)/profiles/$(LOCATION)/goroutine.profile http://127.0.0.1:3434/debug/pprof/goroutine
 	curl -o $(shell pwd)/profiles/$(LOCATION)/heap.profile http://127.0.0.1:3434/debug/pprof/heap
-	curl -o $(shell pwd)/profiles/$(LOCATION)/trace.profile http://127.0.0.1:3434/debug/pprof/trace
+	curl -o $(shell pwd)/profiles/$(LOCATION)/trace.profile http://127.0.0.1:3434/debug/pprof/trace?seconds=10
 
 # expands any placeholders in the provided yaml file with the value in the matching environment variable. the
 # output file will be named the same with a -gen suffix, i.e input = test then output will be test-gen.yaml
