@@ -169,6 +169,11 @@ type WindowsServiceConfig struct {
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	// LDAP functionality is disabled if Addr is empty.
 	windows.LDAPConfig
+	// UserDomain is the Active Directory domain to generate user credentials for.
+	// In most cases, it should be left empty to use the domain from the LDAP config.
+	// Set this field if you want to generate credentials for users from a domain
+	// separate from the domain where the desktop resides.
+	UserDomain string
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
 	DiscoveryBaseDN string
@@ -431,6 +436,13 @@ func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.Sessio
 	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
 }
 
+func (s *WindowsService) userDomain() string {
+	if s.cfg.UserDomain != "" {
+		return s.cfg.UserDomain
+	}
+	return s.cfg.Domain
+}
+
 func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	// trim NETBIOS name from username
 	user := s.cfg.Username
@@ -442,7 +454,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		using to sign in. This is set to become a strict requirement by May 2023,
 		please update your configuration file before then.`)
 	}
-	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL, s.cfg.SID)
+	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.userDomain(), windowsDesktopServiceCertTTL, s.cfg.SID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1089,8 +1101,10 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
 	}
 
+	// TODO(zmb3): SID lookup should be against the *user* domain,
+	// which might be a different addr (disabled for now)
 	var activeDirectorySID string
-	if !desktop.NonAD() {
+	if !desktop.NonAD() && false /* TODO */ {
 		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1108,7 +1122,13 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		// Generate credentials with the user's SID
 
 	}
-	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
+
+	d := desktop.GetDomain()
+	if s.cfg.UserDomain != "" {
+		d = s.cfg.UserDomain
+	}
+
+	return s.generateCredentials(ctx, username, d, ttl, activeDirectorySID)
 }
 
 // generateCredentials generates a private key / certificate pair for the given

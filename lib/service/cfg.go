@@ -1308,6 +1308,10 @@ type WindowsDesktopConfig struct {
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
 
+	// UserDomain is the Active Directory domain to generate user credentials for.
+	// Leave empty to use the value in the LDAP config.
+	UserDomain string
+
 	// Discovery configures automatic desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig
 

@@ -1966,6 +1966,9 @@ type WindowsDesktopService struct {
 	ShowDesktopWallpaper bool `yaml:"show_desktop_wallpaper,omitempty"`
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
+	// UserDomain is the Active Directory domain to generate user credentials for.
+	// Leave empty to use the from the LDAP config.
+	UserDomain string `yaml:"user_domain"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static, AD-connected Windows hosts. This gives users
