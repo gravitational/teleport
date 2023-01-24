@@ -68,7 +68,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"image"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -138,10 +137,6 @@ type Client struct {
 	// goroutines to complete
 	wg        sync.WaitGroup
 	closeOnce sync.Once
-
-	// since most RDP bitmaps are full 64x64 pixel bitmaps,
-	// we reuse the same image to avoid allocating on each bitmap
-	img *image.RGBA
 
 	// png2FrameBuffer is used in the handlePNG function
 	// to avoid allocation of the buffer on each png as
@@ -603,7 +598,7 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 
 	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice
 	// creates a Go slice backed by data managed from Rust - it does not
-	// copy. This way we only need one copy into img.Pix below.
+	// copy.
 	ptr := unsafe.Pointer(cb.data_ptr)
 	uptr := (*uint8)(ptr)
 	data := unsafe.Slice(uptr, int(cb.data_len))
