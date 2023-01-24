@@ -557,6 +557,11 @@ func RunForward() (errw io.Writer, code int, err error) {
 		defer pamContext.Close()
 	}
 
+	// Verify that the local user exists before attempting to forward traffic.
+	if _, err := user.Lookup(c.Login); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
 	// Connect to the target host.
 	conn, err := net.Dial("tcp", c.DestinationAddress)
 	if err != nil {
