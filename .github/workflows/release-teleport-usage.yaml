@@ -19,7 +19,7 @@ jobs:
       - uses: docker/build-push-action@v3
         with:
           context: "{{defaultContext}}:examples/teleport-usage"
-          tags: public.ecr.aws/gravitational/teleport-usage:$GITHUB_REF_NAME
+          tags: public.ecr.aws/gravitational/teleport-usage:${{ github.ref_name }}
       # - uses: aws-actions/configure-aws-credentials@v1
       #   with:
       #     role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
