@@ -157,7 +157,7 @@ require (
 // deprecated Firestore Batch API is replaced. Updating causes
 // the linter to fail due to deprecation warnings.
 require (
-	cloud.google.com/go/firestore v1.6.0
+	cloud.google.com/go/firestore v1.6.1
 	cloud.google.com/go/iam v0.8.0
 	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.0
