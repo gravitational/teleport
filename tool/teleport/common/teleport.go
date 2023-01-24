@@ -542,7 +542,7 @@ func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy u
 	var tlsConfig *tls.Config
 	var err error
 	var cipherSuites []uint16
-	if !fips {
+	if fips {
 		cipherSuites = defaults.FIPSCipherSuites
 	}
 	tlsConfig, err = id.TLSConfig(cipherSuites)
