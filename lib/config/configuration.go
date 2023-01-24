@@ -173,7 +173,7 @@ type CommandLineFlags struct {
 	OpenSSHConfigPath string
 	// OpenSSHKeysPath is the path to write teleport keys and certs into
 	OpenSSHKeysPath string
-	// AdditionalPrincipals are a list of extra prinicpals to include when generating host keys.
+	// AdditionalPrincipals are a list of extra principals to include when generating host keys.
 	AdditionalPrincipals string
 	// RestartOpenSSH indicates whether openssh should be restarted or not.
 	RestartOpenSSH bool
