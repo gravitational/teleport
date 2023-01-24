@@ -417,3 +417,17 @@ func searchForSelectedCluster(contexts map[string]*clientcmdapi.Context) string 
 	}
 	return selected
 }
+
+// SelectedKubeCluster returns the Kubernetes cluster name of the default context
+// if it belongs to the Teleport cluster provided.
+func SelectedKubeCluster(path, teleportCluster string) (string, error) {
+	kubeconfig, err := Load(path)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if kubeCluster := KubeClusterFromContext(kubeconfig.CurrentContext, teleportCluster); kubeCluster != "" {
+		return kubeCluster, nil
+	}
+	return "", trace.NotFound("default context does not belong to Teleport")
+}
