@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -205,13 +206,21 @@ func (sas *SAMLAuthService) getSAMLProvider(conn types.SAMLConnector) (*saml2.SA
 	return serviceProvider, nil
 }
 
-func (sas *SAMLAuthService) calculateSAMLUser(diagCtx *auth.SSODiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*auth.CreateUserParams, error) {
+func (sas *SAMLAuthService) calculateSAMLUser(ctx context.Context, diagCtx *auth.SSODiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*auth.CreateUserParams, error) {
 	p := auth.CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      assertionInfo.NameID,
 	}
 
 	p.Traits = services.SAMLAssertionsToTraits(assertionInfo)
+
+	evaluationOutput, err := sas.auth.GetLoginRuleEvaluator().Evaluate(ctx, &loginrule.EvaluationInput{
+		Traits: p.Traits,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.Traits = evaluationOutput.Traits
 
 	diagCtx.Info.SAMLTraitsFromAssertions = p.Traits
 	diagCtx.Info.SAMLConnectorTraitMapping = connector.GetTraitMappings()
@@ -250,7 +259,7 @@ func (sas *SAMLAuthService) calculateSAMLUser(diagCtx *auth.SSODiagContext, conn
 	return &p, nil
 }
 
-func (sas *SAMLAuthService) createSAMLUser(p *auth.CreateUserParams, dryRun bool) (types.User, error) {
+func (sas *SAMLAuthService) createSAMLUser(ctx context.Context, p *auth.CreateUserParams, dryRun bool) (types.User, error) {
 	expires := sas.auth.GetClock().Now().UTC().Add(p.SessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
@@ -295,8 +304,6 @@ func (sas *SAMLAuthService) createSAMLUser(p *auth.CreateUserParams, dryRun bool
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-
-	ctx := context.TODO()
 
 	// Overwrite exisiting user if it was created from an external identity provider.
 	if existingUser != nil {
@@ -532,7 +539,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := sas.calculateSAMLUser(diagCtx, connector, *assertionInfo, request)
+	params, err := sas.calculateSAMLUser(ctx, diagCtx, connector, *assertionInfo, request)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -547,7 +554,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
-	user, err := sas.createSAMLUser(params, request != nil && request.SSOTestFlow)
+	user, err := sas.createSAMLUser(ctx, params, request != nil && request.SSOTestFlow)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}

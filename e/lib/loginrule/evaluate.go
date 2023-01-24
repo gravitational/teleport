@@ -1,6 +1,7 @@
 package loginrule
 
 import (
+	"context"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -8,26 +9,49 @@ import (
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/e/lib/loginrule/storage"
+	oss "github.com/gravitational/teleport/lib/loginrule"
 )
 
-// EvaluationInput holds the inputs to a login rule evaluation.
-type EvaluationInput struct {
-	// Traits should be set to the external IDP-provided traits which will be
-	// input to the login rule evaluation.
-	Traits map[string][]string
+// Evaluator can be used to evaluate login rules for given inputs.
+type Evaluator struct {
+	storage *storage.S
 }
 
-// EvaluationOutput holds the output of a login rule evaluation.
-type EvaluationOutput struct {
-	// Traits holds the final output traits.
-	Traits map[string][]string
+// NewEvaluator returns a new Evaluator which will fetch login rules from the
+// given [storage.S]
+func NewEvaluator(storage *storage.S) *Evaluator {
+	return &Evaluator{
+		storage: storage,
+	}
+}
+
+// Evaluate fetches all login rules currently present in the backend and
+// evaluates them with the given input, returning the output or any error
+// encountered.
+func (e *Evaluator) Evaluate(ctx context.Context, input *oss.EvaluationInput) (*oss.EvaluationOutput, error) {
+	allRules, nextPageToken, err := e.storage.ListLoginRules(ctx, 0 /*pageSize*/, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for nextPageToken != "" {
+		var rules []*loginrulepb.LoginRule
+		rules, nextPageToken, err = e.storage.ListLoginRules(ctx, 0 /*pageSize*/, nextPageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		allRules = append(allRules, rules...)
+	}
+
+	output, err := Evaluate(allRules, input)
+	return output, trace.Wrap(err)
 }
 
 // Evaluate evaluates a list of login rules with the given inputs.
-func Evaluate(rules []*loginrulepb.LoginRule, input *EvaluationInput) (*EvaluationOutput, error) {
+func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.EvaluationOutput, error) {
 	if len(rules) == 0 {
 		// If there are no rules, return the input traits unmodified.
-		return &EvaluationOutput{
+		return &oss.EvaluationOutput{
 			Traits: input.Traits,
 		}, nil
 	}
@@ -61,7 +85,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *EvaluationInput) (*Evaluati
 			}
 		}
 	}
-	return &EvaluationOutput{
+	return &oss.EvaluationOutput{
 		Traits: stringSliceMapFromDict(traits),
 	}, nil
 }

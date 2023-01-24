@@ -8,6 +8,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	oss "github.com/gravitational/teleport/lib/loginrule"
 )
 
 func newLoginRuleWithTraitsMap(name string, priority int32, traitsMap map[string][]string) *loginrulepb.LoginRule {
@@ -403,7 +404,7 @@ func TestEvaluate(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			result, err := Evaluate(tc.rules, &EvaluationInput{Traits: tc.inputTraits})
+			result, err := Evaluate(tc.rules, &oss.EvaluationInput{Traits: tc.inputTraits})
 			if tc.errorContains != "" {
 				require.ErrorContains(t, err, tc.errorContains)
 				return

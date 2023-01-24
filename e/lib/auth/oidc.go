@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -553,7 +554,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := oas.calculateOIDCUser(diagCtx, connector, claims, ident, req)
+	params, err := oas.calculateOIDCUser(ctx, diagCtx, connector, claims, ident, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -568,7 +569,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
-	user, err := oas.createOIDCUser(params, req.SSOTestFlow)
+	user, err := oas.createOIDCUser(ctx, params, req.SSOTestFlow)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
@@ -648,7 +649,7 @@ func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) auth.OIDCAuthRequest {
 	}
 }
 
-func (oas *OIDCAuthService) calculateOIDCUser(diagCtx *auth.SSODiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*auth.CreateUserParams, error) {
+func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth.SSODiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*auth.CreateUserParams, error) {
 	var err error
 
 	username, err := usernameFromClaims(connector, claims, ident)
@@ -662,6 +663,14 @@ func (oas *OIDCAuthService) calculateOIDCUser(diagCtx *auth.SSODiagContext, conn
 	}
 
 	p.Traits = services.OIDCClaimsToTraits(claims)
+
+	evaluationOutput, err := oas.auth.GetLoginRuleEvaluator().Evaluate(ctx, &loginrule.EvaluationInput{
+		Traits: p.Traits,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.Traits = evaluationOutput.Traits
 
 	diagCtx.Info.OIDCTraitsFromClaims = p.Traits
 	diagCtx.Info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
@@ -695,7 +704,7 @@ func (oas *OIDCAuthService) calculateOIDCUser(diagCtx *auth.SSODiagContext, conn
 	return &p, nil
 }
 
-func (oas *OIDCAuthService) createOIDCUser(p *auth.CreateUserParams, dryRun bool) (types.User, error) {
+func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUserParams, dryRun bool) (types.User, error) {
 	expires := oas.auth.GetClock().Now().UTC().Add(p.SessionTTL)
 
 	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
@@ -737,8 +746,6 @@ func (oas *OIDCAuthService) createOIDCUser(p *auth.CreateUserParams, dryRun bool
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-
-	ctx := context.TODO()
 
 	// Overwrite exisiting user if it was created from an external identity provider.
 	if existingUser != nil {
