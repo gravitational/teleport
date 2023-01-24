@@ -7326,7 +7326,9 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				errChan <- cli.SSH(ctx, test.command, false)
 			}()
 
-			test.sshAssertion(t, true, errChan, term)
+			t.Run("auth running", func(t *testing.T) {
+				test.sshAssertion(t, true, errChan, term)
+			})
 
 			// shut down auth server
 			require.NoError(t, auth.StopAuth(false))
@@ -7341,7 +7343,9 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				errChan <- cli.SSH(ctx, test.command, false)
 			}()
 
-			test.sshAssertion(t, false, errChan, term)
+			t.Run("auth not running", func(t *testing.T) {
+				test.sshAssertion(t, false, errChan, term)
+			})
 		})
 	}
 }
