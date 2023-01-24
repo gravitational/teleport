@@ -811,11 +811,12 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name                   string
-		roles                  []*types.RoleV6
-		checks                 []check
-		authPrefMFARequireType types.RequireMFAType
-		mfaVerified            bool
+		name                        string
+		roles                       []*types.RoleV6
+		checks                      []check
+		authSpec                    types.AuthPreferenceSpecV2
+		enableDeviceVerification    bool
+		mfaVerified, deviceVerified bool
 	}{
 		{
 			name:  "empty role set has access to nothing",
@@ -951,6 +952,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
+		// MFA.
 		{
 			name: "one role requires MFA but MFA was not verified",
 			roles: []*types.RoleV6{
@@ -997,7 +999,9 @@ func TestCheckAccessToServer(t *testing.T) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			authSpec: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_SESSION,
+			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
@@ -1011,8 +1015,187 @@ func TestCheckAccessToServer(t *testing.T) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			authPrefMFARequireType: types.RequireMFAType_SESSION,
-			mfaVerified:            true,
+			authSpec: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_SESSION,
+			},
+			mfaVerified: true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		// Device Trust.
+		{
+			name: "role requires trusted device, device not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "role requires trusted device, device verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "role requires trusted device for specific label, device not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: false}, // NOK, device not verified
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "role requires trusted device for specific label, device verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true}, // OK, device verified
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "device verification disabled",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: false,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "restrictive role device mode takes precedence",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeOff
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeOptional
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired // wins
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		// MFA + Device verification.
+		{
+			name: "MFA and device required, fails MFA",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			mfaVerified:              false,
+			deviceVerified:           true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "MFA and device required, fails device",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			mfaVerified:              true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "MFA and device required, passes all",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			mfaVerified:              true,
+			deviceVerified:           true,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
 				{server: serverWorker, login: "root", hasAccess: true},
@@ -1022,9 +1205,7 @@ func TestCheckAccessToServer(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-				RequireMFAType: tc.authPrefMFARequireType,
-			})
+			authPref, err := types.NewAuthPreference(tc.authSpec)
 			require.NoError(t, err, "NewAuthPreference failed")
 
 			var set RoleSet
@@ -1032,9 +1213,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				set = append(set, tc.roles[i])
 			}
 			for j, check := range tc.checks {
-				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
+				comment := fmt.Sprintf("check #%v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
 				state := set.GetAccessState(authPref)
 				state.MFAVerified = tc.mfaVerified
+				state.EnableDeviceVerification = tc.enableDeviceVerification
+				state.DeviceVerified = tc.deviceVerified
 				err := set.checkAccess(
 					check.server,
 					state,
@@ -1042,7 +1225,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				if check.hasAccess {
 					require.NoError(t, err, comment)
 				} else {
-					require.True(t, trace.IsAccessDenied(err), comment)
+					require.True(t, trace.IsAccessDenied(err), "Got err = %v/%T, wanted AccessDenied. %v", err, err, comment)
 				}
 			}
 		})
