@@ -2707,8 +2707,36 @@ func (s *plugins) erase(ctx context.Context) error {
 }
 
 func (s *plugins) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	// TODO
-	return func(ctx context.Context) error { return nil }, nil
+	resources, err := s.Plugins.GetPlugins(ctx, s.watch.LoadSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			plugin, ok := resource.(*types.PluginV1)
+			if !ok {
+				return trace.BadParameter("unsupported plugin version %T", resource)
+			}
+
+			req := &proto.CreatePluginRequest{Plugin: plugin}
+
+			if err := s.pluginsCache.CreatePlugin(ctx, req); err != nil {
+				if !trace.IsAlreadyExists(err) {
+					return trace.Wrap(err)
+				}
+				// UpdatePlugin does not currently exist, emulate that
+				err := s.pluginsCache.DeletePlugin(ctx, plugin.Metadata.Name)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				return trace.Wrap(s.pluginsCache.CreatePlugin(ctx, req))
+			}
+		}
+		return nil
+	}, nil
 }
 
 func (s *plugins) processEvent(ctx context.Context, event types.Event) error {
@@ -2739,8 +2767,13 @@ func (s *plugins) processEvent(ctx context.Context, event types.Event) error {
 			if !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}
-			// TODO
-			return trace.NotImplemented("UpdatePlugin")
+
+			// UpdatePlugin does not currently exist, emulate that
+			err := s.pluginsCache.DeletePlugin(ctx, req.Plugin.Metadata.Name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(s.pluginsCache.CreatePlugin(ctx, req))
 		}
 	default:
 		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
