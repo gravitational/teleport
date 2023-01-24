@@ -783,7 +783,9 @@ impl TryFrom<BitmapEvent> for CGOPNG {
         let h: u16 = e.height;
 
         let mut encoded = Vec::with_capacity(8192);
-        encode_png(&mut encoded, w, h, e.decompress()?);
+        encode_png(&mut encoded, w, h, e.decompress()?).map_err(|err| {
+            Self::Error::TryError(format!("failed to encode bitmap to png: {:?}", err))
+        })?;
 
         res.data_ptr = encoded.as_mut_ptr();
         res.data_len = encoded.len();
@@ -805,16 +807,22 @@ impl TryFrom<BitmapEvent> for CGOPNG {
 /// * `width` - width of the png
 /// * `height` - height of the png
 /// * `data` - buffer that contains uncompressed bitmap data
-pub fn encode_png(dest: &mut Vec<u8>, width: u16, height: u16, mut data: Vec<u8>) {
+pub fn encode_png(
+    dest: &mut Vec<u8>,
+    width: u16,
+    height: u16,
+    mut data: Vec<u8>,
+) -> Result<(), png::EncodingError> {
     convert_bgra_to_rgba(&mut data);
 
     let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
     encoder.set_compression(png::Compression::Fast);
     encoder.set_color(png::ColorType::Rgba);
 
-    let mut writer = encoder.write_header().unwrap();
-    writer.write_image_data(&data).unwrap();
-    writer.finish().unwrap();
+    let mut writer = encoder.write_header()?;
+    writer.write_image_data(&data)?;
+    writer.finish()?;
+    Ok(())
 }
 
 /// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
