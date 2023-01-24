@@ -2251,7 +2251,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
 	}
@@ -2323,6 +2323,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 		}
 	}
 
+	mfaVerified := state.MFAVerified || state.MFARequired == MFARequiredNever
+
+	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
+	//  of opt-in.
+	deviceVerified := !state.EnableDeviceVerification || state.DeviceVerified
+
 	var errs []error
 	allowed := false
 	// Check allow rules.
@@ -2364,21 +2370,38 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			continue
 		}
 
-		// if we've reached this point, namespace, labels, and matchers all match.
-		// if MFA is verified or never required, we're done.
-		if state.MFAVerified || state.MFARequired == MFARequiredNever {
+		// If we've reached this point, namespace, labels, and matchers all match.
+		//
+		// The following checks remain:
+		// 1. MFA verification (aka require_session_mfa)
+		// 2. Device verification (aka device_trust_mode)
+		//
+		// The more restrictive setting applies, so either the caller passes all
+		// (and gets an early exit) or we need to check every applicable role to
+		// ensure the access is permitted.
+
+		if mfaVerified && deviceVerified {
+			debugf("Access to %v %q granted, allow rule in role %q matched.",
+				r.GetKind(), r.GetName(), role.GetName())
 			return nil
 		}
-		// if MFA is not verified and we require session MFA, deny access
-		if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+
+		// MFA verification.
+		if !mfaVerified && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
 		}
 
-		// Check all remaining roles, even if we found a match.
-		// RequireSessionMFA should be enforced when at least one role has
-		// it.
+		// Device verification.
+		if !deviceVerified && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
+			debugf("Access to %v %q denied, role %q requires a trusted device",
+				r.GetKind(), r.GetName(), role.GetName())
+			return ErrTrustedDeviceRequired
+		}
+
+		// Current role allows access, but keep looking for a more restrictive
+		// setting.
 		allowed = true
 		debugf("Access to %v %q granted, allow rule in role %q matched.",
 			r.GetKind(), r.GetName(), role.GetName())
