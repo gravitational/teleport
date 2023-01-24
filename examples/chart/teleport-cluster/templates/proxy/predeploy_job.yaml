@@ -72,6 +72,8 @@ spec:
       - name: teleport-tls
         secret:
           secretName: teleport-tls
+          # this avoids deadlock during initial setup
+          optional: true
 {{- else if $proxy.tls.existingSecretName }}
       - name: teleport-tls
         secret:

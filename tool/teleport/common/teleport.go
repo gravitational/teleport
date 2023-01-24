@@ -18,9 +18,12 @@ package common
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -29,10 +32,18 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/go-uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -51,6 +63,8 @@ type Options struct {
 	// endpoints but does not start the process
 	InitOnly bool
 }
+
+const agentlessKeysDir = "/etc/teleport/agentless"
 
 // Run inits/starts the process according to the provided options
 func Run(options Options) (app *kingpin.Application, executedCommand string, conf *service.Config) {
@@ -84,6 +98,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
+	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon")
+	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
@@ -388,6 +404,17 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	kubeState := app.Command("kube-state", "Used internally by Teleport to operate Kubernetes Secrets where Teleport stores its state.").Hidden()
 	kubeStateDelete := kubeState.Command("delete", "Used internally to delete Kubernetes states when the helm chart is uninstalled.").Hidden()
 
+	// teleport join --proxy-server=proxy.example.com --token=aws-join-token [--openssh-config=/path/to/sshd.conf] [--restart-sshd=true]
+	joinOpenSSH.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
+	joinOpenSSH.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
+	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
+	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default(agentlessKeysDir).StringVar(&ccf.OpenSSHKeysPath)
+	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
+	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
+	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
+	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -465,6 +492,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.DiscoveryService = true
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
+	case joinOpenSSH.FullCommand():
+		err = onJoinOpenSSH(ccf)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -487,6 +516,320 @@ func OnStart(clf config.CommandLineFlags, config *service.Config) error {
 		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
 	}
 	return service.Run(context.TODO(), *config, nil)
+}
+
+// GenerateKeys generates TLS and SSH keypairs.
+func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
+	privateKey, publicKey, err := native.GenerateKeyPair()
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	return privateKey, publicKey, tlsPublicKey, nil
+}
+
+func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy utils.NetAddr, id *auth.Identity) (auth.ClientI, error) {
+	var tlsConfig *tls.Config
+	var err error
+	var cipherSuites []uint16
+	if !fips {
+		cipherSuites = defaults.FIPSCipherSuites
+	}
+	tlsConfig, err = id.TLSConfig(cipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig, err := id.SSHClientConfig(fips)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClientConfig := &authclient.Config{
+		TLS:         tlsConfig,
+		SSH:         sshConfig,
+		AuthServers: []utils.NetAddr{proxy},
+		Log:         log.StandardLogger(),
+	}
+
+	c, err := authclient.Connect(ctx, authClientConfig)
+	return c, trace.Wrap(err)
+}
+
+func getAWSInstanceHostname(ctx context.Context) (string, error) {
+	imds, err := aws.NewInstanceMetadataClient(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	hostname, err := imds.GetHostname(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	hostname = strings.ReplaceAll(hostname, " ", "_")
+	if utils.IsValidHostname(hostname) {
+		return hostname, nil
+	}
+	return "", trace.NotFound("failed to get a valid hostname from IMDS")
+}
+
+func tryCreateDefaultAgentlesKeysDir(agentlessKeysPath string) error {
+	baseTeleportDir := filepath.Dir(agentlessKeysPath)
+	_, err := os.Stat(baseTeleportDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("%s did not exist, creating %s", baseTeleportDir, agentlessKeysPath)
+			return trace.Wrap(os.MkdirAll(agentlessKeysPath, 0700))
+		}
+		return trace.Wrap(err)
+	}
+
+	var alreadyExistedAndDeleted bool
+	_, err = os.Stat(agentlessKeysPath)
+	if err == nil {
+		log.Debugf("%s already existed, removing old files", agentlessKeysPath)
+		err = os.RemoveAll(agentlessKeysPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		alreadyExistedAndDeleted = true
+	}
+
+	if os.IsNotExist(err) || alreadyExistedAndDeleted {
+		log.Debugf("%s did not exist, creating", agentlessKeysPath)
+		return trace.Wrap(os.Mkdir(agentlessKeysPath, 0700))
+	}
+
+	return trace.Wrap(err)
+}
+
+func onJoinOpenSSH(clf config.CommandLineFlags) error {
+	if err := checkSSHDConfigAlreadyUpdated(clf.OpenSSHConfigPath); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if clf.Debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	addr, err := utils.ParseAddr(clf.ProxyServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	privateKey, sshPublicKey, tlsPublicKey, err := GenerateKeys()
+	if err != nil {
+		return trace.Wrap(err, "unable to generate new keypairs")
+	}
+
+	ctx := context.Background()
+	hostname, err := getAWSInstanceHostname(ctx)
+	if err != nil {
+		var hostErr error
+		hostname, hostErr = os.Hostname()
+		if hostErr != nil {
+			return trace.NewAggregate(err, hostErr)
+		}
+	}
+
+	// TODO(amk) get uuid from a cli argument once agentless inventory management is implemented to allow tsh ssh access via uuid
+	uuid, err := uuid.GenerateUUID()
+	_ = err
+
+	principals := []string{uuid}
+	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
+		if principal == "" {
+			continue
+		}
+		principals = append(principals, principal)
+	}
+
+	registerParams := auth.RegisterParams{
+		Token:                clf.AuthToken,
+		AdditionalPrincipals: principals,
+		JoinMethod:           types.JoinMethod(clf.JoinMethod),
+		ID: auth.IdentityID{
+			Role:     types.RoleNode,
+			NodeName: hostname,
+			HostUUID: uuid,
+		},
+		ProxyServer:        *addr,
+		PublicTLSKey:       tlsPublicKey,
+		PublicSSHKey:       sshPublicKey,
+		GetHostCredentials: client.HostCredentials,
+		FIPS:               clf.FIPS,
+	}
+
+	if clf.FIPS {
+		registerParams.CipherSuites = defaults.FIPSCipherSuites
+	}
+
+	certs, err := auth.Register(registerParams)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	identity, err := auth.ReadIdentityFromKeyPair(privateKey, certs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client, err := authenticatedUserClientFromIdentity(ctx, clf.FIPS, *addr, identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cas, err := client.GetCertAuthorities(ctx, types.OpenSSHCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var openSSHCA []byte
+	for _, ca := range cas {
+		for _, key := range ca.GetActiveKeys().SSH {
+			openSSHCA = append(openSSHCA, key.PublicKey...)
+			openSSHCA = append(openSSHCA, byte('\n'))
+		}
+	}
+
+	defaultKeysPath := clf.OpenSSHKeysPath == agentlessKeysDir
+	if defaultKeysPath {
+		if err := tryCreateDefaultAgentlesKeysDir(agentlessKeysDir); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Printf("Writing Teleport keys to %s\n", clf.OpenSSHKeysPath)
+	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs, openSSHCA); err != nil {
+		if defaultKeysPath {
+			rmdirErr := os.RemoveAll(agentlessKeysDir)
+			if rmdirErr != nil {
+				return trace.NewAggregate(err, rmdirErr)
+			}
+		}
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Updating OpenSSH config")
+	if err := updateSSHDConfig(clf.OpenSSHKeysPath, clf.OpenSSHConfigPath); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Restarting the OpenSSH daemon")
+	if err := restartSSHD(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+const (
+	teleportKey       = "teleport"
+	teleportCert      = "teleport-cert.pub"
+	teleportOpenSSHCA = "teleport_user_ca.pub"
+)
+
+func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs, openSSHCA []byte) error {
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportKey), private, 0600); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportCert), certs.SSH, 0600); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportOpenSSHCA), openSSHCA, 0600); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+const sshdConfigSectionModificationHeader = "### Section created by 'teleport join openssh'"
+
+func checkSSHDConfigAlreadyUpdated(sshdConfigPath string) error {
+	contents, err := os.ReadFile(sshdConfigPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if strings.Contains(string(contents), sshdConfigSectionModificationHeader) {
+		return trace.AlreadyExists("not updating %s as it has already been modified by teleport", sshdConfigPath)
+	}
+	return nil
+}
+
+const sshdBinary = "sshd"
+
+func updateSSHDConfig(keyDir, sshdConfigPath string) error {
+	// has to write to the beginning of the sshd_config file as
+	// openssh takes the first occurrence of a setting
+	sshdConfig, err := os.OpenFile(sshdConfigPath, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sshdConfig.Close()
+
+	configUpdate := fmt.Sprintf(`
+%s
+TrustedUserCaKeys %s
+HostKey %s
+HostCertificate %s
+### Section end
+`,
+		sshdConfigSectionModificationHeader,
+		filepath.Join(keyDir, "teleport_user_ca.pub"),
+		filepath.Join(keyDir, "teleport"),
+		filepath.Join(keyDir, "teleport-cert.pub"),
+	)
+	sshdConfigTmp, err := os.CreateTemp(keyDir, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sshdConfigTmp.Close()
+	if _, err := sshdConfigTmp.Write([]byte(configUpdate)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := io.Copy(sshdConfigTmp, sshdConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := sshdConfigTmp.Sync(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	cmd := exec.Command(sshdBinary, "-t", "-f", sshdConfigTmp.Name())
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, "teleport generated an invalid ssh config file, not writing")
+	}
+
+	if err := os.Rename(sshdConfigTmp.Name(), sshdConfigPath); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func restartSSHD() error {
+	cmd := exec.Command("sshd", "-t")
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, "teleport generated an invalid ssh config file")
+	}
+
+	cmd = exec.Command("systemctl", "restart", "sshd")
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, "teleport failed to restart the sshd service")
+	}
+	return nil
 }
 
 // onStatus is the handler for "status" CLI command

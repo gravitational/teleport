@@ -113,6 +113,13 @@ func NewPresetAccessRole() types.Role {
 				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
