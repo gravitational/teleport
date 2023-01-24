@@ -707,7 +707,7 @@ func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 	return NewRoleSet(role), nil
 }
 
-// RW is a shortcut that returns all verbs.
+// RW is a shortcut that returns all CRUD verbs.
 func RW() []string {
 	return []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 }
@@ -971,7 +971,7 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(database, AccessMFAParams{Verified: true}); err == nil {
+		if err := NewRoleSet(role).checkAccess(database, AccessState{MFAVerified: true}); err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 
@@ -981,7 +981,7 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 
 	// check each individual user against the database.
 	for _, user := range users {
-		err := set.checkAccess(database, AccessMFAParams{Verified: true}, &DatabaseUserMatcher{User: user})
+		err := set.checkAccess(database, AccessState{MFAVerified: true}, &DatabaseUserMatcher{User: user})
 		result.allowedDeniedMap[user] = err == nil
 	}
 
@@ -1005,7 +1005,7 @@ func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult 
 
 	// check each individual user against the server.
 	for _, user := range logins {
-		err := set.checkAccess(server, AccessMFAParams{Verified: true}, NewLoginMatcher(user))
+		err := set.checkAccess(server, AccessState{MFAVerified: true}, NewLoginMatcher(user))
 		result.allowedDeniedMap[user] = err == nil
 	}
 
@@ -1165,23 +1165,23 @@ func (set RoleSet) PinSourceIP() bool {
 	return false
 }
 
-// MFAParams returns MFA params for the given user given their roles, the cluster
-// auth preference, and whether mfa has been verified.
-func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params AccessMFAParams) {
+// GetAccessState returns the AccessState for the user given their roles, the
+// cluster auth preference, and whether MFA and the user's device were verified.
+func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 	// per-session MFA is overridden by hardware key PIV touch requirement.
 	// check if the auth pref or any roles have this option.
-	if authPrefRequirement == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return AccessMFAParams{Required: MFARequiredNever}
+	if authPref.GetRequireMFAType() == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+		return AccessState{MFARequired: MFARequiredNever}
 	}
 	for _, role := range set {
 		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return AccessMFAParams{Required: MFARequiredNever}
+			return AccessState{MFARequired: MFARequiredNever}
 		}
 	}
 
 	// MFA is always required according to the cluster auth pref.
-	if authPrefRequirement.IsSessionMFARequired() {
-		return AccessMFAParams{Required: MFARequiredAlways}
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		return AccessState{MFARequired: MFARequiredAlways}
 	}
 
 	// If MFA requirement is the same across all roles, we can skip the per-role check.
@@ -1191,17 +1191,17 @@ func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params A
 		for _, role := range set[1:] {
 			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
 				// This role differs from the MFA requirement of the other roles, return per-role.
-				return AccessMFAParams{Required: MFARequiredPerRole}
+				return AccessState{MFARequired: MFARequiredPerRole}
 			}
 		}
 
 		if rolesMFARequired {
-			return AccessMFAParams{Required: MFARequiredAlways}
+			return AccessState{MFARequired: MFARequiredAlways}
 		}
 	}
 
 	// No roles to check or no roles require MFA.
-	return AccessMFAParams{Required: MFARequiredNever}
+	return AccessState{MFARequired: MFARequiredNever}
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
@@ -2241,13 +2241,13 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 
 // checkAccess checks if this role set has access to a particular resource,
 // optionally matching the resource's labels.
-func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
-	if mfa.Required == MFARequiredAlways && !mfa.Verified {
+	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
 	}
@@ -2362,7 +2362,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 
 		// if we've reached this point, namespace, labels, and matchers all match.
 		// if MFA is verified or never required, we're done.
-		if mfa.Verified || mfa.Required == MFARequiredNever {
+		if state.MFAVerified || state.MFARequired == MFARequiredNever {
 			return nil
 		}
 		// if MFA is not verified and we require session MFA, deny access
@@ -2899,13 +2899,15 @@ func (set RoleSet) GetAllowedPreviewAsRoles() []string {
 	return apiutils.Deduplicate(allowed)
 }
 
-// AccessMFAParams contains MFA-related parameters for methods that check access.
-type AccessMFAParams struct {
-	// Required determines whether a user's MFA requirement dynamically changes based on
-	// their active role (per-role), or is static across all roles (always/never).
-	Required MFARequired
-	// Verified is set when MFA has been verified by the caller.
-	Verified bool
+// AccessState holds state for the present access attempt, including both
+// cluster settings and user state (MFA, device trust, etc).
+type AccessState struct {
+	// MFARequired determines whether a user's MFA requirement dynamically changes
+	// based on their active role (per-role), or is static across all roles
+	// (always/never).
+	MFARequired MFARequired
+	// MFAVerified is set when MFA has been verified by the caller.
+	MFAVerified bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.

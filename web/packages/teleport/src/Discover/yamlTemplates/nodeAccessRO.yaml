@@ -1,0 +1,7 @@
+kind: role
+spec:
+  allow:
+    # List of allowed SSH logins
+    logins:
+    - osUser1
+    - osUser2
