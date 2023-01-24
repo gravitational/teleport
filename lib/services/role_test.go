@@ -4902,7 +4902,6 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		roleSet RoleSet
-		state   AccessState
 		checks  []check
 	}{
 		{
@@ -4990,7 +4989,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.desktop, test.state, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
