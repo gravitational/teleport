@@ -888,7 +888,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
-
+	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster").Interspersed(false)
+	// This hack is required in order to accept any args for tsh kubectl.
+	kubectl.Arg("", "").StringsVar(new([]string))
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
@@ -1170,6 +1172,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = deviceCmd.collect.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
+	case kubectl.FullCommand():
+		idx := slices.Index(args, kubectl.FullCommand())
+		err = onKubectlCommand(&cf, args[idx:])
 	default:
 		// Handle commands that might not be available.
 		switch {

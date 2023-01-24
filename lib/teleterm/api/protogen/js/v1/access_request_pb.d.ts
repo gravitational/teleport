@@ -146,6 +146,9 @@ export class ResourceID extends jspb.Message {
     getClusterName(): string;
     setClusterName(value: string): ResourceID;
 
+    getSubResourceName(): string;
+    setSubResourceName(value: string): ResourceID;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceID.AsObject;
@@ -162,6 +165,7 @@ export namespace ResourceID {
         kind: string,
         name: string,
         clusterName: string,
+        subResourceName: string,
     }
 }
 
