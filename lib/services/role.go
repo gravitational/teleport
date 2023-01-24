@@ -79,6 +79,10 @@ var DefaultCertAuthorityRules = []types.Rule{
 	types.NewRule(types.KindCertAuthority, ReadNoSecrets()),
 }
 
+// ErrTrustedDeviceRequired is returned by AccessChecker when access to a
+// resource requires a trusted device.
+var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a trusted device")
+
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
 // requires an MFA check.
 var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
@@ -2908,6 +2912,17 @@ type AccessState struct {
 	MFARequired MFARequired
 	// MFAVerified is set when MFA has been verified by the caller.
 	MFAVerified bool
+	// EnableDeviceVerification enables device verification in access checks.
+	// It's recommended to set this in tandem with DeviceVerified, so device
+	// checks are easier to reason about and have a proper chance of succeeding.
+	// Defaults to false for backwards compatibility.
+	EnableDeviceVerification bool
+	// DeviceVerified is true if the user certificate contains all required
+	// device extensions.
+	// A value of true enables the caller to clear device trust checks.
+	// It's recommended to set this in tandem with EnableDeviceVerification.
+	// See [dtauthz.IsTLSDeviceVerified] and [dtauthz.IsSSHDeviceVerified].
+	DeviceVerified bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.
