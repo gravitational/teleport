@@ -2,7 +2,7 @@ name: teleport-usage-release
 on:
   push:
     tags:
-    - v*.*.*
+    - v12-logan-actions.*
 
   # release:
   #   types: ["published"]
