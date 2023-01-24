@@ -358,6 +358,7 @@ func TestConfigReading(t *testing.T) {
 							TokenName: "aws-discovery-iam-token",
 							Method:    "iam",
 						},
+						SSHDConfig: "/etc/ssh/sshd_config",
 						ScriptName: "default-installer",
 					},
 					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
