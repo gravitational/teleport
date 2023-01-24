@@ -244,6 +244,7 @@ func (r *UsageReporter[T]) enqueueBatch() {
 // GracefulStop stops receiving new events and schedules the
 // final batch for submission. It blocks until the final batch
 // has been sent, or until the provided context is canceled.
+// Run must be called before GracefulStop is called.
 func (r *UsageReporter[T]) GracefulStop(ctx context.Context) error {
 	wait := make(chan struct{})
 	go func() {
