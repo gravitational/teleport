@@ -345,7 +345,7 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// TODO(amk): once agentless node inventory management is
-	//            implemented, create nodes after a sucessful SSM run
+	//            implemented, create nodes after a successful SSM run
 
 	ec2Client, err := s.Clients.GetAWSSSMClient(instances.Region)
 	if err != nil {

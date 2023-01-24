@@ -589,9 +589,8 @@ func tryCreateDefaultAgentlesKeysDir(agentlessKeysPath string) error {
 		if os.IsNotExist(err) {
 			log.Debugf("%s did not exist, creating %s", baseTeleportDir, agentlessKeysPath)
 			return trace.Wrap(os.MkdirAll(agentlessKeysPath, 0700))
-		} else {
-			return trace.Wrap(err)
 		}
+		return trace.Wrap(err)
 	}
 
 	var alreadyExistedAndDeleted bool
@@ -772,7 +771,7 @@ const sshdBinary = "sshd"
 
 func updateSSHDConfig(keyDir, sshdConfigPath string) error {
 	// has to write to the beginning of the sshd_config file as
-	// openssh takes the first occurance of a setting
+	// openssh takes the first occurrence of a setting
 	sshdConfig, err := os.OpenFile(sshdConfigPath, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return trace.Wrap(err)
