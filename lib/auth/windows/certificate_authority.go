@@ -88,10 +88,12 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	//
 	// Below we do #2 and #3.
 	if err := c.updateCAInNTAuthStore(ctx, caDER); err != nil {
-		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
+		c.cfg.Log.WithError(err).Warnf("Failed to update NTAuth store. You must do this manually in order to connect.")
+		// return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
 	}
 	if err := c.updateCRL(ctx, crlDER); err != nil {
-		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
+		c.cfg.Log.WithError(err).Warnf("Failed to update CRL. You probably have to do this, too.")
+		// return trace.Wrap(err, "updating CRL over LDAP: %v", err)
 	}
 	return nil
 }
