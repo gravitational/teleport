@@ -6,7 +6,7 @@ import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
 import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
-import { ResourceKind } from '../NewRequest/useNewRequest';
+import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();

@@ -14,7 +14,7 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { ServerSideParams } from 'teleterm/services/tshd/types';
 import { routing } from 'teleterm/ui/uri';
-import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import type {
   AgentLabel,
@@ -31,7 +31,7 @@ export default function useNewRequest() {
   const { accessRequestsService, localClusterUri: clusterUri } =
     useWorkspaceContext();
 
-  const loggedInUser = useLoggedInUser();
+  const loggedInUser = useWorkspaceLoggedInUser();
 
   const isLeafCluster = routing.isLeafCluster(clusterUri);
 
@@ -40,7 +40,7 @@ export default function useNewRequest() {
   const [fetchedData, setFetchedData] = useState<AgentResponse<AgentKind>>(
     getEmptyFetchedDataState()
   );
-  const requestableRoles = loggedInUser.requestableRolesList || [];
+  const requestableRoles = loggedInUser?.requestableRolesList || [];
   const [selectedResource, setSelectedResource] =
     useState<ResourceKind>('node');
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({

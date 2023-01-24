@@ -4,7 +4,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { AssumedRequest, LoggedInUser } from 'teleterm/services/tshd/types';
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
-import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { retryWithRelogin } from 'teleterm/ui/utils';
@@ -17,7 +17,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
   ctx.clustersService.useState();
 
   const { localClusterUri: clusterUri, rootClusterUri } = useWorkspaceContext();
-  const loggedInUser = useLoggedInUser();
+  const loggedInUser = useWorkspaceLoggedInUser();
   const [request, setRequest] = useState<AccessRequest>(null);
   const { attempt, run: runGetRequest } = useAttempt('processing');
   const { attempt: submitReviewAttempt, run: runSubmitReview } = useAttempt('');
