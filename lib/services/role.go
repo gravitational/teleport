@@ -707,7 +707,7 @@ func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 	return NewRoleSet(role), nil
 }
 
-// RW is a shortcut that returns all verbs.
+// RW is a shortcut that returns all CRUD verbs.
 func RW() []string {
 	return []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 }
