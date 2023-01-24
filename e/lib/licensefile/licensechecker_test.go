@@ -24,6 +24,7 @@ import (
 	liblicense "github.com/gravitational/license"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
 )
@@ -42,6 +43,18 @@ func (msi *mockStatusInternal) UpsertClusterAlert(ctx context.Context, alert typ
 }
 
 func (msi *mockStatusInternal) DeleteClusterAlert(ctx context.Context, alertID string) error {
+	return nil
+}
+
+func (msi *mockStatusInternal) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
+	return nil
+}
+
+func (msi *mockStatusInternal) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
+	return nil, nil
+}
+
+func (msi *mockStatusInternal) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
 	return nil
 }
 
