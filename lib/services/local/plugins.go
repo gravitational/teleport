@@ -125,7 +125,7 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 		return nil, trace.Wrap(err)
 	}
 
-	plugins := make([]types.Plugin, len(result.Items))
+	plugins := make([]types.Plugin, 0, len(result.Items))
 	for _, item := range result.Items {
 		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
