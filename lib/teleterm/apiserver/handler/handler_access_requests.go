@@ -129,9 +129,10 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	requestedResourceIDs := make([]*api.ResourceID, 0, len(req.GetRequestedResourceIDs()))
 	for _, r := range req.GetRequestedResourceIDs() {
 		requestedResourceIDs = append(requestedResourceIDs, &api.ResourceID{
-			ClusterName: r.ClusterName,
-			Kind:        r.Kind,
-			Name:        r.Name,
+			ClusterName:     r.ClusterName,
+			Kind:            r.Kind,
+			Name:            r.Name,
+			SubResourceName: r.SubResourceName,
 		})
 	}
 	resources := make([]*api.Resource, len(requestedResourceIDs))
@@ -140,9 +141,10 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 
 		resources[i] = &api.Resource{
 			Id: &api.ResourceID{
-				ClusterName: r.ClusterName,
-				Kind:        r.Kind,
-				Name:        r.Name,
+				ClusterName:     r.ClusterName,
+				Kind:            r.Kind,
+				Name:            r.Name,
+				SubResourceName: r.SubResourceName,
 			},
 			// If there are no details for this resource, the map lookup returns
 			// the default value which is empty details
@@ -169,7 +171,10 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 
 // resourceIDToString marshals a ResourceID to a string.
 func resourceIDToString(id *api.ResourceID) string {
-	return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
+	if id.SubResourceName == "" {
+		return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
+	}
+	return fmt.Sprintf("/%s/%s/%s/%s", id.ClusterName, id.Kind, id.Name, id.SubResourceName)
 }
 
 func newAPIResourceDetails(details clusters.ResourceDetails) *api.ResourceDetails {

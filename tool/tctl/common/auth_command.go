@@ -614,7 +614,7 @@ client_encryption_options:
 
 func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.
-	if err := a.checkProxyAddr(clusterAPI); err != nil {
+	if err := a.checkProxyAddr(ctx, clusterAPI); err != nil {
 		return trace.Wrap(err)
 	}
 	// parse compatibility parameter
@@ -733,7 +733,13 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	kubeTLSServerName := ""
 	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
 		log.Debug("Using Proxy SNI for kube TLS server name")
-		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
+		u, err := parseURL(a.proxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// extract host part if present
+		split := strings.Split(u.Host, ":")
+		kubeTLSServerName = client.GetKubeTLSServerName(split[0])
 	}
 
 	expires, err := key.TeleportTLSCertValidBefore()
@@ -817,7 +823,7 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.Clie
 	return nil
 }
 
-func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
+func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.ClientI) error {
 	if a.outputFormat != identityfile.FormatKubernetes && a.proxyAddr != "" {
 		// User set --proxy but it's not actually used for the chosen --format.
 		// Print a warning but continue.
@@ -829,7 +835,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 	}
 	if a.proxyAddr != "" {
 		// User set --proxy. Validate it and set its scheme to https in case it was omitted.
-		u, err := url.Parse(a.proxyAddr)
+		u, err := parseURL(a.proxyAddr)
 		if err != nil {
 			return trace.WrapWithMessage(err, "specified --proxy URL is invalid")
 		}
@@ -850,8 +856,17 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 	// Is the auth server also a proxy?
 	if a.config.Proxy.Kube.Enabled {
 		var err error
+		if a.config.Auth.NetworkingConfig != nil &&
+			a.config.Auth.NetworkingConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			a.proxyAddr, err = a.config.Proxy.WebPublicAddr()
+			return trace.Wrap(err)
+		}
 		a.proxyAddr, err = a.config.Proxy.KubeAddr()
 		return trace.Wrap(err)
+	}
+	netConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.WrapWithMessage(err, "couldn't load cluster network configuration, try setting --proxy manually")
 	}
 	// Fetch proxies known to auth server and try to find a public address.
 	proxies, err := clusterAPI.GetProxies()
@@ -863,6 +878,16 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		if addr == "" {
 			continue
 		}
+
+		if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			u := url.URL{
+				Scheme: "https",
+				Host:   addr,
+			}
+			a.proxyAddr = u.String()
+			return nil
+		}
+
 		uaddr, err := utils.ParseAddr(addr)
 		if err != nil {
 			log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
@@ -877,6 +902,22 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 	}
 
 	return trace.BadParameter("couldn't find registered public proxies, specify --proxy when using --format=%q", identityfile.FormatKubernetes)
+}
+
+func parseURL(rawurl string) (*url.URL, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If no scheme is provided url.Parse fails the parsing and considers the host
+	// as scheme, leaving the host empty.
+	if u.Host == "" {
+		return &url.URL{
+			Host: rawurl,
+		}, nil
+	}
+
+	return u, nil
 }
 
 func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName string) (types.AppServer, error) {

@@ -98,6 +98,11 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		return true, trace.Wrap(err)
 	}
 
+	originalName, err := resourceName(f.Name())
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+
 	args := strings.Fields(editor())
 	editorCmd := exec.CommandContext(ctx, args[0], append(args[1:], f.Name())...)
 	editorCmd.Stdin = os.Stdin
@@ -126,7 +131,7 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		return true, trace.Wrap(err)
 	}
 
-	if e.ref.Name != newName {
+	if originalName != newName {
 		return true, trace.NotImplemented("renaming resources is not supported with tctl edit")
 	}
 
