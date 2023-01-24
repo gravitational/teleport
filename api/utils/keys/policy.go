@@ -73,13 +73,13 @@ func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 // error and returns the contained unmet PrivateKeyPolicy.
 func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	if err == nil {
-		return "", trace.BadParameter("provided error is not a key policy error")
+		return "", trace.BadParameter("provided error is not a key policy error: %v", err)
 	}
 
 	// subMatches should have two groups - the full string and the policy "(\w+)"
 	subMatches := privateKeyPolicyErrRegex.FindStringSubmatch(err.Error())
 	if subMatches == nil || len(subMatches) != 2 {
-		return "", trace.BadParameter("provided error is not a key policy error")
+		return "", trace.BadParameter("provided error is not a key policy error: %v", err)
 	}
 
 	policy := PrivateKeyPolicy(subMatches[1])
