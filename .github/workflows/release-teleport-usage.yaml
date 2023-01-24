@@ -15,11 +15,15 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: docker/setup-buildx-action@v2
-      - uses: docker/build-push-action@v3
-        with:
-          context: "{{defaultContext}}:examples/teleport-usage"
-          tags: "public.ecr.aws/gravitational/teleport-usage:${GITHUB_REF_NAME#v}"
+      - id: version
+        run: | 
+          echo "${GITHUB_REF_NAME#v}"
+        
+      # - uses: docker/setup-buildx-action@v2
+      # - uses: docker/build-push-action@v3
+      #   with:
+      #     context: "{{defaultContext}}:examples/teleport-usage"
+      #     tags: "public.ecr.aws/gravitational/teleport-usage:${GITHUB_REF_NAME#v}"
       # - uses: aws-actions/configure-aws-credentials@v1
       #   with:
       #     role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
