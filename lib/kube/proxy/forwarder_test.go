@@ -997,7 +997,8 @@ func TestClusterSessionDial(t *testing.T) {
 // TestKubeFwdHTTPProxyEnv ensures that kube forwarder doesn't respect HTTPS_PROXY env
 // and Kubernetes API is called directly.
 func TestKubeFwdHTTPProxyEnv(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	f := newMockForwader(ctx, t)
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
@@ -1008,12 +1009,15 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
 	f.cfg.LockWatcher = lockWatcher
 
 	var kubeAPICallCount uint32
 	mockKubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddUint32(&kubeAPICallCount, 1)
 	}))
+
+	t.Cleanup(mockKubeAPI.Close)
 
 	authCtx.teleportCluster.dial = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
@@ -1041,6 +1045,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	authCtx.kubeClusterName = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
+	t.Cleanup(sess.close)
 	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
 
 	sess.tlsConfig.InsecureSkipVerify = true
@@ -1059,6 +1064,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		require.NoError(t, err)
 		fwd.ServeHTTP(w, r)
 	}))
+	t.Cleanup(kubeProxy.Close)
 
 	req, err := http.NewRequest("GET", kubeProxy.URL, nil)
 	require.NoError(t, err)
@@ -1239,6 +1245,10 @@ type mockWatcher struct {
 }
 
 func (m *mockWatcher) Close() error {
+	return nil
+}
+
+func (m *mockWatcher) Error() error {
 	return nil
 }
 

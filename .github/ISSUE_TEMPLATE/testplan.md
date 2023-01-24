@@ -26,6 +26,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Adding Trusted Cluster Valid Short-lived Token
   - [ ] Adding Trusted Cluster Invalid Token
   - [ ] Removing Trusted Cluster
+  - [ ] Changing role map of existing Trusted Cluster
 
 - [ ] RBAC
 
@@ -464,6 +465,11 @@ FIDO2 items.
   - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers platform authenticator
     - [ ] Touch ID
     - [ ] Windows Hello
+  - [ ] Exercise credential picker (register credentials for multiple users in
+        the same device)
+    - [ ] FIDO2 macOS/Linux
+    - [ ] Touch ID
+    - [ ] Windows
   - [ ] Passwordless disable switch works
         (`auth_service.authentication.passwordless = false`)
   - [ ] Cluster in passwordless mode defaults to passwordless
@@ -615,6 +621,14 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
 - [ ] Database Acces: `tsh proxy db`
 - [ ] Application Access: `tsh login app && tsh proxy app`
 
+## Moderated session
+
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator). 
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator. 
+ - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
+
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+- [ ] `t` in any terminal should terminate the session for all participants. 
 
 ## Performance
 

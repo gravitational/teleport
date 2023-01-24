@@ -224,6 +224,8 @@ Follow install instructions from our [installation page](../../installation.mdx#
 
 We recommend configuring Teleport as per the below steps:
 
+<Tabs>
+	<TabItem label="Open Source">
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
 using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service)
 or use DEB/RPM packages available from our [Downloads Page](https://goteleport.com/download/).
@@ -260,6 +262,52 @@ proxy_service:
 ssh_service:
   enabled: false
 ```
+	</TabItem>
+	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
+**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
+using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service)
+or use DEB/RPM packages available from the [Customer Portal](https://dashboard.gravitational.com).
+
+```yaml
+#
+# Sample Teleport configuration teleport.yaml file for Auth Server
+#
+teleport:
+  nodename: teleport-auth-server
+  data_dir: /var/lib/teleport
+  pid_file: /run/teleport.pid
+  connection_limits:
+    max_connections: 15000
+    max_users: 250
+  log:
+    output: stderr
+    severity: DEBUG
+  storage:
+    type: firestore
+    collection_name: Example_FIRESTORE_CLUSTER_STATE
+    # Credentials: Path to google service account file, used for Firestore and Google Storage.
+    credentials_path: Example_GCP_CREDENTIALS
+    project_id: Example_GCP_PROJECT
+    audit_events_uri: 'firestore://Example_FIRESTORE_AUDIT_LOGS?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS'
+    audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS'
+auth_service:
+  enabled: true
+  license_file: /var/lib/teleport/license.pem
+  tokens:
+    - "proxy:(= presets.tokens.first =)"
+    - "node:(= presets.tokens.second =)"
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+```
+
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+
+Save your license file on the Auth Servers at the path,
+`/var/lib/teleport/license.pem`.
+	</TabItem>
+</Tabs>
 
 **2. Set up Proxy**
 
