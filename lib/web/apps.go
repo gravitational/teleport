@@ -88,7 +88,7 @@ type GetAppFQDNResponse struct {
 // application sessions.
 type CreateAppSessionRequest struct {
 	ResolveAppParams
-	// PreflightConnection when set the proxy preflight a connection to an
+	// PreflightConnection when set the proxy preflights a connection to an
 	// AppServer, ensuring it can handle the request. If the preflight fails,
 	// the session is not created and it returns an error.
 	PreflightConnection bool `json:"preflight_connection"`

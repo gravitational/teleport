@@ -270,7 +270,7 @@ func (h *Handler) PreflightConnection(ctx context.Context, identity *tlsca.Ident
 		return trace.Wrap(err)
 	}
 
-	// At least on AppServer needs to be present to serve the requests. Using
+	// At least one AppServer needs to be present to serve the requests. Using
 	// MatchOne can reduce the amount of work required by the app matcher by not
 	// dialing every AppServer.
 	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, identity))
