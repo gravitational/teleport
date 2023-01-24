@@ -132,8 +132,9 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
-    - [ ] Server ID is the ID of the node in "session_recording: node" mode
-    - [ ] Server ID is the ID of the proxy in "session_recording: proxy" mode
+    - [ ] `server_id` is the ID of the node in "session_recording: node" mode
+    - [ ] `server_id` is the ID of the node in "session_recording: proxy" mode
+    - [ ] `forwarded_by` is the ID of the proxy in "session_recording: proxy" mode
 
     Node/Proxy ID may be found at `/var/lib/teleport/host_uuid` in the
     corresponding machine.
@@ -214,6 +215,18 @@ as well as an upgrade of the previous version of Teleport.
   `tsh ssh leaf.node.example.com` results in access denied.
   - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
   succeeds.
+
+- [ ] X11 Forwarding
+  - Install `xeyes` and `xclip`:
+    - Linux: `apt install x11-apps xclip`
+    - Mac: Install and launch [XQuartz](https://www.xquartz.org/) which comes with `xeyes`. Then `brew install xclip`.
+  - Enable X11 forwarding for a Node running as root: `ssh_service.x11.enabled = yes`
+  - [ ] Successfully X11 forward as both root and non-root user
+    - [ ] `tsh ssh -X user@node xeyes`
+    - [ ] `tsh ssh -X root@node xeyes`
+  - [ ] Test untrusted vs trusted forwarding
+    - [ ] `tsh ssh -Y server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should print "Hello World"
+    - [ ] `tsh ssh -X server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should fail with "BadAccess" X error
 
 ### User accounting
 
