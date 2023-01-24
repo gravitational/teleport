@@ -276,6 +276,11 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			}
 			return nil
 		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			l.cfg.Log.WithError(err).Warnf("Failed to handle request %v %v.", r.Method, r.URL)
+			code := trace.ErrorToCode(err)
+			http.Error(w, http.StatusText(code), code)
+		},
 		Transport: tr,
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {

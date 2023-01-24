@@ -188,7 +188,7 @@ func (m *AWSAccessMiddleware) handleSTSResponse(response *http.Response) error {
 
 	// Save the credentials if valid AssumeRoleOutput is found.
 	type AssumeRoleResponse struct {
-		AssumeRoleResult sts.AssumeRoleOutput
+		AssumeRoleResult sts.AssumeRoleOutput `xml:"AssumeRoleResult"`
 	}
 	var resp AssumeRoleResponse
 	if err = xml.Unmarshal(body, &resp); err == nil {
