@@ -33,7 +33,9 @@ type Plugin interface {
 }
 
 // PluginCredentials are the credentials embedded in Plugin
-type PluginCredentials interface{}
+type PluginCredentials interface {
+	GetOAuth2AccessToken() *PluginOAuth2AccessTokenCredentials
+}
 
 // PluginStatus is the plugin status
 type PluginStatus interface {
