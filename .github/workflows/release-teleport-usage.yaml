@@ -22,7 +22,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
-          aws-region: us-west-2
+          aws-region: us-east-1
       - uses: aws-actions/amazon-ecr-login@v1
         with:
           registry-type: public
