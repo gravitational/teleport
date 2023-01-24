@@ -67,7 +67,6 @@ interface DiscoverContextState<T = any> {
   views: View[];
   emitErrorEvent(errorStr: string): void;
   emitEvent(status: DiscoverEventStepStatus): void;
-  updateEventState(): void;
   eventState: EventState;
 }
 
@@ -137,6 +136,21 @@ export function DiscoverProvider<T = any>(
     // Only add listener and umount logic once on init.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (selectedResourceKind === ResourceKind.Database && !resourceState) {
+      // resourceState hasn't been loaded yet, this state is required to
+      // determine what type of database (engine/location) user
+      // selected to send the correct event. This state gets set when
+      // user selects a database (deployment type).
+      return;
+    }
+    updateEventState();
+
+    // Only run it once on init or when resource selection
+    // or resource state has changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedResourceKind, resourceState]);
 
   function onSelectResource(kind: ResourceKind) {
     setSelectedResourceKind(kind);
@@ -277,7 +291,6 @@ export function DiscoverProvider<T = any>(
     views,
     emitErrorEvent,
     emitEvent,
-    updateEventState,
     eventState,
   };
 

@@ -65,7 +65,7 @@ describe('emitting events', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   test('init the eventState state', async () => {
@@ -77,12 +77,7 @@ describe('emitting events', () => {
     expect(result.current.currentStep).toBe(0);
     expect(result.current.selectedResourceKind).toEqual(ResourceKind.Server);
     expect(result.current.selectedResource.kind).toEqual(ResourceKind.Server);
-    expect(result.current.eventState).toBeUndefined();
 
-    // Init the eventState.
-    await act(async () => {
-      result.current.updateEventState();
-    });
     expect(result.current.currentStep).toBe(0);
     expect(result.current.eventState).toEqual(
       expect.objectContaining({
@@ -111,9 +106,6 @@ describe('emitting events', () => {
     await act(async () => {
       result.current.onSelectResource(ResourceKind.Kubernetes);
     });
-    await act(async () => {
-      result.current.updateEventState();
-    });
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(0);
     expect(result.current.eventState).toStrictEqual({
       id: eventId,
@@ -126,12 +118,7 @@ describe('emitting events', () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-
-    // Init the eventState.
-    await act(async () => {
-      result.current.updateEventState();
-    });
-    jest.resetAllMocks(); // init eventState emits an event.
+    jest.resetAllMocks(); // to discount the initial start event.
 
     const id = result.current.eventState.id;
 
@@ -181,12 +168,7 @@ describe('emitting events', () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-
-    // Init the eventState.
-    await act(async () => {
-      result.current.updateEventState();
-    });
-    jest.resetAllMocks(); // init eventState emits an event.
+    jest.resetAllMocks(); // to discount the initial start event.
 
     const id = result.current.eventState.id;
 
@@ -239,12 +221,7 @@ describe('emitting events', () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-
-    // Init the eventState.
-    await act(async () => {
-      result.current.updateEventState();
-    });
-    jest.resetAllMocks(); // init eventState emits an event.
+    jest.resetAllMocks(); // to discount the initial start event.
 
     const id = result.current.eventState.id;
 
@@ -269,12 +246,7 @@ describe('emitting events', () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-
-    // Init the eventState.
-    await act(async () => {
-      result.current.updateEventState();
-    });
-    jest.resetAllMocks(); // init eventState emits an event.
+    jest.resetAllMocks(); // to discount the initial start event.
 
     await act(async () => {
       result.current.emitErrorEvent('some error message');
