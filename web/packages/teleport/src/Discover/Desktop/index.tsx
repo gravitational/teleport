@@ -52,15 +52,19 @@ export const DesktopResource: Resource = {
     {
       title: 'Install Active Directory',
       component: InstallActiveDirectory,
+      eventName: DiscoverEvent.InstallActiveDirectory,
     },
     {
       title: 'Connect Teleport',
       component: ConnectTeleport,
+      // Sub-step events are handled inside its component.
+      // This eventName defines the event to emit for the `last` sub-step.
       eventName: DiscoverEvent.DeployService,
     },
     {
       title: 'Discover Desktops',
       component: DiscoverDesktops,
+      eventName: DiscoverEvent.DiscoverDesktops,
     },
     {
       title: 'Finished',

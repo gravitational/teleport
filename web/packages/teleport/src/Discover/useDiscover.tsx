@@ -66,7 +66,7 @@ interface DiscoverContextState<T = any> {
   updateAgentMeta: (meta: AgentMeta) => void;
   views: View[];
   emitErrorEvent(errorStr: string): void;
-  emitEvent(status: DiscoverEventStepStatus): void;
+  emitEvent(status: DiscoverEventStepStatus, eventName?: DiscoverEvent): void;
   eventState: EventState;
 }
 

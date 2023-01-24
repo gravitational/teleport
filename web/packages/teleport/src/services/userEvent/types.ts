@@ -40,6 +40,9 @@ export enum DiscoverEvent {
   SetUpAccess = 'setup_access',
   TestConnection = 'test_connection',
   Completed = 'completed',
+  InstallActiveDirectory = 'install_active_directory',
+  ConfigureActiveDirectory = 'configure_active_directory',
+  DiscoverDesktops = 'discover_desktops',
 }
 
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
