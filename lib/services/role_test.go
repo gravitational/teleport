@@ -4524,12 +4524,30 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 	matchingLabelsRoleWithMFA := &types.RoleV6{
 		Metadata: types.Metadata{
-			Name:      "matching-labels",
+			Name:      "matching-labels-mfa",
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				RequireMFAType: types.RequireMFAType_SESSION,
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"foo": apiutils.Strings{"bar"},
+					"baz": apiutils.Strings{"qux"},
+				},
+			},
+		},
+	}
+	matchingLabelsRoleWithDeviceTrust := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "matching-labels-devicetrust",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				DeviceTrustMode: constants.DeviceTrustModeRequired,
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -4648,6 +4666,36 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			cluster:   clusterWithLabels,
 			state:     AccessState{MFAVerified: true, MFARequired: MFARequiredAlways},
 			hasAccess: true,
+		},
+		{
+			name:    "role requires device trust, device not verified",
+			roles:   []*types.RoleV6{wildcardRole, matchingLabelsRole, matchingLabelsRoleWithDeviceTrust},
+			cluster: clusterWithLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           false,
+			},
+			hasAccess: false,
+		},
+		{
+			name:    "role requires device trust, device verified",
+			roles:   []*types.RoleV6{wildcardRole, matchingLabelsRole, matchingLabelsRoleWithDeviceTrust},
+			cluster: clusterWithLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           true,
+			},
+			hasAccess: true,
+		},
+		{
+			name:    "role requires device trust, resource doesn't match",
+			roles:   []*types.RoleV6{wildcardRole, matchingLabelsRole, matchingLabelsRoleWithDeviceTrust},
+			cluster: clusterNoLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           false,
+			},
+			hasAccess: true, // doesn't match device trust role
 		},
 	}
 	for _, tc := range testCases {
