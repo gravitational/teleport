@@ -37,7 +37,7 @@ auth_service:
     second_factor: "{{ $authentication.secondFactor }}"
   {{- if not (or (eq $authentication.secondFactor "off") (eq $authentication.secondFactor "otp")) }}
     webauthn:
-      rp_id: {{ first (default (list .Values.clusterName) .Values.publicAddr) }}
+      rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
     {{- if $authentication.webauthn }}
       {{- if $authentication.webauthn.attestationAllowedCas }}
       attestation_allowed_cas: {{- toYaml $authentication.webauthn.attestationAllowedCas | nindent 12 }}

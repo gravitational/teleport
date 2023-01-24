@@ -343,44 +343,6 @@ matches snapshot for auth-webauthn-legacy.yaml:
           output: stderr
           severity: INFO
       version: v3
-matches snapshot for auth-webauthn-rpid.yaml:
-  1: |
-    |-
-      auth_service:
-        authentication:
-          local_auth: true
-          second_factor: webauthn
-          type: local
-          webauthn:
-            attestation_allowed_cas:
-            - /etc/ssl/certs/ca-certificates.crt
-            attestation_denied_cas:
-            - /etc/ssl/certs/ca-certificates.crt
-            rp_id: teleport.example.com
-        cluster_name: helm-lint
-        enabled: true
-        proxy_listener_mode: separate
-      kubernetes_service:
-        enabled: true
-        kube_cluster_name: helm-lint
-        listen_addr: 0.0.0.0:3026
-        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
-      proxy_service:
-        enabled: false
-      ssh_service:
-        enabled: false
-      teleport:
-        log:
-          format:
-            extra_fields:
-            - timestamp
-            - level
-            - component
-            - caller
-            output: text
-          output: stderr
-          severity: INFO
-      version: v3
 matches snapshot for auth-webauthn.yaml:
   1: |
     |-
@@ -1220,7 +1182,7 @@ matches snapshot for public-addresses.yaml:
           second_factor: "on"
           type: local
           webauthn:
-            rp_id: loadbalancer.example.com:443
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
