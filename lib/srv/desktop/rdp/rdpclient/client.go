@@ -284,7 +284,7 @@ func (c *Client) start() {
 		c.cfg.Log.Info("RDP output streaming starting")
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
-		// calls handle_png repeatedly with the incoming bitmaps.
+		// calls handle_png repeatedly with the incoming pngs.
 		res := C.read_rdp_output(c.rustClient)
 
 		// Copy the returned message and free the C memory.
