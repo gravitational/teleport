@@ -100,7 +100,7 @@ flowchart LR
 
 An Okta service should be introduced that synchronizes Okta applications, users, and groups with
 Teleport equivalents and new objects.  The Okta service should have its own unique top level
-configuration. The following config fields will be available in the Teleport config YAML::
+configuration. The following config fields will be available in the Teleport config YAML:
 
 | Name | Required | Description |
 |------|----------|-------------|
@@ -118,24 +118,10 @@ okta_service:
   api_token_path: /path/to/token
 ```
 
-#### `OktaServicePreference` dynamic configuration
+#### Connection to Teleport
 
-A singleton `OktaServicePreference` object can be created that will allow users to enable and
-configure this service dynamically at runtime. The object will look like the following:
-
-```yaml
-kind: okta_service_preference
-version: v1
-metadata:
-  name: okta-service-preference
-spec:
-  enabled: true
-  api_endpoint: https://my-okta-endpoint.okta.com
-  api_token: <my-token>
-```
-
-This will additionally allow cloud users to configure the Okta service without needing access
-to the configuration file.
+The Okta service will connect to Teleport proxy over a reverse tunnel. This will ensure that
+users will be able to run the Okta service and connect it to a cloud instance.
 
 ### Okta user traits
 
@@ -381,9 +367,9 @@ A number of new audit events will be created as part of this effort:
 
 ### Implementation plan
 
-#### `Group`, `OktaServicePreference`, and `OktaLabelRules` objects
+#### `Group` and `OktaLabelRules` objects
 
-The new `Group`, `OktaServicePreference`, and `OktaLabelRules` objects should be implemented
+The new `Group` and `OktaLabelRules` objects should be implemented
 along with any database and gRPC modifications required.
 
 #### Okta service configuration
