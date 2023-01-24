@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -382,8 +383,27 @@ func BuildRoleARN(username, region, accountID string) string {
 	}
 	return arn.ARN{
 		Partition: apiawsutils.GetPartitionFromRegion(region),
-		Service:   "iam",
+		Service:   iam.ServiceName,
 		AccountID: accountID,
 		Resource:  resource,
 	}.String()
+}
+
+// ValidateRoleARNAndExtractRoleName validates the role ARN and extracts the
+// short role name from it.
+func ValidateRoleARNAndExtractRoleName(roleARN, wantPartition, wantAccountID string) (string, error) {
+	role, err := arn.Parse(roleARN)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if !strings.HasPrefix(role.Resource, "role/") || role.Service != iam.ServiceName {
+		return "", trace.BadParameter("%q is not a IAM role", roleARN)
+	}
+	if role.Partition != wantPartition {
+		return "", trace.BadParameter("expecting AWS account partition %q but got %q", wantPartition, role.Partition)
+	}
+	if role.AccountID != wantAccountID {
+		return "", trace.BadParameter("expecting AWS account ID %q but got %q", wantAccountID, role.AccountID)
+	}
+	return strings.TrimPrefix(role.Resource, "role/"), nil
 }

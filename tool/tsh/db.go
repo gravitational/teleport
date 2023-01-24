@@ -1017,17 +1017,8 @@ func formatDatabaseConnectCommand(clusterFlag string, active tlsca.RouteToDataba
 // formatDatabaseConnectArgs generates the arguments for "tsh db connect" command.
 func formatDatabaseConnectArgs(clusterFlag string, active tlsca.RouteToDatabase) (flags []string) {
 	// figure out if we need --db-user and --db-name
-	matchers := role.DatabaseRoleMatchers(active.Protocol, active.Username, active.Database)
-	needUser := false
-	needDatabase := false
-
-	for _, matcher := range matchers {
-		_, userMatcher := matcher.(*services.DatabaseUserMatcher)
-		needUser = needUser || userMatcher
-
-		_, nameMatcher := matcher.(*services.DatabaseNameMatcher)
-		needDatabase = needDatabase || nameMatcher
-	}
+	needUser := role.RequireDatabaseUserMatcher(active.Protocol)
+	needDatabase := role.RequireDatabaseNameMatcher(active.Database)
 
 	if clusterFlag != "" {
 		flags = append(flags, fmt.Sprintf("--cluster=%s", clusterFlag))
