@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"k8s.io/apimachinery/pkg/labels"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -74,6 +75,8 @@ type ResourceCommand struct {
 	getCmd    *kingpin.CmdClause
 	createCmd *kingpin.CmdClause
 	updateCmd *kingpin.CmdClause
+
+	selector string
 
 	verbose bool
 
@@ -146,6 +149,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
+	rc.getCmd.Flag("selector", "Label selector to filter results on. Uses kubernetes label selector syntax.").Short('l').StringVar(&rc.selector)
 	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 	rc.getCmd.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&rc.verbose)
@@ -293,6 +297,19 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 	}
+}
+
+// compileSelector converts the selector into a labels.Selector object
+func (rc *ResourceCommand) compileSelector() (labels.Selector, error) {
+	if rc.selector != "" {
+		selector, err := labels.Parse(rc.selector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return selector, nil
+	}
+	return nil, nil
 }
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
@@ -1069,10 +1086,33 @@ func (rc *ResourceCommand) IsForced() bool {
 	return rc.force
 }
 
+// filterWithSelector will filter resources with a given selector. If the selector is nil, the resources will be unfiltered.
+func filterWithSelector[T types.Resource](selector labels.Selector, resources []T) []T {
+	// If no selector is defined, just return the resources as is
+	if selector == nil {
+		return resources
+	}
+
+	filteredResources := []T{}
+	for _, resource := range resources {
+		// If the selector matches, add it into the filtered set of resources.
+		if selector.Matches(labels.Set(resource.GetMetadata().Labels)) {
+			filteredResources = append(filteredResources, resource)
+		}
+	}
+
+	return filteredResources
+}
+
 // getCollection lists all resources of a given type
 func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.ClientI) (ResourceCollection, error) {
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+
+	selector, err := rc.compileSelector()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	switch rc.ref.Kind {
@@ -1082,7 +1122,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &userCollection{users: users}, nil
+			return &userCollection{users: filterWithSelector(selector, users)}, nil
 		}
 		user, err := client.GetUser(rc.ref.Name, rc.withSecrets)
 		if err != nil {
@@ -1107,35 +1147,35 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			finalErr = trace.NewAggregate(errs...)
 		}
 		return &connectorsCollection{
-			saml:   sc,
-			oidc:   oc,
-			github: gc,
+			saml:   filterWithSelector(selector, sc),
+			oidc:   filterWithSelector(selector, oc),
+			github: filterWithSelector(selector, gc),
 		}, finalErr
 	case types.KindSAMLConnector:
 		connectors, err := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &samlCollection{connectors}, nil
+		return &samlCollection{filterWithSelector(selector, connectors)}, nil
 	case types.KindOIDCConnector:
 		connectors, err := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &oidcCollection{connectors}, nil
+		return &oidcCollection{filterWithSelector(selector, connectors)}, nil
 	case types.KindGithubConnector:
 		connectors, err := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &githubCollection{connectors}, nil
+		return &githubCollection{filterWithSelector(selector, connectors)}, nil
 	case types.KindReverseTunnel:
 		if rc.ref.Name == "" {
 			tunnels, err := client.GetReverseTunnels(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &reverseTunnelCollection{tunnels: tunnels}, nil
+			return &reverseTunnelCollection{tunnels: filterWithSelector(selector, tunnels)}, nil
 		}
 		tunnel, err := client.GetReverseTunnel(rc.ref.Name)
 		if err != nil {
@@ -1156,7 +1196,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 				}
 				allAuthorities = append(allAuthorities, authorities...)
 			}
-			return &authorityCollection{cas: allAuthorities}, nil
+			return &authorityCollection{cas: filterWithSelector(selector, allAuthorities)}, nil
 		}
 		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
 		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
@@ -1170,7 +1210,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &serverCollection{servers: nodes}, nil
+			return &serverCollection{servers: filterWithSelector(selector, nodes)}, nil
 		}
 		for _, node := range nodes {
 			if node.GetName() == rc.ref.Name || node.GetHostname() == rc.ref.Name {
@@ -1184,7 +1224,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
+			return &serverCollection{servers: filterWithSelector(selector, servers)}, nil
 		}
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
@@ -1198,7 +1238,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
+			return &serverCollection{servers: filterWithSelector(selector, servers)}, nil
 		}
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
@@ -1212,7 +1252,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &roleCollection{roles: roles, verbose: rc.verbose}, nil
+			return &roleCollection{roles: filterWithSelector(selector, roles), verbose: rc.verbose}, nil
 		}
 		role, err := client.GetRole(ctx, rc.ref.Name)
 		if err != nil {
@@ -1224,6 +1264,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			namespaces, err := client.GetNamespaces()
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			// Implement custom selector logic since KindNamespace is not an interface here.
+			if selector != nil {
+				filteredNamespaces := []types.Namespace{}
+				for _, namespace := range namespaces {
+					if selector.Matches(labels.Set(namespace.GetMetadata().Labels)) {
+						filteredNamespaces = append(filteredNamespaces, namespace)
+					}
+				}
+				return &namespaceCollection{namespaces: filteredNamespaces}, nil
 			}
 			return &namespaceCollection{namespaces: namespaces}, nil
 		}
@@ -1238,7 +1288,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
+			return &trustedClusterCollection{trustedClusters: filterWithSelector(selector, trustedClusters)}, nil
 		}
 		trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
 		if err != nil {
@@ -1251,7 +1301,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
+			return &remoteClusterCollection{remoteClusters: filterWithSelector(selector, remoteClusters)}, nil
 		}
 		remoteCluster, err := client.GetRemoteCluster(rc.ref.Name)
 		if err != nil {
@@ -1266,14 +1316,14 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &semaphoreCollection{sems: sems}, nil
+		return &semaphoreCollection{sems: filterWithSelector(selector, sems)}, nil
 	case types.KindKubeService:
 		servers, err := client.GetKubeServices(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
+			return &serverCollection{servers: filterWithSelector(selector, servers)}, nil
 		}
 		for _, server := range servers {
 			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
@@ -1315,7 +1365,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &lockCollection{locks: locks}, nil
+			return &lockCollection{locks: filterWithSelector(selector, locks)}, nil
 		}
 		name := rc.ref.Name
 		if rc.ref.SubKind != "" {
@@ -1332,7 +1382,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &databaseServerCollection{servers: servers}, nil
+			return &databaseServerCollection{servers: filterWithSelector(selector, servers)}, nil
 		}
 
 		var out []types.DatabaseServer
@@ -1351,7 +1401,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &kubeServerCollection{servers: servers}, nil
+			return &kubeServerCollection{servers: filterWithSelector(selector, servers)}, nil
 		}
 
 		var out []types.KubeServer
@@ -1376,7 +1426,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &appCollection{apps: apps}, nil
+			return &appCollection{apps: filterWithSelector(selector, apps)}, nil
 		}
 		app, err := client.GetApp(ctx, rc.ref.Name)
 		if err != nil {
@@ -1389,7 +1439,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &databaseCollection{databases: databases}, nil
+			return &databaseCollection{databases: filterWithSelector(selector, databases)}, nil
 		}
 		database, err := client.GetDatabase(ctx, rc.ref.Name)
 		if err != nil {
@@ -1402,7 +1452,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &kubeClusterCollection{clusters: clusters}, nil
+			return &kubeClusterCollection{clusters: filterWithSelector(selector, clusters)}, nil
 		}
 		cluster, err := client.GetKubernetesCluster(ctx, rc.ref.Name)
 		if err != nil {
@@ -1415,7 +1465,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &windowsDesktopServiceCollection{services: services}, nil
+			return &windowsDesktopServiceCollection{services: filterWithSelector(selector, services)}, nil
 		}
 
 		var out []types.WindowsDesktopService
@@ -1434,7 +1484,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &windowsDesktopCollection{desktops: desktops}, nil
+			return &windowsDesktopCollection{desktops: filterWithSelector(selector, desktops)}, nil
 		}
 
 		var out []types.WindowsDesktop
@@ -1453,7 +1503,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &tokenCollection{tokens: tokens}, nil
+			return &tokenCollection{tokens: filterWithSelector(selector, tokens)}, nil
 		}
 		token, err := client.GetToken(ctx, rc.ref.Name)
 		if err != nil {
@@ -1466,7 +1516,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &installerCollection{installers: installers}, nil
+			return &installerCollection{installers: filterWithSelector(selector, installers)}, nil
 		}
 		inst, err := client.GetInstaller(ctx, rc.ref.Name)
 		if err != nil {
@@ -1496,6 +1546,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.NotFound("Database Service %q not found", resourceName)
 		}
 
+		// Only filter with selector if resourceName is empty.
+		if resourceName == "" {
+			databaseServices = filterWithSelector(selector, databaseServices)
+		}
+
 		return &databaseServiceCollection{databaseServices: databaseServices}, nil
 	case types.KindLoginRule:
 		loginRuleClient := client.LoginRuleClient()
@@ -1506,20 +1561,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 				})
 				return resp, trail.FromGRPC(err)
 			}
-			var rules []*loginrulepb.LoginRule
+			var rules []*loginrule.Resource
 			resp, err := fetch("")
 			for ; err == nil; resp, err = fetch(resp.NextPageToken) {
-				rules = append(rules, resp.LoginRules...)
+				for _, rule := range resp.LoginRules {
+					rules = append(rules, loginrule.ProtoToResource(rule))
+				}
 				if resp.NextPageToken == "" {
 					break
 				}
 			}
-			return &loginRuleCollection{rules}, trace.Wrap(err)
+			return &loginRuleCollection{filterWithSelector(selector, rules)}, trace.Wrap(err)
 		}
 		rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
 			Name: rc.ref.Name,
 		})
-		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
+		return &loginRuleCollection{[]*loginrule.Resource{loginrule.ProtoToResource(rule)}}, trail.FromGRPC(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

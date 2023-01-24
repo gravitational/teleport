@@ -60,6 +60,25 @@ func TestDatabaseServerResource(t *testing.T) {
 					Protocol:    "mysql",
 					URI:         "localhost:33307",
 				},
+				{
+					Name: "example3",
+					StaticLabels: map[string]string{
+						"label1": "value1",
+						"label2": "value1",
+					},
+					Description: "Example3 MySQL",
+					Protocol:    "mysql",
+					URI:         "localhost:33308",
+				},
+				{
+					Name: "example4",
+					StaticLabels: map[string]string{
+						"label1": "value2",
+					},
+					Description: "Example4 MySQL",
+					Protocol:    "mysql",
+					URI:         "localhost:33309",
+				},
 			},
 		},
 		Proxy: config.Proxy{
@@ -86,13 +105,48 @@ func TestDatabaseServerResource(t *testing.T) {
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 2)
+		require.Len(t, out, 4)
 	})
 
 	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
 
 	t.Run("get specific database server", func(t *testing.T) {
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+	})
+
+	t.Run("get database servers by label value", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json", "-l", "label1=value1"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+	})
+
+	t.Run("get database servers by label exists", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json", "-l", "label1"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 2)
+	})
+
+	t.Run("get database servers by label in set", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json", "-l", "label1 in (value1, value2)"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 2)
+	})
+
+	t.Run("get database servers by label multiple selectors", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json", "-l", "label1 in (value1, value2),label2=value1"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+	})
+
+	t.Run("get specific database server ignores label selector", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", server, "--format=json", "-l", "label1=value1"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
 		require.Len(t, out, 1)
