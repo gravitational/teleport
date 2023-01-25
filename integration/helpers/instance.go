@@ -1311,6 +1311,8 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Stderr:                cfg.Stderr,
 		Stdin:                 cfg.Stdin,
 		Stdout:                cfg.Stdout,
+		SkipLocalAuth:         true,
+		UseKeyPrincipals:      true,
 	}
 
 	// JumpHost turns on jump host mode
