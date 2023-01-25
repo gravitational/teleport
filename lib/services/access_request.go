@@ -73,7 +73,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var errs []error
+	var invalidClusters []string
 	for _, resourceID := range ar.GetRequestedResourceIDs() {
 		if resourceID.ClusterName == "" {
 			continue
@@ -82,17 +82,16 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 			continue
 		}
 		_, err := cg.GetRemoteCluster(resourceID.ClusterName)
-		if err == nil {
-			continue
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
 		}
 		if trace.IsNotFound(err) {
-			errs = append(errs, trace.NotFound("access request contains invalid cluster name %q", resourceID.ClusterName))
-			continue
+			invalidClusters = append(invalidClusters, resourceID.ClusterName)
 		}
-		errs = append(errs, err)
 	}
-	if errs != nil {
-		return trace.NewAggregate(errs...)
+	if len(invalidClusters) > 0 {
+		return trace.NotFound("access request contains invalid or unknown cluster names: %v",
+			strings.Join(invalidClusters, ", "))
 	}
 	return nil
 }
