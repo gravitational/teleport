@@ -65,15 +65,15 @@ login to SQL Server.
 ## Step 4/9. Configure IAM permissions for Teleport
 
 The Teleport Database Service needs Azure IAM permissions to:
-* Discover and register SQL Server instances.
-* Fetch virtual machine managed identities used for login.
+- Discover and register SQL Server instances.
+- Fetch virtual machine managed identities used for login.
 
 ### Configure an Azure service principal
 
 Teleport requires the following permissions:
-* `<resource-type>/read` permissions for discovery, but only for the resource
+- `<resource-type>/read` permissions for discovery, but only for the resource
   types you have. For example, `Microsoft.Sql/managedInstances/read`.
-* `Microsoft.Compute/virtualMachines/read`.
+- `Microsoft.Compute/virtualMachines/read`.
 
 Here is a sample role definition allowing Teleport to read **Azure SQL Servers**
 and **Azure SQL Managed Instances**:
@@ -317,8 +317,8 @@ they're on the same VPC, or if the Teleport VM VPC is peering with the database
 one.
 
 To check if the VM has access, you can do the following on the VM:
-* Using `netcat`: `nc -v youradatabase.database.windows.net 1433`
-* Using `telnet`: `telnet yourdatabase.database.windows.net 1433`
+- Using `netcat`: `nc -v youradatabase.database.windows.net 1433`
+- Using `telnet`: `telnet yourdatabase.database.windows.net 1433`
 
 ## Next steps
 
