@@ -18,6 +18,7 @@ package usagereporter
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -139,16 +140,26 @@ type UsageReporter[T any] struct {
 	// received, but before it's been potentially enqueued, used to ensure sane
 	// sequencing in tests.
 	receiveFunc func()
+
+	eventsClosedOnce sync.Once
+	eventsClosed     chan struct{}
+	// wg is used to wait all goroutines to close
+	wg sync.WaitGroup
 }
 
 // runSubmit starts the submission thread. It should be run as a background
-// goroutine to ensure AnonymizeAndSubmit() never blocks.
+// goroutine to ensure AddEventsToQueue() never blocks.
 func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
+	defer r.wg.Done()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case batch := <-r.submissionQueue:
+		case batch, ok := <-r.submissionQueue:
+			if !ok {
+				return
+			}
 			t0 := time.Now()
 
 			if failed, err := r.submit(r, batch); err != nil {
@@ -230,18 +241,44 @@ func (r *UsageReporter[T]) enqueueBatch() {
 	}
 }
 
+// GracefulStop stops receiving new events and schedules the
+// final batch for submission. It blocks until the final batch
+// has been sent, or until the provided context is canceled.
+// Run must be called before GracefulStop is called.
+func (r *UsageReporter[T]) GracefulStop(ctx context.Context) error {
+	wait := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		close(wait)
+	}()
+
+	r.eventsClosedOnce.Do(func() { close(r.eventsClosed) })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-wait:
+		return nil
+	}
+}
+
 // Run begins processing incoming usage events. It should be run in a goroutine.
 func (r *UsageReporter[T]) Run(ctx context.Context) {
+	defer r.wg.Done()
 	timer := r.clock.NewTimer(r.maxBatchAge)
 
 	// Also start the submission goroutine.
+	r.wg.Add(1)
 	go r.runSubmit(ctx)
+	defer close(r.submissionQueue)
 
 	r.Debug("usage reporter is ready")
 
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-r.eventsClosed:
+			r.enqueueBatch()
 			return
 		case <-timer.Chan():
 			// Once the timer triggers, send any non-empty batch.
@@ -274,6 +311,9 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 			// If we've accumulated enough events to trigger an early send, do
 			// so and reset the timer.
 			if len(r.buf) >= r.minBatchSize {
+				if !timer.Stop() {
+					<-timer.Chan()
+				}
 				timer.Reset(r.maxBatchAge)
 				r.enqueueBatch()
 			}
@@ -282,26 +322,30 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 }
 
 func (r *UsageReporter[T]) AddEventsToQueue(events ...*T) {
-	var submitted []*SubmittedEvent[T]
-
+	submitted := make([]*SubmittedEvent[T], 0, len(events))
 	for _, e := range events {
 		submitted = append(submitted, &SubmittedEvent[T]{
 			Event:            e,
 			retriesRemaining: r.retryAttempts,
 		})
-
-		usageEventsSubmitted.Inc()
 	}
 
-	r.events <- submitted
+	usageEventsSubmitted.Add(float64(len(events)))
+	r.submitEvents(submitted)
 }
 
 // resubmitEvents resubmits events that have already been processed (in case of
 // some error during submission).
 func (r *UsageReporter[T]) resubmitEvents(events []*SubmittedEvent[T]) {
 	usageEventsRequeuedTotal.Add(float64(len(events)))
+	r.submitEvents(events)
+}
 
-	r.events <- events
+func (r *UsageReporter[T]) submitEvents(events []*SubmittedEvent[T]) {
+	select {
+	case r.events <- events:
+	case <-r.eventsClosed: // unblock submitEvent when there is no receiver (because reporter closes)
+	}
 }
 
 type Options[T any] struct {
@@ -348,13 +392,14 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 		options.SubmitClock = clockwork.NewRealClock()
 	}
 
-	return &UsageReporter[T]{
+	reporter := &UsageReporter[T]{
 		Entry: options.Log.WithField(
 			trace.Component,
 			teleport.Component(teleport.ComponentUsageReporting),
 		),
 		events:          make(chan []*SubmittedEvent[T], 1),
 		submissionQueue: make(chan []*SubmittedEvent[T], 1),
+		eventsClosed:    make(chan struct{}),
 		submit:          options.Submit,
 		clock:           options.Clock,
 		submitClock:     options.SubmitClock,
@@ -365,4 +410,10 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 		submitDelay:     options.SubmitDelay,
 		retryAttempts:   options.RetryAttempts,
 	}
+
+	// lowered when Run returns
+	reporter.wg.Add(1)
+
+	return reporter
+
 }
