@@ -71,19 +71,28 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
+	const invalidOSLogin = "invalid-os-user"
 	testCases := []struct {
 		desc                  string
 		portForwardingAllowed bool
 		expectSuccess         bool
+		login                 string
 	}{
 		{
 			desc:                  "Enabled",
 			portForwardingAllowed: true,
 			expectSuccess:         true,
+			login:                 suite.Me.Username,
 		}, {
 			desc:                  "Disabled",
 			portForwardingAllowed: false,
 			expectSuccess:         false,
+			login:                 suite.Me.Username,
+		}, {
+			desc:                  "Enabled w/ invalid user",
+			portForwardingAllowed: true,
+			expectSuccess:         false,
+			login:                 invalidOSLogin,
 		},
 	}
 
@@ -106,7 +115,14 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cfg.SSH.Enabled = true
 			cfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 
-			teleport := suite.NewTeleportWithConfig(t, nil, nil, cfg)
+			// Providing our own logins to Teleport so we can verify that a user
+			// that exists within Teleport but does not exist on the local node
+			// cannot port forward.
+			logins := []string{
+				invalidOSLogin,
+				suite.Me.Username,
+			}
+			teleport := suite.NewTeleportWithConfig(t, logins, nil, cfg)
 			defer teleport.StopAll()
 
 			site := teleport.GetSiteAPI(helpers.Site)
@@ -127,7 +143,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			nodeSSHPort := helpers.Port(t, teleport.SSH)
 			cl, err := teleport.NewClient(helpers.ClientConfig{
-				Login:   suite.Me.Username,
+				Login:   tt.login,
 				Cluster: helpers.Site,
 				Host:    Host,
 				Port:    nodeSSHPort,
