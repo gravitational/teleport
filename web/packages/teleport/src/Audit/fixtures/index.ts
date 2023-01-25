@@ -2684,7 +2684,7 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
-    code: 'TLR00I',
+    code: 'TLR01I',
     ei: 0,
     event: 'login_rule.delete',
     expires: '0001-01-01T00:00:00Z',
