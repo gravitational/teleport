@@ -293,6 +293,11 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	var tokenResult *azcore.AccessToken
 	var errorResult error
 
+	// call Clock.After() before FnCacheGet gets called in a different go-routine.
+	// this ensures there is no race condition in the timeout tests, as
+	// getAccessToken() ends up calling Clock.Advance() there
+	timeoutChan := s.Clock.After(getTokenTimeout)
+
 	go func() {
 		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
 			return s.getAccessToken(ctx, managedIdentity, scope)
@@ -301,7 +306,7 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	}()
 
 	select {
-	case <-s.Clock.After(getTokenTimeout):
+	case <-timeoutChan:
 		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
 	case <-cancelCtx.Done():
 		return tokenResult, errorResult
