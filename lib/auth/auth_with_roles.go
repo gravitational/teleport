@@ -5415,7 +5415,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SAMLIdPServiceProviders.CreateSAMLIdPServiceProvider(ctx, sp)
+	return a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 }
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
@@ -5424,7 +5424,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SAMLIdPServiceProviders.UpdateSAMLIdPServiceProvider(ctx, sp)
+	return a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
 }
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
@@ -5433,7 +5433,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SAMLIdPServiceProviders.DeleteSAMLIdPServiceProvider(ctx, name)
+	return a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
@@ -5442,7 +5442,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SAMLIdPServiceProviders.DeleteAllSAMLIdPServiceProviders(ctx)
+	return a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
