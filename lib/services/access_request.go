@@ -60,6 +60,43 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	return nil
 }
 
+// ClusterGetter provides access to the local cluster
+type ClusterGetter interface {
+	// GetClusterName returns the local cluster name
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+}
+
+// ValidateAccessRequestClusterNames checks that the clusters in the access request exist
+func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest) error {
+	localClusterName, err := cg.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var invalidClusters []string
+	for _, resourceID := range ar.GetRequestedResourceIDs() {
+		if resourceID.ClusterName == "" {
+			continue
+		}
+		if resourceID.ClusterName == localClusterName.GetClusterName() {
+			continue
+		}
+		_, err := cg.GetRemoteCluster(resourceID.ClusterName)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
+		}
+		if trace.IsNotFound(err) {
+			invalidClusters = append(invalidClusters, resourceID.ClusterName)
+		}
+	}
+	if len(invalidClusters) > 0 {
+		return trace.NotFound("access request contains invalid or unknown cluster names: %v",
+			strings.Join(invalidClusters, ", "))
+	}
+	return nil
+}
+
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
 	return NewAccessRequestWithResources(user, roles, []types.ResourceID{})
