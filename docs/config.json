@@ -1002,6 +1002,10 @@
               "slug": "/machine-id/guides/github-actions/"
             },
             {
+              "title": "CircleCI",
+              "slug": "/machine-id/guides/circleci/"
+            },
+            {
               "title": "GitHub Actions & Kubernetes",
               "slug": "/machine-id/guides/github-actions-kubernetes/"
             },
