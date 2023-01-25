@@ -42,6 +42,7 @@ type Config struct {
 	// Entry is the logger entry.
 	Entry *log.Entry
 	// LogLevel is the log level at which errors will be logged.
+	// The default log level (0) is panic.
 	LogLevel log.Level
 	// DebugReport indicates whether a debug report should be generated
 	// for the errors reported.
