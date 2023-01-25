@@ -34,16 +34,24 @@ func TestIngressReporter(t *testing.T) {
 	reporter.ConnectionAccepted(SSH, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 1, getActiveConnections(PathALPN, SSH))
+	require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathALPN, SSH))
+	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH))
 
 	reporter.ConnectionClosed(SSH, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 0, getActiveConnections(PathALPN, SSH))
+	require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathALPN, SSH))
+	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH))
 
 	reporter.ConnectionAuthenticated(SSH, conn)
+	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
+	require.Equal(t, 0, getActiveConnections(PathALPN, SSH))
 	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 1, getAuthenticatedActiveConnections(PathALPN, SSH))
 
 	reporter.AuthenticatedConnectionClosed(SSH, conn)
+	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
+	require.Equal(t, 0, getActiveConnections(PathALPN, SSH))
 	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH))
 }

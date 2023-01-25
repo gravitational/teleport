@@ -102,8 +102,10 @@ type Server struct {
 	// clock is used to control time.
 	clock clockwork.Clock
 
+	// ingressReporter reports new and active connections.
 	ingressReporter *ingress.Reporter
-	ingressService  string
+	// ingressService the service name passed to the ingress reporter.
+	ingressService string
 }
 
 const (
@@ -125,6 +127,7 @@ const (
 // ServerOption is a functional argument for server
 type ServerOption func(cfg *Server) error
 
+// SetIngressReporter sets the reporter for reporting new and active connections.
 func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 	return func(s *Server) error {
 		s.ingressReporter = r

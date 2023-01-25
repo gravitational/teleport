@@ -30,50 +30,61 @@ import (
 
 // Constants for each ingress service.
 const (
-	Web         = "web"
-	SSH         = "ssh"
-	Kube        = "kube"
-	Tunnel      = "tunnel"
-	MySQL       = "mysql"
-	Postgres    = "postgres"
+	// Kube is the service name for traffic ingressing through a proxy's web listener.
+	Web = "web"
+	// Kube is the service name for traffic ingressing through a proxy's ssh listener.
+	SSH = "ssh"
+	// Kube is the service name for traffic ingressing through a proxy's kube listener.
+	Kube = "kube"
+	// Kube is the service name for traffic ingressing through a proxy's reverse tunnel listener.
+	Tunnel = "tunnel"
+	// Kube is the service name for traffic ingressing through a proxy's mysql listener.
+	MySQL = "mysql"
+	// Kube is the service name for traffic ingressing through a proxy's postgres listener.
+	Postgres = "postgres"
+	// Kube is the service name for traffic ingressing through a proxy's database tls listener.
 	DatabaseTLS = "database_tls"
 )
 
-// Constants for each ingress path.
 const (
-	PathDirect  = "direct"
-	PathALPN    = "alpn"
+	// PathDirect is the ingress path for traffic that is accepted directly by a service listener.
+	PathDirect = "direct"
+	// PathALPN is the ingress path for traffic that is accepeted by the alpn listener.
+	PathALPN = "alpn"
+	// PathUnknown is the ingress path when no other path can be identified.
 	PathUnknown = "unknown"
 )
 
-var commonLabels = []string{"ingress_path", "ingress_service"}
+var (
+	commonLabels = []string{"ingress_path", "ingress_service"}
 
-// acceptedConnections measures connections accepted by each listener type and ingress path.
-// This allows us to differentiate between connectoins going through alpn routing or directly
-// to the listener.
-var acceptedConnections = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "teleport",
-	Name:      "accepted_connections_total",
-}, commonLabels)
+	// acceptedConnections measures connections accepted by each listener type and ingress path.
+	// This allows us to differentiate between connections going through alpn routing or directly
+	// to the listener.
+	acceptedConnections = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "teleport",
+		Name:      "accepted_connections_total",
+	}, commonLabels)
 
-// activeConnections measures the current number of active connections.
-var activeConnections = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-	Namespace: "teleport",
-	Name:      "active_connections",
-}, commonLabels)
+	// activeConnections measures the current number of active connections.
+	activeConnections = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "teleport",
+		Name:      "active_connections",
+	}, commonLabels)
 
-// authenticatedConnectionsAccepted measures the number of connections that successfully authenticated.
-var authenticatedConnectionsAccepted = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "teleport",
-	Name:      "authenticated_accepted_connections_total",
-}, commonLabels)
+	// authenticatedConnectionsAccepted measures the number of connections that successfully authenticated.
+	authenticatedConnectionsAccepted = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "teleport",
+		Name:      "authenticated_accepted_connections_total",
+	}, commonLabels)
 
-// authenticatedConnectionsActive measure the current number of active connectoins that
-// successfully authenticated.
-var authenticatedConnectionsActive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-	Namespace: "teleport",
-	Name:      "authenticated_active_connections",
-}, commonLabels)
+	// authenticatedConnectionsActive measures the current number of active connections that
+	// successfully authenticated.
+	authenticatedConnectionsActive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "teleport",
+		Name:      "authenticated_active_connections",
+	}, commonLabels)
+)
 
 // HTTPConnStateReporter returns a http connection event handler function to track
 // connection metrics for an http server.
@@ -195,7 +206,7 @@ func getRealLocalAddr(conn net.Conn) net.Addr {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		conn = tlsConn.NetConn()
 	}
-	// Uwrap a alpnproxy.bufferedConn without exporting or causing a circular dependency.
+	// Unwrap a alpnproxy.bufferedConn without exporting or causing a circular dependency.
 	if connGetter, ok := conn.(netConnGetter); ok {
 		conn = connGetter.NetConn()
 	}

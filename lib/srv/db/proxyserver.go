@@ -92,7 +92,8 @@ type ProxyServerConfig struct {
 	// ServerID is the ID of the audit log server.
 	ServerID string
 	// LockWatcher is a lock watcher.
-	LockWatcher     *services.LockWatcher
+	LockWatcher *services.LockWatcher
+	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
 }
 

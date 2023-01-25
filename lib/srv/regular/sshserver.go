@@ -222,8 +222,10 @@ type Server struct {
 	// based on locks and cluster preferences
 	sessionController *srv.SessionController
 
+	// ingressReporter reports new and active connections.
 	ingressReporter *ingress.Reporter
-	ingressService  string
+	// ingressService the service name passed to the ingress reporter.
+	ingressService string
 }
 
 // TargetMetadata returns metadata about the server.
@@ -436,6 +438,7 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 	}
 }
 
+// SetIngressReporter sets the reporter for reporting new and active connections.
 func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 	return func(s *Server) error {
 		s.ingressReporter = r

@@ -47,7 +47,8 @@ type Proxy struct {
 	// Log is used for logging.
 	Log logrus.FieldLogger
 	// Limiter limits the number of active connections per client IP.
-	Limiter         *limiter.Limiter
+	Limiter *limiter.Limiter
+	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
 }
 
