@@ -4272,8 +4272,17 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 }
 
 type updateKubeConfigOpt struct {
-	warnOnDeprecatedSNI  bool
-	depricateSNIWarnOnce sync.Once
+	warnOnDeprecatedSNI bool
+	// warnSNIPrinted is a pointer to bool forwarded from outside and set internally to
+	// prevent printing deprecated warning server times in a single tsh flow.
+	// Example usage:
+	//  var warnOnDeprecatedKubeSNIPrinted bool
+	//	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
+	// then sequence  call of updateKubeConfigOption like
+	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
+	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
+	// will print the warning message only once.
+	warnSNIPrinted *bool
 }
 
 type updateKubeConfigOnLoginOpt func(opt *updateKubeConfigOpt)
