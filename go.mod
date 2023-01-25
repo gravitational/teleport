@@ -129,7 +129,7 @@ require (
 	golang.org/x/sys v0.4.0
 	golang.org/x/term v0.4.0
 	golang.org/x/text v0.6.0
-	google.golang.org/grpc v1.51.0
+	google.golang.org/grpc v1.52.1
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
