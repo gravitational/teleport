@@ -82,7 +82,7 @@ type testPack struct {
 	webSessionS             types.WebSessionInterface
 	webTokenS               types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
-	samlIdPServiceProviders services.SAMLIdPServiceProviders
+	samlIDPServiceProviders services.SAMLIdPServiceProviders
 }
 
 func (t *testPack) Close() {
@@ -197,7 +197,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
-	p.samlIdPServiceProviders = local.NewSAMLIdPServiceProviderService(p.backend)
+	p.samlIDPServiceProviders = local.NewSAMLIdPServiceProviderService(p.backend)
 
 	return p, nil
 }
@@ -231,7 +231,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		SAMLIdPServiceProviders: p.samlIdPServiceProviders,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -441,7 +441,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		WebSession:              p.cache.webSessionCache,
 		WebToken:                p.cache.webTokenCache,
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
-		SAMLIdPServiceProviders: p.samlIdPServiceProviders,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
@@ -614,7 +614,7 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseServices:        p.databaseServices,
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
-			SAMLIdPServiceProviders: p.samlIdPServiceProviders,
+			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -678,7 +678,7 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		SAMLIdPServiceProviders: p.samlIdPServiceProviders,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -854,7 +854,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		SAMLIdPServiceProviders: p.samlIdPServiceProviders,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -928,7 +928,7 @@ func initStrategy(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		SAMLIdPServiceProviders: p.samlIdPServiceProviders,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2453,11 +2453,11 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = p.samlIdPServiceProviders.CreateSAMLIdPServiceProvider(ctx, sp)
+	err = p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider(ctx, sp)
 	require.NoError(t, err)
 
 	// Check that the service provider is now in the backend.
-	out, err := p.samlIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
+	out, err := p.samlIDPServiceProviders.GetSAMLIdPServiceProviders(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -2478,12 +2478,12 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 
 	// Update the service provider and upsert it into the backend again.
 	sp.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.samlIdPServiceProviders.UpdateSAMLIdPServiceProvider(ctx, sp)
+	err = p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider(ctx, sp)
 	require.NoError(t, err)
 
 	// Check that the service provider is in the backend and only one exists (so an
 	// update occurred).
-	out, err = p.samlIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
+	out, err = p.samlIDPServiceProviders.GetSAMLIdPServiceProviders(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -2503,7 +2503,7 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	// Remove all service providers from the backend.
-	err = p.samlIdPServiceProviders.DeleteAllSAMLIdPServiceProviders(ctx)
+	err = p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders(ctx)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.

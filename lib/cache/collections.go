@@ -2692,12 +2692,12 @@ func (s *kubeCluster) watchKind() types.WatchKind {
 	return s.watch
 }
 
-type samlIdPServiceProviders struct {
+type samlIDPServiceProviders struct {
 	*Cache
 	watch types.WatchKind
 }
 
-func (s *samlIdPServiceProviders) erase(ctx context.Context) error {
+func (s *samlIDPServiceProviders) erase(ctx context.Context) error {
 	if err := s.samlIdpServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -2706,7 +2706,7 @@ func (s *samlIdPServiceProviders) erase(ctx context.Context) error {
 	return nil
 }
 
-func (s *samlIdPServiceProviders) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	resources, err := s.SAMLIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2733,7 +2733,7 @@ func (s *samlIdPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 	}, nil
 }
 
-func (s *samlIdPServiceProviders) processEvent(ctx context.Context, event types.Event) error {
+func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
 		err := s.samlIdpServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
@@ -2767,6 +2767,6 @@ func (s *samlIdPServiceProviders) processEvent(ctx context.Context, event types.
 	return nil
 }
 
-func (s *samlIdPServiceProviders) watchKind() types.WatchKind {
+func (s *samlIDPServiceProviders) watchKind() types.WatchKind {
 	return s.watch
 }

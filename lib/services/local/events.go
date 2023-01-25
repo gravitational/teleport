@@ -1352,17 +1352,17 @@ func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func newSAMLIdPServiceProviderParser() *samlIdPServiceProviderParser {
-	return &samlIdPServiceProviderParser{
+func newSAMLIdPServiceProviderParser() *samlIDPServiceProviderParser {
+	return &samlIDPServiceProviderParser{
 		baseParser: newBaseParser(backend.Key(samlIDPServiceProviderPrefix)),
 	}
 }
 
-type samlIdPServiceProviderParser struct {
+type samlIDPServiceProviderParser struct {
 	baseParser
 }
 
-func (p *samlIdPServiceProviderParser) parse(event backend.Event) (types.Resource, error) {
+func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
 		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)

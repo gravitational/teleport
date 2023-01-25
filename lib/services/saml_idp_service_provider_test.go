@@ -32,7 +32,7 @@ func TestSAMLIdPServiceProviderUnmarshal(t *testing.T) {
 			EntityDescriptor: "<valid />",
 		})
 	require.NoError(t, err)
-	data, err := utils.ToJSON([]byte(samlIdPServiceProviderYAML))
+	data, err := utils.ToJSON([]byte(samlIDPServiceProviderYAML))
 	require.NoError(t, err)
 	actual, err := UnmarshalSAMLIdPServiceProvider(data)
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestSAMLIdPServiceProviderMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-var samlIdPServiceProviderYAML = `---
+var samlIDPServiceProviderYAML = `---
 kind: saml_idp_service_provider
 version: v1
 metadata:
