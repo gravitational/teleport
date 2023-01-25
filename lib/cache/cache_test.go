@@ -68,20 +68,21 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS            services.UsersService
-	accessS           services.Access
-	dynamicAccessS    services.DynamicAccessCore
-	presenceS         services.Presence
-	appSessionS       services.AppSession
-	snowflakeSessionS services.SnowflakeSession
-	restrictions      services.Restrictions
-	apps              services.Apps
-	kubernetes        services.Kubernetes
-	databases         services.Databases
-	databaseServices  services.DatabaseServices
-	webSessionS       types.WebSessionInterface
-	webTokenS         types.WebTokenInterface
-	windowsDesktops   services.WindowsDesktops
+	usersS                  services.UsersService
+	accessS                 services.Access
+	dynamicAccessS          services.DynamicAccessCore
+	presenceS               services.Presence
+	appSessionS             services.AppSession
+	snowflakeSessionS       services.SnowflakeSession
+	restrictions            services.Restrictions
+	apps                    services.Apps
+	kubernetes              services.Kubernetes
+	databases               services.Databases
+	databaseServices        services.DatabaseServices
+	webSessionS             types.WebSessionInterface
+	webTokenS               types.WebTokenInterface
+	windowsDesktops         services.WindowsDesktops
+	samlIdPServiceProviders services.SAMLIdPServiceProviders
 }
 
 func (t *testPack) Close() {
@@ -196,6 +197,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.samlIdPServiceProviders = local.NewSAMLIdPServiceProviderService(p.backend)
 
 	return p, nil
 }
@@ -209,28 +211,29 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		WebSession:       p.webSessionS,
-		WebToken:         p.webTokenS,
-		SnowflakeSession: p.snowflakeSessionS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		DatabaseServices: p.databaseServices,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIdPServiceProviders,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2379,7 +2382,7 @@ func TestDatabases(t *testing.T) {
 	}
 
 	// Make sure the cache has a single database in it.
-	out, err = p.databases.GetDatabases(ctx)
+	out, err = p.cache.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{database}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -2423,7 +2426,91 @@ func TestDatabases(t *testing.T) {
 	}
 
 	// Check that the cache is now empty.
-	out, err = p.databases.GetDatabases(ctx)
+	out, err = p.cache.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
+// TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
+// replicated from the backend to the cache.
+func TestSAMLIdPServiceProviders(t *testing.T) {
+	t.Parallel()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	ctx := context.Background()
+
+	// Create a service provider resource.
+	sp, err := types.NewSAMLIdPServiceProvider("test-sp", types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: "<valid />",
+	})
+	require.NoError(t, err)
+
+	err = p.samlIdPServiceProviders.CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	// Check that the service provider is now in the backend.
+	out, err := p.samlIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single service provider in it.
+	out, err = p.cache.GetSAMLIdPServiceProviders(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the service provider and upsert it into the backend again.
+	sp.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	err = p.samlIdPServiceProviders.UpdateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	// Check that the service provider is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.samlIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single service provider in it.
+	out, err = p.cache.GetSAMLIdPServiceProviders(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all service providers from the backend.
+	err = p.samlIdPServiceProviders.DeleteAllSAMLIdPServiceProviders(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.cache.GetSAMLIdPServiceProviders(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 }

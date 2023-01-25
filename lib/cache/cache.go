@@ -108,6 +108,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindSAMLIdPServiceProvider},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -148,6 +149,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindSAMLIdPServiceProvider},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -2183,6 +2185,32 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
+}
+
+// GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
+func (c *Cache) GetSAMLIdPServiceProviders(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProviders")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.samlIdpServiceProviders.GetSAMLIdPServiceProviders(ctx)
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.samlIdpServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

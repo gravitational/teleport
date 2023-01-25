@@ -5397,7 +5397,7 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProviders(ctx context.Context) ([]typ
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.SAMLIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
+	return a.authServer.GetSAMLIdPServiceProviders(ctx)
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -5406,7 +5406,7 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.SAMLIdPServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+	return a.authServer.GetSAMLIdPServiceProvider(ctx, name)
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.

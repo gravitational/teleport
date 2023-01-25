@@ -910,6 +910,11 @@ type Cache interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+
+	// GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
+	GetSAMLIdPServiceProviders(context.Context) ([]types.SAMLIdPServiceProvider, error)
+	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 }
 
 type NodeWrapper struct {

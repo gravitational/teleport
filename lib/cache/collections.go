@@ -230,6 +230,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter WindowsDesktops")
 			}
 			collections[resourceKind] = &windowsDesktops{watch: watch, Cache: c}
+		case types.KindSAMLIdPServiceProvider:
+			if c.SAMLIdPServiceProviders == nil {
+				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
+			}
+			collections[resourceKind] = &samlIdPServiceProviders{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2684,5 +2689,84 @@ func (s *kubeCluster) processEvent(ctx context.Context, event types.Event) error
 }
 
 func (s *kubeCluster) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type samlIdPServiceProviders struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *samlIdPServiceProviders) erase(ctx context.Context) error {
+	if err := s.samlIdpServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *samlIdPServiceProviders) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := s.SAMLIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); err != nil {
+				if trace.IsNotFound(err) {
+					err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+				}
+			}
+			if err := s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *samlIdPServiceProviders) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.samlIdpServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				s.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.SAMLIdPServiceProvider)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); err != nil {
+			if trace.IsNotFound(err) {
+				err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			} else {
+				return trace.Wrap(err)
+			}
+		}
+		if err := s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *samlIdPServiceProviders) watchKind() types.WatchKind {
 	return s.watch
 }
