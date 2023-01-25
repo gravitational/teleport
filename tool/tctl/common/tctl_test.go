@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 )
 
-// TestTCTLConnect tests client config and connection logic.
-func TestTCTLConnect(t *testing.T) {
+// TestConnect tests client config and connection logic.
+func TestConnect(t *testing.T) {
 	ctx := context.Background()
 
 	fileConfig := &config.FileConfig{
@@ -43,6 +43,9 @@ func TestTCTLConnect(t *testing.T) {
 	}
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 
+	username := "admin"
+	mustAddUser(t, fileConfig, "admin", "access")
+
 	for _, tc := range []struct {
 		name         string
 		cliFlags     GlobalCLIFlags
@@ -51,7 +54,8 @@ func TestTCTLConnect(t *testing.T) {
 		{
 			name: "default to data dir",
 			cliFlags: GlobalCLIFlags{
-				Insecure: true,
+				AuthServerAddr: []string{fileConfig.Auth.ListenAddress},
+				Insecure:       true,
 			},
 			modifyConfig: func(cfg *service.Config) {
 				cfg.DataDir = fileConfig.DataDir
@@ -67,6 +71,13 @@ func TestTCTLConnect(t *testing.T) {
 			cliFlags: GlobalCLIFlags{
 				ConfigString: mustGetBase64EncFileConfig(t, fileConfig),
 				Insecure:     true,
+			},
+		}, {
+			name: "identity file",
+			cliFlags: GlobalCLIFlags{
+				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
+				IdentityFilePath: mustWriteIdentityFile(t, fileConfig, username),
+				Insecure:         true,
 			},
 		},
 	} {

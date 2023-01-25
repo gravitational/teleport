@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,6 +132,12 @@ func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
+func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &AuthCommand{}
+	args = append([]string{"auth"}, args...)
+	return runCommand(t, fc, command, args, opts...)
+}
+
 func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
 	err := json.NewDecoder(r).Decode(i)
 	require.NoError(t, err)
@@ -161,6 +168,18 @@ func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
 	err = os.WriteFile(fileConfPath, []byte(fileConfYAML), 0600)
 	require.NoError(t, err)
 	return fileConfPath
+}
+
+func mustAddUser(t *testing.T, fc *config.FileConfig, username string, roles ...string) {
+	err := runUserCommand(t, fc, []string{"add", username, "--roles", strings.Join(roles, ",")})
+	require.NoError(t, err)
+}
+
+func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string) string {
+	identityFilePath := filepath.Join(t.TempDir(), "identity")
+	err := runAuthCommand(t, fc, []string{"sign", "--user", username, "--out", identityFilePath})
+	require.NoError(t, err)
+	return identityFilePath
 }
 
 type testServerOptions struct {
