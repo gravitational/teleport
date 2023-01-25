@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -150,6 +152,15 @@ func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(configYamlContent)
+}
+
+func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
+	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
+	fileConfYAML, err := yaml.Marshal(fc)
+	require.NoError(t, err)
+	err = os.WriteFile(fileConfPath, []byte(fileConfYAML), 0600)
+	require.NoError(t, err)
+	return fileConfPath
 }
 
 type testServerOptions struct {
