@@ -113,11 +113,14 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const activeItem = props.items.find(item => item === props.value);
 
-  function handleClickOutside(event: MouseEvent) {
-    if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
-      setOpen(false);
-    }
-  }
+  const handleClickOutside = useCallback(
+    (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
+        setOpen(false);
+      }
+    },
+    [ref.current]
+  );
 
   useEffect(() => {
     if (open) {

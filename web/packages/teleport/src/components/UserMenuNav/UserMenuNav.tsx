@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
@@ -172,11 +172,14 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   const initial =
     username && username.length ? username.trim().charAt(0).toUpperCase() : '';
 
-  function handleClickOutside(event: MouseEvent) {
-    if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
-      setOpen(false);
-    }
-  }
+  const handleClickOutside = useCallback(
+    (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
+        setOpen(false);
+      }
+    },
+    [ref.current]
+  );
 
   useEffect(() => {
     if (open) {
