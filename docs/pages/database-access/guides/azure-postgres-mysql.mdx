@@ -9,12 +9,9 @@ description: How to configure Teleport Database Access with Azure Database for P
   scope={["oss", "enterprise"]}
   scopeOnly={true}
 >
-Static configuration of database access for Azure PostgreSQL/MySQL is available
-starting from Teleport `8.1` and Azure database auto-discovery is available
-starting from Teleport `10.2`.
-
-Database access for Azure PostgreSQL/MySQL flexible servers is available starting
-from Teleport `12.0`.
+Azure database auto-discovery is available starting from Teleport `10.2`. Database
+access for Azure PostgreSQL/MySQL flexible servers is available starting from
+Teleport `12.0`.
 
 </Details>
 
@@ -47,12 +44,12 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Create the Database Service configuration.
 
+<Tabs>
+<TabItem label="PostgreSQL">
+
 - Specify the region for your database(s) in `--azure-postgres-discovery`.
 - Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
   URI (e.g. `mytenant.teleport.sh:443`):
-
-<Tabs>
-<TabItem label="PostgreSQL">
 
   ```code
   $ teleport db configure create \
@@ -64,6 +61,10 @@ Create the Database Service configuration.
 
 </TabItem>
 <TabItem label="MySQL">
+
+- Specify the region for your database(s) in `--azure-mysql-discovery`.
+- Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
+  URI (e.g. `mytenant.teleport.sh:443`):
 
   ```code
   $ teleport db configure create \
@@ -118,7 +119,7 @@ role to provide access to your Azure database. Our example file is
 `azure-databse-role.yaml`:
 
 ```yaml
-version: v5
+version: v6
 kind: role
 metadata:
   name: azure-database-access
@@ -127,16 +128,16 @@ spec:
     db_labels:
       '*': '*'
     db_names:
-    - teleport-mysql
+    - '*'
     db_users:
-    - 'teleport'
+    - teleport
 ```
 
-- The value(s) of `db_names` corresponds to your MySQL database name(s) in
-  Azure, or `postgres` for any PostgreSQL servers.
-- The value of `db_users` corresponds to the database user or role we will create
-  later on in the guide.
-- Edit `db_labels` to further restrict access for this role.
+| Flag                       | Description                                                                                                                              |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| <nobr>`--db-users`</nobr>  | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| <nobr>`--db-names`</nobr>  | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| <nobr>`--db-labels`</nobr> | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
 
 Save this file and apply it to your Teleport cluster:
 
@@ -230,18 +231,25 @@ Only the Azure AD administrator for the database can connect to it and create
 Azure AD users.
 
 <Tabs>
-<TabItem label="MySQL">
+<TabItem label="MySQL Flexible">
 Go to your database's **Authentication** page and set the AD
 admin using the edit button:
 
 ![Set AD admin](../../../img/database-access/guides/azure/set-ad-admin.png)
 
 </TabItem>
-<TabItem label="PostgreSQL">
+<TabItem label="PostgreSQL Flexible">
 Go to your database's **Authentication** page and set the AD
 admin by selecting **+ Add Azure AD Admins**:
 
 ![Set AD admin](../../../img/database-access/guides/azure/set-ad-admin-postgres.png)
+
+</TabItem>
+<TabItem label="Single server">
+Go to your database's *Active Directory admin* page
+and set the AD admin using the *Set admin* button:
+
+![Set AD admin](../../../img/database-access/guides/azure/set-ad-admin@2x.png)
 
 </TabItem>
 </Tabs>
