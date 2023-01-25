@@ -26,6 +26,7 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { fullAcl } from 'teleport/mocks/contexts';
+import { getOSSFeatures } from 'teleport/features';
 
 const userContextJson = {
   authType: 'sso',
@@ -57,7 +58,7 @@ describe('discover', () => {
     return render(
       <MemoryRouter initialEntries={[{ state: { entity: initialEntry } }]}>
         <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider>
+          <FeaturesContextProvider value={getOSSFeatures()}>
             <Discover />
           </FeaturesContextProvider>
         </TeleportContextProvider>

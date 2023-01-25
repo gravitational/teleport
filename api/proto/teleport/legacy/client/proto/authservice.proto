@@ -1975,6 +1975,27 @@ message GetClusterAlertsResponse {
   repeated types.ClusterAlert Alerts = 1 [(gogoproto.nullable) = false];
 }
 
+// GetAlertAcksRequest returns the currently acknowledged alerts
+message GetAlertAcksRequest {
+  // GetAlertAcksRequest currently takes no params
+}
+
+// GetAlertAcksResponse contains the set of active cluster alert
+// acknowledgements for this cluster.
+message GetAlertAcksResponse {
+  repeated types.AlertAcknowledgement Acks = 1 [
+    (gogoproto.jsontag) = "acks",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// ClearAlertAcksRequest specifies alerts acknowledgements to clear.
+message ClearAlertAcksRequest {
+  // AlertID deletes an acknowledgement by ID. Deletes all acknowledgements if
+  // the id is '*'.
+  string AlertID = 1 [(gogoproto.jsontag) = "alert_id"];
+}
+
 // UpsertClusterAlertRequest is used to create a cluster alert.
 message UpsertClusterAlertRequest {
   // Alert is the alert being created.
@@ -2030,6 +2051,15 @@ service AuthService {
 
   // UpsertClusterAlert creates a cluster alert.
   rpc UpsertClusterAlert(UpsertClusterAlertRequest) returns (google.protobuf.Empty);
+
+  // CreateAlertAck marks a cluster alert as acknowledged.
+  rpc CreateAlertAck(types.AlertAcknowledgement) returns (google.protobuf.Empty);
+
+  // GetAlertAcks gets active alert ackowledgements.
+  rpc GetAlertAcks(GetAlertAcksRequest) returns (GetAlertAcksResponse);
+
+  // ClearAlertAcks clears alert acknowledgments.
+  rpc ClearAlertAcks(ClearAlertAcksRequest) returns (google.protobuf.Empty);
 
   // MaintainSessionPresence establishes a channel used to continously verify the presence for a
   // session.

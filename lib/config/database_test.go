@@ -80,6 +80,28 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RedshiftDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("ElastiCacheAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			ElastiCacheDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"elasticache"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.ElastiCacheDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
+	t.Run("MemoryDBAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			MemoryDBDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"memorydb"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.MemoryDBDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("AWS discovery tags", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			RedshiftServerlessDiscoveryRegions: []string{"us-west-1", "us-west-2"},
@@ -116,6 +138,17 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Len(t, databases.AzureMatchers, 1)
 		require.ElementsMatch(t, []string{"postgres"}, databases.AzureMatchers[0].Types)
 		require.ElementsMatch(t, flags.AzurePostgresDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
+	t.Run("AzureSQLServerAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzureSQLServerDiscoveryRegions: []string{"eastus", "eastus2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"sqlserver"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzureSQLServerDiscoveryRegions, databases.AzureMatchers[0].Regions)
 	})
 
 	t.Run("Azure discovery tags,subscriptions,resource_groups", func(t *testing.T) {
