@@ -448,13 +448,13 @@ exports[`list of all events 1`] = `
               color="light"
               font-size="3"
             />
-            Login Rule Created
+            Login Rule Deleted
           </div>
         </td>
         <td
           style="word-break: break-word;"
         >
-          User [nic] created a login rule [test_rule]
+          User [nic] deleted a login rule [test_rule]
         </td>
         <td
           style="min-width: 120px;"
