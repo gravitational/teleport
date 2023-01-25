@@ -47,14 +47,17 @@ BUILD_TARGET="$3"
 shift 3
 SRC_DIRECTORIES=("$@")
 
+function calculate_sha() {
+  (for dir in "${SRC_DIRECTORIES[@]}"; do
+   find "$ROOT_PATH/$dir" -type f; done && echo "$ROOT_PATH/package.json" && echo "$ROOT_PATH/yarn.lock") |
+    grep -v "node_modules" | xargs -I{} -n1 -P8 $SHASUM {} | sort -k 2 | $SHASUM |
+    cut -f1 -d' '
+}
+
 # Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
 # This excludes node_modules, as the package.json differences should handle this.
 #shellcheck disable=SC2086
-CURRENT_SHA="$( (for dir in "${SRC_DIRECTORIES[@]}"; do
-  find "$ROOT_PATH/$dir" -type f
-done && echo "$ROOT_PATH/package.json") |
-  grep -v "node_modules" | xargs -I{} -n1 -P8 $SHASUM {} | sort -k 2 | $SHASUM |
-  cut -f1 -d' ')"
+CURRENT_SHA="$(calculate_sha)"
 
 BUILD=true
 
@@ -70,9 +73,10 @@ fi
 # If BUILD is true, make the build target. This assumes using the root Makefile.
 if [ "$BUILD" = "true" ]; then \
   "$MAKE" -C "$ROOT_PATH" "$BUILD_TARGET"; \
-  # Record the current SHA into the LAST_SHA_FILE. The make target is expected to have
-  # created any necessary directories here.
-  echo "$CURRENT_SHA" > "$LAST_SHA_FILE"
+  # Recalculate the current SHA and record into the LAST_SHA_FILE. The make target is expected to have
+  # created any necessary directories here. The recalculation is necessary as yarn.lock may have been
+  # updated by the build process.
+  echo "$(calculate_sha)" > "$LAST_SHA_FILE"
   echo "$TYPE webassets successfully updated."
 else
   echo "$TYPE webassets up to date."
