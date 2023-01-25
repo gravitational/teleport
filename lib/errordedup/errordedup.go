@@ -176,7 +176,12 @@ func (e *ErrorDeduplicator) cleanup() {
 	for errSubstring, info := range e.errorMap {
 		if e.Clock.Now().After(info.timeWindowStart.Add(timeWindow)) {
 			if info.occurrences > 1 {
-				e.log(fmt.Sprintf("%s (errors containing %q were seen %d times in the past minute)", info.firstError, errSubstring, info.occurrences))
+				e.log(fmt.Sprintf(
+					"%s (errors containing %q were seen %d times in the past minute)",
+					info.firstError,
+					errSubstring,
+					info.occurrences,
+				))
 			}
 			delete(e.errorMap, errSubstring)
 		}
