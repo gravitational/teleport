@@ -344,7 +344,10 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
-	client, err := s.Clients.GetAWSSSMClient(instances.Region)
+	// TODO(amk): once agentless node inventory management is
+	//            implemented, create nodes after a successful SSM run
+
+	ec2Client, err := s.Clients.GetAWSSSMClient(instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -355,9 +358,10 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 
 	s.Log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
 		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
+
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
-		SSM:          client,
+		SSM:          ec2Client,
 		Instances:    instances.Instances,
 		Params:       instances.Parameters,
 		Region:       instances.Region,
@@ -379,12 +383,14 @@ func (s *Server) handleEC2Discovery() {
 			ec2Instances := instances.EC2Instances
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
 				instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
+
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
 				}
+
 			}
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()

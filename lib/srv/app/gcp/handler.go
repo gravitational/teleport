@@ -261,6 +261,10 @@ func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credent
 	var tokenResult *credentialspb.GenerateAccessTokenResponse
 	var errorResult error
 
+	// call Clock.After() before FnCacheGet gets called in a different go-routine.
+	// this ensures there is no race condition in the timeout tests
+	timeoutChan := s.Clock.After(getTokenTimeout)
+
 	go func() {
 		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
 			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
@@ -269,7 +273,7 @@ func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credent
 	}()
 
 	select {
-	case <-s.Clock.After(getTokenTimeout):
+	case <-timeoutChan:
 		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
 	case <-cancelCtx.Done():
 		return tokenResult, errorResult
