@@ -349,7 +349,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// need to split the stream into individual messages and
 		// write them to the websocket
 		for {
-			raw, err := tc.ReadRaw()
+			msg, err := tc.ReadMessage()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -376,8 +376,12 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- err
 				return
 			}
-
-			err = ws.WriteMessage(websocket.BinaryMessage, raw)
+			encoded, err := msg.Encode()
+			if err != nil {
+				errs <- err
+				return
+			}
+			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
