@@ -234,7 +234,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.SAMLIdPServiceProviders == nil {
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
 			}
-			collections[resourceKind] = &samlIdPServiceProviders{watch: watch, Cache: c}
+			collections[resourceKind] = &samlIDPServiceProviders{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
