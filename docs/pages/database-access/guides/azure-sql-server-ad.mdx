@@ -109,7 +109,7 @@ If you want to further limit the `assignableScopes`, you can use a resource
 group (`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
 group (`/providers/Microsoft.Management/managementGroups/<group>`) instead.
 
-Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)
+Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)
 page and select a subscription.
 
 Click on **Access control (IAM)** in the subscription and select **Add** >
@@ -125,15 +125,15 @@ with your own subscription id:
 
 ## Step 5/9. Configure virtual machine identities
 
-On the **Teleport Database Service virtual machine instance** **Identity**
+In the Teleport Database Service virtual machine's **Identity**
 section, enable the system assigned identity. This is used by Teleport to access
 Azure APIs.
 
 ![System assigned identity page](../../../img/database-access/guides/sqlserver/system-managed-identity.png)
 
 To grant Teleport permissions, the custom role you created must be assigned to
-the virtual machine system assigned identity. On the same page, on the **Azure
-role assignments**, then on **Add role assignment**, select the custom role and
+the virtual machine system assigned identity. On the same page, click on the **Azure
+role assignments**, then on **Add role assignment**. Select the custom role and
 save.
 
 <Admonition type="note" title="Azure Role Assignments">
@@ -300,15 +300,15 @@ login is not present on the SQL database. You’ll need to create their users as
 described in [Step 6](#step-69-enable-managed-identities-login-on-sql-server).
 Remember: you must create the users on all databases you want to connect.
 
-### Timeout on connecting to the database
+### Timeout connecting to the database
 
 If you receive the error `i/o timeout issue` when connecting to your database,
 please check if the Teleport Database service can reach the database on
 Azure.
 
-In case your database is public, you can enable it from receiving connections
+In case your database is public, you can enable it to receive connections
 from Azure services without creating firewall rules: Go to your database page,
-**Network** tab, at the bottom of the page on the **Exceptions** section, you
+**Network** tab, and at the bottom of the page in the **Exceptions** section
 check the option "Allow Azure services and resources to access this server" and
 save.
 
