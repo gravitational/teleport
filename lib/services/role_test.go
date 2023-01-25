@@ -6166,6 +6166,11 @@ func TestMatchValidAzureIdentity(t *testing.T) {
 			valid:    true,
 		},
 		{
+			name:     "correct format with underscore",
+			identity: "/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/az-cli-access_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure_under",
+			valid:    true,
+		},
+		{
 			name:     "correct format, case insensitive match",
 			identity: "/SUBscriptions/0000000000000-0000-CAFE-A0B0C0D0E0F0/RESOURCEGroups/EXAMPLE-resource-group/provIders/microsoft.managedidentity/userassignedidentities/Tele10329azure",
 			valid:    true,

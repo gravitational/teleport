@@ -181,6 +181,8 @@ type CLIConf struct {
 	DaemonCertsDir string
 	// DaemonPrehogAddr is the URL where prehog events should be submitted.
 	DaemonPrehogAddr string
+	// DaemonPid is the PID to be stopped
+	DaemonPid int
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -630,6 +632,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
+	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it").Hidden()
+	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
 	// AWS.
 	// Use Interspersed(false) to forward all flags to AWS CLI.
@@ -1160,6 +1164,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onGsutil(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
+	case daemonStop.FullCommand():
+		err = onDaemonStop(&cf)
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
 	case tid.diag.FullCommand():

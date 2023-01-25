@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// onDaemonStart implements "tsh daemon start" command.
+// onDaemonStart implements the "tsh daemon start" command.
 func onDaemonStart(cf *CLIConf) error {
 	homeDir := profile.FullProfilePath(cf.HomePath)
 	ctx, cancel := context.WithCancel(context.Background())
