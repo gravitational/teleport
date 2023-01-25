@@ -860,14 +860,30 @@ tsh bench sessions --max=5000 --web user ls
 
 ## TLS Routing
 
-- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener for proxy service, in contrast with `v1` configuration.
+  Given configuration:
   ```
   version: v2
-  teleport:
-    proxy_service:
-      enabled: "yes"
-      public_addr: ['root.example.com']
-      web_listen_addr: 0.0.0.0:3080
+  proxy_service:
+    enabled: "yes"
+    public_addr: ['root.example.com']
+    web_listen_addr: 0.0.0.0:3080
+  ```
+  There should be total of three listeners, with only `*:3080` for proxy service:
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3080 (LISTEN)
+    teleport  ...  TCP *:3022 (LISTEN)
+  ```
+  In contrast for `v1` there should be multiple:
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3023 (LISTEN)
+    teleport  ...  TCP *:3080 (LISTEN)
+    teleport  ...  TCP *:3024 (LISTEN)
+    teleport  ...  TCP *:3022 (LISTEN)  
   ```
 - [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
   - [ ] Trusted cluster
