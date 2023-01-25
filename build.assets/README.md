@@ -11,8 +11,8 @@ make
 
 # Safely updating build box Dockerfiles
 
-The build box images are used in Drone pipelines and GitHub Actions and the resulting image is
-pushed to Amazon ECR. This means that to safely introduce changes to Dockerfiles, those changes
+The build box images are used in Drone pipelines and GitHub Actions. The resulting image is pushed
+to Amazon ECR and ghcr.io. This means that to safely introduce changes to Dockerfiles, those changes
 should be split into two stages:
 
 1. First you open a PR which updates a Dockerfile and get the PR merged.
