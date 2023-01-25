@@ -265,9 +265,10 @@ func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
+	// Elasticsearch needs database username too.
 	if r.Username == "" {
 		switch r.Protocol {
-		case defaults.ProtocolMongoDB:
+		case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch:
 			return trace.BadParameter("please provide the database user name using the --db-user flag")
 		case defaults.ProtocolRedis:
 			// Default to "default" in the same way as Redis does. We need the username to check access on our side.
@@ -728,6 +729,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if routeToDatabase.Protocol == defaults.ProtocolDynamoDB {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, routeToDatabase))
 	}
+	// if routeToDatabase.Protocol == defaults.ProtocolElasticsearch && routeToDatabase.Username == "" {
+	// 	return trace.BadParameter("%v: database user is required, use --db-user to provide it", defaults.ReadableDatabaseProtocol(defaults.ProtocolElasticsearch))
+	// }
 	if err := maybeDatabaseLogin(cf, tc, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
 	}
