@@ -50,6 +50,10 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
       {{- if or .Values.affinity (gt (int .Values.highAvailability.replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
