@@ -263,6 +263,25 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 	}
 }
 
+// UsageCertificateIssuedEvent is an event emitted when a certificate has been
+// issued, used to track the duration and restriction.
+type UsageCertificateIssuedEvent prehogv1.CertificateIssuedEvent
+
+func (u *UsageCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_CertificateIssuedEvent{
+			CertificateIssuedEvent: &prehogv1.CertificateIssuedEvent{
+				UserName:        a.AnonymizeString(u.UserName),
+				Ttl:             u.Ttl,
+				UsageDatabase:   u.UsageDatabase,
+				UsageApp:        u.UsageApp,
+				UsageKubernetes: u.UsageKubernetes,
+				UsageDesktop:    u.UsageDesktop,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package prehog.v1alpha;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha";
@@ -45,6 +46,22 @@ message SessionStartEvent {
   string user_name = 1;
   // ssh/kube/desktop, maybe db?
   string session_type = 2;
+}
+
+message CertificateIssuedEvent {
+  // The anonymized username/principal of the entity that requested the
+  // certificate.
+  string user_name = 1;
+  // The issued certificate TTL.
+  google.protobuf.Duration ttl = 2;
+  // If true, the certificate usage is restricted to database access.
+  bool usage_database = 3;
+  // If true, the certificate usage is restricted to app access.
+  bool usage_app = 4;
+  // If true, the certificate usage is restricted to Kubernetes access.
+  bool usage_kubernetes = 5;
+  // If true, the certificate usage is restricted to desktop access.
+  bool usage_desktop = 6;
 }
 
 message UIBannerClickEvent {
@@ -118,6 +135,7 @@ message SubmitEventRequest {
     UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 14;
     UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 15;
     UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 16;
+    CertificateIssuedEvent certificate_issued_event = 17;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
