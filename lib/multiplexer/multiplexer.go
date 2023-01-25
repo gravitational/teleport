@@ -346,7 +346,7 @@ func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterNam
 // when detecting the type of a new connection just established.
 // This ensures that health checkers / malicious actors cannot pollute / overpower
 // the logs with warnings when such connections are invalid or unknown to the multiplexer.
-var errorSubstrings []string = []string{
+var errorSubstrings = []string{
 	failedToPeekConnectionError,
 	failedToDetectConnectionProtocolError,
 	proxyProtocolDisabledError,
