@@ -595,7 +595,7 @@ const (
 
 	// LoginRuleCreateEvent is emitted when a login rule is created or updated.
 	LoginRuleCreateEvent = "login_rule.create"
-	// LoginRuleDeleteEvent is emitted when a login rule is Deleted or updated.
+	// LoginRuleDeleteEvent is emitted when a login rule is deleted.
 	LoginRuleDeleteEvent = "login_rule.delete"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
