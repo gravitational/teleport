@@ -136,7 +136,10 @@ export function SelectResource(props: SelectResourceProps) {
           onProceed={() => {
             const state = props.resourceState as Database;
             if (state.location === DatabaseLocation.SelfHosted) {
-              if (state.engine === DatabaseEngine.PostgreSQL) {
+              if (
+                state.engine === DatabaseEngine.PostgreSQL ||
+                state.engine === DatabaseEngine.MySQL
+              ) {
                 props.onNext();
               }
             }
