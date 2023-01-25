@@ -1,0 +1,63 @@
+name: Unit Tests UI
+run-name: Unit Tests UI - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - 'web/**'
+  workflow_call:
+    inputs:
+      oss-teleport-ref:
+        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        required: true
+        default: 'master'
+        type: string
+
+      ent-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of Enterprise teleport to build. If no
+          value is supplied this workflow will use whatever reference is specified in
+          the OSS teleport submodule record.
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  test:
+    name: Test UI
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport
+          ref: ${{ inputs.oss-teleport-ref }}
+
+      - name: Determine Enterprise Teleport reference
+        run: |
+          if [[ -z "${{ inputs.ent-teleport-ref }}" ]]; then
+            echo TELEPORT_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
+          else
+            echo TELEPORT_E_REF=${{ inputs.ent-teleport-ref }} >> $GITHUB_ENV
+          fi
+
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport.e
+          ref: ${{ env.TELEPORT_E_REF }}
+          path: e
+
+      - name: Setup Node Toolchain
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install Yarn dependencies
+        run: yarn
+
+      - name: Run tests
+        run: yarn test
