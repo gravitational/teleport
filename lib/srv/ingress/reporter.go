@@ -17,7 +17,6 @@ limitations under the License.
 package ingress
 
 import (
-	"crypto/tls"
 	"net"
 	"net/http"
 
@@ -25,7 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Constants for each ingress service.
@@ -200,18 +198,11 @@ func (r *Reporter) getIngressPath(conn net.Conn) string {
 
 // getRealLocalAddr returns the underlying local address if proxy protocol is being used.
 func getRealLocalAddr(conn net.Conn) net.Addr {
-	if timeoutConn, ok := conn.(*utils.TimeoutConn); ok {
-		conn = timeoutConn.Conn
-	}
-	if tlsConn, ok := conn.(*tls.Conn); ok {
-		conn = tlsConn.NetConn()
-	}
-	// Unwrap a alpnproxy.bufferedConn without exporting or causing a circular dependency.
-	if connGetter, ok := conn.(netConnGetter); ok {
-		conn = connGetter.NetConn()
-	}
-	// Unwrap a multiplexer.Conn without exporting or causing a circular dependency..
-	if connGetter, ok := conn.(netConnGetter); ok {
+	for {
+		connGetter, ok := conn.(netConnGetter)
+		if !ok {
+			break
+		}
 		conn = connGetter.NetConn()
 	}
 	return conn.LocalAddr()
