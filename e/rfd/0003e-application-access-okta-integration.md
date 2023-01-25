@@ -14,8 +14,12 @@ state: draft
 ## What
 
 Allow Teleport users to request access to specific applications and groups and access
-Okta applications from within Teleport. Additionally, users belonging to specific Teleport
-roles will be automatically assigned Okta groups based on these roles.
+Okta applications from within Teleport.
+
+Additionally, users who are logged into Teleport will have Okta access calculated and
+synchronized to Okta based on user access. Access to Okta applications and Okta groups will be
+calculated and, based on what a user has access to, will be assigned to these applications and
+groups through the Okta API.
 
 Note: This is an enterprise only feature.
 
@@ -24,6 +28,11 @@ Note: This is an enterprise only feature.
 Today, Teleport supports [single sign-on with Okta](https://goteleport.com/docs/access-controls/sso/okta/).
 Okta is a popular IdP with our customers, so improving the integration between Okta and
 Teleport will be useful.
+
+Additionally, Okta permissions are often difficult to calculate and require large numbers of
+groups and assignments, which become difficult for IT admins to handle. By allowing dynamic
+access calculation of Okta applications and groups, the number of groups that IT administrators
+need to create and maintain can be significantly reduced.
 
 ## Details
 
@@ -123,27 +132,6 @@ okta_service:
 The Okta service will connect to Teleport proxy over a reverse tunnel. This will ensure that
 users will be able to run the Okta service and connect it to a cloud instance.
 
-### Okta user traits
-
-Okta will optionally use an `okta_user_id` trait to map Teleport users to Okta users if necessary. If this trait is present, then this username will be used when interacting with the
-Okta API instead of the regular Teleport username.
-
-```yaml
-kind: user
-version: v2
-metadata:
-  name: alice
-spec:
-  roles: ['devs']
-  traits:
-    logins: ['admin']
-    kubernetes_groups: ['edit']
-    okta_user_id: ['name@mydomain.com']
-```
-
-If Okta is used for logging into Teleport or the Teleport user's username is the same as the
-e-mail used for Okta, this will be unnecessary.
-
 ### Okta object synchronization
 
 #### Background synchronization
@@ -177,20 +165,37 @@ When users login to Okta, two traits will be captured: `okta_apps` which is a li
 application IDs that the user has access to, and `okta_groups` which is a list of groups that
 the user belongs to.
 
-Furthermore, `role` objects will be adjusted to contain a new field, `okta_groups` that will
-be automatically assigned based on Teleport group membership:
+#### Teleport to Okta user access
+
+After a user has logged in, additional access to Okta applications and groups may be assigned
+based on role access to applications and groups.
 
 ```yaml
 kind: role
 version: v5
 metadata:
-  name: example
+  name: okta-grant-access
 spec:
-  okta_groups:
-    - okta-group-1
-    - okta-group-2
-    ...
+  allow:
+    app_labels:
+      label_name: ['value1', 'value2']
+    group_labels:
+      label_name: ['value1', 'value2']
 ```
+
+Any Okta sourced applications or groups that the user can see will be assigned to the user in
+the Okta API if they are not already assigned. The algorithm for this reconciliation will look
+like the following:
+
+1. Get list of Okta originated groups visible to the user.
+2. Assign groups to user in Okta.
+3. Get list of Okta originated applications visible to user.
+4. Assign applications to user in Okta only if the user doesn't currently have access to these
+   applications. This will prevent users from being directly assigned to applications where
+   they already have group access to an application.
+
+This process will run every 2 minutes for all logged in users, and will additionally run when
+a user has logged in.
 
 #### Okta to Teleport mappings
 
@@ -392,6 +397,11 @@ Okta applications and groups.
 
 Okta applications will be synchronized with the application access service so that users will be
 able to have access to Okta applications from the Teleport UI and listed in `tsh app ls`.
+
+#### User access synchronization
+
+Access to Okta applications and groups will be synchronized based on user access to Okta
+sourced applications and groups.
 
 #### Application request
 
