@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// AccessRequest is a request for temporarily granted roles
+// AccessRequest is a request for temporarily granted roles.
 type AccessRequest interface {
 	Resource
 	// GetUser gets the name of the requesting user
