@@ -17,6 +17,8 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { DatabaseEngine } from '../resources';
+
 import { TestConnectionView } from './TestConnection';
 
 import type { State } from './useTestConnection';
@@ -28,6 +30,12 @@ export default {
 export const Init = () => (
   <MemoryRouter>
     <TestConnectionView {...props} />
+  </MemoryRouter>
+);
+
+export const InitPostgres = () => (
+  <MemoryRouter>
+    <TestConnectionView {...props} dbEngine={DatabaseEngine.PostgreSQL} />
   </MemoryRouter>
 );
 
@@ -54,4 +62,5 @@ const props: State = {
     users: ['user1', 'user2'],
     hostname: 'db-hostname',
   },
+  dbEngine: DatabaseEngine.MySQL,
 };
