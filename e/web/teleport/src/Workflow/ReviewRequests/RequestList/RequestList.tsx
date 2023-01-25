@@ -18,9 +18,9 @@ import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
 import { AccessRequest, Resource } from 'e-teleport/services/workflow';
 
-import useRequestList, { State, Row } from './useRequestList';
-
 import { formattedName } from '../formattedName';
+
+import useRequestList, { State, Row } from './useRequestList';
 
 export default function Container() {
   const ctx = useTeleportE();

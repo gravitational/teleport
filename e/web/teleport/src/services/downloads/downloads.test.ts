@@ -114,21 +114,21 @@ test('null response from license fetch', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
   const response = await downloadsService.fetchLicense();
-  expect(response).toEqual({ pem: '', expiry: null });
+  expect(response).toEqual({ pem: '', expiry: undefined });
 });
 
 test('empty response from license fetch', async () => {
   jest.spyOn(api, 'get').mockResolvedValue('');
 
   const response = await downloadsService.fetchLicense();
-  expect(response).toEqual({ pem: '', expiry: null });
+  expect(response).toEqual({ pem: '', expiry: undefined });
 });
 
 test('invalid fields in response from license fetch', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({ key: 'val' });
 
   const response = await downloadsService.fetchLicense();
-  expect(response).toEqual({ pem: '', expiry: null });
+  expect(response).toEqual({ pem: '', expiry: undefined });
 });
 
 const mockReleasesResponse = [

@@ -22,10 +22,11 @@ import {
   Resource,
 } from 'e-teleport/services/workflow';
 
+import { formattedName } from '../formattedName';
+
 import RequestDelete from './RequestDelete';
 import RequestReview from './RequestReview';
 import RolesRequested from './RolesRequested';
-import { formattedName } from '../formattedName';
 import useRequestView, { State } from './useRequestView';
 
 export default function Container() {
