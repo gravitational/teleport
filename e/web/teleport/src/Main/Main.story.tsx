@@ -15,14 +15,12 @@ import { userContext } from 'teleport/Main/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
-import { getEnterpriseFeatures } from 'e-teleport/features';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import {
   MockedWorkflowService,
   MockedStoreAccessRequests,
 } from 'e-teleport/Workflow/fixtures';
+import { getEnterpriseFeatures } from 'e-teleport/features';
 
 export default {
   title: 'TeleportE/Main',
@@ -34,11 +32,9 @@ export function Enterprise() {
   return (
     <Flex my={-3} mx={-4}>
       <ContextProvider ctx={state.ctx}>
-        <FeaturesContextProvider value={getEnterpriseFeatures()}>
-          <Router history={state.history}>
-            <Main {...state} />
-          </Router>
-        </FeaturesContextProvider>
+        <Router history={state.history}>
+          <Main {...state} features={getEnterpriseFeatures()} />
+        </Router>
       </ContextProvider>
     </Flex>
   );
@@ -71,8 +67,6 @@ function useMainStory() {
     ctx.storeUser.setState(userContext);
     ctx.storeAccessRequests = new MockedStoreAccessRequests();
     ctx.workflowService = new MockedWorkflowService();
-
-    getEnterpriseFeatures().forEach(f => f.register(ctx));
 
     return ctx;
   });

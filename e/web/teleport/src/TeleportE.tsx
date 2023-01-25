@@ -11,13 +11,10 @@ import ossConfig from 'teleport/config';
 import cfg from 'e-teleport/config';
 import WaitingRoom from 'e-teleport/WaitingRoom';
 
-import { getEnterpriseFeatures } from 'e-teleport/features';
-
 const TeleportE: React.FC<Props> = ({ history, ctx }) => {
   return (
     <Teleport
       history={history}
-      features={getEnterpriseFeatures()}
       ctx={ctx}
       renderPublicRoutes={publicERoutes}
       renderPrivateRoutes={privateERoutes}
@@ -55,13 +52,10 @@ const Main = React.lazy(
   () => import(/* webpackChunkName: "e-main" */ './Main')
 );
 
-const Discover = React.lazy(() => import('e-teleport/Discover'));
-
 function privateERoutes() {
   return (
     <WaitingRoom>
       <Switch>
-        <Route path={ossConfig.routes.discover} component={Discover} />
         {getSharedPrivateRoutes()}
         <Route path={ossConfig.routes.root} component={Main} />
       </Switch>

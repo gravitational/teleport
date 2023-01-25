@@ -5,8 +5,9 @@ import { Main } from 'teleport/Main/Main';
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import useTeleport from 'e-teleport/useTeleportE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
+import { getEnterpriseFeatures } from 'e-teleport/features';
 
-export default function Container() {
+export function MainE() {
   const ctx = useTeleport();
   const { license } = useBanner();
 
@@ -38,5 +39,11 @@ export default function Container() {
     );
   }
 
-  return <Main initialAlerts={initialAlerts} customBanners={customBanners} />;
+  return (
+    <Main
+      features={getEnterpriseFeatures()}
+      initialAlerts={initialAlerts}
+      customBanners={customBanners}
+    />
+  );
 }

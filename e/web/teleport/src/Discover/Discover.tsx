@@ -38,10 +38,5 @@ export function Discover() {
     );
   }
 
-  return (
-    <DiscoverComponent
-      initialAlerts={initialAlerts}
-      customBanners={customBanners}
-    />
-  );
+  return <DiscoverComponent />;
 }

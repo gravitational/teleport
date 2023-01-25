@@ -1,0 +1,209 @@
+import React from 'react';
+
+import * as Icons from 'design/Icon';
+import * as OSS from 'teleport/features';
+
+import { NavigationCategory } from 'teleport/Navigation/categories';
+
+import { AccessRequestsIcon, DownloadsIcon, SupportIcon } from 'design/SVGIcon';
+
+import cfg from 'e-teleport/config';
+import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
+
+import { Downloads } from 'e-teleport/Downloads';
+
+import type { TeleportFeature, FeatureFlags } from 'teleport/types';
+
+const AuthConnectors = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "e-auth-connectors" */ 'e-teleport/AuthConnectors'
+    )
+);
+const AccountE = React.lazy(
+  () => import(/* webpackChunkName: "e-account" */ 'e-teleport/Account')
+);
+const SupportE = React.lazy(
+  () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
+);
+
+// ****************************
+// Resource Features
+// ****************************
+
+class FeatureAccessRequests implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  hasAccess() {
+    return true;
+  }
+
+  navigationItem = {
+    title: 'Access Requests',
+    icon: <AccessRequestsIcon />,
+  };
+}
+
+class FeatureNewAccessRequest implements TeleportFeature {
+  category = NavigationCategory.Resources;
+  parent = FeatureAccessRequests;
+
+  route = {
+    title: 'New Request',
+    path: cfg.routes.requestNew,
+    component: NewRequest,
+  };
+
+  hasAccess() {
+    return true;
+  }
+
+  navigationItem = {
+    title: 'New Request',
+    icon: <Icons.Add />,
+    getLink(clusterId: string) {
+      return cfg.getNewAccessRequestRoute(clusterId);
+    },
+  };
+}
+
+class FeatureReviewAccessRequests implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  parent = FeatureAccessRequests;
+
+  route = {
+    title: 'Review Requests',
+    path: cfg.routes.requests,
+    component: ReviewRequests,
+  };
+
+  hasAccess() {
+    return true; // TODO(isaiah)
+  }
+
+  navigationItem = {
+    title: 'Review Requests',
+    icon: <Icons.ListAddCheck />,
+    getLink() {
+      return cfg.getAccessRequestRoute();
+    },
+  };
+}
+
+// ****************************
+// Legacy links in the navigation for Houston
+// ****************************
+
+class FeatureDownloadCenter implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  route = {
+    title: 'Downloads',
+    path: cfg.routes.downloadCenter,
+    exact: true,
+    component: Downloads,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.downloadCenter;
+  }
+
+  navigationItem = {
+    title: 'Downloads',
+    icon: <DownloadsIcon size={22} />,
+    getLink() {
+      return cfg.routes.downloadCenter;
+    },
+  };
+}
+
+class FeatureSupport implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.downloadCenter; // use the same flag as the download center to hide for non-Houston deployments
+  }
+
+  navigationItem = {
+    title: 'Support',
+    icon: <SupportIcon size={22} />,
+    getLink() {
+      return 'https://support.goteleport.com/';
+    },
+    isExternalLink: true,
+  };
+}
+
+// ****************************
+// Management Features
+// ****************************
+
+class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
+  route = {
+    title: 'Manage Auth Connectors',
+    path: cfg.oss.routes.sso,
+    exact: false,
+    component: AuthConnectors,
+  };
+}
+
+// ****************************
+// Other Features
+// ****************************
+
+class FeatureAccount extends OSS.FeatureAccount {
+  route = {
+    title: 'Account Settings',
+    path: cfg.oss.routes.account,
+    component: AccountE,
+  };
+}
+
+class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
+  route = {
+    title: 'Help & Support',
+    path: cfg.oss.routes.support,
+    exact: true,
+    component: SupportE,
+  };
+}
+
+export function getEnterpriseFeatures(): TeleportFeature[] {
+  return [
+    // Resources
+    new OSS.FeatureNodes(),
+    new OSS.FeatureApps(),
+    new OSS.FeatureKubes(),
+    new OSS.FeatureDatabases(),
+    new OSS.FeatureDesktops(),
+    new FeatureAccessRequests(),
+    new FeatureNewAccessRequest(),
+    new FeatureReviewAccessRequests(),
+    new OSS.FeatureSessions(),
+
+    // Legacy links in the navigation for Houston
+    new FeatureDownloadCenter(),
+    new FeatureSupport(),
+
+    // Management
+
+    // - Access
+    new OSS.FeatureUsers(),
+    new OSS.FeatureRoles(),
+    new FeatureAuthConnectors(),
+    new OSS.FeatureDiscover(),
+
+    // - Activity
+    new OSS.FeatureRecordings(),
+    new OSS.FeatureAudit(),
+
+    // - Clusters
+    new OSS.FeatureClusters(),
+    new OSS.FeatureTrust(),
+
+    // Other
+    new FeatureAccount(),
+    new FeatureHelpAndSupport(),
+  ];
+}
