@@ -14,190 +14,241 @@
  * limitations under the License.
  */
 
-import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
-import { useLocation } from 'react-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import styled, { css } from 'styled-components';
+
+import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
+import { Text } from 'design';
+import { LogoutIcon } from 'design/SVGIcon';
 import { NavLink } from 'react-router-dom';
 
-import { ButtonPrimary, Box, Text, Flex } from 'design';
-import { OpenBox, Person } from 'design/Icon';
-import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
-import { MenuItemIcon, MenuItem } from 'design/Menu';
+import session from 'teleport/services/websession';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { useTeleport } from 'teleport';
 
-import history from 'teleport/services/history';
-import cfg from 'teleport/config';
-import { NavItem } from 'teleport/stores/storeNav';
-import localStorage from 'teleport/services/localStorage';
+interface UserMenuNavProps {
+  username: string;
+}
 
-export function UserMenuNav({ navItems, username, logout }: Props) {
-  const { pathname } = useLocation();
+const Container = styled.div`
+  position: relative;
+  align-self: center;
+  margin-right: 30px;
+`;
+
+const UserInfo = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+`;
+
+const Username = styled(Text)`
+  color: white;
+  font-size: 14px;
+  font-weight: 400;
+  padding-right: 40px;
+`;
+
+const StyledAvatar = styled.div`
+  align-items: center;
+  background: #5130c9;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  font-size: 14px;
+  font-weight: bold;
+  justify-content: center;
+  height: 32px;
+  margin-right: 16px;
+  width: 100%;
+  max-width: 32px;
+  min-width: 32px;
+`;
+
+const Arrow = styled.div`
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translate(0, -50%);
+  line-height: 0;
+
+  svg {
+    transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
+    transition: 0.1s linear transform;
+  }
+`;
+
+interface OpenProps {
+  open: boolean;
+}
+
+const Dropdown = styled.div<OpenProps>`
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 15px;
+  background: #222c59;
+  box-shadow: 0 2px 4px rgba(12, 12, 14, 0.9);
+  border-radius: 5px;
+  width: 265px;
+  right: 0;
+  top: 43px;
+  z-index: 999;
+  opacity: ${p => (p.open ? 1 : 0)};
+  visibility: ${p => (p.open ? 'visible' : 'hidden')};
+  transform-origin: top right;
+  transition: opacity 0.2s ease, visibility 0.2s ease,
+    transform 0.3s cubic-bezier(0.45, 0.6, 0.5, 1.25);
+  transform: ${p =>
+    p.open ? 'scale(1) translate(0, 12px)' : 'scale(.8) translate(0, 4px)'};
+`;
+
+const DropdownItem = styled.div`
+  line-height: 1;
+  font-size: 14px;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  opacity: ${p => (p.open ? 1 : 0)};
+  transition: transform 0.3s ease, opacity 0.7s ease;
+  transform: translate3d(${p => (p.open ? 0 : '20px')}, 0, 0);
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+`;
+
+const commonDropdownItemStyles = css`
+  opacity: 0.8;
+  align-items: center;
+  display: flex;
+  padding: 10px 10px;
+  color: white;
+  text-decoration: none;
+  transition: opacity 0.15s ease-in;
+
+  &:hover {
+    opacity: 1;
+  }
+`;
+
+const DropdownItemButton = styled.div`
+  ${commonDropdownItemStyles};
+`;
+
+const DropdownItemLink = styled(NavLink)`
+  ${commonDropdownItemStyles};
+`;
+
+const DropdownItemIcon = styled.div`
+  margin-right: 16px;
+  line-height: 0;
+`;
+
+const DropdownDivider = styled.div`
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 5px 5px 5px;
+`;
+
+export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
 
-  const discover = localStorage.getOnboardDiscover();
+  const ref = useRef<HTMLDivElement>();
 
-  // viewingXXX flags to determine what view the user is
-  // currently on to determine where the checkmark icon
-  // on the dropdown items should be rendered.
-  const viewingDiscover = pathname === cfg.routes.discover;
-  const viewingUserMenu =
-    !viewingDiscover && navItems.some(n => pathname.startsWith(n.getLink()));
-  const viewingResources = !viewingUserMenu && !viewingDiscover;
+  const ctx = useTeleport();
+  const clusterId = ctx.storeUser.getClusterId();
+  const features = useFeatures();
 
-  const firstTimeDiscoverVisit =
-    discover && !discover.hasResource && !discover.hasVisited;
-  const showDiscoverAlertBubble = !viewingDiscover && firstTimeDiscoverVisit;
-  const isFirstTimeDiscoverVisited = viewingDiscover && firstTimeDiscoverVisit;
+  const initial =
+    username && username.length ? username.trim().charAt(0).toUpperCase() : '';
+
+  const handleClickOutside = useCallback(
+    (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
+        setOpen(false);
+      }
+    },
+    [ref.current]
+  );
 
   useEffect(() => {
-    if (isFirstTimeDiscoverVisited) {
-      const discover = localStorage.getOnboardDiscover();
-      localStorage.setOnboardDiscover({
-        ...discover,
-        hasVisited: true,
-      });
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
     }
-  }, [isFirstTimeDiscoverVisited]);
+  }, [ref, open, handleClickOutside]);
 
-  const menuItemProps = {
-    onClick: closeMenu,
-    py: 2,
-    as: NavLink,
-    exact: true,
-  };
+  const topMenuItems = features.filter(feature => Boolean(feature.topMenuItem));
 
-  const $userMenuItems = navItems.map((item, index) => {
-    const menuPath = item.getLink();
-    return (
-      <MenuItem {...menuItemProps} key={index} to={menuPath}>
-        <FlexedMenuItemIcon as={item.Icon} />
-        <FlexSpaceBetween>
-          <Text>{item.title}</Text>
-          {/* Using 'startsWith' to account for routes that have sub paths eg:
-              - main path: /web/account
-              - sub paths: /web/account/password, /web/account/twofactor
-          */}
-          {pathname.startsWith(menuPath) && <Checkmark />}
-        </FlexSpaceBetween>
-      </MenuItem>
+  const items = [];
+
+  let transitionDelay = 80;
+  for (const [index, item] of topMenuItems.entries()) {
+    items.push(
+      <DropdownItem
+        open={open}
+        key={index}
+        style={{
+          transitionDelay: `${transitionDelay}ms`,
+        }}
+      >
+        <DropdownItemLink
+          to={item.topMenuItem.getLink(clusterId)}
+          onClick={() => setOpen(false)}
+        >
+          <DropdownItemIcon>{item.topMenuItem.icon}</DropdownItemIcon>
+          {item.topMenuItem.title}
+        </DropdownItemLink>
+      </DropdownItem>
     );
-  });
 
-  function showMenu() {
-    setOpen(true);
-  }
-
-  function closeMenu() {
-    setOpen(false);
-  }
-
-  function handleLogout() {
-    closeMenu();
-    logout();
-  }
-
-  function handleClickDiscover() {
-    if (firstTimeDiscoverVisit) {
-      localStorage.setOnboardDiscover({ ...discover, hasVisited: true });
-    }
-
-    history.push(cfg.routes.discover);
-    closeMenu();
+    transitionDelay += 20;
   }
 
   return (
-    <TopNavUserMenu
-      menuListCss={menuListCss}
-      open={open}
-      onShow={showMenu}
-      onClose={closeMenu}
-      user={username}
-    >
-      <MenuItem {...menuItemProps} to={cfg.routes.root}>
-        <BorderedFlexedMenuItemIcon as={Person} />
-        <FlexSpaceBetween>
-          <Text>Browse Resources</Text>
-          {viewingResources && <Checkmark />}
-        </FlexSpaceBetween>
-      </MenuItem>
-      <MenuItem py={2} onClick={handleClickDiscover}>
-        <div
-          css={`
-            position: relative;
-          `}
+    <Container ref={ref}>
+      <UserInfo onClick={() => setOpen(!open)} open={open}>
+        <StyledAvatar>{initial}</StyledAvatar>
+
+        <Username>{username}</Username>
+
+        <Arrow open={open}>
+          <ChevronDownIcon />
+        </Arrow>
+      </UserInfo>
+
+      <Dropdown open={open}>
+        {items}
+
+        <DropdownDivider />
+
+        <DropdownItem
+          open={open}
+          style={{
+            transitionDelay: `${transitionDelay}ms`,
+          }}
         >
-          <BorderedFlexedMenuItemIcon as={OpenBox} />
-          {showDiscoverAlertBubble && (
-            <AlertBubble data-testid="alert-bubble" />
-          )}
-        </div>
-        <FlexSpaceBetween>
-          <Text>Manage Access</Text>
-          {viewingDiscover && <Checkmark />}
-        </FlexSpaceBetween>
-      </MenuItem>
-      <Box
-        my={2}
-        css={`
-          border-bottom: 1px solid #e3e3e3;
-        `}
-      />
-      {$userMenuItems}
-      <MenuItem>
-        <ButtonPrimary my={3} block onClick={handleLogout}>
-          Sign Out
-        </ButtonPrimary>
-      </MenuItem>
-    </TopNavUserMenu>
+          <DropdownItemButton onClick={() => session.logout()}>
+            <DropdownItemIcon>
+              <LogoutIcon size={16} />
+            </DropdownItemIcon>
+            Logout
+          </DropdownItemButton>
+        </DropdownItem>
+      </Dropdown>
+    </Container>
   );
 }
-
-const Checkmark = () => <StyledCheckmark data-testid="checkmark" />;
-const StyledCheckmark = styled(Text)(
-  props => `
-  color: ${props.theme.colors.success};
-  font-size: ${props.theme.fontSizes[6]}${'px'};
-
-  :before {
-    content: '✓';
-  }
-`
-);
-
-const menuListCss = () => `
-  width: 220px;
-`;
-
-const FlexedMenuItemIcon = styled(MenuItemIcon)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const BorderedFlexedMenuItemIcon = styled(FlexedMenuItemIcon)`
-  background: #f1eeee;
-  border-radius: 4px;
-  padding: 3px;
-  width: 18px;
-  height: 18px;
-`;
-
-const AlertBubble = styled.div`
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  background: ${({ theme }) => theme.colors.danger};
-  border-radius: 100%;
-  top: -2px;
-  right: 6px;
-`;
-
-const FlexSpaceBetween = styled(Flex)`
-  width: 100%;
-  justify-content: space-between;
-`;
-
-type Props = {
-  navItems: NavItem[];
-  username: string;
-  logout(): void;
-};

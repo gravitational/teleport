@@ -39,9 +39,6 @@ class TeleportContext implements types.Context {
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
 
-  // features
-  features: types.Feature[] = [];
-
   // services
   auditService = new AuditService();
   recordingsService = new RecordingsService();
@@ -63,14 +60,9 @@ class TeleportContext implements types.Context {
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
   // block.
-  async init(features: types.Feature[]) {
+  async init() {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
-    features.forEach(f => {
-      if (f.isAvailable(this)) {
-        f.register(this);
-      }
-    });
 
     if (
       this.storeUser.hasPrereqAccessToAddAgents() &&
@@ -83,8 +75,30 @@ class TeleportContext implements types.Context {
     }
   }
 
-  getFeatureFlags() {
+  getFeatureFlags(): types.FeatureFlags {
     const userContext = this.storeUser;
+
+    if (!this.storeUser.state) {
+      return {
+        activeSessions: false,
+        applications: false,
+        audit: false,
+        authConnector: false,
+        billing: false,
+        databases: false,
+        desktops: false,
+        kubernetes: false,
+        nodes: false,
+        recordings: false,
+        roles: false,
+        trustedClusters: false,
+        users: false,
+        newAccessRequest: false,
+        accessRequests: false,
+        downloadCenter: false,
+        discover: false,
+      };
+    }
 
     return {
       audit: userContext.getEventAccess().list,
@@ -102,6 +116,8 @@ class TeleportContext implements types.Context {
       activeSessions: userContext.getActiveSessionsAccess().list,
       accessRequests: userContext.getAccessRequestAccess().list,
       newAccessRequest: userContext.getAccessRequestAccess().create,
+      downloadCenter: userContext.hasDownloadCenterListAccess(),
+      discover: userContext.hasDiscoverAccess(),
     };
   }
 }
