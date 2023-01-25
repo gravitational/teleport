@@ -21,7 +21,9 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/base32"
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -1373,6 +1375,12 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	roleReq.SetState(types.RequestState_APPROVED)
 	roleReq.SetAccessExpiry(tt.clock.Now().Add(8 * time.Hour))
 	err = clt.CreateAccessRequest(ctx, roleReq)
+	require.NoError(t, err)
+
+	// Create remote cluster so create access request doesn't err due to non existent cluster
+	rc, err := types.NewRemoteCluster("foobar")
+	require.NoError(t, err)
+	err = tt.server.AuthServer.AuthServer.CreateRemoteCluster(rc)
 	require.NoError(t, err)
 
 	// Create approved resource request
@@ -2955,6 +2963,108 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestClusterAlertAck(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 1)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "alert-1",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
+}
+
+func TestClusterAlertClearAckWildcard(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	alert2, err := types.NewClusterAlert("alert-2", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert2)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	ack = types.AlertAcknowledgement{AlertID: "alert-2", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 2)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+	require.Equal(t, acks[1].AlertID, "alert-2")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "*",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
+}
+
 // TestClusterAlertAccessControls verifies expected behaviors of cluster alert
 // access controls.
 func TestClusterAlertAccessControls(t *testing.T) {
@@ -3462,6 +3572,12 @@ func newTestTLSServer(t *testing.T) *TestTLSServer {
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
 
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	t.Cleanup(func() {
+		err := srv.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
 	return srv
 }

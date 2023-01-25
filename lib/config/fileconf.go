@@ -30,10 +30,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -470,9 +472,21 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// awsRegions returns the list of all regions available on every aws partition.
+// It is used to validate the AWSMatcher.Regions values.
+func awsRegions() []string {
+	var regions []string
+	partitions := endpoints.DefaultPartitions()
+	for _, partition := range partitions {
+		regions = append(regions, maps.Keys(partition.Regions())...)
+	}
+	return regions
+}
+
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
+	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -481,9 +495,25 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 					matcherType, services.SupportedAWSMatchers)
 			}
 		}
+
+		if len(matcher.Regions) == 0 {
+			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
+				regions)
+		}
+
+		for _, region := range matcher.Regions {
+			if !slices.Contains(regions, region) {
+				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
+					region, regions)
+			}
+		}
+
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
 			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
+
+		var installParams services.InstallerParams
+		var err error
 
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
@@ -491,7 +521,13 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 					TokenName: defaults.IAMInviteTokenName,
 					Method:    types.JoinMethodIAM,
 				},
-				ScriptName: installers.InstallerScriptName,
+				ScriptName:      installers.InstallerScriptName,
+				InstallTeleport: "",
+				SSHDConfig:      defaults.SSHDConfigPath,
+			}
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		} else {
 			if method := matcher.InstallParams.JoinParams.Method; method == "" {
@@ -499,17 +535,35 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			} else if method != types.JoinMethodIAM {
 				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
 			}
-			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+
+			if matcher.InstallParams.JoinParams.TokenName == "" {
 				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
 			}
 
+			if matcher.InstallParams.SSHDConfig == "" {
+				matcher.InstallParams.SSHDConfig = defaults.SSHDConfigPath
+			}
+
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				if installParams.InstallTeleport {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				} else {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptNameAgentless
+				}
 			}
 		}
 
 		if matcher.SSM.DocumentName == "" {
-			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			if installParams.InstallTeleport {
+				matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			} else {
+				matcher.SSM.DocumentName = defaults.AWSAgentlessInstallerDocument
+			}
 		}
 	}
 	return nil
@@ -1478,6 +1532,32 @@ type InstallParams struct {
 	// ScriptName is the name of the teleport installer script
 	// resource for the EC2 instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
+	// InstallTeleport disables agentless discovery
+	InstallTeleport string `yaml:"install_teleport,omitempty"`
+	// SSHDConfig provides the path to write sshd configuration changes
+	SSHDConfig string `yaml:"sshd_config,omitempty"`
+}
+
+func (ip *InstallParams) Parse() (services.InstallerParams, error) {
+	install := services.InstallerParams{
+		JoinMethod:      ip.JoinParams.Method,
+		JoinToken:       ip.JoinParams.TokenName,
+		ScriptName:      ip.ScriptName,
+		InstallTeleport: true,
+		SSHDConfig:      ip.SSHDConfig,
+	}
+
+	if ip.InstallTeleport == "" {
+		return install, nil
+	}
+
+	var err error
+	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
+	if err != nil {
+		return services.InstallerParams{}, trace.Wrap(err)
+	}
+
+	return install, nil
 }
 
 // AWSSSM provides options to use when executing SSM documents

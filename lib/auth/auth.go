@@ -75,6 +75,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -431,6 +432,8 @@ type Server struct {
 
 	releaseService release.Client
 
+	loginRuleEvaluator loginrule.Evaluator
+
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -534,6 +537,21 @@ func (a *Server) SetLicense(license *liblicense.License) {
 // SetReleaseService sets the release service
 func (a *Server) SetReleaseService(svc release.Client) {
 	a.releaseService = svc
+}
+
+// SetLoginRuleEvaluator sets the login rule evaluator.
+func (a *Server) SetLoginRuleEvaluator(l loginrule.Evaluator) {
+	a.loginRuleEvaluator = l
+}
+
+// GetLoginRuleEvaluator returns the login rule evaluator. It is guaranteed not
+// to return nil, if no evaluator has been installed it will return
+// [loginrule.NullEvaluator].
+func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
+	if a.loginRuleEvaluator == nil {
+		return loginrule.NullEvaluator{}
+	}
+	return a.loginRuleEvaluator
 }
 
 // CloseContext returns the close context
@@ -1595,10 +1613,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	if !req.skipAttestation {
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
-		requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3861,12 +3879,12 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
 	case services.MFARequiredNever:
@@ -3916,7 +3934,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		for _, n := range matches {
 			err := checker.CheckAccess(
 				n,
-				services.AccessMFAParams{},
+				services.AccessState{},
 				services.NewLoginMatcher(t.Node.Login),
 			)
 
@@ -3949,7 +3967,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessMFAParams{})
+		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -3978,7 +3996,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		)
 		noMFAAccessErr = checker.CheckAccess(
 			db,
-			services.AccessMFAParams{},
+			services.AccessState{},
 			dbRoleMatchers...,
 		)
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
@@ -3991,7 +4009,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		noMFAAccessErr = checker.CheckAccess(desktops[0],
-			services.AccessMFAParams{},
+			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	default:

@@ -7145,3 +7145,207 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 		})
 	}
 }
+
+// TestConnectivityWithoutAuth ensures that sessions
+// can/cannot be established with an existing certificate
+// based on cluster configuration or roles.
+func TestConnectivityWithoutAuth(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	tests := []struct {
+		name         string
+		adjustRole   func(r types.Role)
+		command      []string
+		sshAssertion func(t *testing.T, authRunning bool, errChan chan error, term *Terminal)
+	}{
+		{
+			name:       "offline connectivity allowed",
+			adjustRole: func(r types.Role) {},
+			sshAssertion: func(t *testing.T, authRunning bool, errChan chan error, term *Terminal) {
+				term.Type("echo hi\n\rexit\n\r")
+
+				select {
+				case err := <-errChan:
+					require.NoError(t, err)
+				case <-time.After(5 * time.Second):
+					t.Fatal("timeout waiting for session to exit")
+				}
+				require.Contains(t, term.AllOutput(), "hi")
+			},
+		},
+		{
+			name: "moderated sessions requires auth connectivity",
+			adjustRole: func(r types.Role) {
+				r.SetSessionRequirePolicies([]*types.SessionRequirePolicy{
+					{
+						Name:  "bar",
+						Kinds: []string{string(types.SSHSessionKind)},
+					},
+				})
+			},
+			sshAssertion: func(t *testing.T, authRunning bool, errChan chan error, term *Terminal) {
+				if authRunning {
+					require.Eventually(t, func() bool {
+						return strings.Contains(term.AllOutput(), "Waiting for required participants")
+					}, 5*time.Second, 500*time.Millisecond)
+
+					// send ctrl-c to exit
+					term.Type("\x03\r")
+				}
+
+				select {
+				case err := <-errChan:
+					require.Error(t, err)
+					if !authRunning {
+						require.Empty(t, term.AllOutput())
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("timeout waiting for session to exit")
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create auth config.
+			authCfg := service.MakeDefaultConfig()
+			authCfg.Console = nil
+			authCfg.Log = utils.NewLoggerForTests()
+			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+			authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			authCfg.Auth.Preference.SetSecondFactor("off")
+			authCfg.Auth.Enabled = true
+			authCfg.Auth.NoAudit = true
+			authCfg.Proxy.Enabled = false
+			authCfg.SSH.Enabled = false
+
+			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			auth := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: helpers.Site,
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Priv:        privateKey,
+				Pub:         publicKey,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			// Create a user and role.
+			me, err := user.Current()
+			require.NoError(t, err)
+
+			role := services.NewImplicitRole()
+			role.SetName("test")
+			role.SetLogins(types.Allow, []string{me.Username})
+			role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}})
+			auth.AddUserWithRole(me.Username, role)
+
+			// allow test case to tweak the role
+			test.adjustRole(role)
+
+			// create and launch the auth server
+			err = auth.CreateEx(t, nil, authCfg)
+			require.NoError(t, err)
+
+			require.NoError(t, auth.Start())
+			t.Cleanup(func() {
+				require.NoError(t, auth.StopAll())
+			})
+
+			// create a proxy/node instance
+			privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			node := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: helpers.Site,
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Priv:        privateKey,
+				Pub:         publicKey,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			// Create node config.
+			nodeCfg := service.MakeDefaultConfig()
+			nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+			nodeCfg.SetToken("token")
+			nodeCfg.CachePolicy.Enabled = true
+			nodeCfg.DataDir = t.TempDir()
+			nodeCfg.Console = nil
+			nodeCfg.Log = utils.NewLoggerForTests()
+			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+			nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			nodeCfg.Auth.Enabled = false
+			// Configure Proxy.
+			nodeCfg.Proxy.Enabled = true
+			nodeCfg.Proxy.DisableWebService = false
+			nodeCfg.Proxy.DisableWebInterface = true
+			nodeCfg.FileDescriptors = append(nodeCfg.FileDescriptors, node.Fds...)
+			nodeCfg.Proxy.SSHAddr.Addr = node.SSHProxy
+			nodeCfg.Proxy.WebAddr.Addr = node.Web
+			nodeCfg.Proxy.ReverseTunnelListenAddr.Addr = node.Secrets.TunnelAddr
+
+			// Configure Node.
+			nodeCfg.SSH.Enabled = true
+			nodeCfg.SSH.Addr.Addr = node.SSH
+
+			err = node.CreateWithConf(t, nodeCfg)
+			require.NoError(t, err)
+
+			require.NoError(t, node.Start())
+			t.Cleanup(func() {
+				require.NoError(t, node.StopAll())
+			})
+
+			// create a client for the user created above
+			cli, err := auth.NewClient(helpers.ClientConfig{
+				Login:   me.Username,
+				Cluster: helpers.Site,
+				Host:    Host,
+				Port:    helpers.Port(t, node.SSH),
+				Proxy: &helpers.ProxyConfig{
+					SSHAddr: nodeCfg.Proxy.SSHAddr.String(),
+					WebAddr: nodeCfg.Proxy.WebAddr.String(),
+				},
+			})
+			require.NoError(t, err)
+
+			// start ssh session with auth still running
+			term := NewTerminal(200)
+			cli.Stdout = term
+			cli.Stdin = term
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			errChan := make(chan error, 1)
+			go func() {
+				errChan <- cli.SSH(ctx, test.command, false)
+			}()
+
+			t.Run("auth running", func(t *testing.T) {
+				test.sshAssertion(t, true, errChan, term)
+			})
+
+			// shut down auth server
+			require.NoError(t, auth.StopAuth(false))
+
+			// start ssh session after auth has shutdown
+			term = NewTerminal(200)
+			cli.Stdout = term
+			cli.Stdin = term
+			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			go func() {
+				errChan <- cli.SSH(ctx, test.command, false)
+			}()
+
+			t.Run("auth not running", func(t *testing.T) {
+				test.sshAssertion(t, false, errChan, term)
+			})
+		})
+	}
+}

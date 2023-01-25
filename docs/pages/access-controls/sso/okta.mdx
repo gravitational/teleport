@@ -88,9 +88,11 @@ Assign groups and people to your SAML app:
 ![Configure APP](../../../img/sso/okta/okta-saml-3.1.png)
 
 Make sure to download the metadata in the form of an XML document. It will be used it to
-configure a Teleport connector:
+configure a Teleport connector. You can find this on the "View SAML Setup
+Instructions" page under "Optional - Provide the following **IDP metadata** to
+your **SP provider**.":
 
-![Download metadata](../../../img/sso/okta/okta-saml-4.png)
+![Download metadata](../../../img/sso/okta/okta-saml-5.png)
 
 ## Create a SAML Connector
 
@@ -99,6 +101,7 @@ Now, create a SAML connector [resource](../../reference/resources.mdx):
 ```yaml
 (!examples/resources/saml-connector.yaml!)
 ```
+The above example includes the `entity_descriptor` field as multiple lines, although a single line with no spaces will also be accepted.
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 

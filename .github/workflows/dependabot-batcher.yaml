@@ -10,18 +10,22 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 21 * * 0' # At 9:00 PM every Sunday UTC
-
-permissions:
-    pull-requests: write
-    contents: write
-
+          
 jobs:
   dependabot-batcher:
     name: 'Combine Dependabot PRs'
     runs-on: ubuntu-latest
+    environment: dependabot-batcher
     steps:
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
+          
       - name: 'Dependabot Batcher'
         uses: Legal-and-General/dependabot-batcher@v1.0.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }} #required
+          token: ${{ steps.generate_token.outputs.token }} #required
           baseBranchName: 'master'
