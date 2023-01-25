@@ -16,42 +16,47 @@ limitations under the License.
 
 import React from 'react';
 
-import Ctx from 'teleport/teleportContext';
+import {
+  ManagementSection,
+  NavigationCategory,
+} from 'teleport/Navigation/categories';
 
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
-type FeatureFlags = {
-  audit: boolean;
-  authConnector: boolean;
-  roles: boolean;
-  trustedClusters: boolean;
-  users: boolean;
-  applications: boolean;
-};
-
 export interface Context {
-  init(features: Feature[]): Promise<void>;
+  init(): Promise<void>;
   getFeatureFlags(): FeatureFlags;
 }
 
-export abstract class Feature {
-  abstract topNavTitle: string;
-  abstract route: FeatureRoute;
-  abstract isAvailable(ctx: Ctx): boolean;
-  abstract register(ctx: Ctx): void;
+interface TeleportFeatureNavigationItem {
+  title: string;
+  icon: React.ReactNode;
+  exact?: boolean;
+  getLink?(clusterId: string): string;
+  isExternalLink?: boolean;
+}
+
+interface TeleportFeatureRoute {
+  title: string;
+  path: string;
+  exact?: boolean;
+  component: React.FunctionComponent;
+}
+
+export interface TeleportFeature {
+  parent?: new () => TeleportFeature | null;
+  category?: NavigationCategory;
+  section?: ManagementSection;
+  hasAccess(flags: FeatureFlags): boolean;
+  route?: TeleportFeatureRoute;
+  navigationItem?: TeleportFeatureNavigationItem;
+  topMenuItem?: TeleportFeatureNavigationItem;
 }
 
 export type StickyCluster = {
   clusterId: string;
   hasClusterUrl: boolean;
   isLeafCluster: boolean;
-};
-
-type FeatureRoute = {
-  title: string;
-  path: string;
-  exact?: boolean;
-  component: React.FunctionComponent;
 };
 
 export type Label = {
@@ -65,3 +70,23 @@ export type Filter = {
   name: string;
   kind: 'label';
 };
+
+export interface FeatureFlags {
+  audit: boolean;
+  recordings: boolean;
+  authConnector: boolean;
+  roles: boolean;
+  trustedClusters: boolean;
+  users: boolean;
+  applications: boolean;
+  kubernetes: boolean;
+  billing: boolean;
+  databases: boolean;
+  desktops: boolean;
+  nodes: boolean;
+  activeSessions: boolean;
+  accessRequests: boolean;
+  newAccessRequest: boolean;
+  downloadCenter: boolean;
+  discover: boolean;
+}
