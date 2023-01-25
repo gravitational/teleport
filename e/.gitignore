@@ -21,10 +21,13 @@ tmp
 # editors
 .vscode
 *.swp
+.idea
 
 # test binaries produced by go
 *.test
 
+# macOS
+**/.DS_Store
 /macos/tshdev/tsh.app/Contents/MacOS/tsh
+
 /tool/modules/fips.go
-/.idea/
