@@ -18,6 +18,7 @@ package ingress
 
 import (
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -116,4 +117,37 @@ func getGaugeValue(metric *prometheus.GaugeVec, path, service string) int {
 		return 0
 	}
 	return int(m.Gauge.GetValue())
+}
+
+func TestHTTPConnStateReporter(t *testing.T) {
+	reporter, err := NewReporter("")
+	require.NoError(t, err)
+
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	s := http.Server{
+		Handler:   handler,
+		ConnState: HTTPConnStateReporter(Web, reporter),
+	}
+
+	go s.Serve(l)
+	defer func() { require.NoError(t, s.Close()) }()
+
+	require.Equal(t, 0, getAcceptedConnections(PathDirect, Web))
+	require.Equal(t, 0, getActiveConnections(PathDirect, Web))
+	require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathDirect, Web))
+	require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web))
+
+	resp, err := http.Get("http://" + l.Addr().String())
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))
+	require.Equal(t, 1, getActiveConnections(PathDirect, Web))
+	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathDirect, Web))
+	require.Equal(t, 1, getAuthenticatedActiveConnections(PathDirect, Web))
 }
