@@ -1607,3 +1607,75 @@ func TestSessionTTL(t *testing.T) {
 		})
 	}
 }
+
+type mockClusterGetter struct {
+	localCluster   types.ClusterName
+	remoteClusters map[string]types.RemoteCluster
+}
+
+func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, error) {
+	return mcg.localCluster, nil
+}
+func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
+		return cluster, nil
+	}
+	return nil, trace.NotFound("remote cluster %q was not found", clusterName)
+}
+
+func TestValidateAccessRequestClusterNames(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		localClusterName   string
+		remoteClusterNames []string
+		expectedInErr      string
+	}{
+		{
+			name:               "local cluster is requested",
+			localClusterName:   "someCluster",
+			remoteClusterNames: []string{},
+			expectedInErr:      "",
+		}, {
+			name:               "remote cluster is requested",
+			localClusterName:   "notTheCorrectName",
+			remoteClusterNames: []string{"someCluster"},
+			expectedInErr:      "",
+		}, {
+			name:               "unknown cluster requested",
+			localClusterName:   "notTheCorrectName",
+			remoteClusterNames: []string{"notTheCorrectClusterEither"},
+			expectedInErr:      "invalid or unknown cluster names",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			localCluster, err := types.NewClusterName(types.ClusterNameSpecV2{
+				ClusterName: tc.localClusterName,
+				ClusterID:   "someClusterID",
+			})
+			require.NoError(t, err)
+
+			remoteClusters := map[string]types.RemoteCluster{}
+			for _, remoteCluster := range tc.remoteClusterNames {
+				remoteClusters[remoteCluster], err = types.NewRemoteCluster(remoteCluster)
+				require.NoError(t, err)
+			}
+
+			mcg := mockClusterGetter{
+				localCluster:   localCluster,
+				remoteClusters: remoteClusters,
+			}
+			req, err := types.NewAccessRequestWithResources("name", "user", []string{}, []types.ResourceID{
+				{ClusterName: "someCluster"},
+			})
+			require.NoError(t, err)
+
+			err = ValidateAccessRequestClusterNames(mcg, req)
+			if tc.expectedInErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedInErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}

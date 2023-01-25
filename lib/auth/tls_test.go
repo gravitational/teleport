@@ -1377,6 +1377,12 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	err = clt.CreateAccessRequest(ctx, roleReq)
 	require.NoError(t, err)
 
+	// Create remote cluster so create access request doesn't err due to non existent cluster
+	rc, err := types.NewRemoteCluster("foobar")
+	require.NoError(t, err)
+	err = tt.server.AuthServer.AuthServer.CreateRemoteCluster(rc)
+	require.NoError(t, err)
+
 	// Create approved resource request
 	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, resourceIDs)
 	require.NoError(t, err)
