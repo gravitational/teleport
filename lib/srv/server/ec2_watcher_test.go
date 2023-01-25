@@ -143,12 +143,18 @@ func TestEC2Watcher(t *testing.T) {
 	}
 	matchers := []services.AWSMatcher{
 		{
+			Params: services.InstallerParams{
+				InstallTeleport: true,
+			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 			SSM:     &services.AWSSSM{},
 		},
 		{
+			Params: services.InstallerParams{
+				InstallTeleport: true,
+			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
