@@ -17,7 +17,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider, Context as TeleportContext } from 'teleport';
+import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import {
