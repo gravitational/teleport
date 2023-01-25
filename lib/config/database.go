@@ -154,10 +154,9 @@ db_service:
       "{{ $name }}": "{{ $value }}"
     {{- end }}
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions}}
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions .AzureSQLServerDiscoveryRegions }}
   # Matchers for registering Azure-hosted databases.
   azure:
-  {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
   # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
@@ -257,6 +256,7 @@ db_service:
     {{- range $name, $value := .AzureTags }}
       "{{ $name }}": "{{ $value }}"
     {{- end }}
+  {{- end }}
   {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
