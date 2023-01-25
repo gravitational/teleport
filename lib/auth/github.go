@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -593,7 +594,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateGithubUser(connector, claims, req)
+	params, err := a.calculateGithubUser(ctx, connector, claims, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -700,7 +701,7 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateGithubUser(ctx context.Context, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      claims.Username,
@@ -717,6 +718,22 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 		constants.TraitKubeUsers:  p.kubeUsers,
 		teleport.TraitTeams:       claims.Teams,
 	}
+
+	evaluationInput := &loginrule.EvaluationInput{
+		Traits: p.traits,
+	}
+	evaluationOutput, err := a.GetLoginRuleEvaluator().Evaluate(ctx, evaluationInput)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.traits = evaluationOutput.Traits
+
+	// Kube groups and users are ultimately only set in the traits, not any
+	// other property of the User. In case the login rules changed the relevant
+	// traits values, reset the value on the user params for accurate
+	// diagnostics.
+	p.kubeGroups = p.traits[constants.TraitKubeGroups]
+	p.kubeUsers = p.traits[constants.TraitKubeUsers]
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, a, p.traits)
