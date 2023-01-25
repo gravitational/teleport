@@ -74,6 +74,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindLoginRule, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -177,6 +178,7 @@ func defaultAllowRules() map[string][]types.Rule {
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
 			types.NewRule(types.KindDatabase, RW()),
+			types.NewRule(types.KindLoginRule, RW()),
 		},
 	}
 }
