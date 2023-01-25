@@ -47,12 +47,12 @@ BUILD_TARGET="$3"
 shift 3
 SRC_DIRECTORIES=("$@")
 
-# Calculate the current hash-of-hashes of the given source directories. Adds in yarn.lock and package.json as well.
-# This excludes node_modules, as the yarn.lock/package.json differences should handle this.
+# Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
+# This excludes node_modules, as the package.json differences should handle this.
 #shellcheck disable=SC2086
 CURRENT_SHA="$( (for dir in "${SRC_DIRECTORIES[@]}"; do
   find "$ROOT_PATH/$dir" -type f
-done && echo "$ROOT_PATH/yarn.lock" && echo "$ROOT_PATH/package.json") | 
+done && echo "$ROOT_PATH/package.json") |
   grep -v "node_modules" | xargs -I{} -n1 -P8 $SHASUM {} | sort -k 2 | $SHASUM |
   cut -f1 -d' ')"
 
