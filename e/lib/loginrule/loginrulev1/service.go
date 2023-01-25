@@ -4,13 +4,16 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/defaults"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -18,22 +21,36 @@ import (
 type ServiceConfig struct {
 	Storage    *storage.S
 	Authorizer auth.Authorizer
+	Emitter    apievents.Emitter
 }
 
 // Service implements the login rule gRPC service.
 type Service struct {
 	loginrulepb.UnimplementedLoginRuleServiceServer
 
+	logger *logrus.Entry
+
 	storage    *storage.S
 	authorizer auth.Authorizer
+	emitter    apievents.Emitter
 }
 
 // NewService returns a new login rule gRPC service.
-func NewService(cfg *ServiceConfig) *Service {
+func NewService(cfg *ServiceConfig) (*Service, error) {
+	switch {
+	case cfg.Storage == nil:
+		return nil, trace.BadParameter("storage is required")
+	case cfg.Authorizer == nil:
+		return nil, trace.BadParameter("authorizer is required")
+	case cfg.Emitter == nil:
+		return nil, trace.BadParameter("emitter is required")
+	}
 	return &Service{
+		logger:     logrus.WithField(trace.Component, "loginrule.service"),
 		storage:    cfg.Storage,
 		authorizer: cfg.Authorizer,
-	}
+		emitter:    cfg.Emitter,
+	}, nil
 }
 
 // CreateLoginRule creates a login rule if one with the same name does not
@@ -43,7 +60,9 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): add audit event
+	if err := s.emitCreateEvent(ctx, req.LoginRule); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	rule, err := s.storage.CreateLoginRule(ctx, req.LoginRule)
 	return rule, trace.Wrap(err)
@@ -56,7 +75,9 @@ func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLo
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): add audit event
+	if err := s.emitCreateEvent(ctx, req.LoginRule); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	rule, err := s.storage.UpsertLoginRule(ctx, req.LoginRule)
 	return rule, trace.Wrap(err)
@@ -68,8 +89,6 @@ func (s *Service) GetLoginRule(ctx context.Context, req *loginrulepb.GetLoginRul
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): add audit event
-
 	rule, err := s.storage.GetLoginRule(ctx, req.Name)
 	return rule, trace.Wrap(err)
 }
@@ -79,8 +98,6 @@ func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLogin
 	if err := s.authorizeVerbs(ctx, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// TODO(nklaassen): add audit event
 
 	rules, nextPageToken, err := s.storage.ListLoginRules(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
@@ -99,7 +116,9 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): add audit event
+	if err := s.emitDeleteEvent(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	err := s.storage.DeleteLoginRule(ctx, req.Name)
 	return &emptypb.Empty{}, trace.Wrap(err)
@@ -123,4 +142,49 @@ func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
 		return trace.AccessDenied(err.Error())
 	}
 	return nil
+}
+
+func (s *Service) emitCreateEvent(ctx context.Context, rule *loginrulepb.LoginRule) error {
+	e := &apievents.LoginRuleCreate{
+		Metadata: apievents.Metadata{
+			Type: events.LoginRuleCreateEvent,
+			Code: events.LoginRuleCreateCode,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: rule.Metadata.Name,
+		},
+		UserMetadata: auth.ClientUserMetadata(ctx),
+	}
+	if expires := rule.Metadata.Expires; expires != nil {
+		e.ResourceMetadata.Expires = *expires
+	}
+	return trace.Wrap(s.emitAuditEvent(ctx, e))
+}
+
+func (s *Service) emitDeleteEvent(ctx context.Context, name string) error {
+	e := &apievents.LoginRuleDelete{
+		Metadata: apievents.Metadata{
+			Type: events.LoginRuleDeleteEvent,
+			Code: events.LoginRuleDeleteCode,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+		UserMetadata: auth.ClientUserMetadata(ctx),
+	}
+	return trace.Wrap(s.emitAuditEvent(ctx, e))
+}
+
+func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	err := s.emitter.EmitAuditEvent(ctx, e)
+	if err != nil {
+		userMeta := auth.ClientUserMetadata(ctx)
+		s.logger.WithError(err).WithFields(logrus.Fields{
+			"type":         e.GetType(),
+			"code":         e.GetCode(),
+			"user":         userMeta.User,
+			"impersonator": userMeta.Impersonator,
+		}).Warn("Failed to emit audit event")
+	}
+	return trace.Wrap(err)
 }

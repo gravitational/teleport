@@ -199,10 +199,14 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	service := loginrulev1.NewService(&loginrulev1.ServiceConfig{
+	service, err := loginrulev1.NewService(&loginrulev1.ServiceConfig{
 		Storage:    storage,
 		Authorizer: p.authorizer,
+		Emitter:    server.Emitter,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	loginrulepb.RegisterLoginRuleServiceServer(grpcServer, service)
 
 	return nil

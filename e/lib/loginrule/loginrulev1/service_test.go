@@ -10,10 +10,13 @@ import (
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -80,12 +83,16 @@ func TestRBAC(t *testing.T) {
 
 	authorizer := &fakeAuthorizer{}
 
+	mockEmitter := &eventstest.MockEmitter{}
+
 	cfg := &ServiceConfig{
 		Storage:    p.s,
 		Authorizer: authorizer,
+		Emitter:    mockEmitter,
 	}
 
-	service := NewService(cfg)
+	service, err := NewService(cfg)
+	require.NoError(t, err)
 
 	rule := &loginrulepb.LoginRule{
 		Metadata: &types.Metadata{
@@ -99,6 +106,7 @@ func TestRBAC(t *testing.T) {
 		f            func() error
 		allow        map[check]bool
 		expectChecks []check
+		expectEvents []apievents.AuditEvent
 	}{
 		{
 			desc: "create",
@@ -113,6 +121,18 @@ func TestRBAC(t *testing.T) {
 			},
 			expectChecks: []check{
 				{types.KindLoginRule, types.VerbCreate},
+			},
+			expectEvents: []apievents.AuditEvent{
+				&apievents.LoginRuleCreate{
+					Metadata: apievents.Metadata{
+						Type: events.LoginRuleCreateEvent,
+						Code: events.LoginRuleCreateCode,
+					},
+					ResourceMetadata: apievents.ResourceMetadata{
+						Name: rule.Metadata.Name,
+					},
+					UserMetadata: auth.ClientUserMetadata(ctx),
+				},
 			},
 		},
 		{
@@ -131,6 +151,18 @@ func TestRBAC(t *testing.T) {
 				{types.KindLoginRule, types.VerbCreate},
 				{types.KindLoginRule, types.VerbUpdate},
 			},
+			expectEvents: []apievents.AuditEvent{
+				&apievents.LoginRuleCreate{
+					Metadata: apievents.Metadata{
+						Type: events.LoginRuleCreateEvent,
+						Code: events.LoginRuleCreateCode,
+					},
+					ResourceMetadata: apievents.ResourceMetadata{
+						Name: rule.Metadata.Name,
+					},
+					UserMetadata: auth.ClientUserMetadata(ctx),
+				},
+			},
 		},
 		{
 			desc: "get",
@@ -146,6 +178,7 @@ func TestRBAC(t *testing.T) {
 			expectChecks: []check{
 				{types.KindLoginRule, types.VerbRead},
 			},
+			expectEvents: []apievents.AuditEvent{},
 		},
 		{
 			desc: "list",
@@ -160,6 +193,34 @@ func TestRBAC(t *testing.T) {
 			expectChecks: []check{
 				{types.KindLoginRule, types.VerbRead},
 				{types.KindLoginRule, types.VerbList},
+			},
+			expectEvents: []apievents.AuditEvent{},
+		},
+		{
+			desc: "delete",
+			f: func() error {
+				_, err := service.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+					Name: rule.Metadata.Name,
+				})
+				return err
+			},
+			allow: map[check]bool{
+				{types.KindLoginRule, types.VerbDelete}: true,
+			},
+			expectChecks: []check{
+				{types.KindLoginRule, types.VerbDelete},
+			},
+			expectEvents: []apievents.AuditEvent{
+				&apievents.LoginRuleDelete{
+					Metadata: apievents.Metadata{
+						Type: events.LoginRuleDeleteEvent,
+						Code: events.LoginRuleDeleteCode,
+					},
+					ResourceMetadata: apievents.ResourceMetadata{
+						Name: rule.Metadata.Name,
+					},
+					UserMetadata: auth.ClientUserMetadata(ctx),
+				},
 			},
 		},
 	} {
@@ -177,7 +238,8 @@ func TestRBAC(t *testing.T) {
 			require.NoError(t, err)
 			require.ElementsMatch(t, tc.expectChecks, authorizer.checker.checks)
 
-			// TODO(nklaassen): check for audit events.
+			require.Equal(t, tc.expectEvents, mockEmitter.Events())
+			mockEmitter.Reset()
 		})
 	}
 }
