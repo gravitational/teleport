@@ -41,7 +41,6 @@ import (
 )
 
 var (
-
 	// proxiedSessions counts successful connections to nodes
 	proxiedSessions = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -205,10 +204,10 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		),
 	)
 	defer func() {
-		span.End()
 		if err != nil {
 			failedConnectingToNode.Inc()
 		}
+		span.End()
 	}()
 
 	site := r.localSite
