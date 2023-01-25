@@ -4,8 +4,10 @@ matches snapshot for acme-off.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-cluster-name
         cluster_name: test-cluster-name
         enabled: true
         proxy_listener_mode: separate
@@ -36,8 +38,10 @@ matches snapshot for acme-on.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-acme-cluster
         cluster_name: test-acme-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -68,8 +72,10 @@ matches snapshot for acme-uri-staging.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-acme-cluster
         cluster_name: test-acme-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -101,8 +107,10 @@ matches snapshot for auth-connector-name.yaml:
         authentication:
           connector_name: okta
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -166,8 +174,10 @@ matches snapshot for auth-locking-mode.yaml:
         authentication:
           local_auth: true
           locking_mode: strict
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -233,8 +243,10 @@ matches snapshot for auth-type-legacy.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: github
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -265,8 +277,10 @@ matches snapshot for auth-type.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: github
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -373,8 +387,10 @@ matches snapshot for aws-dynamodb-autoscaling.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -420,8 +436,10 @@ matches snapshot for aws-ha-acme.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -463,8 +481,10 @@ matches snapshot for aws-ha-antiaffinity.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -506,8 +526,10 @@ matches snapshot for aws-ha-log.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -550,8 +572,10 @@ matches snapshot for aws-ha.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -593,8 +617,10 @@ matches snapshot for aws.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -636,8 +662,10 @@ matches snapshot for existing-tls-secret-with-ca.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-cluster-name
         cluster_name: test-cluster-name
         enabled: true
         proxy_listener_mode: separate
@@ -668,8 +696,10 @@ matches snapshot for existing-tls-secret.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-cluster-name
         cluster_name: test-cluster-name
         enabled: true
         proxy_listener_mode: separate
@@ -700,8 +730,10 @@ matches snapshot for gcp-ha-acme.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-gcp-cluster
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -742,8 +774,10 @@ matches snapshot for gcp-ha-antiaffinity.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-gcp-cluster
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -784,8 +818,10 @@ matches snapshot for gcp-ha-log.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-gcp-cluster
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -827,8 +863,10 @@ matches snapshot for gcp.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-gcp-cluster
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -869,8 +907,10 @@ matches snapshot for initcontainers.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -901,8 +941,10 @@ matches snapshot for kube-cluster-name.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -933,8 +975,10 @@ matches snapshot for log-basic.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-log-cluster
         cluster_name: test-log-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -965,8 +1009,10 @@ matches snapshot for log-extra.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-log-cluster
         cluster_name: test-log-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -997,8 +1043,10 @@ matches snapshot for log-legacy.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-log-cluster
         cluster_name: test-log-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -1029,8 +1077,10 @@ matches snapshot for priority-class-name.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -1061,8 +1111,10 @@ matches snapshot for proxy-listener-mode-multiplex.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-proxy-listener-mode
         cluster_name: test-proxy-listener-mode
         enabled: true
         proxy_listener_mode: multiplex
@@ -1093,8 +1145,10 @@ matches snapshot for proxy-listener-mode-separate.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-proxy-listener-mode
         cluster_name: test-proxy-listener-mode
         enabled: true
         proxy_listener_mode: separate
@@ -1125,8 +1179,10 @@ matches snapshot for public-addresses.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -1157,8 +1213,10 @@ matches snapshot for separate-mongo-listener.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -1189,8 +1247,10 @@ matches snapshot for separate-postgres-listener.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -1221,8 +1281,10 @@ matches snapshot for service.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -1253,8 +1315,10 @@ matches snapshot for session-recording.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate
@@ -1286,8 +1350,10 @@ matches snapshot for standalone-customsize.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-standalone-cluster
         cluster_name: test-standalone-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -1320,8 +1386,10 @@ matches snapshot for standalone-existingpvc.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-standalone-cluster
         cluster_name: test-standalone-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -1354,8 +1422,10 @@ matches snapshot for tolerations.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-aws-cluster
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
@@ -1395,8 +1465,10 @@ matches snapshot for version-override.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: test-cluster-name
         cluster_name: test-cluster-name
         enabled: true
         proxy_listener_mode: separate
@@ -1430,8 +1502,10 @@ matches snapshot for volumes.yaml:
       auth_service:
         authentication:
           local_auth: true
-          second_factor: otp
+          second_factor: "on"
           type: local
+          webauthn:
+            rp_id: helm-lint
         cluster_name: helm-lint
         enabled: true
         proxy_listener_mode: separate

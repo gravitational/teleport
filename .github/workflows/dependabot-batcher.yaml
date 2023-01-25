@@ -15,6 +15,7 @@ jobs:
   dependabot-batcher:
     name: 'Combine Dependabot PRs'
     runs-on: ubuntu-latest
+    environment: dependabot-batcher
     steps:
       - name: Generate GitHub Token
         id: generate_token
