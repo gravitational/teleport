@@ -118,6 +118,8 @@ message Event {
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
     // DatabaseService is a DatabaseService resource
     types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // SAMLIdPServiceProvider is a SAMLIdPServiceProvider resource
+    types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 36 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
   }
 }
 

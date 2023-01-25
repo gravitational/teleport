@@ -2828,6 +2828,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
 		types.KindInstaller:               &types.InstallerV1{},
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
+		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
 	}
 
 	for name, cfg := range cases {
