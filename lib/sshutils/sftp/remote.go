@@ -62,7 +62,7 @@ func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, err
 	return fileInfos, nil
 }
 
-func (r *remoteFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
+func (r *remoteFS) Open(ctx context.Context, path string) (WriterToCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

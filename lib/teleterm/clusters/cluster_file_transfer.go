@@ -35,7 +35,7 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 		return trace.Wrap(err)
 	}
 
-	config.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
+	config.ProgressWriter = func(fileInfo os.FileInfo) io.ReadWriteCloser {
 		return newFileTransferProgress(fileInfo.Size(), sendProgress)
 	}
 
@@ -57,7 +57,7 @@ func getSftpConfig(request *api.FileTransferRequest) (*sftp.Config, error) {
 	}
 }
 
-func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.Writer {
+func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.ReadWriteCloser {
 	return &fileTransferProgress{
 		sendProgress: sendProgress,
 		sentSize:     0,
@@ -72,6 +72,16 @@ type fileTransferProgress struct {
 	lastSentPercentage uint32
 	lastSentAt         time.Time
 	lock               sync.Mutex
+}
+
+func (p2 *fileTransferProgress) Read(p []byte) (n int, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p2 *fileTransferProgress) Close() error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (p *fileTransferProgress) Write(bytes []byte) (int, error) {

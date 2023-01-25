@@ -65,9 +65,15 @@ type Config struct {
 
 	// ProgressWriter is a callback to return a writer for printing the progress
 	// (used only on the client)
-	ProgressWriter func(fileInfo os.FileInfo) io.Writer
+	ProgressWriter func(fileInfo os.FileInfo) io.ReadWriteCloser
 	// Log optionally specifies the logger
 	Log log.FieldLogger
+}
+
+type WriterToCloser interface {
+	io.WriterTo
+	io.Reader
+	io.Closer
 }
 
 // FileSystem describes file operations to be done either locally or over SFTP
@@ -79,10 +85,10 @@ type FileSystem interface {
 	// ReadDir returns information about files contained within a directory
 	ReadDir(ctx context.Context, path string) ([]os.FileInfo, error)
 	// Open opens a file
-	Open(ctx context.Context, path string) (io.ReadCloser, error)
+	Open(ctx context.Context, path string) (WriterToCloser, error)
 	// Create creates a new file
 	Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error)
-	// MkDir creates a directory
+	// Mkdir creates a directory
 	// sftp.Client.Mkdir does not take an os.FileMode, so this can't either
 	Mkdir(ctx context.Context, path string, mode os.FileMode) error
 	// Chmod sets file permissions
@@ -155,7 +161,9 @@ func (c *Config) setDefaults() {
 // TransferFiles transfers files from the configured source paths to the
 // configured destination path over SFTP
 func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error {
-	sftpClient, err := sftp.NewClient(sshClient)
+	sftpClient, err := sftp.NewClient(sshClient,
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -372,6 +380,25 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 	return nil
 }
 
+type progressReader struct {
+	ctx context.Context
+	pb  *progressbar.ProgressBar
+	f   *WT
+}
+
+func (a *progressReader) Stat() (os.FileInfo, error) {
+	return a.f.Stat()
+}
+
+func (a *progressReader) Read(b []byte) (int, error) {
+	if err := a.ctx.Err(); err != nil {
+		return 0, err
+	}
+	n, err := a.pb.Read(b)
+	a.pb.Add(n)
+	return n, err
+}
+
 // transferFile transfers a file
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	srcFile, err := c.srcFS.Open(ctx, srcPath)
@@ -386,20 +413,28 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer dstFile.Close()
 
-	// write to canceler first so if the context is canceled the transferring
-	// can stop immediately
-	var writer io.Writer
 	canceler := &cancelWriter{
 		ctx: ctx,
 	}
-	// if a progress writer was set, write file transfer progress
-	if c.ProgressWriter != nil {
-		writer = io.MultiWriter(canceler, dstFile, c.ProgressWriter(srcFileInfo))
+
+	var reader io.Reader = srcFile
+	var writter io.Writer = dstFile
+
+	if _, ok := reader.(*sftp.File); ok {
+		writter = io.MultiWriter(dstFile, canceler, c.ProgressWriter(srcFileInfo))
 	} else {
-		writer = io.MultiWriter(canceler, dstFile)
+		r := progressReader{ctx: ctx, pb: c.ProgressWriter(srcFileInfo).(*progressbar.ProgressBar), f: srcFile.(*WT)}
+		reader = &r
 	}
 
-	n, err := io.Copy(writer, srcFile)
+	_, okReader := reader.(io.WriterTo)
+	_, okWriter := writter.(io.ReaderFrom)
+
+	if !okWriter && !okReader {
+		return trace.Errorf("reader and writer are not implementing concurrent interface %T %T", reader, writter)
+	}
+
+	n, err := io.Copy(writter, reader)
 	if err != nil {
 		return trace.Errorf("error copying %s file %q to %s file %q: %w",
 			c.srcFS.Type(),
