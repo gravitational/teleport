@@ -47,7 +47,7 @@ RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 FIPS_MESSAGE := without-FIPS-support
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
-FIPS_MESSAGE := "with-FIPS-support"
+FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
@@ -55,13 +55,13 @@ endif
 PAM_MESSAGE := without-PAM-support
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with-PAM-support"
+PAM_MESSAGE := with-PAM-support
 else
 # PAM headers for Darwin live under /usr/local/include/security instead, as SIP
 # prevents us from modifying/creating /usr/include/security on newer versions of MacOS
 ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with-PAM-support"
+PAM_MESSAGE := with-PAM-support
 endif
 endif
 
@@ -76,7 +76,7 @@ ifeq ("$(ARCH)","amd64")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
-BPF_MESSAGE := "with-BPF-support"
+BPF_MESSAGE := with-BPF-support
 CLANG ?= $(shell which clang || which clang-10)
 CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
@@ -122,7 +122,7 @@ ifneq ($(CHECK_CARGO),)
 ifneq ("$(ARCH)","arm")
 ifneq ("$(ARCH)","386")
 with_rdpclient := yes
-RDPCLIENT_MESSAGE := "with-Windows-RDP-client"
+RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
