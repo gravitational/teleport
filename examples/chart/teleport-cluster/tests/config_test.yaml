@@ -458,3 +458,87 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot: {}
+
+  - it: enables certificate reload if Teleport 10 supports it
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    set:
+      teleportVersionOverride: "10.3.12"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: does not enable certificate reload if Teleport 10 doesn't support it
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    set:
+      teleportVersionOverride: "10.3.10"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: enables certificate reload if Teleport 11 supports it
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    set:
+      teleportVersionOverride: "11.2.1"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: does not enable certificate reload if Teleport 11 doesn't support it
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    set:
+      teleportVersionOverride: "11.1.0"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: enables certificate reload if Teleport 12 and above
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    set:
+      teleportVersionOverride: "12.2.1"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: does not enable certificate reload if Teleport 9 and below
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    set:
+      teleportVersionOverride: "9.1.2"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: enables certificate reload if Teleport pre-release supports it
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    set:
+      teleportVersionOverride: "11.2.3-alpha.1"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
