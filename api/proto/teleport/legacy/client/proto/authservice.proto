@@ -1404,6 +1404,24 @@ message WindowsDesktopCertResponse {
   bytes Cert = 1;
 }
 
+// GetSAMLIdPServiceProviderRequest is a request for a specific SAML IdP service provider resource.
+message GetSAMLIdPServiceProviderRequest {
+  // Name is the name of the SAML IdP sercice provider to be requested.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// GetSAMLIdPServiceProvidersResponse contains all registered SAML IdP service providers.
+message GetSAMLIdPServiceProvidersResponse {
+  // Servers is a list of Windows desktop hosts.
+  repeated types.SAMLIdPServiceProviderV1 ServiceProviders = 1 [(gogoproto.jsontag) = "service_providers"];
+}
+
+// DeleteSAMLIdPServiceProviderRequest is a request for deleting a specific SAML IdP service provider resource.
+message DeleteSAMLIdPServiceProviderRequest {
+  // Name is the name of the SAML IdP sercice provider to be deleted.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
 // CertAuthorityRequest is a request that identifies a Teleport CA.
 message CertAuthorityRequest {
   // Type is either user or host certificate authority.
@@ -2633,4 +2651,22 @@ service AuthService {
 
   // ListReleases returns a list of Teleport Enterprise releases.
   rpc ListReleases(ListReleasesRequest) returns (ListReleasesResponse);
+
+  // GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
+  rpc GetSAMLIdPServiceProviders(google.protobuf.Empty) returns (GetSAMLIdPServiceProvidersResponse);
+
+  // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+  rpc GetSAMLIdPServiceProvider(GetSAMLIdPServiceProviderRequest) returns (types.SAMLIdPServiceProviderV1);
+
+  // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+  rpc CreateSAMLIdPServiceProvider(types.SAMLIdPServiceProviderV1) returns (google.protobuf.Empty);
+
+  // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+  rpc UpdateSAMLIdPServiceProvider(types.SAMLIdPServiceProviderV1) returns (google.protobuf.Empty);
+
+  // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+  rpc DeleteSAMLIdPServiceProvider(DeleteSAMLIdPServiceProviderRequest) returns (google.protobuf.Empty);
+
+  // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+  rpc DeleteAllSAMLIdPServiceProviders(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

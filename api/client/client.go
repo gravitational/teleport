@@ -3035,3 +3035,75 @@ func (c *Client) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksReq
 	_, err := c.grpc.ClearAlertAcks(ctx, &req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
+func (c *Client) GetSAMLIdPServiceProviders(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+	resp, err := c.grpc.GetSAMLIdPServiceProviders(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	serviceProviders := make([]types.SAMLIdPServiceProvider, 0, len(resp.GetServiceProviders()))
+	for _, sp := range resp.GetServiceProviders() {
+		serviceProviders = append(serviceProviders, sp)
+	}
+	return serviceProviders, nil
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (c *Client) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	sp, err := c.grpc.GetSAMLIdPServiceProvider(ctx, &proto.GetSAMLIdPServiceProviderRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return sp, nil
+}
+
+// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+func (c *Client) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	spV1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+	if !ok {
+		return trace.BadParameter("unsupported SAML IdP service provider type %T", sp)
+	}
+
+	_, err := c.grpc.CreateSAMLIdPServiceProvider(ctx, spV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+func (c *Client) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	spV1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+	if !ok {
+		return trace.BadParameter("unsupported SAML IdP service provider type %T", sp)
+	}
+
+	_, err := c.grpc.UpdateSAMLIdPServiceProvider(ctx, spV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+func (c *Client) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteSAMLIdPServiceProvider(ctx, &proto.DeleteSAMLIdPServiceProviderRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+func (c *Client) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllSAMLIdPServiceProviders(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}

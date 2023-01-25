@@ -4743,3 +4743,32 @@ enum RequireMFAType {
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
 }
+
+// SAMLIdPServiceProviderV1
+message SAMLIdPServiceProviderV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Kind is the app resource kind. Always "saml_idp_service_provider".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the app resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is the SAML IdP service provider spec.
+  SAMLIdPServiceProviderSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// SAMLIdPServiceProviderSpecV1 is the SAMLIdPServiceProviderV1 resource spec.
+message SAMLIdPServiceProviderSpecV1 {
+  // EntityDescriptor is the entity descriptor for the service provider
+  string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
+}

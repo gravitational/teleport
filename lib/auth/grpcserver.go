@@ -4589,6 +4589,86 @@ func (g *GRPCServer) ListReleases(ctx context.Context, req *proto.ListReleasesRe
 	}, nil
 }
 
+// GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
+func (g *GRPCServer) GetSAMLIdPServiceProviders(ctx context.Context, _ *emptypb.Empty) (*proto.GetSAMLIdPServiceProvidersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serviceProviders, err := auth.GetSAMLIdPServiceProviders(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProvidersV1 := make([]*types.SAMLIdPServiceProviderV1, len(serviceProviders))
+	for i, sp := range serviceProviders {
+		v1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected SAML IdP service provider type %T", sp)
+		}
+		serviceProvidersV1[i] = v1
+	}
+
+	return &proto.GetSAMLIdPServiceProvidersResponse{
+		ServiceProviders: serviceProvidersV1,
+	}, nil
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (g *GRPCServer) GetSAMLIdPServiceProvider(ctx context.Context, req *proto.GetSAMLIdPServiceProviderRequest) (*types.SAMLIdPServiceProviderV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sp, err := auth.GetSAMLIdPServiceProvider(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProviderV1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected SAML IdP service provider type %T", sp)
+	}
+
+	return serviceProviderV1, nil
+}
+
+// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+func (g *GRPCServer) CreateSAMLIdPServiceProvider(ctx context.Context, sp *types.SAMLIdPServiceProviderV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.CreateSAMLIdPServiceProvider(ctx, sp))
+}
+
+// UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+func (g *GRPCServer) UpdateSAMLIdPServiceProvider(ctx context.Context, sp *types.SAMLIdPServiceProviderV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.UpdateSAMLIdPServiceProvider(ctx, sp))
+}
+
+// DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+func (g *GRPCServer) DeleteSAMLIdPServiceProvider(ctx context.Context, req *proto.DeleteSAMLIdPServiceProviderRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteSAMLIdPServiceProvider(ctx, req.GetName()))
+}
+
+// DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+func (g *GRPCServer) DeleteAllSAMLIdPServiceProviders(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllSAMLIdPServiceProviders(ctx))
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

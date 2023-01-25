@@ -5391,6 +5391,60 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
+// GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
+func (a *ServerWithRoles) GetSAMLIdPServiceProviders(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.SAMLIdPServiceProviders.GetSAMLIdPServiceProviders(ctx)
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.SAMLIdPServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+}
+
+// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SAMLIdPServiceProviders.CreateSAMLIdPServiceProvider(ctx, sp)
+}
+
+// UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SAMLIdPServiceProviders.UpdateSAMLIdPServiceProvider(ctx, sp)
+}
+
+// DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SAMLIdPServiceProviders.DeleteSAMLIdPServiceProvider(ctx, name)
+}
+
+// DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SAMLIdPServiceProviders.DeleteAllSAMLIdPServiceProviders(ctx)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
