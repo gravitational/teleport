@@ -1497,7 +1497,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, "", updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 			env := getTshEnv()
@@ -1520,7 +1520,7 @@ func onLogin(cf *CLIConf) error {
 
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfigOnLogin(cf, tc, "", updateKubeConfigOption); err == nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err == nil {
 				return trace.Wrap(onStatus(cf))
 			}
 
@@ -1543,7 +1543,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, "", updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1559,7 +1559,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, "", updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -1642,7 +1642,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfigOnLogin(cf, tc, "", updateKubeConfigOption); err != nil {
+		if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3930,7 +3930,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
+	if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4272,8 +4272,8 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 }
 
 type updateKubeConfigOpt struct {
-	warnOnDeprecatedSNI bool
-	warnSNIPrinted      *bool
+	warnOnDeprecatedSNI  bool
+	depricateSNIWarnOnce sync.Once
 }
 
 type updateKubeConfigOnLoginOpt func(opt *updateKubeConfigOpt)
@@ -4289,7 +4289,7 @@ func withWarnOnDeprecatedSNI(printed *bool) updateKubeConfigOnLoginOpt {
 // updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to
 // tsh login call and updates the default kubeconfig with its value,
 // otherwise does nothing.
-func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string, opts ...updateKubeConfigOnLoginOpt) error {
+func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...updateKubeConfigOnLoginOpt) error {
 	var settings updateKubeConfigOpt
 	for _, opt := range opts {
 		opt(&settings)
@@ -4302,8 +4302,8 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string
 		if settings.warnSNIPrinted == nil || *settings.warnSNIPrinted == true {
 			return
 		}
-		warnOnDeprecatedKubeConfigServerName(cf, tc, path)
-		settings.warnOnDeprecatedSNI = true
+		warnOnDeprecatedKubeConfigServerName(cf, tc)
+		*settings.warnSNIPrinted = true
 	}()
 
 	if len(cf.KubernetesCluster) == 0 {
@@ -4314,12 +4314,12 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string
 }
 
 // DEPRECATED DELETE IN 14.0
-func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient, path string) {
+func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient) {
 	if !tc.TLSRoutingEnabled {
 		// The ServerName in KUBECONFIG is used only when the TLS Routing is enabled.
 		return
 	}
-	kubeConfigPath := getKubeConfigPath(cf, path)
+	kubeConfigPath := getKubeConfigPath(cf, "")
 	value, err := kubeconfig.Load(kubeConfigPath)
 	if err != nil {
 		if trace.IsNotFound(err) {
