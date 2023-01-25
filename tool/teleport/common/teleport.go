@@ -30,9 +30,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/hashicorp/go-uuid"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -641,8 +641,7 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	}
 
 	// TODO(amk) get uuid from a cli argument once agentless inventory management is implemented to allow tsh ssh access via uuid
-	uuid, err := uuid.GenerateUUID()
-	_ = err
+	uuid := uuid.NewString()
 
 	principals := []string{uuid}
 	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
