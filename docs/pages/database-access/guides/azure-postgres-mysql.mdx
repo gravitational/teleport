@@ -266,8 +266,8 @@ fetch the access token and use it as a password when connecting to the database:
 
 ```code
 $ az login -u ad@example.com
-$ export PGPASSWORD=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
-$ psql "host=example.postgres.database.azure.com user=ad@example.com sslmode=require dbname=postgres"
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ PGPASSWORD=$TOKEN psql "host=example.postgres.database.azure.com user=ad@example.com sslmode=require dbname=postgres"
 ```
 
 </TabItem>
@@ -275,8 +275,8 @@ $ psql "host=example.postgres.database.azure.com user=ad@example.com sslmode=req
 
 ```code
 $ az login -u ad@example.com
-$ export PGPASSWORD=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
-$ psql "host=example.postgres.database.azure.com user=ad@example.com@instance-name sslmode=require dbname=postgres"
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ PGPASSWORD=$TOKEN psql "host=example.postgres.database.azure.com user=ad@example.com@instance-name sslmode=require dbname=postgres"
 ```
 
 </TabItem>
@@ -284,7 +284,7 @@ $ psql "host=example.postgres.database.azure.com user=ad@example.com@instance-na
 
 ```code
 $ az login -u ad-admin@example.com
-$ export TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
 $ mysql -h example.mysql.database.azure.com -P 3306 -u ad@example.com --enable-cleartext-plugin --password=$TOKEN
 ```
 
@@ -293,7 +293,7 @@ $ mysql -h example.mysql.database.azure.com -P 3306 -u ad@example.com --enable-c
 
 ```code
 $ az login -u ad-admin@example.com
-$ export TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
 $ mysql -h example.mysql.database.azure.com -P 3306 -u ad@example.com@instance-name --enable-cleartext-plugin --password=$TOKEN
 ```
 
