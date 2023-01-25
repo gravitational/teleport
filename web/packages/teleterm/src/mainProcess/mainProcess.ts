@@ -69,8 +69,9 @@ export default class MainProcess {
       promisifyProcessExit(this.tshdProcess),
       promisifyProcessExit(this.sharedProcess),
     ]);
-    const timeout = wait(5_000).then(() =>
-      this.logger.error('Child process(es) did not exit within 5 seconds')
+    // sending usage events on tshd shutdown has 10 seconds timeout
+    const timeout = wait(10_000).then(() =>
+      this.logger.error('Child process(es) did not exit within 10 seconds'),
     );
     return Promise.race([processesExit, timeout]);
   }
