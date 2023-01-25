@@ -4271,8 +4271,13 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 	}
 	res, err := auth.GetInstaller(ctx, req.Name)
 	if err != nil {
-		if trace.IsNotFound(err) && req.Name == installers.InstallerScriptName {
-			return installers.DefaultInstaller, nil
+		if trace.IsNotFound(err) {
+			switch req.Name {
+			case installers.InstallerScriptName:
+				return installers.DefaultInstaller, nil
+			case installers.InstallerScriptNameAgentless:
+				return installers.DefaultAgentlessInstaller, nil
+			}
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -4295,13 +4300,17 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 	var installersV1 []*types.InstallerV1
 	needDefault := true
+	needDefaultAgentless := true
 	for _, inst := range res {
 		instV1, ok := inst.(*types.InstallerV1)
 		if !ok {
 			return nil, trace.BadParameter("unsupported installer type %T", inst)
 		}
-		if inst.GetName() == installers.InstallerScriptName {
+		switch inst.GetName() {
+		case installers.InstallerScriptName:
 			needDefault = false
+		case installers.InstallerScriptNameAgentless:
+			needDefaultAgentless = false
 		}
 		installersV1 = append(installersV1, instV1)
 	}
@@ -4310,12 +4319,16 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 		return &types.InstallerV1List{
 			Installers: []*types.InstallerV1{
 				installers.DefaultInstaller,
+				installers.DefaultAgentlessInstaller,
 			},
 		}, nil
 	}
 
 	if needDefault {
 		installersV1 = append(installersV1, installers.DefaultInstaller)
+	}
+	if needDefaultAgentless {
+		installersV1 = append(installersV1, installers.DefaultAgentlessInstaller)
 	}
 
 	return &types.InstallerV1List{
