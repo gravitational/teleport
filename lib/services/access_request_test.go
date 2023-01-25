@@ -1644,7 +1644,7 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 			name:               "unknown cluster requested",
 			localClusterName:   "notTheCorrectName",
 			remoteClusterNames: []string{"notTheCorrectClusterEither"},
-			expectedInErr:      "invalid cluster name",
+			expectedInErr:      "invalid or unknown cluster names",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
