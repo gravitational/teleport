@@ -32,7 +32,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"image"
 	"io"
 	"net"
 	"net/http"
@@ -1702,8 +1701,7 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
 
-	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	err = tdpConn.WriteMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
+	err = tdpConn.WriteMessage(tdp.Notification{Message: "test", Severity: tdp.SeverityWarning})
 	require.NoError(t, err)
 }
 
@@ -1777,7 +1775,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
-			require.IsType(t, tdp.PNG2Frame{}, msg)
+			require.IsType(t, tdp.Notification{}, msg)
 		})
 	}
 }
@@ -5909,7 +5907,7 @@ func TestCreateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "missing database name")
+				require.ErrorContains(tt, err, "missing database name")
 			},
 		},
 		{
@@ -5921,7 +5919,7 @@ func TestCreateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "missing protocol")
+				require.ErrorContains(tt, err, "missing protocol")
 			},
 		},
 		{
@@ -5933,7 +5931,7 @@ func TestCreateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "missing uri")
+				require.ErrorContains(tt, err, "missing uri")
 			},
 		},
 		{
@@ -5945,7 +5943,7 @@ func TestCreateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "missing port in address")
+				require.ErrorContains(tt, err, "missing port in address")
 			},
 		},
 	} {
@@ -6044,7 +6042,7 @@ func TestUpdateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "missing CA certificate data")
+				require.ErrorContains(tt, err, "missing CA certificate data")
 			},
 		},
 		{
@@ -6054,7 +6052,7 @@ func TestUpdateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "could not parse provided CA as X.509 PEM certificate")
+				require.ErrorContains(tt, err, "could not parse provided CA as X.509 PEM certificate")
 			},
 		},
 	} {

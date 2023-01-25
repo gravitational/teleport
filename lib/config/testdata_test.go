@@ -189,6 +189,12 @@ kubernetes_service:
     kubeconfig_file: /tmp/kubeconfig
     labels:
       'testKey': 'testValue'
+
+discovery_service:
+    enabled: yes
+    aws:
+      - types: ["ec2"]
+        regions: ["eu-central-1"]
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

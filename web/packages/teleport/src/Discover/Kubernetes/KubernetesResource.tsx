@@ -37,6 +37,7 @@ export function KubernetesResource(props: KubernetesResourceProps) {
       {content}
 
       <ActionButtons
+        hideExit={true}
         onProceed={() => props.onProceed()}
         disableProceed={props.disabled}
       />

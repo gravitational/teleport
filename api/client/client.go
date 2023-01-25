@@ -1074,7 +1074,7 @@ func (c *Client) deleteAllKubernetesServersFallback(ctx context.Context) error {
 }
 
 // UpsertKubernetesServer is used by kubernetes services to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	server, ok := s.(*types.KubernetesServerV3)
 	if !ok {
@@ -1088,7 +1088,7 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 }
 
 // UpsertKubeService is used by kubernetes services to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 // DELETE IN 13.0.0
 func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	server, ok := s.(*types.ServerV2)
@@ -1102,7 +1102,7 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 }
 
 // UpsertKubeServiceV2 is used by kubernetes services to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 // DELETE IN 13.0.0
 func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	server, ok := s.(*types.ServerV2)
@@ -3013,4 +3013,25 @@ func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesReques
 	}
 
 	return resp.Releases, nil
+}
+
+// CreateAlertAck marks a cluster alert as acknowledged.
+func (c *Client) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
+	_, err := c.grpc.CreateAlertAck(ctx, &ack, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetAlertAcks gets active alert acknowledgements.
+func (c *Client) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
+	rsp, err := c.grpc.GetAlertAcks(ctx, &proto.GetAlertAcksRequest{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp.Acks, nil
+}
+
+// ClearAlertAcks clears alert acknowledgments.
+func (c *Client) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
+	_, err := c.grpc.ClearAlertAcks(ctx, &req, c.callOpts...)
+	return trail.FromGRPC(err)
 }

@@ -15,45 +15,24 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-
-import { Indicator, Text } from 'design';
-import { Danger } from 'design/Alert';
 
 import { Prompt } from 'react-router-dom';
 
-import * as main from 'teleport/Main';
-import { TopBarContainer } from 'teleport/TopBar';
 import { FeatureBox } from 'teleport/components/Layout';
-import { BannerList } from 'teleport/components/BannerList';
-import cfg from 'teleport/config';
 
-import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
-import { Sidebar } from 'teleport/Discover/Sidebar/Sidebar';
+import { Navigation } from 'teleport/Discover/Navigation/Navigation';
 import { SelectResource } from 'teleport/Discover/SelectResource';
-import { DiscoverUserMenuNav } from 'teleport/Discover/DiscoverUserMenuNav';
+import cfg from 'teleport/config';
 
 import { findViewAtIndex } from './flow';
 
 import { DiscoverProvider, useDiscover } from './useDiscover';
 
-import type { BannerType } from 'teleport/components/BannerList/BannerList';
-
-interface DiscoverProps {
-  initialAlerts?: ClusterAlert[];
-  customBanners?: React.ReactNode[];
-}
-
 function DiscoverContent() {
   const {
-    alerts,
-    initAttempt,
-    customBanners,
-    dismissAlert,
     currentStep,
     selectedResource,
     onSelectResource,
-    logout,
     views,
     ...agentProps
   } = useDiscover();
@@ -81,85 +60,33 @@ function DiscoverContent() {
     );
   }
 
-  // The backend defines the severity as an integer value with the current
-  // pre-defined values: LOW: 0; MEDIUM: 5; HIGH: 10
-  const mapSeverity = (severity: number) => {
-    if (severity < 5) {
-      return 'info';
-    }
-    if (severity < 10) {
-      return 'warning';
-    }
-    return 'danger';
-  };
-
-  const banners: BannerType[] = alerts.map(alert => ({
-    message: alert.spec.message,
-    severity: mapSeverity(alert.spec.severity),
-    link: alert.metadata.labels[LINK_LABEL],
-    id: alert.metadata.name,
-  }));
-
   return (
-    <BannerList
-      banners={banners}
-      customBanners={customBanners}
-      onBannerDismiss={dismissAlert}
-    >
-      <MainContainer>
-        <Prompt
-          message={nextLocation => {
-            if (nextLocation.pathname === cfg.routes.discover) return true;
-            return 'Are you sure you want to exit the “Add New Resource” workflow? You’ll have to start from the beginning next time.';
-          }}
-          when={selectedResource.shouldPrompt(currentStep)}
+    <>
+      <FeatureBox>
+        <Navigation
+          currentStep={currentStep}
+          selectedResource={selectedResource}
+          views={views}
         />
-        {initAttempt.status === 'processing' && (
-          <main.StyledIndicator>
-            <Indicator />
-          </main.StyledIndicator>
-        )}
-        {initAttempt.status === 'failed' && (
-          <Danger>{initAttempt.statusText}</Danger>
-        )}
-        {initAttempt.status === 'success' && (
-          <>
-            <Sidebar
-              views={views}
-              currentStep={currentStep}
-              selectedResource={selectedResource}
-            />
-            <main.HorizontalSplit>
-              <main.ContentMinWidth>
-                <TopBarContainer>
-                  <Text typography="h5" bold>
-                    Manage Access
-                  </Text>
-                  <DiscoverUserMenuNav logout={logout} />
-                </TopBarContainer>
-                <FeatureBox pt={4} maxWidth="1450px">
-                  {content}
-                </FeatureBox>
-              </main.ContentMinWidth>
-            </main.HorizontalSplit>
-          </>
-        )}
-      </MainContainer>
-    </BannerList>
+
+        {content}
+      </FeatureBox>
+
+      <Prompt
+        message={nextLocation => {
+          if (nextLocation.pathname === cfg.routes.discover) return true;
+          return 'Are you sure you want to exit the “Add New Resource” workflow? You’ll have to start from the beginning next time.';
+        }}
+        when={selectedResource.shouldPrompt(currentStep)}
+      />
+    </>
   );
 }
 
-export function Discover(props: DiscoverProps) {
+export function Discover() {
   return (
-    <DiscoverProvider
-      customBanners={props.customBanners}
-      initialAlerts={props.initialAlerts}
-    >
+    <DiscoverProvider>
       <DiscoverContent />
     </DiscoverProvider>
   );
 }
-
-const MainContainer = styled(main.MainContainer)`
-  --sidebar-width: 280px;
-`;

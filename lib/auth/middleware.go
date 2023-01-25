@@ -221,6 +221,7 @@ func (t *TLSServer) Close() error {
 	for i := 0; i < 2; i++ {
 		errors = append(errors, <-errC)
 	}
+	errors = append(errors, t.mux.Close())
 	return trace.NewAggregate(errors...)
 }
 
