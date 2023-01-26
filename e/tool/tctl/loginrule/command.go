@@ -24,7 +24,7 @@ import (
 )
 
 type subcommand interface {
-	initialize(parent *kingpin.CmdClause)
+	initialize(parent *kingpin.CmdClause, cfg *service.Config)
 	tryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
@@ -35,14 +35,14 @@ type Command struct {
 
 // Initialize installs the base "login_rule" command and all subcommands.
 func (t *Command) Initialize(app *kingpin.Application, cfg *service.Config) {
-	loginRuleCommand := app.Command("login_rule", "Manage cluster login rules").Hidden()
+	loginRuleCommand := app.Command("login_rule", "Test login rules")
 
 	t.subcommands = []subcommand{
 		&testCommand{},
 	}
 
 	for _, subcommand := range t.subcommands {
-		subcommand.initialize(loginRuleCommand)
+		subcommand.initialize(loginRuleCommand, cfg)
 	}
 }
 
@@ -63,15 +63,20 @@ func (t *Command) TryRun(ctx context.Context, selectedCommand string, c auth.Cli
 
 // testCommand implements the "tctl login_rule test" command.
 type testCommand struct {
-	cmd                *kingpin.CmdClause
+	cmd *kingpin.CmdClause
+
+	log utils.Logger
+
 	inputResourceFiles []string
+	loadFromCluster    bool
 	inputTraitsFile    string
 	outputFormat       string
 }
 
-func (t *testCommand) initialize(parent *kingpin.CmdClause) {
-	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules before loading them into your cluster").Hidden()
-	t.cmd.Flag("resource-file", "login rule resource file name (YAML or JSON)").Required().StringsVar(&t.inputResourceFiles)
+func (t *testCommand) initialize(parent *kingpin.CmdClause, cfg *service.Config) {
+	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules")
+	t.cmd.Flag("resource-file", "login rule resource file name (YAML or JSON)").StringsVar(&t.inputResourceFiles)
+	t.cmd.Flag("load-from-cluster", "load existing login rules from the connected Teleport cluster").BoolVar(&t.loadFromCluster)
 	t.cmd.Flag("format", "Output format: 'yaml' or 'json'").Default(teleport.YAML).StringVar(&t.outputFormat)
 	t.cmd.Arg("traits-file", "input user traits file name (YAML or JSON), empty for stdin").StringVar(&t.inputTraitsFile)
 
@@ -84,14 +89,24 @@ Examples:
 
   > tctl login_rule test --resource-file rule1.yaml --resource-file rule2.yaml traits.json
 
+  Test the login rule in rule.yaml along with all login rules already present in the cluster
+
+  > tctl login_rule test --resource-file rule.yaml --load-from-cluster traits.json
+
   Read the input traits from stdin
 
-  > echo '{"groups": ["example"]}' | tctl login_rule test --resource-file login_rule.yaml`)
+  > echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yaml`)
+
+	t.log = cfg.Log
 }
 
 func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
 	if selectedCommand != t.cmd.FullCommand() {
 		return false, nil
+	}
+
+	if len(t.inputResourceFiles) == 0 && !t.loadFromCluster {
+		return true, trace.BadParameter("no login rules to test, --resource-file or --load-from-cluster must be set")
 	}
 
 	return true, trace.Wrap(t.run(ctx, c))
@@ -101,6 +116,34 @@ func (t *testCommand) run(ctx context.Context, c auth.ClientI) error {
 	loginRules, err := parseLoginRuleFiles(t.inputResourceFiles)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	t.log.Infof("Loaded %d login rules from input resource files", len(loginRules))
+
+	if t.loadFromCluster {
+		var clusterRules []*loginrulepb.LoginRule
+		lrClient := c.LoginRuleClient()
+
+		resp, err := lrClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		clusterRules = append(loginRules, resp.LoginRules...)
+		for resp.NextPageToken != "" {
+			resp, err := lrClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
+				PageToken: resp.NextPageToken,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			clusterRules = append(clusterRules, resp.LoginRules...)
+		}
+
+		t.log.Infof("Loaded %d login rules from cluster", len(clusterRules))
+		loginRules = append(loginRules, clusterRules...)
+	}
+
+	if len(loginRules) == 0 {
+		return trace.BadParameter("no login rules to test")
 	}
 
 	traits, err := parseTraitsFile(t.inputTraitsFile)
