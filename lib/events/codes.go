@@ -380,6 +380,11 @@ const (
 	// SSMRunFailCode is the discovery script success code.
 	SSMRunFailCode = "TDS00W"
 
+	// LoginRuleCreateCode is the login rule create code.
+	LoginRuleCreateCode = "TLR00I"
+	// LoginRuleDeleteCode is the login rule delete code.
+	LoginRuleDeleteCode = "TLR01I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
