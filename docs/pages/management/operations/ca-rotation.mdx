@@ -84,11 +84,10 @@ the phase transitions look like this:
   and gotchas before going with semi-automatic version.
 </Admonition>
 
-To specify which certificate authority to rotate a value must be provided via
-the `--type` flag. If no value is provided an error will be displayed and the
-command will exit. To replicate the functionality of versions prior to 12 where
-all certificate authorities were rotated by default you can pass in
-`--type=all`. Keep in mind this functionality is deprecated and will be removed
+To specify which certificate authority to rotate, you must provide a value via
+the `--type` flag. If no value is provided, `tctl` will display an error and exit. To replicate the functionality of versions prior to 12, where
+all certificate authorities were rotated by default, you can pass in
+`--type=all`. Keep in mind that this functionality is deprecated and will be removed
 in a future version.
 
 ## Manual rotation
