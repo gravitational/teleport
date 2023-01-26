@@ -30,7 +30,7 @@ export const ApplicationResource: Resource = {
   },
   views: [
     {
-      title: 'Select Resource',
+      title: 'Select Resource Type',
     },
   ],
 };

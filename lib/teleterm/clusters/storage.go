@@ -143,7 +143,6 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	cfg.WebProxyAddr = webProxyAddress
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
-	cfg.ClientStore = client.NewFSClientStore(s.Dir)
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 
 	profileName := parseName(webProxyAddress)
@@ -160,7 +159,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := cfg.SaveProfile(false); err != nil {
+	if err := clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -20,8 +20,7 @@ Service) or explore the Auth and Proxy Services locally.
 <Tabs>
 <TabItem scope={["oss"]} label="Open Source">
 
-- Docker v(=docker.version=) or later. We currently only offer Docker images for
-  `x86_64` architectures.
+- Docker v(=docker.version=) or later.
 
 ```code
 $ docker version
@@ -34,8 +33,10 @@ $ docker version
 </TabItem>
 <TabItem scope={["cloud", "enterprise"]} label="Commercial">
 
-- Docker v(=docker.version=) or later. We currently only offer Docker images for
-  `x86_64` architectures.
+- A Teleport Enterprise account. If you do not have one, use our [signup
+  form](https://goteleport.com/signup/enterprise/) to schedule a demo with the
+  Teleport Sales Team.
+- Docker v(=docker.version=) or later.
 
 ```code
 $ docker version
@@ -52,30 +53,10 @@ $ docker version
 
 <Tabs>
 <TabItem scope={["oss"]} label="Open Source">
-We provide pre-built Docker images for every version of Teleport.
-
-These images are hosted on Amazon ECR Public. All tags under `public.ecr.aws/gravitational/teleport` [are Teleport Open Source images](https://gallery.ecr.aws/gravitational/teleport).
-
-The table below gives an idea of how our image naming scheme works. We offer images that
-point to a static version of Teleport, as well as images that are automatically rebuilt
-every night. These nightly images point to the latest version of Teleport from the
-three most recent release branches. They are stable, and we recommend their use to
-keep your Teleport installation up to date.
-
-<table>
- <thead>
-   <tr><td>Image name</td><td>Teleport version</td><td>Image automatically updated?</td><td>Image base</td></tr>
- </thead>
- <tbody>
-   <tr><td>`public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`</td><td>The latest version of Teleport Open Source (=teleport.major_version=)</td><td>Yes</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr>
-   <tr><td>`(=teleport.latest_oss_docker_image=)`</td><td>The version specified in the image's tag (i.e. (=teleport.version=))</td><td>No</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr> 
- </tbody>
-</table>
-
-For testing, we always recommend that you use the latest release version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
+(!docs/pages/includes/docker-images-oss.mdx!)
 </TabItem>
 <TabItem scope={["enterprise", "cloud"]} label="Commercial">
-We provide pre-built Docker images for every version of Teleport.
+We provide pre-built `amd64`, `arm`, and `arm64` Docker images for every version of Teleport Enterprise.
 
 (!docs/pages/includes/enterprise/docker-images.mdx!)
 
@@ -90,6 +71,9 @@ We provide pre-built Docker images for every version of Teleport.
 Create Teleport configs and start the process with the following `docker run` commands:
 
 ```code
+# Docker image to use. The default is the amd64 version. Add -arm64 or -arm
+# to the end (ex: (=teleport.latest_oss_docker_image=)-arm64 to get the arm versions.
+$ TELEPORT_DOCKER_IMAGE=(=teleport.latest_oss_docker_image=)
 # Create local config and data directories for Teleport, which will be mounted
 # into the container.
 $ mkdir -p ~/teleport/config ~/teleport/data
@@ -98,13 +82,13 @@ $ mkdir -p ~/teleport/config ~/teleport/data
 $ docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
-  (=teleport.latest_oss_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
+  ${TELEPORT_DOCKER_IMAGE} -c "teleport configure > /etc/teleport/teleport.yaml"
 # Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
-  (=teleport.latest_oss_docker_image=)
+  ${TELEPORT_DOCKER_IMAGE}
 ```
 
 </TabItem>
@@ -116,6 +100,12 @@ Create Teleport configs and start the process with the following `docker run` co
 # Create local config and data directories for Teleport, which will be mounted
 # into the container.
 $ mkdir -p ~/teleport/config ~/teleport/data
+```
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+
+Move your `license.pem` file to `~/teleport/data`.
+
+```code
 # Generate a sample Teleport config and write it to the local config directory.
 # This container will write the config and immediately exit--this is expected.
 $ docker run --hostname localhost --rm \
@@ -129,8 +119,6 @@ $ docker run --hostname localhost --name teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
   (=teleport.latest_ent_docker_image=)
 ```
-
-Move your `license.pem` file to `~/teleport/data`.
 
 </TabItem>
 </Tabs>
