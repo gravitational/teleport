@@ -49,9 +49,9 @@ type HTTPTransferRequest struct {
 	HTTPRequest *http.Request
 	// HTTPRequest is HTTP request
 	HTTPResponse http.ResponseWriter
-	// ProgressStream is a writer for printing the progress
+	// Progress is a writer for printing the progress
 	Progress io.Writer
-	// User is a user name
+	// User is a username
 	User string
 	// AuditLog is AuditLog log
 	AuditLog events.IAuditLog

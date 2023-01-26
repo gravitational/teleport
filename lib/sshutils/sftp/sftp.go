@@ -84,32 +84,11 @@ type FileSystem interface {
 	// Create creates a new file
 	Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error)
 	// Mkdir creates a directory
-	// sftp.Client.Mkdir does not take an os.FileMode, so this can't either
 	Mkdir(ctx context.Context, path string, mode os.FileMode) error
 	// Chmod sets file permissions
 	Chmod(ctx context.Context, path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
-}
-
-type fileWrapper struct {
-	file *os.File
-}
-
-func (wt *fileWrapper) Read(p []byte) (n int, err error) {
-	return wt.file.Read(p)
-}
-
-func (wt *fileWrapper) Close() error {
-	return wt.file.Close()
-}
-
-func (wt *fileWrapper) WriteTo(w io.Writer) (n int64, err error) {
-	return io.Copy(w, wt.file)
-}
-
-func (wt *fileWrapper) Stat() (os.FileInfo, error) {
-	return wt.file.Stat()
 }
 
 // CreateUploadConfig returns a Config ready to upload files
@@ -395,27 +374,6 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 	return nil
 }
 
-type fileStreamReader struct {
-	streams []io.Reader
-	file    fs.File
-}
-
-func (a *fileStreamReader) Stat() (os.FileInfo, error) {
-	return a.file.Stat()
-}
-
-func (a *fileStreamReader) Read(b []byte) (int, error) {
-	n, err := a.file.Read(b)
-
-	for _, stream := range a.streams {
-		if _, innerError := stream.Read(b); innerError != nil {
-			return 0, innerError
-		}
-	}
-
-	return n, err
-}
-
 // transferFile transfers a file
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	srcFile, err := c.srcFS.Open(ctx, srcPath)
@@ -517,24 +475,6 @@ func getAtime(fi os.FileInfo) time.Time {
 	}
 
 	return scp.GetAtime(fi)
-}
-
-type cancelReaderWriter struct {
-	ctx context.Context
-}
-
-func (c *cancelReaderWriter) Read(_ []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return 0, nil
-}
-
-func (c *cancelReaderWriter) Write(b []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return len(b), nil
 }
 
 // NewProgressBar returns a new progress bar that writes to writer.
