@@ -77,7 +77,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dry-run creation of SAML user.
-	user, err := a.createSAMLUser(&createUserParams{
+	user, err := a.createSAMLUser(ctx, &createUserParams{
 		connectorName: "samlService",
 		username:      "foo@example.com",
 		roles:         []string{"admin"},
@@ -91,7 +91,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create SAML user with 1 minute expiry.
-	_, err = a.createSAMLUser(&createUserParams{
+	_, err = a.createSAMLUser(ctx, &createUserParams{
 		connectorName: "samlService",
 		username:      "foo@example.com",
 		roles:         []string{"admin"},
@@ -443,6 +443,17 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	err = a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
+	// Insert a mock login rule evaluator with static outputs, the real
+	// login rule evaluator is in the enterprise codebase.
+	loginRuleEvaluator := &mockLoginRuleEvaluator{
+		outputTraits: map[string][]string{
+			"groups":     {"okta-dev", "okta-admin"},
+			"username":   {"ops@gravitational.io"},
+			"login_rule": {"true"},
+		},
+	}
+	a.SetLoginRuleEvaluator(loginRuleEvaluator)
+
 	// real response from Okta
 	respOkta := `<?xml version="1.0" encoding="UTF-8"?><saml2p:Response Destination="https://boson.tener.io:3080/v1/webapi/saml/acs" ID="id336368461455218662129342736" InResponseTo="_4f256462-6c2d-466d-afc0-6ee36602b6f2" IssueInstant="2022-04-25T08:55:18.710Z" Version="2.0" xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xs="http://www.w3.org/2001/XMLSchema"><saml2:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">http://www.okta.com/exk14fxcpjuKMcor30h8</saml2:Issuer><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference URI="#id336368461455218662129342736"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"><ec:InclusiveNamespaces PrefixList="xs" xmlns:ec="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>uBRfvYvl5C/LPCh36uAmRLHW76+aDP3ngChtIwP3/Fc=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>M1VfkOOBH6r7niHhfGvf4OJ1HH5QJl83aD/b+mTDUUnXzHXgXlkb0BGQkSFn6ixojwCoXchpxCNzVLPN/tvfyY1dxP4MO8b+/07bGuVD2yTNlhN43/FFcDpmZ1ZDW8w2nPF1E5gy1lR8Wx2NgT3kQ2Ui1vRNX/KeX/P9NnABj4AjcshyHK2e49WLM/D4U84XOl7ODtzS7PTvtB0SGIwRE25G//8AsAv81eBfHL54Nz1HAqinMhxQtz32ZDXpKaAV6GypyBTvk6vo7Pkk4OiL6G9VIGC8Bd/gnavsc+Ickfuo7KTq8NDKTLB5WG34XKJqq6dGopSMrxr67oYjCEDZfw==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAX4zyofpMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG
 A1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU
@@ -591,11 +602,8 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 			ConnectorName: "saml-test-conn",
 			Username:      "ops@gravitational.io",
 			Roles:         []string{"access"},
-			Traits: map[string][]string{
-				"groups":   {"Everyone", "okta-admin", "okta-dev"},
-				"username": {"ops@gravitational.io"},
-			},
-			SessionTTL: 108000000000000,
+			Traits:        loginRuleEvaluator.outputTraits,
+			SessionTTL:    108000000000000,
 		},
 		SAMLAttributesToRoles: []types.AttributeMapping{
 			{
@@ -650,10 +658,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 			Assertions:                 nil,
 			ResponseSignatureValidated: true,
 		},
-		SAMLTraitsFromAssertions: map[string][]string{
-			"groups":   {"Everyone", "okta-admin", "okta-dev"},
-			"username": {"ops@gravitational.io"},
-		},
+		SAMLTraitsFromAssertions: loginRuleEvaluator.outputTraits,
 		SAMLConnectorTraitMapping: []types.TraitMapping{
 			{
 				Trait: "groups",
