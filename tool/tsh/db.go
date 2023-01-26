@@ -729,9 +729,6 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if routeToDatabase.Protocol == defaults.ProtocolDynamoDB {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, routeToDatabase))
 	}
-	// if routeToDatabase.Protocol == defaults.ProtocolElasticsearch && routeToDatabase.Username == "" {
-	// 	return trace.BadParameter("%v: database user is required, use --db-user to provide it", defaults.ReadableDatabaseProtocol(defaults.ProtocolElasticsearch))
-	// }
 	if err := maybeDatabaseLogin(cf, tc, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
 	}
