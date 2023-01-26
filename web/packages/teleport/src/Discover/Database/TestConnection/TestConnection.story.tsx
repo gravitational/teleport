@@ -27,7 +27,7 @@ export default {
   title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Database',
 };
 
-export const Init = () => (
+export const InitMySql = () => (
   <MemoryRouter>
     <TestConnectionView {...props} />
   </MemoryRouter>
