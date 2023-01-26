@@ -1286,7 +1286,6 @@ func TestResizeTerminal(t *testing.T) {
 	// size, and one for the manual resize request)
 	done := time.After(10 * time.Second)
 	t1ResizeEvents, t1RawEvents := 0, 0
-	fmt.Printf("RAW EVENTS: %v", t1RawEvents)
 t1ready:
 	for {
 		select {
