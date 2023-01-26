@@ -2403,6 +2403,14 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 			return session.Session{}, trace.Wrap(err)
 		}
 
+		if len(resources) == 0 {
+			host, port, err = serverHostPort(req.Server)
+			if err != nil {
+				return session.Session{}, trace.Wrap(err)
+			}
+			id = host
+		}
+
 		matches := 0
 		for _, resource := range resources {
 			server, ok := resource.(types.Server)
