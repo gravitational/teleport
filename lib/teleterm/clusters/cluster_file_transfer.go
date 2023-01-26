@@ -74,17 +74,19 @@ type fileTransferProgress struct {
 	lock               sync.Mutex
 }
 
-func (p2 *fileTransferProgress) Read(p []byte) (n int, err error) {
-	//TODO implement me
-	panic("implement me")
+func (p *fileTransferProgress) Close() error {
+	return nil
 }
 
-func (p2 *fileTransferProgress) Close() error {
-	//TODO implement me
-	panic("implement me")
+func (p *fileTransferProgress) Read(bytes []byte) (int, error) {
+	return p.maybeUpdateProgress(bytes)
 }
 
 func (p *fileTransferProgress) Write(bytes []byte) (int, error) {
+	return p.maybeUpdateProgress(bytes)
+}
+
+func (p *fileTransferProgress) maybeUpdateProgress(bytes []byte) (int, error) {
 	bytesLength := len(bytes)
 
 	p.lock.Lock()
