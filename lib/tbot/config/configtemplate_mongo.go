@@ -87,7 +87,7 @@ func (t *TemplateMongo) Render(ctx context.Context, bot Bot, currentIdentity *id
 		OverwriteDestination: true,
 	}
 
-	files, err := identityfile.Write(cfg)
+	files, err := identityfile.Write(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}

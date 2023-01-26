@@ -366,7 +366,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 
 	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA)}}
 
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
@@ -444,7 +444,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		filePath = principals[0]
 	}
 
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           filePath,
 		Key:                  key,
 		Format:               a.outputFormat,
@@ -739,7 +739,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 
 	// write the cert+private key to the output:
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
