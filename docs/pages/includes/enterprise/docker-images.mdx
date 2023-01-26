@@ -4,6 +4,9 @@ automatically rebuilt every night.
 Nightly images point to the latest version of Teleport Enterprise from the three most recent release branches.
 They are stable, and we recommend their use to easily keep your Teleport Enterprise installation up to date.
 
+These images are hosted on our [Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent). All tags under `public.ecr.aws/gravitational/teleport-ent` are Teleport Enterprise images.
+You can specify the architecture of a Teleport Docker image by adding a postfix to the image tag, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)-arm64`. Versions without an architecture postfix use the `amd64` architecture, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`. 
+
 | Image name | Open Source or Enterprise? | Teleport version | Image automatically updated? | Image base |
 | - | - | - | - | - |
 | `public.ecr.aws/gravitational/teleport-ent:(=teleport.major_version=)` | Enterprise | The latest version of Teleport Enterprise (=teleport.major_version=) | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |

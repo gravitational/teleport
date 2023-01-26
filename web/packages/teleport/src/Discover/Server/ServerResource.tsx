@@ -40,6 +40,7 @@ export function ServerResource(props: ServerResourceProps) {
       {content}
 
       <ActionButtons
+        hideExit={true}
         onProceed={() => props.onProceed()}
         disableProceed={props.disabled}
       />

@@ -45,7 +45,7 @@ export const DesktopResource: Resource = {
   },
   views: [
     {
-      title: 'Select Resource',
+      title: 'Select Resource Type',
     },
     {
       title: 'Install Active Directory',

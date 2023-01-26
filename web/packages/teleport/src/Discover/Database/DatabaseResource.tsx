@@ -47,6 +47,7 @@ export function DatabaseResource(props: DatabaseResourceProps) {
       {content}
 
       <ActionButtons
+        hideExit={true}
         onProceed={() => props.onProceed()}
         disableProceed={!resourceState || props.disabled}
       />
