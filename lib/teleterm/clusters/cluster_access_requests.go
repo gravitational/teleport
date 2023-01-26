@@ -124,9 +124,10 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	resourceIDs := make([]types.ResourceID, 0, len(req.ResourceIds))
 	for _, resource := range req.ResourceIds {
 		resourceIDs = append(resourceIDs, types.ResourceID{
-			ClusterName: resource.ClusterName,
-			Name:        resource.Name,
-			Kind:        resource.Kind,
+			ClusterName:     resource.ClusterName,
+			Name:            resource.Name,
+			Kind:            resource.Kind,
+			SubResourceName: resource.SubResourceName,
 		})
 	}
 

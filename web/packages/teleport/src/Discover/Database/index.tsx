@@ -87,14 +87,14 @@ export const DatabaseResource: Resource<Database> = {
 
     return [
       {
-        title: 'Select Resource',
+        title: 'Select Resource Type',
       },
       {
         title: 'Configure Resource',
         views: configureResourceViews,
       },
       {
-        title: 'Setup Access',
+        title: 'Set Up Access',
         component: SetupAccess,
       },
       {
