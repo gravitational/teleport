@@ -64,17 +64,11 @@ type Config struct {
 	// SSH session
 	getHomeDir homeDirRetriever
 
-	// ProgressWriter is a callback to return a writer for printing the progress
+	// ProgressStream is a callback to return a read/writer for printing the progress
 	// (used only on the client)
-	ProgressWriter func(fileInfo os.FileInfo) io.ReadWriteCloser
+	ProgressStream func(fileInfo os.FileInfo) io.ReadWriter
 	// Log optionally specifies the logger
 	Log log.FieldLogger
-}
-
-type WriterToCloser interface {
-	io.WriterTo
-	io.Reader
-	io.Closer
 }
 
 // FileSystem describes file operations to be done either locally or over SFTP
@@ -436,13 +430,18 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer dstFile.Close()
 
-	reader, writter := prepareStreams(ctx, srcFile, dstFile, c, srcFileInfo)
+	var progressBar io.ReadWriter
+	if c.ProgressStream != nil {
+		progressBar = c.ProgressStream(srcFileInfo)
+	}
 
-	if err := assertStreamsType(reader, writter); err != nil {
+	reader, writer := prepareStreams(ctx, srcFile, dstFile, progressBar)
+
+	if err := assertStreamsType(reader, writer); err != nil {
 		return trace.Wrap(err)
 	}
 
-	n, err := io.Copy(writter, reader)
+	n, err := io.Copy(writer, reader)
 	if err != nil {
 		return trace.Errorf("error copying %s file %q to %s file %q: %w",
 			c.srcFS.Type(),
@@ -466,46 +465,45 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	return nil
 }
 
-func assertStreamsType(reader io.Reader, writter io.Writer) error {
+func assertStreamsType(reader io.Reader, writer io.Writer) error {
 	_, okReader := reader.(io.WriterTo)
-	_, okWriter := writter.(io.ReaderFrom)
+	_, okWriter := writer.(io.ReaderFrom)
 
 	if !okWriter && !okReader {
-		return trace.Errorf("reader and writer are not implementing concurrent interface %T %T", reader, writter)
+		return trace.Errorf("reader and writer are not implementing concurrent interface %T %T", reader, writer)
 	}
 	return nil
 }
 
-func prepareStreams(ctx context.Context, srcFile fs.File, dstFile io.WriteCloser, c *Config, srcFileInfo os.FileInfo) (io.Reader, io.Writer) {
+func prepareStreams(ctx context.Context, srcFile fs.File, dstFile io.WriteCloser, progressBar io.ReadWriter) (io.Reader, io.Writer) {
 	var reader io.Reader = srcFile
-	var writter io.Writer = dstFile
+	var writer io.Writer = dstFile
 
 	canceler := &cancelReaderWriter{
 		ctx: ctx,
 	}
 
 	if _, ok := reader.(*sftp.File); ok {
-		if c.ProgressWriter != nil {
-			writter = io.MultiWriter(dstFile, canceler, c.ProgressWriter(srcFileInfo))
+		if progressBar != nil {
+			writer = io.MultiWriter(dstFile, canceler, progressBar)
 		} else {
-			writter = io.MultiWriter(dstFile, canceler)
+			writer = io.MultiWriter(dstFile, canceler)
 		}
 	} else {
 		streams := make([]io.Reader, 0, 2)
 		streams = append(streams, canceler)
 
-		if c.ProgressWriter != nil {
-			streams = append(streams, c.ProgressWriter(srcFileInfo))
+		if progressBar != nil {
+			streams = append(streams, progressBar)
 		}
 
-		r := fileStreamReader{
+		reader = &fileStreamReader{
 			streams: streams,
 			file:    srcFile,
 		}
-		reader = &r
 	}
 
-	return reader, writter
+	return reader, writer
 }
 
 func getAtime(fi os.FileInfo) time.Time {
