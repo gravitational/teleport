@@ -182,7 +182,7 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		if err != nil {
 			if err == io.EOF {
 				if !readAnyXML {
-					return trace.BadParameter("XML appears to be invalid")
+					return trace.BadParameter("entity descriptor is not valid XML")
 				}
 				break
 			}
