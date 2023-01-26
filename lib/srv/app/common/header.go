@@ -55,6 +55,9 @@ const (
 var ReservedHeaders = append([]string{teleport.AppJWTHeader,
 	teleport.AppCFHeader,
 	XForwardedSSL,
+	TeleportAPIErrorHeader,
+	TeleportAWSAssumedRole,
+	TeleportAWSAssumedRoleAuthorization,
 },
 	forward.XHeaders...,
 )

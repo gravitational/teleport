@@ -15,14 +15,12 @@
 package alpnproxy
 
 import (
-	"encoding/xml"
 	"net/http"
 	"strings"
-	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -38,8 +36,7 @@ type AWSAccessMiddleware struct {
 
 	Log logrus.FieldLogger
 
-	assumedRoles map[string]*sts.AssumeRoleOutput
-	mu           sync.RWMutex
+	assumedRoles utils.SyncMap[string, *sts.AssumeRoleOutput]
 }
 
 var _ LocalProxyHTTPMiddleware = &AWSAccessMiddleware{}
@@ -112,9 +109,13 @@ func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Re
 		return true
 	}
 
-	if assumedRole, found := m.findAssumedRole(sigV4.KeyID); found {
+	// Handle requests signed with real credentials of assumed roles by the AWS
+	// client. These credentials were captured in previous HandleResponse.
+	if assumedRole, found := m.assumedRoles.Load(sigV4.KeyID); found {
 		return m.handleRequestByAssumedRole(rw, req, assumedRole)
 	}
+
+	// Handle requests signed with the default local proxy credentials.
 	return m.handleCommonRequest(rw, req)
 }
 
@@ -129,9 +130,9 @@ func (m *AWSAccessMiddleware) handleCommonRequest(rw http.ResponseWriter, req *h
 
 func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter, req *http.Request, assumedRole *sts.AssumeRoleOutput) bool {
 	credentials := credentials.NewStaticCredentials(
-		aws.ToString(assumedRole.Credentials.AccessKeyId),
-		aws.ToString(assumedRole.Credentials.SecretAccessKey),
-		aws.ToString(assumedRole.Credentials.SessionToken),
+		aws.StringValue(assumedRole.Credentials.AccessKeyId),
+		aws.StringValue(assumedRole.Credentials.SecretAccessKey),
+		aws.StringValue(assumedRole.Credentials.SessionToken),
 	)
 
 	if err := awsutils.VerifyAWSSignature(req, credentials); err != nil {
@@ -140,10 +141,10 @@ func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter,
 		return true
 	}
 
-	m.Log.Debugf("Rewriting headers for AWS request by assumed role %q.", aws.ToString(assumedRole.AssumedRoleUser.Arn))
+	m.Log.Debugf("Rewriting headers for AWS request by assumed role %q.", aws.StringValue(assumedRole.AssumedRoleUser.Arn))
 
 	// Add a custom header for marking the special request.
-	req.Header.Add(appcommon.TeleportAWSAssumedRole, aws.ToString(assumedRole.AssumedRoleUser.Arn))
+	req.Header.Add(appcommon.TeleportAWSAssumedRole, aws.StringValue(assumedRole.AssumedRoleUser.Arn))
 
 	// Rename the original authorization header to ensure older app agents
 	// (that don't support the requests by assumed roles) will fail.
@@ -186,38 +187,31 @@ func (m *AWSAccessMiddleware) handleSTSResponse(response *http.Response) error {
 		return trace.Wrap(err)
 	}
 
-	// Save the credentials if valid AssumeRoleOutput is found.
-	type AssumeRoleResponse struct {
-		AssumeRoleResult sts.AssumeRoleOutput `xml:"AssumeRoleResult"`
-	}
-	var resp AssumeRoleResponse
-	if err = xml.Unmarshal(body, &resp); err == nil {
-		if resp.AssumeRoleResult.AssumedRoleUser != nil && resp.AssumeRoleResult.Credentials != nil {
-			m.addAssumedRole(&resp.AssumeRoleResult)
-			m.Log.Debugf("Saved credentials for assumed role %q.", aws.ToString(resp.AssumeRoleResult.AssumedRoleUser.Arn))
+	// Save the credentials if valid AssumeRoleResponse is found.
+	assumedRole, err := unmarshalAssumeRoleResponse(body)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			m.Log.Warnf("Failed to unmarshal AssumeRoleResponse: %v.", err)
 		}
+		return nil
 	}
+
+	m.assumedRoles.Store(aws.StringValue(assumedRole.Credentials.AccessKeyId), assumedRole)
+	m.Log.Debugf("Saved credentials for assumed role %q.", aws.StringValue(assumedRole.AssumedRoleUser.Arn))
 	return nil
 }
 
-func (m *AWSAccessMiddleware) addAssumedRole(assumedRole *sts.AssumeRoleOutput) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.assumedRoles == nil {
-		m.assumedRoles = make(map[string]*sts.AssumeRoleOutput)
-	}
-	m.assumedRoles[aws.ToString(assumedRole.Credentials.AccessKeyId)] = assumedRole
-}
-
-func (m *AWSAccessMiddleware) findAssumedRole(accessKeyID string) (*sts.AssumeRoleOutput, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if m.assumedRoles == nil {
-		return nil, false
+func unmarshalAssumeRoleResponse(body []byte) (*sts.AssumeRoleOutput, error) {
+	if !awsutils.IsXMLOfLocalName(body, "AssumeRoleResponse") {
+		return nil, trace.NotFound("not AssumeRoleResponse")
 	}
 
-	assumedRole, found := m.assumedRoles[accessKeyID]
-	return assumedRole, found
+	var assumedRole sts.AssumeRoleOutput
+	if err := awsutils.UnmarshalXMLChildNode(&assumedRole, body, "AssumeRoleResult"); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if assumedRole.AssumedRoleUser == nil || assumedRole.Credentials == nil {
+		return nil, trace.BadParameter("incomplete AssumeRoleResult %v", string(body))
+	}
+	return &assumedRole, nil
 }

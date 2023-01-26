@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -97,7 +96,7 @@ type requestByAssumedRoleTransport struct {
 
 func (r requestByAssumedRoleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Simulate how a request by an assumed role is modified by "tsh".
-	req.Header.Add(common.TeleportAWSAssumedRole, mocks.AssumedRoleARN)
+	req.Header.Add(common.TeleportAWSAssumedRole, fakeAssumedRoleARN)
 	utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, common.TeleportAWSAssumedRoleAuthorization)
 	return http.DefaultTransport.RoundTrip(req)
 }
@@ -201,7 +200,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-2",
 			wantEventType:       &events.AppSessionRequest{},
-			wantAssumedRole:     mocks.AssumedRoleARN, // verifies assumed role is recorded in audit
+			wantAssumedRole:     fakeAssumedRoleARN, // verifies assumed role is recorded in audit
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
@@ -274,7 +273,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantAuthCredService: "dynamodb",
 			wantAuthCredRegion:  "us-east-1",
 			wantEventType:       &events.AppSessionDynamoDBRequest{},
-			wantAssumedRole:     mocks.AssumedRoleARN, // verifies assumed role is recorded in audit
+			wantAssumedRole:     fakeAssumedRoleARN, // verifies assumed role is recorded in audit
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
@@ -455,3 +454,5 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		emitter:  emitter,
 	}
 }
+
+const fakeAssumedRoleARN = "arn:aws:sts::123456789012:assumed-role/role-name/role-session-name"

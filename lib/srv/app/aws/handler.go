@@ -124,9 +124,16 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 		return trace.Wrap(err)
 	}
 
+	// Handle requests signed with real credentials of assumed roles by the AWS
+	// client. Headers will be restored and the request will be forwarded to
+	// AWS without re-signing.
 	if req.Header.Get(common.TeleportAWSAssumedRole) != "" {
 		return trace.Wrap(s.serveRequestByAssumedRole(sessCtx, w, req))
 	}
+
+	// Handle requests signed with the default local proxy credentials. The
+	// request will be re-signed with real credentials by assuming the
+	// requested role of this AWS app.
 	return trace.Wrap(s.serveCommonRequest(sessCtx, w, req))
 }
 

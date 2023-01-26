@@ -17,24 +17,26 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/sts"
-	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/private/protocol"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/cloud/mocks"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestAWSAccessMiddleware(t *testing.T) {
 	t.Parallel()
 
+	assumedRoleARN := "arn:aws:sts::123456789012:assumed-role/role-name/role-session-name"
 	localProxyCred := credentials.NewStaticCredentials("local-proxy", "local-proxy-secret", "")
 	assumedRoleCred := credentials.NewStaticCredentials("assumed-role", "assumed-role-secret", "assumed-role-token")
 
@@ -70,7 +72,7 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	// Verifies sts:AssumeRole output can be handled successfully. The
 	// credentials should be saved afterwards.
 	t.Run("handle sts:AssumeRole response", func(t *testing.T) {
-		response := assumeRoleResponse(t, assumedRoleCred)
+		response := assumeRoleResponse(t, assumedRoleARN, assumedRoleCred)
 		response.Request = stsRequestByLocalProxyCred
 		defer response.Body.Close()
 		require.NoError(t, m.HandleResponse(response))
@@ -87,29 +89,41 @@ func TestAWSAccessMiddleware(t *testing.T) {
 
 	// Verifies non sts:AssumeRole responses do not give errors.
 	t.Run("handle sts:GetCallerIdentity response", func(t *testing.T) {
-		response := getCallerIdentityResponse(t, mocks.AssumedRoleARN)
+		response := getCallerIdentityResponse(t, assumedRoleARN)
 		response.Request = stsRequestByLocalProxyCred
 		defer response.Body.Close()
 		require.NoError(t, m.HandleResponse(response))
 	})
 }
 
-func assumeRoleResponse(t *testing.T, cred *credentials.Credentials) *http.Response {
+func assumeRoleResponse(t *testing.T, roleARN string, cred *credentials.Credentials) *http.Response {
 	t.Helper()
 
 	credValue, err := cred.Get()
 	require.NoError(t, err)
 
-	body, err := mocks.AssumeRoleXMLResponse(&sts.AssumeRoleOutput{
-		AssumedRoleUser: &ststypes.AssumedRoleUser{
-			Arn: aws.String(mocks.AssumedRoleARN),
+	body, err := awsutils.MarshalXML(
+		xml.Name{
+			Local: "AssumeRoleResponse",
+			Space: "https://sts.amazonaws.com/doc/2011-06-15/",
 		},
-		Credentials: &ststypes.Credentials{
-			AccessKeyId:     aws.String(credValue.AccessKeyID),
-			SecretAccessKey: aws.String(credValue.SecretAccessKey),
-			SessionToken:    aws.String(credValue.SessionToken),
+		map[string]any{
+			"AssumeRoleResult": sts.AssumeRoleOutput{
+				AssumedRoleUser: &sts.AssumedRoleUser{
+					Arn: aws.String(roleARN),
+				},
+				Credentials: &sts.Credentials{
+					AccessKeyId:     aws.String(credValue.AccessKeyID),
+					SecretAccessKey: aws.String(credValue.SecretAccessKey),
+					SessionToken:    aws.String(credValue.SessionToken),
+				},
+			},
+			"ResponseMetadata": protocol.ResponseMetadata{
+				StatusCode: http.StatusOK,
+				RequestID:  "22222222-3333-3333-3333-333333333333",
+			},
 		},
-	})
+	)
 	require.NoError(t, err)
 	return fakeHTTPResponse(http.StatusOK, body)
 }
@@ -117,9 +131,21 @@ func assumeRoleResponse(t *testing.T, cred *credentials.Credentials) *http.Respo
 func getCallerIdentityResponse(t *testing.T, roleARN string) *http.Response {
 	t.Helper()
 
-	body, err := mocks.GetCallerIdentityXMLResponse(&sts.GetCallerIdentityOutput{
-		Arn: aws.String(mocks.AssumedRoleARN),
-	})
+	body, err := awsutils.MarshalXML(
+		xml.Name{
+			Local: "GetCallerIdentityResponse",
+			Space: "https://sts.amazonaws.com/doc/2011-06-15/",
+		},
+		map[string]any{
+			"GetCallerIdentityResult": sts.GetCallerIdentityOutput{
+				Arn: aws.String(roleARN),
+			},
+			"ResponseMetadata": protocol.ResponseMetadata{
+				StatusCode: http.StatusOK,
+				RequestID:  "22222222-3333-3333-3333-333333333333",
+			},
+		},
+	)
 	require.NoError(t, err)
 	return fakeHTTPResponse(http.StatusOK, body)
 }
