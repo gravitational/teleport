@@ -798,7 +798,7 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			t.wsLock.Unlock()
 			if err != nil {
 				if errors.Is(err, websocket.ErrCloseSent) {
-					logger.Info("Websocket was closed, no longer streaming events (%v)", err)
+					logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
 					return
 				}
 				logger.WithError(err).Error("Unable to send audit event to web client")
