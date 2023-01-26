@@ -31,6 +31,8 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -108,11 +110,12 @@ func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc
 
 func TestCreateOIDCUser(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	s := setUpSuite(t)
 
 	// Dry-run creation of OIDC user.
-	user, err := s.a.createOIDCUser(&createUserParams{
+	user, err := s.a.createOIDCUser(ctx, &createUserParams{
 		connectorName: "oidcService",
 		username:      "foo@example.com",
 		roles:         []string{"admin"},
@@ -126,7 +129,7 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create OIDC user with 1 minute expiry.
-	_, err = s.a.createOIDCUser(&createUserParams{
+	_, err = s.a.createOIDCUser(ctx, &createUserParams{
 		connectorName: "oidcService",
 		username:      "foo@example.com",
 		roles:         []string{"admin"},
@@ -201,9 +204,13 @@ func TestUserInfoBadStatus(t *testing.T) {
 func TestSSODiagnostic(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name            string
-		claimsToRoles   []types.ClaimMapping
-		wantValidateErr error
+		name               string
+		claimsToRoles      []types.ClaimMapping
+		claims             map[string]any
+		loginRuleEvaluator *mockLoginRuleEvaluator
+		expectRoles        []string
+		expectTraits       map[string][]string
+		wantValidateErr    error
 	}{
 		{
 			name: "success",
@@ -213,6 +220,19 @@ func TestSSODiagnostic(t *testing.T) {
 					Value: "idp-admin",
 					Roles: []string{"access"},
 				},
+			},
+			claims: map[string]any{
+				"email_verified": true,
+				"groups":         []string{"everyone", "idp-admin", "idp-dev"},
+				"email":          "superuser@example.com",
+				"sub":            "00001234abcd",
+				"exp":            1652091713.0,
+			},
+			expectRoles: []string{"access"},
+			expectTraits: map[string][]string{
+				"email":  {"superuser@example.com"},
+				"groups": {"everyone", "idp-admin", "idp-dev"},
+				"sub":    {"00001234abcd"},
 			},
 		},
 		{
@@ -224,7 +244,39 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
+			claims: map[string]any{
+				"email_verified": true,
+				"groups":         []string{"everyone", "idp-admin", "idp-dev"},
+				"email":          "superuser@example.com",
+				"sub":            "00001234abcd",
+				"exp":            1652091713.0,
+			},
 			wantValidateErr: ErrOIDCNoRoles,
+		},
+		{
+			// Test that login rules can influence mapped roles.
+			name: "login rules",
+			claimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "groups",
+					Value: "rule-access",
+					Roles: []string{"access"},
+				},
+			},
+			claims: map[string]any{
+				"groups": []string{"everyone", "idp-admin", "idp-dev"},
+				"email":  "superuser@example.com",
+				"sub":    "00001234abcd",
+			},
+			loginRuleEvaluator: &mockLoginRuleEvaluator{
+				outputTraits: map[string][]string{
+					"groups": {"rule-access"},
+				},
+			},
+			expectRoles: []string{"access"},
+			expectTraits: map[string][]string{
+				"groups": {"rule-access"},
+			},
 		},
 	}
 
@@ -244,6 +296,14 @@ func TestSSODiagnostic(t *testing.T) {
 			require.NoError(t, err)
 			err = s.a.CreateRole(ctx, role)
 			require.NoError(t, err)
+
+			if tc.loginRuleEvaluator != nil {
+				// Insert a mock login rule evaluator with static outputs, the real
+				// login rule evaluator is in the enterprise codebase.
+				s.a.SetLoginRuleEvaluator(tc.loginRuleEvaluator)
+			} else {
+				s.a.SetLoginRuleEvaluator(nil)
+			}
 
 			// connector spec
 			spec := types.OIDCConnectorSpecV3{
@@ -275,14 +335,7 @@ func TestSSODiagnostic(t *testing.T) {
 
 			// override getClaimsFun.
 			s.a.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
-				cc := map[string]interface{}{
-					"email_verified": true,
-					"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-					"email":          "superuser@example.com",
-					"sub":            "00001234abcd",
-					"exp":            1652091713.0,
-				}
-				return cc, nil
+				return tc.claims, nil
 			}
 
 			resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
@@ -301,6 +354,10 @@ func TestSSODiagnostic(t *testing.T) {
 				},
 				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
+			if tc.loginRuleEvaluator != nil {
+				require.Equal(t, 1, tc.loginRuleEvaluator.evaluatedCount, "login rules were not evaluated exactly once")
+				tc.loginRuleEvaluator.evaluatedCount = 0
+			}
 
 			diagCtx := ssoDiagContext{}
 
@@ -315,7 +372,7 @@ func TestSSODiagnostic(t *testing.T) {
 				},
 				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
-			require.Equal(t, types.SSODiagnosticInfo{
+			diff := cmp.Diff(types.SSODiagnosticInfo{
 				TestFlow: true,
 				Success:  true,
 				CreateUserParams: &types.CreateUserParams{
@@ -324,48 +381,32 @@ func TestSSODiagnostic(t *testing.T) {
 					Logins:        nil,
 					KubeGroups:    nil,
 					KubeUsers:     nil,
-					Roles:         []string{"access"},
-					Traits: map[string][]string{
-						"email":  {"superuser@example.com"},
-						"groups": {"everyone", "idp-admin", "idp-dev"},
-						"sub":    {"00001234abcd"},
-					},
-					SessionTTL: 600000000000,
+					Roles:         tc.expectRoles,
+					Traits:        tc.expectTraits,
+					SessionTTL:    600000000000,
 				},
-				OIDCClaimsToRoles: []types.ClaimMapping{
-					{
-						Claim: "groups",
-						Value: "idp-admin",
-						Roles: []string{"access"},
-					},
-				},
+				OIDCClaimsToRoles:         tc.claimsToRoles,
 				OIDCClaimsToRolesWarnings: nil,
-				OIDCClaims: map[string]interface{}{
-					"email_verified": true,
-					"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-					"email":          "superuser@example.com",
-					"sub":            "00001234abcd",
-					"exp":            1652091713.0,
-				},
+				OIDCClaims:                tc.claims,
 				OIDCIdentity: &types.OIDCIdentity{
 					ID:        "00001234abcd",
 					Name:      "",
 					Email:     "superuser@example.com",
 					ExpiresAt: diagCtx.info.OIDCIdentity.ExpiresAt,
 				},
-				OIDCTraitsFromClaims: map[string][]string{
-					"email":  {"superuser@example.com"},
-					"groups": {"everyone", "idp-admin", "idp-dev"},
-					"sub":    {"00001234abcd"},
-				},
+				OIDCTraitsFromClaims: tc.expectTraits,
 				OIDCConnectorTraitMapping: []types.TraitMapping{
 					{
-						Trait: "groups",
-						Value: "idp-admin",
-						Roles: []string{"access"},
+						Trait: tc.claimsToRoles[0].Claim,
+						Value: tc.claimsToRoles[0].Value,
+						Roles: tc.claimsToRoles[0].Roles,
 					},
 				},
-			}, diagCtx.info)
+			}, diagCtx.info, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
+			require.Empty(t, diff, "diagnostic info does not match expected")
+			if tc.loginRuleEvaluator != nil {
+				require.Equal(t, 1, tc.loginRuleEvaluator.evaluatedCount, "login rules were not evaluated exactly once")
+			}
 		})
 	}
 }
@@ -880,7 +921,7 @@ func TestUsernameClaim(t *testing.T) {
 			require.NoError(t, err)
 
 			// Generate the userCreateParams for the OIDC user.
-			createUserParams, err := s.a.calculateOIDCUser(&diagCtx, connector, claims, ident, request)
+			createUserParams, err := s.a.calculateOIDCUser(ctx, &diagCtx, connector, claims, ident, request)
 			if tc.expectedError != "" {
 				require.ErrorContains(t, err, tc.expectedError)
 			} else {
