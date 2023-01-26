@@ -252,6 +252,11 @@
               "title": "Hardware Key Support (Preview)",
               "slug": "/access-controls/guides/hardware-key-support/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Device Trust (Preview)",
+              "slug": "/access-controls/guides/device-trust/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
