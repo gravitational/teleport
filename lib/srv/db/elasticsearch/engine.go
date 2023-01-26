@@ -119,7 +119,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	clientConnReader := bufio.NewReader(e.clientConn)
 
 	if sessionCtx.Identity.RouteToDatabase.Username == "" {
-		return trace.BadParameter("database username required")
+		return trace.BadParameter("database username required for Elasticsearch")
 	}
 
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
