@@ -29,14 +29,17 @@ Teleport Desktop Access is not yet compatible with Windows Server 2022.
 
 ## Prerequisites
 
-- (!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A Linux server to run the Teleport Desktop Access service on.
   You can reuse an existing server running any other Teleport instance.
 
-- (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Prepare Windows
+
+In this section we'll import the Teleport certificate authority (**CA**) file
+to your Windows system, and prepare the it for passwordless access through Teleport.
 
 ### Import the Teleport root certificate
 
@@ -156,14 +159,16 @@ $ tctl create -f windows-desktop-admins.yaml
 
 (\!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins" \!)
 
-See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows Desktop Access permissions.
-
-See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
-guide for instructions on how to create or update a user with a given role.
-
 ## Step 4/4. Connect
 
 You can now connect to your Windows desktops from the Teleport Web UI:
 
 ![Connecting to a Windows desktop from the Web UI](../../img/desktop-access/non-ad-connect.png)
+
+## Next Steps
+
+- See the [RBAC page](./rbac.mdx) for more information about setting up
+Windows Desktop Access permissions.
+
+- See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
+guide for instructions on how to create or update a user with a given role.
