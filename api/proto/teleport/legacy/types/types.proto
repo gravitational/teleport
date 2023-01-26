@@ -4915,3 +4915,16 @@ message KubernetesResourceSpecV1 {
   // Namespace is the resource namespace.
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
+
+// GroupV1 is a representation of an externally sourced group.
+message GroupV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the group.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+}
