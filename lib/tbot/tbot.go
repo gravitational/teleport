@@ -260,7 +260,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // initialize returns an unlock function which must be deferred.
 func (b *Bot) initialize(ctx context.Context) (func() error, error) {
-	if b.cfg.AuthServer == "" {
+	if b.cfg.ProxyOrAuthAddr() == "" {
 		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
 		)

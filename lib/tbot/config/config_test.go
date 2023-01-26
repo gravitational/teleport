@@ -28,7 +28,7 @@ import (
 )
 
 func TestConfigDefaults(t *testing.T) {
-	cfg, err := NewDefaultConfig("auth.example.com")
+	cfg, err := NewDefaultConfig("example.com:443")
 	require.NoError(t, err)
 
 	require.Equal(t, DefaultCertificateTTL, cfg.CertificateTTL)
@@ -55,12 +55,12 @@ func TestConfigCLIOnlySample(t *testing.T) {
 		DestinationDir: "/tmp/foo",
 		Token:          "foo",
 		CAPins:         []string{"abc123"},
-		AuthServer:     "auth.example.com",
+		Proxy:          "tele.example.com:443",
 	}
 	cfg, err := FromCLIConf(&cf)
 	require.NoError(t, err)
 
-	require.Equal(t, cf.AuthServer, cfg.AuthServer)
+	require.Equal(t, cf.Proxy, cfg.Proxy)
 
 	require.NotNil(t, cfg.Onboarding)
 
@@ -98,7 +98,7 @@ func TestConfigFile(t *testing.T) {
 	cfg, err := ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
-	require.Equal(t, "auth.example.com", cfg.AuthServer)
+	require.Equal(t, "example.com:443", cfg.Proxy)
 	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
@@ -147,7 +147,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 }
 
 const exampleConfigFile = `
-auth_server: auth.example.com
+proxy: example.com:443
 renewal_interval: 5m
 onboarding:
   token: %s
@@ -162,3 +162,25 @@ destinations:
       - ssh_client:
           proxy_port: 1234
 `
+
+func TestConfig_ProxyOrAuthAddr(t *testing.T) {
+	cf := CLIConf{
+		DestinationDir: "/tmp/foo",
+		Token:          "foo",
+		CAPins:         []string{"abc123"},
+		Proxy:          "tele.example.com:443",
+	}
+	cfg, err := FromCLIConf(&cf)
+	require.NoError(t, err)
+	require.Equal(t, cf.Proxy, cfg.ProxyOrAuthAddr())
+
+	cf = CLIConf{
+		DestinationDir: "/tmp/foo",
+		Token:          "foo",
+		CAPins:         []string{"abc123"},
+		AuthServer:     "tele.example.com",
+	}
+	cfg, err = FromCLIConf(&cf)
+	require.NoError(t, err)
+	require.Equal(t, cf.AuthServer, cfg.ProxyOrAuthAddr())
+}

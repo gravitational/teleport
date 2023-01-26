@@ -83,6 +83,7 @@ type CLIConf struct {
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case
 	// a tunneled auth connection will be established.
+	// Deprecated: replaced by Proxy. REMOVE IN 13.0.0
 	AuthServer string
 
 	// DataDir stores the bot's internal data.
@@ -208,8 +209,13 @@ type BotConfig struct {
 	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
-	Debug           bool          `yaml:"debug"`
-	AuthServer      string        `yaml:"auth_server"`
+	Debug bool `yaml:"debug"`
+	// Deprecated: AuthServer has been replaced by Proxy.
+	// DELETE IN 13.0.0
+	AuthServer string `yaml:"auth_server"`
+	// Proxy is the address of a proxy server or Teleport cloud tenant in the
+	// host:port format.
+	Proxy           string        `yaml:"proxy"`
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
@@ -238,7 +244,22 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		conf.RenewalInterval = DefaultRenewInterval
 	}
 
+	// DELETE IN 13.0.0
+	if conf.AuthServer != "" && conf.Proxy != "" {
+		return trace.BadParameter("only one of 'proxy' and 'auth_server' can be set")
+	}
+
 	return nil
+}
+
+// ProxyOrAuthAddr returns a configured proxy address or falls back to a
+// configured auth address. This can be simplified in Teleport 13.0.0 when
+// auth address configuration is removed.
+func (conf *BotConfig) ProxyOrAuthAddr() string {
+	if conf.Proxy != "" {
+		return conf.Proxy
+	}
+	return conf.AuthServer
 }
 
 // GetDestinationByPath attempts to fetch a destination by its filesystem path.
@@ -269,10 +290,10 @@ func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, er
 
 // NewDefaultConfig creates a new minimal bot configuration from defaults.
 // CheckAndSetDefaults() will be called.
-func NewDefaultConfig(authServer string) (*BotConfig, error) {
+func NewDefaultConfig(proxy string) (*BotConfig, error) {
 	// Note: we need authServer for CheckAndSetDefaults to succeed.
 	cfg := BotConfig{
-		AuthServer: authServer,
+		Proxy: proxy,
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -317,6 +338,17 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			log.Warnf("CLI parameters are overriding auth server configured in %s", cf.ConfigPath)
 		}
 		config.AuthServer = cf.AuthServer
+	}
+	// DELETE IN 13.0.0
+	if config.AuthServer != "" {
+		log.Warnf("'auth_server' is deprecated. It will stop working in Teleport 13.0.0. Switch to 'proxy'.")
+	}
+
+	if cf.Proxy != "" {
+		if config.Proxy != "" {
+			log.Warnf("CLI parameters are overriding proxy server configured in %s", cf.ConfigPath)
+		}
+		config.Proxy = cf.Proxy
 	}
 
 	if cf.CertificateTTL != 0 {

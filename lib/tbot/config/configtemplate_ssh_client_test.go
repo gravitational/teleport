@@ -51,7 +51,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 			dir := t.TempDir()
 			mockAuth := newMockAuth(t)
 
-			cfg, err := NewDefaultConfig("example.com")
+			cfg, err := NewDefaultConfig("example.com:443")
 			require.NoError(t, err)
 
 			mockBot := newMockBot(cfg, mockAuth)

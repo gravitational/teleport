@@ -85,7 +85,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.Wrap(err)
 	}
 
-	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
+	addr, err := utils.ParseAddr(b.cfg.ProxyOrAuthAddr())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,7 +93,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 	authClientConfig := &authclient.Config{
 		TLS:         tlsConfig,
 		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*authAddr},
+		AuthServers: []utils.NetAddr{*addr},
 		Log:         b.log,
 	}
 
@@ -442,9 +442,9 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 	if !b.cfg.Onboarding.HasToken() {
 		return nil, trace.BadParameter("unable to start: no token present")
 	}
-	addr, err := utils.ParseAddr(b.cfg.AuthServer)
+	addr, err := utils.ParseAddr(b.cfg.ProxyOrAuthAddr())
 	if err != nil {
-		return nil, trace.Wrap(err, "invalid auth server address %+v", b.cfg.AuthServer)
+		return nil, trace.Wrap(err, "invalid proxy or auth server address %+v", b.cfg.ProxyOrAuthAddr())
 	}
 
 	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
