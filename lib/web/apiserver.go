@@ -2421,10 +2421,6 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 			return session.Session{}, trace.Wrap(err)
 		}
 
-		if len(resources) == 0 {
-			return session.Session{}, trace.NotFound("no matching servers")
-		}
-
 		matches := 0
 		for _, resource := range resources {
 			server, ok := resource.(types.Server)
