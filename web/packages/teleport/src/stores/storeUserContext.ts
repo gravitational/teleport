@@ -165,4 +165,8 @@ export default class StoreUserContext extends Store<UserContext> {
       (desktops.read && desktops.list)
     );
   }
+
+  hasDiscoverAccess() {
+    return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
+  }
 }

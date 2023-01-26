@@ -38,7 +38,7 @@ export const ServerResource: Resource = {
   },
   views: [
     {
-      title: 'Select Resource',
+      title: 'Select Resource Type',
     },
     {
       title: 'Configure Resource',
