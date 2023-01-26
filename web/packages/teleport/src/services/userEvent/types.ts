@@ -42,7 +42,7 @@ export enum DiscoverEvent {
   Completed = 'completed',
   InstallActiveDirectory = 'install_active_directory',
   ConfigureActiveDirectory = 'configure_active_directory',
-  DiscoverDesktops = 'discover_desktops',
+  DiscoverResources = 'discover_desktops',
 }
 
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {

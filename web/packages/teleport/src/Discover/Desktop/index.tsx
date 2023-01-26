@@ -64,7 +64,7 @@ export const DesktopResource: Resource = {
     {
       title: 'Discover Desktops',
       component: DiscoverDesktops,
-      eventName: DiscoverEvent.DiscoverDesktops,
+      eventName: DiscoverEvent.DiscoverResources,
     },
     {
       title: 'Finished',
