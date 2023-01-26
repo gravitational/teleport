@@ -6,10 +6,15 @@ description: Access Windows systems through Teleport using passwordless authenti
 This guide will help you configure Teleport to provide secure, passwordless access
 to Windows desktops. This configuration does not require an Active Directory domain.
 
-If you are running Windows in an AD environment, consider integrating Teleport
-with Active Directory for automatic discovery by reading [Desktop Access with
-Active Directory](./active-directory.mdx). You can also mix the Teleport Active Directory
-integration with the static host definitions described below.
+<Admonition type="note">
+Windows Access without Active Directory is an Enterprise only feature.
+
+For open source Teleport, consider integrating Teleport with Active Directory
+for automatic discovery by reading [Desktop Access with Active Directory](./active-directory.mdx).
+
+Teleport Enterprise users can also mix the Teleport Active Directory integration
+with the static host definitions described below.
+</Admonition>
 
 <Details
   title="Version warning"
