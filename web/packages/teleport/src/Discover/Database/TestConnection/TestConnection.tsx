@@ -29,6 +29,7 @@ import {
   HeaderWithBackBtn,
   ConnectionDiagnosticResult,
 } from '../../Shared';
+import { DatabaseEngine } from '../resources';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -51,6 +52,7 @@ export function TestConnectionView({
   authType,
   username,
   clusterId,
+  dbEngine,
 }: State) {
   const userOpts = db.users.map(l => ({ value: l, label: l }));
   const nameOpts = db.names.map(l => ({ value: l, label: l }));
@@ -59,6 +61,11 @@ export function TestConnectionView({
   // from getting to this step if both are not defined.
   const [selectedUser, setSelectedUser] = useState(userOpts[0]);
   const [selectedName, setSelectedName] = useState(nameOpts[0]);
+
+  let tshDbCmd = `tsh db connect ${db.name} --db-user=${selectedUser.value}`;
+  if (selectedName) {
+    tshDbCmd += ` --db-name=${selectedName.value}`;
+  }
 
   return (
     <Box>
@@ -105,6 +112,8 @@ export function TestConnectionView({
             isDisabled={
               attempt.status === 'processing' || nameOpts.length === 0
             }
+            // Database name is required for Postgres.
+            isClearable={dbEngine !== DatabaseEngine.PostgreSQL}
           />
         </Box>
       </StyledBox>
@@ -114,8 +123,8 @@ export function TestConnectionView({
         canTestConnection={canTestConnection}
         testConnection={() =>
           testConnection({
-            name: selectedName.value,
-            user: selectedUser.value,
+            name: selectedName?.value,
+            user: selectedUser?.value,
           })
         }
         stepNumber={2}
@@ -138,10 +147,7 @@ export function TestConnectionView({
         </Box>
         <Box mb={2}>
           Connect to your database
-          <TextSelectCopy
-            mt="1"
-            text={`tsh db connect ${db.name} --db-user=${selectedUser.value} --db-name=${selectedName.value}`}
-          />
+          <TextSelectCopy mt="1" text={tshDbCmd} />
         </Box>
       </StyledBox>
       <ActionButtons onProceed={nextStep} lastStep={true} />

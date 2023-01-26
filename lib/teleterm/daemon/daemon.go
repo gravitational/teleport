@@ -575,7 +575,7 @@ func (s *Service) Stop() {
 		gateway.Close()
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*5)
+	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
