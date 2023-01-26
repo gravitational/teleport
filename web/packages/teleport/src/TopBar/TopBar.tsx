@@ -18,29 +18,48 @@ import React from 'react';
 import styled from 'styled-components';
 import { Text, Flex, TopNav } from 'design';
 
+import { matchPath, useHistory } from 'react-router';
+
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
+import { useFeatures } from 'teleport/FeaturesContext';
+
+import cfg from 'teleport/config';
 
 import ClusterSelector from './ClusterSelector';
-import useTopBar from './useTopBar';
 
-export default function Container() {
+export function TopBar() {
   const ctx = useTeleport();
-  const stickCluster = useStickyClusterId();
-  const state = useTopBar(ctx, stickCluster);
-  return <TopBar {...state} />;
-}
+  const history = useHistory();
+  const features = useFeatures();
 
-export function TopBar(props: ReturnType<typeof useTopBar>) {
-  const {
-    username,
-    loadClusters,
-    popupItems,
-    changeCluster,
-    clusterId,
-    hasClusterUrl,
-  } = props;
+  const { clusterId, hasClusterUrl } = useStickyClusterId();
+
+  function loadClusters() {
+    return ctx.clusterService.fetchClusters();
+  }
+
+  function changeCluster(value: string) {
+    const newPrefix = cfg.getClusterRoute(value);
+
+    const oldPrefix = cfg.getClusterRoute(clusterId);
+
+    const newPath = history.location.pathname.replace(oldPrefix, newPrefix);
+    history.push(newPath);
+  }
+
+  // find active feature
+  const feature = features
+    .filter(feature => Boolean(feature.route))
+    .find(f =>
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: false,
+      })
+    );
+
+  const title = feature?.route?.title || '';
 
   // instead of re-creating an expensive react-select component,
   // hide/show it instead
@@ -50,7 +69,11 @@ export function TopBar(props: ReturnType<typeof useTopBar>) {
 
   return (
     <TopBarContainer>
-      {!hasClusterUrl && <Text typography="h2">{props.title}</Text>}
+      {!hasClusterUrl && (
+        <Text fontSize="18px" bold>
+          {title}
+        </Text>
+      )}
       <ClusterSelector
         value={clusterId}
         width="384px"
@@ -61,18 +84,14 @@ export function TopBar(props: ReturnType<typeof useTopBar>) {
         style={styles}
       />
       <Flex ml="auto" height="100%">
-        <UserMenuNav
-          navItems={popupItems}
-          username={username}
-          logout={props.logout}
-        />
+        <UserMenuNav username={ctx.storeUser.state.username} />
       </Flex>
     </TopBarContainer>
   );
 }
 
 export const TopBarContainer = styled(TopNav)`
-  height: 56px;
+  height: 72px;
   background-color: inherit;
   padding-left: ${({ theme }) => `${theme.space[6]}px`};
   overflow-y: initial;
