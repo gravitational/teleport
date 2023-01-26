@@ -156,6 +156,8 @@ func (c *Config) setDefaults() {
 // configured destination path over SFTP
 func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error {
 	sftpClient, err := sftp.NewClient(sshClient,
+		// Use concurrent stream to speed up transfer on slow networks as described in
+		// https://github.com/gravitational/teleport/issues/20579
 		sftp.UseConcurrentReads(true),
 		sftp.UseConcurrentWrites(true))
 	if err != nil {
@@ -423,16 +425,18 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	return nil
 }
 
+// assertStreamsType checks if reader or writer implements correct interface to utilize concurrent SFTP streams.
 func assertStreamsType(reader io.Reader, writer io.Writer) error {
 	_, okReader := reader.(io.WriterTo)
 	_, okWriter := writer.(io.ReaderFrom)
 
 	if !okWriter && !okReader {
-		return trace.Errorf("reader and writer are not implementing concurrent interface %T %T", reader, writer)
+		return trace.Errorf("reader and writer are not implementing concurrent interfaces %T %T", reader, writer)
 	}
 	return nil
 }
 
+// prepareStreams adds passed context to the local stream and progress bar if provided.
 func prepareStreams(ctx context.Context, srcFile fs.File, dstFile io.WriteCloser, progressBar io.ReadWriter) (io.Reader, io.Writer) {
 	var reader io.Reader = srcFile
 	var writer io.Writer = dstFile
