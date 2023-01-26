@@ -123,8 +123,8 @@ export function TestConnectionView({
         canTestConnection={canTestConnection}
         testConnection={() =>
           testConnection({
-            name: selectedName.value,
-            user: selectedUser.value,
+            name: selectedName?.value,
+            user: selectedUser?.value,
           })
         }
         stepNumber={2}
