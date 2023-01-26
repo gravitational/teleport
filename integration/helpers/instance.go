@@ -1495,6 +1495,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 		return nil, trace.Wrap(err)
 	}
 
+	defer resp.Body.Close()
 	ty, raw, err := ws.ReadMessage()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1516,11 +1517,6 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 
 	var sessResp siteSessionGenerateResponse
 	err = json.Unmarshal([]byte(env.Payload), &sessResp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = resp.Body.Close()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
