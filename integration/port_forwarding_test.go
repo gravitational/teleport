@@ -71,7 +71,7 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
-	const invalidOSLogin = "invalid-os-user"
+	const invalidOSLogin = "invalid-os-login"
 	testCases := []struct {
 		desc                  string
 		portForwardingAllowed bool
