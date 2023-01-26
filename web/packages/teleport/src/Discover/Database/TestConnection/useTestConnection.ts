@@ -19,6 +19,7 @@ import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 import { DbMeta } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
+import type { Database } from '../resources';
 
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
@@ -35,10 +36,12 @@ export function useTestConnection(props: AgentStepProps) {
     });
   }
 
+  const { engine } = props.resourceState as Database;
   return {
     ...connectionDiagnostic,
     testConnection,
     db: (props.agentMeta as DbMeta).db,
+    dbEngine: engine,
   };
 }
 
