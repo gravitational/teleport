@@ -28,19 +28,19 @@ import (
 
 // Constants for each ingress service.
 const (
-	// Kube is the service name for traffic ingressing through a proxy's web listener.
+	// Web is the service name for traffic ingressing through a proxy's web listener.
 	Web = "web"
-	// Kube is the service name for traffic ingressing through a proxy's ssh listener.
+	// SSH is the service name for traffic ingressing through a proxy's ssh listener.
 	SSH = "ssh"
 	// Kube is the service name for traffic ingressing through a proxy's kube listener.
 	Kube = "kube"
-	// Kube is the service name for traffic ingressing through a proxy's reverse tunnel listener.
+	// Tunnel is the service name for traffic ingressing through a proxy's reverse tunnel listener.
 	Tunnel = "tunnel"
-	// Kube is the service name for traffic ingressing through a proxy's mysql listener.
+	// MySQL is the service name for traffic ingressing through a proxy's mysql listener.
 	MySQL = "mysql"
-	// Kube is the service name for traffic ingressing through a proxy's postgres listener.
+	// Postgres is the service name for traffic ingressing through a proxy's postgres listener.
 	Postgres = "postgres"
-	// Kube is the service name for traffic ingressing through a proxy's database tls listener.
+	// DatabaseTLS is the service name for traffic ingressing through a proxy's database tls listener.
 	DatabaseTLS = "database_tls"
 )
 

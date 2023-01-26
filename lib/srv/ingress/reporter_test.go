@@ -32,6 +32,13 @@ func TestIngressReporter(t *testing.T) {
 	reporter, err := NewReporter("0.0.0.0:3080")
 	require.NoError(t, err)
 	conn := newConn(t, "localhost:3080")
+	t.Cleanup(func() {
+		activeConnections.Reset()
+		acceptedConnections.Reset()
+		authenticatedConnectionsAccepted.Reset()
+		authenticatedConnectionsActive.Reset()
+	})
+
 	reporter.ConnectionAccepted(SSH, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 1, getActiveConnections(PathALPN, SSH))
@@ -126,14 +133,28 @@ func TestHTTPConnStateReporter(t *testing.T) {
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
+	stateC := make(chan http.ConnState, 2)
+	reporterFunc := HTTPConnStateReporter(Web, reporter)
+
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	s := http.Server{
-		Handler:   handler,
-		ConnState: HTTPConnStateReporter(Web, reporter),
+		Handler: handler,
+		ConnState: func(c net.Conn, state http.ConnState) {
+			reporterFunc(c, state)
+			if state == http.StateNew || state == http.StateClosed {
+				stateC <- state
+			}
+		},
 	}
 
 	go s.Serve(l)
-	defer func() { require.NoError(t, s.Close()) }()
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+	t.Cleanup(func() {
+		activeConnections.Reset()
+		acceptedConnections.Reset()
+		authenticatedConnectionsAccepted.Reset()
+		authenticatedConnectionsActive.Reset()
+	})
 
 	require.Equal(t, 0, getAcceptedConnections(PathDirect, Web))
 	require.Equal(t, 0, getActiveConnections(PathDirect, Web))
@@ -142,12 +163,22 @@ func TestHTTPConnStateReporter(t *testing.T) {
 
 	resp, err := http.Get("http://" + l.Addr().String())
 	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
+	state := <-stateC
+	require.Equal(t, http.StateNew, state)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-
 	require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))
 	require.Equal(t, 1, getActiveConnections(PathDirect, Web))
 	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathDirect, Web))
 	require.Equal(t, 1, getAuthenticatedActiveConnections(PathDirect, Web))
+	require.NoError(t, resp.Body.Close())
+
+	http.DefaultClient.CloseIdleConnections()
+	state = <-stateC
+	require.Equal(t, http.StateClosed, state)
+	require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))
+	require.Equal(t, 0, getActiveConnections(PathDirect, Web))
+	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathDirect, Web))
+	require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web))
 }
