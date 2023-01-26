@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// SAMLIdPServiceProviderService manages IdP service providers in the Backend
+// SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
 	backend.Backend
 }
