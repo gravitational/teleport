@@ -62,7 +62,7 @@ application in Teleport regardless of the user's permissions within Teleport.
 #### Teleport CLI
 
 * Okta applications will show up when doing a `tsh apps ls` from the command line, with an origin of `okta`.
-* Okta groups will be using `tctl get apps`.
+* Okta apps will be returned as part of `tctl get apps` alongside other registered apps.
 * Okta groups will be using `tctl get groups`.
 * Okta label rules will be using `tctl get okta_label_rules`.
 * Logging in (`tsh app login <app-name>`) will **not** work for Okta apps.
