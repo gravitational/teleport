@@ -21,11 +21,11 @@ const configFactory = require('@gravitational/build/webpack/webpack.base');
 // include open source stories
 const stories = ['../packages/**/*.story.@(js|jsx|ts|tsx)'];
 
-const tsconfigPath = path.join(__dirname, '../tsconfig.json');
+const tsconfigPath = path.join(__dirname, '../../tsconfig.json');
 
 // include enterprise stories if available (**/* pattern ignores dot dir names)
-if (fs.existsSync(path.join(__dirname, '/../packages/webapps.e/'))) {
-  stories.unshift('../packages/webapps.e/**/*.story@(js|jsx|ts|tsx)');
+if (fs.existsSync(path.join(__dirname, '/../../e/'))) {
+  stories.unshift('../../e/web/**/*.story.@(js|jsx|ts|tsx)');
 }
 
 module.exports = {
