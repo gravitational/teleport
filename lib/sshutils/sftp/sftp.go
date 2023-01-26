@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -85,7 +86,7 @@ type FileSystem interface {
 	// ReadDir returns information about files contained within a directory
 	ReadDir(ctx context.Context, path string) ([]os.FileInfo, error)
 	// Open opens a file
-	Open(ctx context.Context, path string) (WriterToCloser, error)
+	Open(ctx context.Context, path string) (fs.File, error)
 	// Create creates a new file
 	Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error)
 	// Mkdir creates a directory
@@ -95,6 +96,26 @@ type FileSystem interface {
 	Chmod(ctx context.Context, path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
+}
+
+type fileWrapper struct {
+	file *os.File
+}
+
+func (wt *fileWrapper) Read(p []byte) (n int, err error) {
+	return wt.file.Read(p)
+}
+
+func (wt *fileWrapper) Close() error {
+	return wt.file.Close()
+}
+
+func (wt *fileWrapper) WriteTo(w io.Writer) (n int64, err error) {
+	return io.Copy(w, wt.file)
+}
+
+func (wt *fileWrapper) Stat() (os.FileInfo, error) {
+	return wt.file.Stat()
 }
 
 // CreateUploadConfig returns a Config ready to upload files
@@ -167,7 +188,7 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := c.initFS(ctx, sshClient, sftpClient); err != nil {
+	if err := c.initFS(sshClient, sftpClient); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -181,7 +202,7 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 }
 
 // initFS ensures the source and destination filesystems are ready to transfer
-func (c *Config) initFS(ctx context.Context, sshClient *ssh.Client, client *sftp.Client) error {
+func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 	var haveRemoteFS bool
 
 	srcFS, srcOK := c.srcFS.(*remoteFS)
@@ -380,22 +401,24 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 	return nil
 }
 
-type progressReader struct {
-	ctx context.Context
-	pb  *progressbar.ProgressBar
-	f   *WT
+type fileStreamReader struct {
+	streams []io.Reader
+	file    fs.File
 }
 
-func (a *progressReader) Stat() (os.FileInfo, error) {
-	return a.f.Stat()
+func (a *fileStreamReader) Stat() (os.FileInfo, error) {
+	return a.file.Stat()
 }
 
-func (a *progressReader) Read(b []byte) (int, error) {
-	if err := a.ctx.Err(); err != nil {
-		return 0, err
+func (a *fileStreamReader) Read(b []byte) (int, error) {
+	n, err := a.file.Read(b)
+
+	for _, stream := range a.streams {
+		if _, innerError := stream.Read(b); innerError != nil {
+			return 0, innerError
+		}
 	}
-	n, err := a.pb.Read(b)
-	a.pb.Add(n)
+
 	return n, err
 }
 
@@ -413,25 +436,10 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer dstFile.Close()
 
-	canceler := &cancelWriter{
-		ctx: ctx,
-	}
+	reader, writter := prepareStreams(ctx, srcFile, dstFile, c, srcFileInfo)
 
-	var reader io.Reader = srcFile
-	var writter io.Writer = dstFile
-
-	if _, ok := reader.(*sftp.File); ok {
-		writter = io.MultiWriter(dstFile, canceler, c.ProgressWriter(srcFileInfo))
-	} else {
-		r := progressReader{ctx: ctx, pb: c.ProgressWriter(srcFileInfo).(*progressbar.ProgressBar), f: srcFile.(*WT)}
-		reader = &r
-	}
-
-	_, okReader := reader.(io.WriterTo)
-	_, okWriter := writter.(io.ReaderFrom)
-
-	if !okWriter && !okReader {
-		return trace.Errorf("reader and writer are not implementing concurrent interface %T %T", reader, writter)
+	if err := assertStreamsType(reader, writter); err != nil {
+		return trace.Wrap(err)
 	}
 
 	n, err := io.Copy(writter, reader)
@@ -458,6 +466,48 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	return nil
 }
 
+func assertStreamsType(reader io.Reader, writter io.Writer) error {
+	_, okReader := reader.(io.WriterTo)
+	_, okWriter := writter.(io.ReaderFrom)
+
+	if !okWriter && !okReader {
+		return trace.Errorf("reader and writer are not implementing concurrent interface %T %T", reader, writter)
+	}
+	return nil
+}
+
+func prepareStreams(ctx context.Context, srcFile fs.File, dstFile io.WriteCloser, c *Config, srcFileInfo os.FileInfo) (io.Reader, io.Writer) {
+	var reader io.Reader = srcFile
+	var writter io.Writer = dstFile
+
+	canceler := &cancelReaderWriter{
+		ctx: ctx,
+	}
+
+	if _, ok := reader.(*sftp.File); ok {
+		if c.ProgressWriter != nil {
+			writter = io.MultiWriter(dstFile, canceler, c.ProgressWriter(srcFileInfo))
+		} else {
+			writter = io.MultiWriter(dstFile, canceler)
+		}
+	} else {
+		streams := make([]io.Reader, 0, 2)
+		streams = append(streams, canceler)
+
+		if c.ProgressWriter != nil {
+			streams = append(streams, c.ProgressWriter(srcFileInfo))
+		}
+
+		r := fileStreamReader{
+			streams: streams,
+			file:    srcFile,
+		}
+		reader = &r
+	}
+
+	return reader, writter
+}
+
 func getAtime(fi os.FileInfo) time.Time {
 	s := fi.Sys()
 	if s == nil {
@@ -471,11 +521,18 @@ func getAtime(fi os.FileInfo) time.Time {
 	return scp.GetAtime(fi)
 }
 
-type cancelWriter struct {
+type cancelReaderWriter struct {
 	ctx context.Context
 }
 
-func (c *cancelWriter) Write(b []byte) (int, error) {
+func (c *cancelReaderWriter) Read(_ []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return 0, nil
+}
+
+func (c *cancelReaderWriter) Write(b []byte) (int, error) {
 	if err := c.ctx.Err(); err != nil {
 		return 0, err
 	}

@@ -194,7 +194,7 @@ func TestUpload(t *testing.T) {
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.dstFS = &localFS{}
-			cfg.initFS(ctx, nil, nil)
+			cfg.initFS(nil, nil)
 
 			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {
@@ -278,7 +278,7 @@ func TestDownload(t *testing.T) {
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.srcFS = &localFS{}
-			cfg.initFS(ctx, nil, nil)
+			cfg.initFS(nil, nil)
 
 			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {

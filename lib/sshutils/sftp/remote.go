@@ -19,6 +19,7 @@ package sftp
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"time"
 
@@ -62,7 +63,7 @@ func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, err
 	return fileInfos, nil
 }
 
-func (r *remoteFS) Open(ctx context.Context, path string) (WriterToCloser, error) {
+func (r *remoteFS) Open(ctx context.Context, path string) (fs.File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

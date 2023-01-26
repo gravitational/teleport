@@ -19,6 +19,7 @@ package sftp
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"time"
 
@@ -67,7 +68,7 @@ func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error
 	return fileInfos, nil
 }
 
-func (l localFS) Open(ctx context.Context, path string) (WriterToCloser, error) {
+func (l localFS) Open(ctx context.Context, path string) (fs.File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -77,27 +78,7 @@ func (l localFS) Open(ctx context.Context, path string) (WriterToCloser, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	return &WT{file: f}, nil
-}
-
-type WT struct {
-	file *os.File
-}
-
-func (wt *WT) Read(p []byte) (n int, err error) {
-	return wt.file.Read(p)
-}
-
-func (wt *WT) Close() error {
-	return wt.file.Close()
-}
-
-func (wt *WT) WriteTo(w io.Writer) (n int64, err error) {
-	return io.Copy(w, wt.file)
-}
-
-func (wt *WT) Stat() (os.FileInfo, error) {
-	return wt.file.Stat()
+	return &fileWrapper{file: f}, nil
 }
 
 func (l localFS) Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error) {
