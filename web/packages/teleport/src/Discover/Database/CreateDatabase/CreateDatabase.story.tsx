@@ -27,9 +27,15 @@ export default {
   title: 'Teleport/Discover/Database/CreateDatabase',
 };
 
-export const InitSelfHosted = () => (
+export const InitSelfHostedPostgres = () => (
   <MemoryRouter>
     <CreateDatabaseView {...props} />
+  </MemoryRouter>
+);
+
+export const InitSelfHostedMySql = () => (
+  <MemoryRouter>
+    <CreateDatabaseView {...props} dbEngine={DatabaseEngine.MySQL} />
   </MemoryRouter>
 );
 
