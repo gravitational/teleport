@@ -55,6 +55,7 @@ export function DesktopResource(props: DesktopResourceProps) {
       {content}
 
       <ActionButtons
+        hideExit={true}
         onProceed={() => props.onProceed()}
         disableProceed={props.disabled}
       />
