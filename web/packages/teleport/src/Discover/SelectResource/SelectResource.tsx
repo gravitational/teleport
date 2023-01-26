@@ -122,8 +122,8 @@ export function SelectResource(props: SelectResourceProps) {
       <Header>Select Resource Type</Header>
       <HeaderSubtitle>
         Users are able to add and access many different types of resources
-        through Teleport. <br />
-        Start by selecting the type of resource you want to add.
+        through Teleport. Start by selecting the type of resource you want to
+        add.
       </HeaderSubtitle>
       <SlideTabs
         initialSelected={selectedTabIndex}
@@ -142,7 +142,10 @@ export function SelectResource(props: SelectResourceProps) {
             }
 
             if (state.location === DatabaseLocation.AWS) {
-              if (state.engine === DatabaseEngine.PostgreSQL) {
+              if (
+                state.engine === DatabaseEngine.PostgreSQL ||
+                state.engine === DatabaseEngine.MySQL
+              ) {
                 props.onNext();
               }
             }

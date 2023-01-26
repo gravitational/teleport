@@ -483,6 +483,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_InstanceJoin{
 			InstanceJoin: e,
 		}
+	case *LoginRuleCreate:
+		out.Event = &OneOf_LoginRuleCreate{
+			LoginRuleCreate: e,
+		}
+	case *LoginRuleDelete:
+		out.Event = &OneOf_LoginRuleDelete{
+			LoginRuleDelete: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}
