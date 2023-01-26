@@ -4,7 +4,6 @@
   "main": "index.js",
   "license": "Apache-2.0",
   "scripts": {
-    "storybook": "start-storybook -p 9002 -c .storybook -s .storybook/public",
     "test": "jest",
     "test-coverage": "jest --coverage && scripts/print-coverage-link.sh",
     "test-update-snapshot": "yarn test -- --updateSnapshot",
