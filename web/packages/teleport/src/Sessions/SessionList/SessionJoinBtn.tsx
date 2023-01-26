@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { ButtonBorder, Text, Box, Menu, MenuItem } from 'design';
 import { CarrotDown } from 'design/Icon';
@@ -48,6 +48,7 @@ export const SessionJoinBtn = ({
           key={participantMode}
           as="a"
           href={cfg.getSshSessionRoute({ sid, clusterId }, participantMode)}
+          target="_blank"
           style={{ textTransform: 'capitalize' }}
         >
           {participantMode}
@@ -57,51 +58,41 @@ export const SessionJoinBtn = ({
   );
 };
 
-class JoinMenu extends React.Component {
-  state = {
-    anchorEl: null,
+function JoinMenu({ children }: { children: React.ReactNode }) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
+
+  const handleClickListItem = event => {
+    setAnchorEl(event.currentTarget);
   };
 
-  handleClickListItem = event => {
-    this.setState({ anchorEl: event.currentTarget });
+  const handleClose = () => {
+    setAnchorEl(null);
   };
 
-  handleMenuItemClick = () => {
-    this.setState({ anchorEl: null });
-  };
-
-  handleClose = () => {
-    this.setState({ anchorEl: null });
-  };
-
-  render() {
-    const { children } = this.props;
-    const { anchorEl } = this.state;
-    return (
-      <Box textAlign="center" width="80px">
-        <ButtonBorder size="small" onClick={this.handleClickListItem}>
-          Join
-          <CarrotDown ml={1} fontSize={2} color="text.secondary" />
-        </ButtonBorder>
-        <Menu
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'center',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'center',
-          }}
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={this.handleClose}
-        >
-          <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
-            Join as...
-          </Text>
-          {children}
-        </Menu>
-      </Box>
-    );
-  }
+  return (
+    <Box textAlign="center" width="80px">
+      <ButtonBorder size="small" onClick={handleClickListItem}>
+        Join
+        <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+      </ButtonBorder>
+      <Menu
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+      >
+        <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
+          Join as...
+        </Text>
+        {children}
+      </Menu>
+    </Box>
+  );
 }
