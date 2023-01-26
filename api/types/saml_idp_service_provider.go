@@ -180,7 +180,7 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	for {
 		err := decoder.Decode(new(interface{}))
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if !readAnyXML {
 					return trace.BadParameter("entity descriptor is not valid XML")
 				}
