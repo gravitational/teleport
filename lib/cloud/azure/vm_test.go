@@ -86,6 +86,34 @@ func TestGetVirtualMachine(t *testing.T) {
 			},
 		},
 		{
+			desc:       "vm with only user managed identities",
+			resourceID: validResourceID,
+			client: &ARMComputeMock{
+				GetResult: armcompute.VirtualMachine{
+					ID:   to.Ptr("id"),
+					Name: to.Ptr("name"),
+					Identity: &armcompute.VirtualMachineIdentity{
+						UserAssignedIdentities: map[string]*armcompute.UserAssignedIdentitiesValue{
+							"identity1": {},
+							"identity2": {},
+						},
+					},
+				},
+			},
+			assertError: require.NoError,
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, vm.ID, "id")
+				require.Equal(t, vm.Name, "name")
+				require.ElementsMatch(t, []Identity{
+					{ResourceID: "identity1"},
+					{ResourceID: "identity2"},
+				}, vm.Identities)
+			},
+		},
+		{
 			desc:        "invalid resource ID",
 			resourceID:  "random-id",
 			client:      &ARMComputeMock{},
