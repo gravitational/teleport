@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ServerConfig provides dependencies required to create a [Server]
+// ServerConfig provides dependencies required to create a [Server].
 type ServerConfig struct {
 	// Server serves the web api
 	Server *http.Server
@@ -62,7 +62,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Server serves the web api
+// Server serves the web api.
 type Server struct {
 	cfg ServerConfig
 
@@ -70,7 +70,7 @@ type Server struct {
 	ln net.Listener
 }
 
-// NewServer constructs a [Server] from the provided [ServerConfig]
+// NewServer constructs a [Server] from the provided [ServerConfig].
 func NewServer(cfg ServerConfig) (*Server, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -81,7 +81,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}, nil
 }
 
-// Serve launches the configured [http.Server]
+// Serve launches the configured [http.Server].
 func (s *Server) Serve(l net.Listener) error {
 	s.mu.Lock()
 	s.ln = l
@@ -89,7 +89,7 @@ func (s *Server) Serve(l net.Listener) error {
 	return trace.Wrap(s.cfg.Server.Serve(l))
 }
 
-// Close immediately closes the [http.Server]
+// Close immediately closes the [http.Server].
 func (s *Server) Close() error {
 	return trace.NewAggregate(s.cfg.Handler.Close(), s.cfg.Server.Close())
 }
