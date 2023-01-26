@@ -142,7 +142,10 @@ export function SelectResource(props: SelectResourceProps) {
             }
 
             if (state.location === DatabaseLocation.AWS) {
-              if (state.engine === DatabaseEngine.PostgreSQL) {
+              if (
+                state.engine === DatabaseEngine.PostgreSQL ||
+                state.engine === DatabaseEngine.MySQL
+              ) {
                 props.onNext();
               }
             }
