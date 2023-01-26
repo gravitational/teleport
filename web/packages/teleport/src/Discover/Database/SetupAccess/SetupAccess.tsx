@@ -95,14 +95,16 @@ export function SetupAccess(props: State) {
     onProceed({ databaseNames: selectedNames, databaseUsers: selectedUsers });
   }
 
-  // Both db names and users are required.
-  const hasTraits = selectedNames.length > 0 && selectedUsers.length > 0;
+  const { engine, location } = resourceState as Database;
+  let hasTraits = selectedUsers.length > 0;
+  // Postgres connection testing requires both db user and a db name.
+  if (engine === DatabaseEngine.PostgreSQL) {
+    hasTraits = hasTraits && selectedNames.length > 0;
+  }
 
   const canAddTraits = !props.isSsoUser && props.canEditUser;
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
-
-  const { engine, location } = resourceState as Database;
 
   return (
     <SetupAccessWrapper
