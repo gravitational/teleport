@@ -18,41 +18,16 @@ import React from 'react';
 
 import TopNav from './TopNav';
 import TopNavItem from './TopNavItem';
-import TopNavUserMenu from './TopNavUserMenu';
-import MenuItem from './../Menu/MenuItem';
 
 export default {
   title: 'Design/TopNav',
 };
 
 export const Sample = () => {
-  const [visible, setVisible] = React.useState(false);
-
-  function onShow() {
-    setVisible(true);
-  }
-
-  function onClose() {
-    setVisible(false);
-  }
-
-  function onItemClick() {
-    onClose();
-  }
-
   return (
     <TopNav height="60px">
       <TopNavItem>MenuItem1</TopNavItem>
       <TopNavItem>MenuItem2</TopNavItem>
-      <TopNavUserMenu
-        open={visible}
-        onShow={onShow}
-        onClose={onClose}
-        user="example@example.com"
-      >
-        <MenuItem onClick={onItemClick}>Test</MenuItem>
-        <MenuItem onClick={onItemClick}>Test2</MenuItem>
-      </TopNavUserMenu>
     </TopNav>
   );
 };

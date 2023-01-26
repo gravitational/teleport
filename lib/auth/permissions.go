@@ -670,6 +670,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
+						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 					},
 				},
 			})

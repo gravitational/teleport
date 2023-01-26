@@ -61,7 +61,7 @@ DB_INSTALL_MODE='{{.databaseInstallMode}}'
 
 # usage message
 # shellcheck disable=SC2086
-usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port> [-j join_token ] [-c ca_pin_hash]... [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port] [-j join_token] [-c ca_pin_hash]... [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
 while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
     case "${o}" in
         v)  TELEPORT_VERSION=${OPTARG};;

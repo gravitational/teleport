@@ -498,7 +498,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        i.Hostname,
+			Addr:        i.Web,
 		},
 		{
 			AddrNetwork: "tcp",

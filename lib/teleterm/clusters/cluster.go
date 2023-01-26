@@ -166,9 +166,10 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
 	for _, r := range req.GetResourceIds() {
 		resourceIds = append(resourceIds, types.ResourceID{
-			ClusterName: r.ClusterName,
-			Kind:        r.Kind,
-			Name:        r.Name,
+			ClusterName:     r.ClusterName,
+			Kind:            r.Kind,
+			Name:            r.Name,
+			SubResourceName: r.SubResourceName,
 		})
 	}
 

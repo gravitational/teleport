@@ -19,22 +19,35 @@ import (
 	"strings"
 )
 
+// *************************************************************
+// ****** These need to be updated on each major release. ******
+// ****** After updating, "make dronegen" must be reran.  ******
+// *************************************************************
+const branchMajorVersion int = 13
+
+func buildPipelineVersions() (string, []string) {
+	branchMajorSemver := fmt.Sprintf("v%d", branchMajorVersion)
+	// Note that this only matters in the context of the master branch
+	updateVersionCount := 3
+	imageUpdateSemvers := make([]string, updateVersionCount)
+	for i := 0; i < updateVersionCount; i++ {
+		imageUpdateSemvers[i] = fmt.Sprintf("v%d", branchMajorVersion-i)
+	}
+
+	return branchMajorSemver, imageUpdateSemvers
+}
+
 func buildContainerImagePipelines() []pipeline {
-	// *************************************************************
-	// ****** These need to be updated on each major release. ******
-	// ****** After updating, "make dronegen" must be reran.  ******
-	// *************************************************************
-	latestMajorVersions := []string{"v11", "v10", "v9"}
-	branchMajorVersion := "v11"
+	branchMajorSemver, imageUpdateSemvers := buildPipelineVersions()
 
 	triggers := []*TriggerInfo{
-		NewTagTrigger(branchMajorVersion),
-		NewPromoteTrigger(branchMajorVersion),
-		NewCronTrigger(latestMajorVersions),
+		NewTagTrigger(branchMajorSemver),
+		NewPromoteTrigger(branchMajorSemver),
+		NewCronTrigger(imageUpdateSemvers),
 	}
 
 	if configureForPRTestingOnly {
-		triggers = append(triggers, NewTestTrigger(prBranch, branchMajorVersion))
+		triggers = append(triggers, NewTestTrigger(prBranch, branchMajorSemver))
 	}
 
 	pipelines := make([]pipeline, 0, len(triggers))
