@@ -2331,11 +2331,11 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 		}
 	}
 
-	mfaVerified := state.MFAVerified || state.MFARequired == MFARequiredNever
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
-	deviceVerified := !state.EnableDeviceVerification || state.DeviceVerified
+	deviceAllowed := !state.EnableDeviceVerification || state.DeviceVerified
 
 	var errs []error
 	allowed := false
@@ -2388,21 +2388,21 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if mfaVerified && deviceVerified {
+		if mfaAllowed && deviceAllowed {
 			debugf("Access to %v %q granted, allow rule in role %q matched.",
 				r.GetKind(), r.GetName(), role.GetName())
 			return nil
 		}
 
 		// MFA verification.
-		if !mfaVerified && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
 		}
 
 		// Device verification.
-		if !deviceVerified && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
+		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
 			debugf("Access to %v %q denied, role %q requires a trusted device",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrTrustedDeviceRequired
