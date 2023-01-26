@@ -175,7 +175,7 @@ jobs:
           name: "Install Teleport"
           command: |
             cd /tmp
-            curl -O https://cdn.teleport.dev/teleport-(=teleport.version=)-linux-amd64-bin.tar.gz
+            curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
             tar -xvf teleport-(=teleport.version=)-linux-amd64-bin.tar.gz
             sudo ./teleport/install
       - run:
