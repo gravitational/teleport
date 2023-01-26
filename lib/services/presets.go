@@ -76,6 +76,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindLoginRule, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -113,6 +114,13 @@ func NewPresetAccessRole() types.Role {
 				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -182,6 +190,7 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
 			types.NewRule(types.KindDatabase, RW()),
 			types.NewRule(types.KindDatabaseService, RO()),
+			types.NewRule(types.KindLoginRule, RW()),
 		},
 	}
 }

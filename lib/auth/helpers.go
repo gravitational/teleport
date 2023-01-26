@@ -366,6 +366,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 }
 
 func (a *TestAuthServer) Close() error {
+	defer a.LockWatcher.Close()
+
 	return trace.NewAggregate(
 		a.AuthServer.Close(),
 		a.Backend.Close(),
