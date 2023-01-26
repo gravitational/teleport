@@ -168,7 +168,7 @@ func (m *AWSAccessMiddleware) HandleResponse(response *http.Response) error {
 		return nil
 	}
 
-	if strings.EqualFold(sigV4.Service, sts.ServiceID) {
+	if strings.EqualFold(sigV4.Service, sts.EndpointsID) {
 		return trace.Wrap(m.handleSTSResponse(response))
 	}
 	return nil
@@ -210,8 +210,11 @@ func unmarshalAssumeRoleResponse(body []byte) (*sts.AssumeRoleOutput, error) {
 	if err := awsutils.UnmarshalXMLChildNode(&assumedRole, body, "AssumeRoleResult"); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if assumedRole.AssumedRoleUser == nil || assumedRole.Credentials == nil {
-		return nil, trace.BadParameter("incomplete AssumeRoleResult %v", string(body))
+	if assumedRole.AssumedRoleUser == nil {
+		return nil, trace.BadParameter("missing AssumedRoleUser in AssumeRoleResponse %v", string(body))
+	}
+	if assumedRole.Credentials == nil {
+		return nil, trace.BadParameter("missing Credentials in AssumeRoleResponse %v", string(body))
 	}
 	return &assumedRole, nil
 }
