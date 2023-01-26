@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+const samlIdPServiceProviderMaxPageSize = 200
+
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
 	backend.Backend
@@ -37,22 +39,43 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServicePr
 }
 
 // GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
-func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProviders(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-	startKey := backend.Key(samlIDPServiceProviderPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProviders(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLIdPServiceProvider, string, error) {
+	rangeStart := backend.Key(samlIDPServiceProviderPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(rangeStart)
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > samlIdPServiceProviderMaxPageSize {
+		pageSize = samlIdPServiceProviderMaxPageSize
+	}
+
+	// Increment pageSize to allow for the extra item represented by nextKey.
+	// We skip this item in the results below.
+	limit := pageSize + 1
+	var out []types.SAMLIdPServiceProvider
+
+	// no filter provided get the range directly
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
-	serviceProviders := make([]types.SAMLIdPServiceProvider, len(result.Items))
-	for i, item := range result.Items {
-		sp, err := services.UnmarshalSAMLIdPServiceProvider(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+
+	out = make([]types.SAMLIdPServiceProvider, 0, len(result.Items))
+	for _, item := range result.Items {
+		sp, err := services.UnmarshalSAMLIdPServiceProvider(item.Value)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		serviceProviders[i] = sp
+		out = append(out, sp)
 	}
-	return serviceProviders, nil
+
+	var nextKey string
+	if len(out) > pageSize {
+		nextKey = backend.GetPaginationKey(out[len(out)-1])
+		// Truncate the last item that was used to determine next row existence.
+		out = out[:pageSize]
+	}
+
+	return out, nextKey, nil
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resource.

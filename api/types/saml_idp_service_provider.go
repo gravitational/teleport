@@ -18,6 +18,7 @@ package types
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	io "io"
 	"strings"

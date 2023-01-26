@@ -22,45 +22,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAssertSAMLIdPServiceProviderImplementsResourceWithLabels(t *testing.T) {
-	sp, err := NewSAMLIdPServiceProvider("test", SAMLIdPServiceProviderSpecV1{
-		EntityDescriptor: "<valid />",
-	})
-	require.NoError(t, err)
-	require.Implements(t, (*ResourceWithLabels)(nil), sp)
-}
-
 // TestNewSAMLIdPServiceProvider ensures a valid SAML IdP service provider.
 func TestNewSAMLIdPServiceProvider(t *testing.T) {
 	tests := []struct {
 		name             string
 		entityDescriptor string
-		expectedErr      bool
+		errAssertion     require.ErrorAssertionFunc
 	}{
 		{
 			name:             "valid entity descriptor",
 			entityDescriptor: testEntityDescriptor,
-			expectedErr:      false,
+			errAssertion:     require.NoError,
 		},
 		{
 			name:             "empty entity descriptor",
 			entityDescriptor: "",
-			expectedErr:      true,
+			errAssertion:     require.Error,
 		},
 		{
 			name:             "entity descriptor only spaces",
 			entityDescriptor: "    ",
-			expectedErr:      true,
+			errAssertion:     require.Error,
 		},
 		{
 			name:             "no XML",
 			entityDescriptor: "this is not valid XML",
-			expectedErr:      true,
+			errAssertion:     require.Error,
 		},
 		{
 			name:             "invalid xml",
 			entityDescriptor: "<test1><test2 />",
-			expectedErr:      true,
+			errAssertion:     require.Error,
 		},
 	}
 
@@ -70,7 +62,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				EntityDescriptor: test.entityDescriptor,
 			})
 
-			require.Equal(t, err != nil, test.expectedErr, "unexpected error state: %v", err)
+			test.errAssertion(t, err)
 		})
 	}
 }

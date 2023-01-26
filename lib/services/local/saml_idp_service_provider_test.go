@@ -55,7 +55,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initially we expect no service providers.
-	out, err := service.GetSAMLIdPServiceProviders(ctx)
+	out, _, err := service.GetSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 
@@ -66,9 +66,29 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all service providers.
-	out, err = service.GetSAMLIdPServiceProviders(ctx)
+	out, _, err = service.GetSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Fetch a paginated list of service providers
+	nextToken := ""
+	paginatedOut := make([]types.SAMLIdPServiceProvider, 0)
+	numPages := 0
+	for {
+		numPages++
+		out, nextToken, err = service.GetSAMLIdPServiceProviders(ctx, 1, nextToken)
+		require.NoError(t, err)
+
+		paginatedOut = append(paginatedOut, out...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	require.Equal(t, 2, numPages)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, paginatedOut,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -100,7 +120,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	// Delete a service provider.
 	err = service.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName())
 	require.NoError(t, err)
-	out, err = service.GetSAMLIdPServiceProviders(ctx)
+	out, _, err = service.GetSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
@@ -113,7 +133,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	// Delete all service providers.
 	err = service.DeleteAllSAMLIdPServiceProviders(ctx)
 	require.NoError(t, err)
-	out, err = service.GetSAMLIdPServiceProviders(ctx)
+	out, _, err = service.GetSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
 	require.Len(t, out, 0)
 }
