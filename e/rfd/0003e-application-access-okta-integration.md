@@ -207,7 +207,8 @@ dictate how labels are applied to these objects.
 
 A new `Group` will be created for each Okta group. At present these groups don't contain
 anything more than a name and metadata. These groups will have an Origin set to `okta`. The
-`Group` object may be expanded later.
+`Group` object may be expanded later. A label called `okta/group_id` will be present in the
+metadata to allow for Teleport's RBAC system to restrict/permit access.
 
 ```yaml
 kind: group
@@ -215,6 +216,8 @@ version: v1
 metadata:
   name: Developers
   teleport.dev/origin: okta
+  labels:
+    okta/group_id: 1234567
 ```
 
 ##### Applications
@@ -224,8 +227,8 @@ HTTP apps that use the `appLinks` from Okta as their URI. If there is more than 
 associated with an Okta application, it will be split into multiple applications for
 each `appLink` with the unique name of each `appLink` used to disambiguate them. The
 `teleport.dev/origin` field in the application metadata will be set to `okta`. Additionally, a
-field called `okta/application_id` will be present in the metadata. These will be translated
-directly to Teleport's existing notion of `applications`.
+label called `okta/application_id` will be present in the metadata to allow for Teleport's RBAC
+system to restrict/permit access.
 
 ##### Okta label rules
 
@@ -314,6 +317,36 @@ RBAC calculation will utilize the user's Okta application assignments and group 
 determined on Teleport login. These will be injected into the cert as `okta_app` and
 `okta_group` traits. These traits can then be interpolated into role `app_labels` and role
 `group_labels`.
+
+#### User application access example
+
+A role that allows access to Okta applications assigned to a user should have the following
+in the allow `app_labels` section:
+
+```yaml
+allow:
+  app_labels:
+    okta/application_id: '{{external.okta_app}}
+```
+
+All applications that a user has access to will be in the `okta_app` trait regardless of whether
+the user has access by application assignment or group assignment within Okta, so this should
+be sufficient to handle application visibility.
+
+#### Group access example
+
+A role that allows access to Okta groups should have the following in the allow `group_labels`
+section:
+
+```yaml
+allow:
+  group_labels:
+    okta/group
+```
+
+This will dictate what `Group` objects a user has access to. At the moment this will not be
+used actively except for access requests to groups and perform group assignment reconciliation
+for users.
 
 ### APIs used by the Okta service
 
