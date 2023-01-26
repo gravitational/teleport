@@ -46,7 +46,7 @@ access to Windows desktops.
   [Manual Setup](active-directory-manual.mdx) guide for Desktop Access.</ScopedBlock>
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection). Typically this means installing
-  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
+  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/).
 
 ## Step 1/2. Install Teleport
 
@@ -59,7 +59,7 @@ access to Windows desktops.
 In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "enterprise"]}>
 `teleport.example.com`</ScopedBlock><ScopedBlock scope={["cloud"]}>
 `mytennant.teleport.sh`</ScopedBlock>. Click on your user name at the top right
-and select **Manage Access**, Select "Desktop" from the main menu, then **NEXT**:
+and select **Manage Access**, Select "Desktop" from the main menu, then **NEXT**.
 
 If you already have Active Directory installed, skip to the next step. Otherwise,
 copy and paste the first command provided into a Windows PowerShell window. If
@@ -71,7 +71,7 @@ command after the first one completes and the server restarts:
 Once the server is restarted from one or both command executions, click **NEXT**.
 
 Copy and paste the provided command into a Windows PowerShell window to download
-and run the 'configure Active Directory' script:
+and run the "configure Active Directory" script:
 
 ![Configure Active Directory](../../img/desktop-access/configure-active-directory.png)
 

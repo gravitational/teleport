@@ -1,6 +1,6 @@
 ---
-title: Getting Started with Desktop Access
-description: Access Windows systems through Teleport Desktop Access
+title: Getting Started with Windows Access
+description: Access Windows systems through Teleport using passwordless authentication.
 ---
 
 This guide will help you configure Teleport to provide secure, passwordless access
@@ -8,7 +8,7 @@ to Windows desktops. This configuration does not require an Active Directory dom
 
 If you are running Windows in an AD environment, consider integrating Teleport
 with Active Directory for automatic discovery by reading [Desktop Access with
-Active Directory](./active-directory.mdx). You can also mix Active Directory
+Active Directory](./active-directory.mdx). You can also mix the Teleport Active Directory
 integration with the static host definitions described below.
 
 <Details
@@ -57,12 +57,12 @@ Once complete, reboot the system.
 ## Step 2/4. Install the Teleport Desktop Service
 
 On the Linux host where you will run the Desktop Service, install Teleport (if
-you plan on running the Windows protocol on the same host as an existing Teleport
+you plan on running the Windows Service on the same host as an existing Teleport
 service, you can skip this step):
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Define the Desktop Access service and list the Windows systems configured for
+Enable the Desktop Service and list the Windows systems configured for
 access through Teleport in `/etc/teleport.yaml`.
 
 ```yml
