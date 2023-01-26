@@ -137,7 +137,7 @@ users will be able to run the Okta service and connect it to a cloud instance.
 #### Background synchronization
 
 The background synchronization process, which synchronizes all applications from Okta, is expected
-to run roughly every 2 minutes. This process wil translate Okta users, groups, and applications
+to run roughly every 2 minutes. This process wil translate Okta groups and applications
 into their Teleport equivalents. One thing to note here is that Okta does not support a watch API,
 so this synchronization process is necessarily poll based.
 
@@ -199,7 +199,7 @@ a user has logged in.
 
 #### Okta to Teleport mappings
 
-Okta users, groups, and applications will be mapped by the background synchronization into
+Okta groups and applications will be mapped by the background synchronization into
 `Application` and `Group` objects. Additionally, `okta_label_rules` can be added to
 dictate how labels are applied to these objects.
 
@@ -281,21 +281,9 @@ group in Okta. When the approval is rescinded, the user will be removed from the
 
 #### What groups and applications can users request?
 
-New fields in role objects will indicate which groups users in this role can request.
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: example
-spec:
-  allow:
-    okta_labels:
-      label1: value1
-```
-
-This should be used in concert with the Okta label rules to establish roles for requestable
-Okta applications and groups. These roles can be used as part the request configuration.
+`app_labels` and `group_labels` can be used in concert with access requests' current ability
+to `search_as_roles` to control which applications and groups a user is able to request. This
+will be done entirely by existing label matching.
 
 #### Reconciling Okta state
 
