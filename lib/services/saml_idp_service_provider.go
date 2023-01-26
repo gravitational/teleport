@@ -67,7 +67,7 @@ func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider,
 		}
 		return utils.FastMarshal(sp)
 	default:
-		return nil, trace.BadParameter("unsupported kube server resource %T", sp)
+		return nil, trace.BadParameter("unsupported SAML IdP service provider resource %T", sp)
 	}
 }
 
