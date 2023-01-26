@@ -64,7 +64,7 @@ application in Teleport regardless of the user's permissions within Teleport.
 * Okta applications will show up when doing a `tsh apps ls` from the command line, with an origin of `okta`.
 * Okta apps will be returned as part of `tctl get apps` alongside other registered apps.
 * Okta groups will be using `tctl get groups`.
-* Okta label rules will be using `tctl get okta_label_rules`.
+* Okta label rules will be using `tctl get okta_import_rules`.
 * Logging in (`tsh app login <app-name>`) will **not** work for Okta apps.
 
 #### Access requests
@@ -159,13 +159,48 @@ sequenceDiagram
   end
 ```
 
-#### Okta traits on login
+#### The `OktaAssignment` object
 
-When users login to Okta, two traits will be captured: `okta_apps` which is a list of Okta
-application IDs that the user has access to, and `okta_groups` which is a list of groups that
-the user belongs to.
+When an application or group is assigned , an `OktaAssignment` object will be created to keep
+track of the action. The `OktaAssignment` object will keep track of the status and actions
+performed so that, later, when the access request expires, the Okta service will be able to
+determine what it needs to do to reconcile the state. Each `OktaAssignment` object will have a
+1-to-1 mapping with access requests and potentially access grants in the future. The name of
+the associated object will be stored in the `description` field in the `OktaAssignment`. For
+assignments that occurred due to user reconciliation and not due to access requests or grants,
+the description will be `reconciliator`.
 
-#### Teleport to Okta user access
+```yaml
+kind: okta_assignment
+version: v1
+metadata:
+  name: 35ffcfe0-55c9-40de-a43c-7e0f632c7309
+  description: access-request/c0ddb5e0-9742-4388-b320-d0c0bd207815
+spec:
+  user: example@okta.com
+  actions:
+    - status: failed
+      target:
+        type: group
+        id: 12345678
+    - status: successful
+      target:
+        type: application
+        id: 12345678
+```
+
+The valid statuses for each action in the object:
+
+| Status | Description |
+|--------|-------------|
+| PENDING | The assignment hasn't yet been applied. |
+| REDUNDANT | The assignment is unnecessary because the user already has access to this object. |
+| SUCCESSFUL | The assignment was carried out successfully. |
+| FAILED | The assignment failed. Will be retried during user reconciliation. |
+| CLEANED_UP | The assignment has been reversed. |
+| CLEANUP_FAILED | The assignment cleanup failed. Will not be retried. |
+
+#### Teleport to Okta user reconciliation
 
 After a user has logged in, additional access to Okta applications and groups may be assigned
 based on role access to applications and groups.
@@ -188,19 +223,24 @@ the Okta API if they are not already assigned. The algorithm for this reconcilia
 like the following:
 
 1. Get list of Okta originated groups visible to the user.
-2. Assign groups to user in Okta.
+2. Assign groups to user in Okta, record `OktaAssignment` objects with description set to
+   `reconcilator`.
 3. Get list of Okta originated applications visible to user.
 4. Assign applications to user in Okta only if the user doesn't currently have access to these
    applications. This will prevent users from being directly assigned to applications where
-   they already have group access to an application.
+   they already have group access to an application. Record `OktaAssignment` objects with
+   description set to `reconciliator`.
+5. Analyze currently valid access requests for this user and ensure that the user has the access
+   specified in the access request. If an associated `OktaAssignment` object had any actions
+   marked as `FAILED`, update the status for these actions.
 
 This process will run every 2 minutes for all logged in users, and will additionally run when
 a user has logged in.
 
-#### Okta to Teleport mappings
+#### Okta import of applications and groups
 
-Okta groups and applications will be mapped by the background synchronization into
-`Application` and `Group` objects. Additionally, `okta_label_rules` can be added to
+Okta groups and applications will be imported by the background synchronization into
+`Application` and `Group` objects. Additionally, `okta_import_rules` can be added to
 dictate how labels are applied to these objects.
 
 ##### Groups
@@ -209,6 +249,8 @@ A new `Group` will be created for each Okta group. At present these groups don't
 anything more than a name and metadata. These groups will have an Origin set to `okta`. The
 `Group` object may be expanded later. A label called `okta/group_id` will be present in the
 metadata to allow for Teleport's RBAC system to restrict/permit access.
+
+An example of a synchronized Okta group:
 
 ```yaml
 kind: group
@@ -230,15 +272,31 @@ each `appLink` with the unique name of each `appLink` used to disambiguate them.
 label called `okta/application_id` will be present in the metadata to allow for Teleport's RBAC
 system to restrict/permit access.
 
-##### Okta label rules
+An example of a synchronized application:
 
-Okta label rules are established through the user of `tctl create -f okta_label_rules.yaml` and
-these rules will be used during the synchronization process to apply labels to Okta objects that
-match the elements in the "matches" section. The matches in this section should utilize the
+```yaml
+kind: application
+version: v3
+metadata:
+  name: application-name
+  description: Okta description of the application
+  teleport.dev/origin: okta
+  labels:
+    okta/application_id: 1234567
+spec:
+  uri: http://okta.com/app-link
+  ...
+```
+
+##### Okta import rules
+
+Okta import rules are established through the user of `tctl create -f okta_import_rules.yaml`
+and these rules will be used during the synchronization process to apply labels to Okta objects
+that match the elements in the "matches" section. The matches in this section should utilize the
 grammar established in the [login rules RFD](https://github.com/gravitational/teleport/blob/master/rfd/0078-login-rules.md#predicate-helper-functions).
 
 ```yaml
-kind: okta_label_rule
+kind: okta_import_rule
 version: v1
 metadata:
   name: rules
@@ -269,6 +327,7 @@ action based on the request and the resource targeted.
 There are several different methods to implement, as different applications have different
 methods of elevating access.
 
+
 #### Application approval
 
 When an approval request has been accepted for an Okta based application, the Okta service will assign the user
@@ -285,11 +344,13 @@ group in Okta. When the approval is rescinded, the user will be removed from the
 to `search_as_roles` to control which applications and groups a user is able to request. This
 will be done entirely by existing label matching.
 
-#### Reconciling Okta state
+#### Expiry or deletion of access requests
 
-When fulfilling a request, the Okta service will analyze the current active requests and
-calculate the current objective state. After calculating this state, the service will issue
-the expected application assignment and group assignment API requests.
+When an access request expires or is deleted, the Okta service will look for the
+`OktaAssignment` object associated with the request and then proceed to "unwind" the actions
+taken in the request. For example, if a user was assigned to application A and group X, then
+the user will be unassigned from these. If the user had access to these when the access request
+was created, then the action will have the status `REDUNDANT` and no action will be taken.
 
 #### Note about Okta administration workflows
 
@@ -301,25 +362,14 @@ unaware.
 
 ### RBAC calculation
 
-RBAC calculation will utilize the user's Okta application assignments and group assignments as
-determined on Teleport login. These will be injected into the cert as `okta_app` and
-`okta_group` traits. These traits can then be interpolated into role `app_labels` and role
-`group_labels`.
+RBAC will be determined using `app_labels` and `group_labels`. `app_labels` will be used to
+determine application access and `group_labels` will be used to determine group access, which
+is how Teleport works currently.
 
-#### User application access example
-
-A role that allows access to Okta applications assigned to a user should have the following
-in the allow `app_labels` section:
-
-```yaml
-allow:
-  app_labels:
-    okta/application_id: '{{external.okta_app}}
-```
-
-All applications that a user has access to will be in the `okta_app` trait regardless of whether
-the user has access by application assignment or group assignment within Okta, so this should
-be sufficient to handle application visibility.
+Note that this makes it imperative that the `okta_import_rules` and `roles` are designed with
+each other in mind so that the Okta synchronization service labels Okta sourced objects as
+intended and that the `roles` allows access to the intended labels established by the
+`okta_import_rules`.
 
 #### Group access example
 
@@ -393,9 +443,9 @@ A number of new audit events will be created as part of this effort:
 
 ### Implementation plan
 
-#### `Group` and `OktaLabelRules` objects
+#### `Group`, `OktaImportRules`, and `OktaAssignment` objects
 
-The new `Group` and `OktaLabelRules` objects should be implemented
+The new `Group`, `OktaImportRules`, and `OktaAssignment` objects should be implemented
 along with any database and gRPC modifications required.
 
 #### Okta service configuration
@@ -408,11 +458,6 @@ Part of this will include implementing any stubs needed for the Okta service its
 
 The Okta service will be able to communicate with Okta and retrieve lists of
 applications and groups and synchronizing them with the Teleport backend.
-
-#### Okta traits on login
-
-On login, Okta traits will be inserted into the certificate in order to augment visibility of
-Okta applications and groups.
 
 #### Application access synchronization
 
