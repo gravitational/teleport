@@ -166,16 +166,17 @@ track of the action. The `OktaAssignment` object will keep track of the status a
 performed so that, later, when the access request expires, the Okta service will be able to
 determine what it needs to do to reconcile the state. Each `OktaAssignment` object will have a
 1-to-1 mapping with access requests and potentially access grants in the future. The name of
-the associated object will be stored in the `description` field in the `OktaAssignment`. For
+the associated object will be stored in a `source` annotation in the `OktaAssignment`. For
 assignments that occurred due to user reconciliation and not due to access requests or grants,
-the description will be `reconciliator`.
+the annotation will be `reconciliator`.
 
 ```yaml
 kind: okta_assignment
 version: v1
 metadata:
   name: 35ffcfe0-55c9-40de-a43c-7e0f632c7309
-  description: access-request/c0ddb5e0-9742-4388-b320-d0c0bd207815
+  annotation:
+    source: access-request/c0ddb5e0-9742-4388-b320-d0c0bd207815
 spec:
   user: example@okta.com
   actions:
@@ -194,11 +195,18 @@ The valid statuses for each action in the object:
 | Status | Description |
 |--------|-------------|
 | PENDING | The assignment hasn't yet been applied. |
-| REDUNDANT | The assignment is unnecessary because the user already has access to this object. |
 | SUCCESSFUL | The assignment was carried out successfully. |
 | FAILED | The assignment failed. Will be retried during user reconciliation. |
 | CLEANED_UP | The assignment has been reversed. |
 | CLEANUP_FAILED | The assignment cleanup failed. Will not be retried. |
+
+##### Multiple `OktaAssignment` objects and cleanup
+
+Several `OktaAssignment` objects can specify access to the same Okta resource. When cleaning up
+an `OktaAssignment` object, actual removal from the Okta API should only occur when there are
+no `SUCCESSFUL` assignments left to an Okta resource. In this way, `OktaAssignments` will
+function as a reference counter for a particular Okta resource, and when the counter goes to
+0, it should be cleaned up.
 
 #### Teleport to Okta user reconciliation
 
@@ -223,16 +231,18 @@ the Okta API if they are not already assigned. The algorithm for this reconcilia
 like the following:
 
 1. Get list of Okta originated groups visible to the user.
-2. Assign groups to user in Okta, record `OktaAssignment` objects with description set to
+2. Assign groups to user in Okta, record `OktaAssignment` objects with `source` set to
    `reconcilator`.
 3. Get list of Okta originated applications visible to user.
 4. Assign applications to user in Okta only if the user doesn't currently have access to these
    applications. This will prevent users from being directly assigned to applications where
    they already have group access to an application. Record `OktaAssignment` objects with
-   description set to `reconciliator`.
+   `source` set to `reconciliator`.
 5. Analyze currently valid access requests for this user and ensure that the user has the access
    specified in the access request. If an associated `OktaAssignment` object had any actions
    marked as `FAILED`, update the status for these actions.
+6. Look for `OktaAssignment` objects that are no longer reflected by the previous calculated
+   state and clean them up, calling the Okta API if necessary.
 
 This process will run every 2 minutes for all logged in users, and will additionally run when
 a user has logged in.
@@ -247,8 +257,8 @@ dictate how labels are applied to these objects.
 
 A new `Group` will be created for each Okta group. At present these groups don't contain
 anything more than a name and metadata. These groups will have an Origin set to `okta`. The
-`Group` object may be expanded later. A label called `okta/group_id` will be present in the
-metadata to allow for Teleport's RBAC system to restrict/permit access.
+`Group` object may be expanded later. An annotation called `okta/group_id` will be present in
+the metadata for bookkeeping.
 
 An example of a synchronized Okta group:
 
@@ -257,9 +267,10 @@ kind: group
 version: v1
 metadata:
   name: Developers
-  teleport.dev/origin: okta
-  labels:
+  annotations:
     okta/group_id: 1234567
+  labels:
+    teleport.dev/origin: okta
 ```
 
 ##### Applications
@@ -268,9 +279,10 @@ When applications are synchronized with Teleport, they will be created in applic
 HTTP apps that use the `appLinks` from Okta as their URI. If there is more than one `appLink`
 associated with an Okta application, it will be split into multiple applications for
 each `appLink` with the unique name of each `appLink` used to disambiguate them. The
-`teleport.dev/origin` field in the application metadata will be set to `okta`. Additionally, a
-label called `okta/application_id` will be present in the metadata to allow for Teleport's RBAC
-system to restrict/permit access.
+`teleport.dev/origin` field in the application metadata will be set to `okta`. The groups
+that provide access to an Okta application will be added as labels with the format
+`okta/group/<name>:`. Additionally, an annotation called `okta/application_id` will be present
+in the metadata for bookkeeping.
 
 An example of a synchronized application:
 
@@ -280,9 +292,13 @@ version: v3
 metadata:
   name: application-name
   description: Okta description of the application
-  teleport.dev/origin: okta
-  labels:
+  annotations:
     okta/application_id: 1234567
+  labels:
+    teleport.dev/origin: okta
+    okta/group/developers: ''
+    okta/group/admins: ''
+    okta/group/it-admins: ''
 spec:
   uri: http://okta.com/app-link
   ...
@@ -292,8 +308,8 @@ spec:
 
 Okta import rules are established through the user of `tctl create -f okta_import_rules.yaml`
 and these rules will be used during the synchronization process to apply labels to Okta objects
-that match the elements in the "matches" section. The matches in this section should utilize the
-grammar established in the [login rules RFD](https://github.com/gravitational/teleport/blob/master/rfd/0078-login-rules.md#predicate-helper-functions).
+that match the elements in the "matches" section. A priority will dictate which rules take
+precedence over another. Rules with a lower numbered priority will be applied first.
 
 ```yaml
 kind: okta_import_rule
@@ -301,17 +317,18 @@ version: v1
 metadata:
   name: rules
 spec:
+  priority: 1000
   mappings:
-    - label: label1
-      value: value1
-      matches:
-        - match(application.id == "123456")
-        - match(application.name)
-    - label: label2
-      value: value2
-      matches:
-        - group.some-name
-        - group.some-other-name
+    - match:
+      - app_ids: [1, 2, 3, 4]
+      add_labels:
+        label1: value1
+        label2: value2
+    - matches:
+      - group_ids: ['name', 'other-name']
+      add_labels:
+        label3: value3
+        label4: value4
 ```
 
 These labels will then be applied to Okta applications and Okta groups recorded in Teleport.
@@ -324,19 +341,23 @@ API or UI. These requests will submit access requests through Teleport's
 The Okta service will monitor these approval requests and take appropriate
 action based on the request and the resource targeted.
 
-There are several different methods to implement, as different applications have different
-methods of elevating access.
+#### UX
 
+In the UI and CLI, Teleport should ask follow up questions on what group to assume when
+requesting access to an application, or whether to have the access assigned to the user
+individually.
 
 #### Application approval
 
 When an approval request has been accepted for an Okta based application, the Okta service will assign the user
 to the application in Okta. When the approval is rescinded, the user will be removed from the application in Okta.
+An `OktaAssignment` object will be recorded to keep track of this.
 
 #### Group approval
 
 When an approval request has been accepted for a group, the Okta service assign the user to the given
 group in Okta. When the approval is rescinded, the user will be removed from the group in Okta.
+An `OktaAssignment` object will be recorded to keep track of this.
 
 #### What groups and applications can users request?
 
@@ -349,8 +370,9 @@ will be done entirely by existing label matching.
 When an access request expires or is deleted, the Okta service will look for the
 `OktaAssignment` object associated with the request and then proceed to "unwind" the actions
 taken in the request. For example, if a user was assigned to application A and group X, then
-the user will be unassigned from these. If the user had access to these when the access request
-was created, then the action will have the status `REDUNDANT` and no action will be taken.
+the user will be unassigned from these. As mentioned above, this will only happen if there are
+no other active `OktaAssignment` objects for a particular resource, otherwise the
+`OktaAssignment` will be marked as `CLEANED_UP` without taking any action in the Okta API.
 
 #### Note about Okta administration workflows
 
