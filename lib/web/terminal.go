@@ -903,12 +903,12 @@ type TerminalStream struct {
 	ws *websocket.Conn
 }
 
+// Replace \n with \r\n so the message is correctly aligned.
+var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
+
 // writeError displays an error in the terminal window.
 func (t *TerminalStream) writeError(err error) error {
-	// Replace \n with \r\n so the message correctly aligned.
-	r := strings.NewReplacer("\n", "\r\n")
-
-	_, writeErr := t.Write([]byte(r.Replace(err.Error())))
+	_, writeErr := replacer.WriteString(t, err.Error())
 	return trace.Wrap(writeErr)
 }
 
