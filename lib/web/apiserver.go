@@ -236,9 +236,9 @@ type Config struct {
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
 
-	// ServeAppChecker is a function that checks if the proxy can handle
+	// PreflightConnection is a function that checks if the proxy can handle
 	// application requests.
-	ServeAppChecker preflightAppConnectionFunc
+	PreflightConnection preflightAppConnectionFunc
 }
 
 type APIHandler struct {
@@ -291,7 +291,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		log:                    newPackageLogger(),
 		clock:                  clockwork.NewRealClock(),
 		ClusterFeatures:        cfg.ClusterFeatures,
-		preflightAppConnection: cfg.ServeAppChecker,
+		preflightAppConnection: cfg.PreflightConnection,
 	}
 
 	// for properly handling url-encoded parameter values.

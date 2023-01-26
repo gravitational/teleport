@@ -441,7 +441,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ProxySettings:                   &mockProxySettings{},
 		SessionControl:                  proxySessionController,
 		Router:                          router,
-		ServeAppChecker:                 cfg.PreflightConnection,
+		PreflightConnection:             cfg.PreflightConnection,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
