@@ -69,7 +69,7 @@
           "slug": "/choose-an-edition/introduction/"
         },
         {
-          "title": "Teleport Cloud",
+          "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
           "forScopes": ["cloud"],
           "entries": [
