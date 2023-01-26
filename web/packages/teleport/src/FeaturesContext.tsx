@@ -16,15 +16,14 @@ limitations under the License.
 
 import React, { useContext } from 'react';
 
-import { Feature } from 'teleport/types';
-import { getOSSFeatures } from 'teleport/features';
+import type { TeleportFeature } from 'teleport/types';
 
 interface FeaturesContextState {
-  features: Feature[];
+  features: TeleportFeature[];
 }
 
 interface FeaturesContextProviderProps {
-  value?: Feature[];
+  value: TeleportFeature[];
 }
 
 const FeaturesContext = React.createContext<FeaturesContextState>(null);
@@ -33,9 +32,7 @@ export function FeaturesContextProvider(
   props: React.PropsWithChildren<FeaturesContextProviderProps>
 ) {
   return (
-    <FeaturesContext.Provider
-      value={{ features: props.value || getOSSFeatures() }}
-    >
+    <FeaturesContext.Provider value={{ features: props.value }}>
       {props.children}
     </FeaturesContext.Provider>
   );
