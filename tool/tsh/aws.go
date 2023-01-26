@@ -68,8 +68,8 @@ func onAWS(cf *CLIConf) error {
 	}
 
 	commandToRun := awsCLIBinaryName
-	if cf.AWSCommand != "" {
-		commandToRun = cf.AWSCommand
+	if cf.Exec != "" {
+		commandToRun = cf.Exec
 	}
 
 	cmd := exec.Command(commandToRun, args...)

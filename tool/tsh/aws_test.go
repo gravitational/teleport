@@ -121,7 +121,7 @@ func TestAWS(t *testing.T) {
 	}
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--app", "aws-app", "--aws-command", "terraform", "plan"},
+		[]string{"aws", "--app", "aws-app", "--exec", "terraform", "plan"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
