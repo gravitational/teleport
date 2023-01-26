@@ -165,7 +165,7 @@ func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
 	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
 	fileConfYAML, err := yaml.Marshal(fc)
 	require.NoError(t, err)
-	err = os.WriteFile(fileConfPath, []byte(fileConfYAML), 0600)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0600)
 	require.NoError(t, err)
 	return fileConfPath
 }
