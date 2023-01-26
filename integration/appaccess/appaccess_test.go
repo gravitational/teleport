@@ -408,6 +408,7 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 
 	// Dumper app just dumps HTTP request so we should be able to read it back.
 	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
+	require.NoError(t, err)
 	require.Equal(t, req.Host, "example.com")
 	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "leaf")
 	require.ElementsMatch(t, []string{"root", "ubuntu", "-teleport-internal-join"}, req.Header.Values("X-Teleport-Login"))
