@@ -205,7 +205,7 @@ function DbEngineInstructions({
             <Text mb={2}>
               Database users must allow{' '}
               <Link
-                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html"
+                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.PostgreSQL"
                 target="_blank"
               >
                 IAM authentication
@@ -223,6 +223,47 @@ function DbEngineInstructions({
                 },
               ]}
             />
+          </Box>
+        );
+      }
+      if (dbEngine === DatabaseEngine.MySQL) {
+        return (
+          <Box mb={3}>
+            <Box mb={2}>
+              <Text mb={2}>
+                Database users must allow{' '}
+                <Link
+                  href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL"
+                  target="_blank"
+                >
+                  IAM authentication
+                </Link>{' '}
+                in order to be used with Database Access for RDS. Users must
+                have the RDS authentication plugin enabled:
+              </Text>
+              <TextSelectCopyMulti
+                bash={false}
+                lines={[
+                  {
+                    text: "CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';",
+                  },
+                ]}
+              />
+            </Box>
+            <Box>
+              <Text>
+                Created user may not have access to anything by default so let's
+                grant it some permissions:
+              </Text>
+              <TextSelectCopyMulti
+                bash={false}
+                lines={[
+                  {
+                    text: "GRANT ALL ON `%`.* TO 'alice'@'%';",
+                  },
+                ]}
+              />
+            </Box>
           </Box>
         );
       }
@@ -338,6 +379,8 @@ function DbEngineInstructions({
         );
       }
   }
+
+  return null;
 }
 
 const StyledBox = styled(Box)`
