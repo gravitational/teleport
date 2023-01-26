@@ -301,7 +301,7 @@ func warnInvalidAzureIdentities(candidates []string) {
 }
 
 // ParseResourceID from Azure SDK is too lenient; we use a strict regexp instead.
-var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-]+)$`)
+var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-_]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-_]+)$`)
 
 func MatchValidAzureIdentity(identity string) bool {
 	if identity == types.Wildcard {
@@ -707,7 +707,7 @@ func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 	return NewRoleSet(role), nil
 }
 
-// RW is a shortcut that returns all verbs.
+// RW is a shortcut that returns all CRUD verbs.
 func RW() []string {
 	return []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 }

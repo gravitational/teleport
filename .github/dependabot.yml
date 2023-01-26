@@ -16,6 +16,7 @@ updates:
       - dependency-name: github.com/fsouza/fake-gcs-server
       - dependency-name: google.golang.org/api
       - dependency-name: google.golang.org/genproto
+      - dependency-name: cloud.google.com/go/storage
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # TODO(greedy52): Update mongo-driver and fix API changes.

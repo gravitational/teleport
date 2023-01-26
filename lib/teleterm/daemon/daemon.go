@@ -575,6 +575,13 @@ func (s *Service) Stop() {
 		gateway.Close()
 	}
 
+	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
+	defer cancel()
+
+	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
+	}
+
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
 	// the resources managed by daemon.Service are up and running. So let's cancel the context only
 	// after closing those resources.
