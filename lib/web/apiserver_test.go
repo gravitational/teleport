@@ -1267,7 +1267,7 @@ func TestResizeTerminal(t *testing.T) {
 
 	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
-	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID))
+	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
 
@@ -1286,6 +1286,7 @@ func TestResizeTerminal(t *testing.T) {
 	// size, and one for the manual resize request)
 	done := time.After(10 * time.Second)
 	t1ResizeEvents, t1RawEvents := 0, 0
+	fmt.Printf("RAW EVENTS: %v", t1RawEvents)
 t1ready:
 	for {
 		select {
@@ -6133,6 +6134,10 @@ func withServer(target string) terminalOpt {
 
 func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
+}
+
+func withParticipantMode(m types.SessionParticipantMode) terminalOpt {
+	return func(t *TerminalRequest) { t.ParticipantMode = m }
 }
 
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {
