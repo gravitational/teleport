@@ -19,7 +19,6 @@ package events
 import (
 	"archive/tar"
 	"bufio"
-	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -28,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	"github.com/klauspost/compress/gzip"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"

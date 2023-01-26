@@ -19,7 +19,6 @@ package events
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/klauspost/compress/gzip"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 

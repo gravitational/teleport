@@ -17,13 +17,13 @@ limitations under the License.
 package events
 
 import (
-	"compress/gzip"
 	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/klauspost/compress/gzip"
 
 	"github.com/gravitational/teleport/lib/session"
 )

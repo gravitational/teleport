@@ -196,6 +196,7 @@ func BenchmarkAuditWriter(b *testing.B) {
 
 	b.StopTimer()
 	stats := writer.Stats()
-	b.Logf("encountered %d/%d slow writes", stats.SlowWrites, stats.AcceptedEvents)
+	b.Logf("encountered %d/%d slow writes, dropped %v",
+		stats.SlowWrites, stats.AcceptedEvents, stats.LostEvents)
 	writer.Close(ctx)
 }

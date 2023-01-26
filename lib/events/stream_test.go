@@ -28,6 +28,30 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
+func BenchmarkStreamer(b *testing.B) {
+	b.StopTimer()
+
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader: NewMemoryUploader(),
+	})
+	require.NoError(b, err)
+
+	events := GenerateTestSession(SessionParams{PrintEvents: 256})
+	sid := session.ID(events[0].(SessionMetadataGetter).GetSessionID())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	b.Cleanup(cancel)
+
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(b, err)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		stream.EmitAuditEvent(ctx, events[i%len(events)])
+	}
+}
+
 // TestStreamerCompleteEmpty makes sure that streamer Complete function
 // does not hang if streamer got closed a without getting a single event
 func TestStreamerCompleteEmpty(t *testing.T) {
