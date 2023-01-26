@@ -200,3 +200,25 @@ func (r *GetClusterAlertsRequest) Match(alert ClusterAlert) bool {
 
 	return true
 }
+
+func (ack *AlertAcknowledgement) Check() error {
+	if ack.AlertID == "" {
+		return trace.BadParameter("missing alert id in ack")
+	}
+
+	if ack.Reason == "" {
+		return trace.BadParameter("ack reason must be specified")
+	}
+
+	for _, c := range ack.Reason {
+		if unicode.IsControl(c) {
+			return trace.BadParameter("control characters not supported in ack reason")
+		}
+	}
+
+	if ack.Expires.IsZero() {
+		return trace.BadParameter("missing expiry time")
+	}
+
+	return nil
+}

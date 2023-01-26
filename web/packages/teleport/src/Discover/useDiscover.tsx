@@ -18,9 +18,6 @@ import React, { useContext, useMemo, useState } from 'react';
 
 import { useLocation } from 'react-router';
 
-import session from 'teleport/services/websession';
-import useMain from 'teleport/Main/useMain';
-
 import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { addIndexToViews, findViewAtIndex, Resource, View } from './flow';
@@ -31,7 +28,6 @@ import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
-import type { ClusterAlert } from 'teleport/services/alerts';
 
 export function getKindFromString(value: string) {
   switch (value) {
@@ -51,12 +47,7 @@ export function getKindFromString(value: string) {
 
 interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
-  alerts: ClusterAlert[];
   currentStep: number;
-  customBanners: React.ReactNode[];
-  dismissAlert: (name: string) => void;
-  initAttempt: any;
-  logout: () => void;
   nextStep: (count?: number) => void;
   prevStep: () => void;
   onSelectResource: (kind: ResourceKind) => void;
@@ -68,20 +59,11 @@ interface DiscoverContextState<T = any> {
   views: View[];
 }
 
-interface DiscoverProviderProps {
-  customBanners?: React.ReactNode[];
-  initialAlerts?: ClusterAlert[];
-}
-
 const discoverContext = React.createContext<DiscoverContextState>(null);
 
 export function DiscoverProvider<T = any>(
-  props: React.PropsWithChildren<DiscoverProviderProps>
+  props: React.PropsWithChildren<unknown>
 ) {
-  const initState = useMain({
-    customBanners: props.customBanners,
-    initialAlerts: props.initialAlerts,
-  });
   const location = useLocation<{ entity: string }>();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -136,18 +118,9 @@ export function DiscoverProvider<T = any>(
     setAgentMeta(meta);
   }
 
-  function logout() {
-    session.logout();
-  }
-
   const value: DiscoverContextState<T> = {
     agentMeta,
-    alerts: initState.alerts,
     currentStep,
-    customBanners: initState.customBanners,
-    dismissAlert: initState.dismissAlert,
-    initAttempt: { status: initState.status, statusText: initState.statusText },
-    logout,
     nextStep,
     prevStep,
     onSelectResource,

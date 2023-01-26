@@ -113,6 +113,7 @@ func NewKubeServersV3FromServer(server Server) (result []KubeServer, err error) 
 			HostID:   server.GetName(),
 			Rotation: server.GetRotation(),
 			Cluster:  kubeCluster,
+			ProxyIDs: server.GetProxyIDs(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

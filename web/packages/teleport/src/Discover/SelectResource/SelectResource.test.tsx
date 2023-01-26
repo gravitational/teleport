@@ -28,6 +28,7 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverProvider } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { fullAccess, fullAcl } from 'teleport/mocks/contexts';
+import { getOSSFeatures } from 'teleport/features';
 
 const userContextJson = {
   authType: 'sso',
@@ -59,7 +60,7 @@ describe('select resource', () => {
     return render(
       <MemoryRouter>
         <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider>
+          <FeaturesContextProvider value={getOSSFeatures()}>
             <DiscoverProvider>
               <SelectResource
                 selectedResourceKind={kind}

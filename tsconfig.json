@@ -1,0 +1,64 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "allowJs": true,
+    "baseUrl": ".",
+    "esModuleInterop": true,
+    "importHelpers": true,
+    "lib": [
+      "dom",
+      "esnext"
+    ],
+    "jsx": "preserve",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noEmitHelpers": true,
+    "pretty": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "stripInternal": true,
+    "target": "esnext",
+    "types": [
+      "node",
+      "@emotion/core",
+      "@types/wicg-file-system-access"
+    ],
+    "paths": {
+      "grpc": [
+        "node_modules/@grpc/grpc-js"
+      ], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
+      "shared/*": [
+        "web/packages/shared/*"
+      ],
+      "design/*": [
+        "web/packages/design/src/*"
+      ],
+      "design": [
+        "web/packages/design/src/"
+      ],
+      "teleport/*": [
+        "web/packages/teleport/src/*"
+      ],
+      "teleport": [
+        "web/packages/teleport/src/"
+      ],
+      "teleterm/*": [
+        "web/packages/teleterm/src/*"
+      ],
+      "e-teleport/*": [
+        "e/web/teleport/src/*"
+      ],
+      "e-teleterm/*": [
+        "e/web/teleterm/src/*"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "**/node_modules/*",
+    "dist",
+    "**/dist/*",
+    "**/build/app/**",
+    "**/build/release/**"
+  ]
+}
