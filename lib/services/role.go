@@ -1174,8 +1174,8 @@ func (set RoleSet) PinSourceIP() bool {
 func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 	return AccessState{
 		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
-		// We don't set ClusterDeviceMode here, as both ClusterDeviceMode and
-		// DeviceVerified should be set in tandem.
+		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
+		// should be set in tandem.
 	}
 }
 
