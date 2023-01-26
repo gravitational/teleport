@@ -15,21 +15,24 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
+
 import { Route } from 'teleport/components/Router';
 
 import cfg from 'teleport/config';
 
-import { AppLauncher } from './AppLauncher';
 import service from 'teleport/services/apps';
+
+import { AppLauncher } from './AppLauncher';
 
 test('arn is url decoded', () => {
   jest.spyOn(service, 'createAppSession');
 
-  const launcherPath = '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
+  const launcherPath =
+    '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
   const mockHistory = createMemoryHistory({
     initialEntries: [launcherPath],
   });
