@@ -132,7 +132,7 @@ func (t *TemplateTLS) Render(ctx context.Context, authClient auth.ClientI, curre
 		OverwriteDestination: true,
 	}
 
-	files, err := identityfile.Write(cfg)
+	files, err := identityfile.Write(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
