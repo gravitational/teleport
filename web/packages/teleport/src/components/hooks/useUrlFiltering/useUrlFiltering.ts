@@ -19,16 +19,15 @@ import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
 
 import history from 'teleport/services/history';
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentFilter, AgentLabel } from 'teleport/services/agents';
 
-import getQueryParams from './getQueryParams';
-import labelClick from './labelClick';
+import encodeUrlQueryParams from './encodeUrlQueryParams';
 
 export function useUrlFiltering(initialSort: SortType) {
   const { search, pathname } = useLocation();
-  const [params, setParams] = useState<ResourceUrlQueryParams>({
+  const [params, setParams] = useState<AgentFilter>({
     sort: initialSort,
-    ...getQueryParams(search),
+    ...getResourceUrlQueryParams(search),
   });
 
   function replaceHistory(path: string) {
@@ -39,8 +38,14 @@ export function useUrlFiltering(initialSort: SortType) {
     setParams({ ...params, sort });
   }
 
-  const onLabelClick = (label: AgentLabel) =>
-    labelClick(label, params, setParams, pathname, replaceHistory);
+  const onLabelClick = (label: AgentLabel) => {
+    const queryAfterLabelClick = labelClickQuery(label, params);
+
+    setParams({ ...params, search: '', query: queryAfterLabelClick });
+    replaceHistory(
+      encodeUrlQueryParams(pathname, queryAfterLabelClick, params.sort, true)
+    );
+  };
 
   const isSearchEmpty = !params?.query && !params?.search;
 
@@ -56,8 +61,49 @@ export function useUrlFiltering(initialSort: SortType) {
   };
 }
 
-export type ResourceUrlQueryParams = {
-  query?: string;
-  search?: string;
-  sort?: SortType;
-};
+export default function getResourceUrlQueryParams(
+  searchPath: string
+): AgentFilter {
+  const searchParams = new URLSearchParams(searchPath);
+  const query = searchParams.get('query');
+  const search = searchParams.get('search');
+  const sort = searchParams.get('sort');
+
+  const sortParam = sort ? sort.split(':') : null;
+
+  // Converts the "fieldname:dir" format into {fieldName: "", dir: ""}
+  const processedSortParam = sortParam
+    ? ({
+        fieldName: sortParam[0],
+        dir: sortParam[1]?.toUpperCase() || 'ASC',
+      } as SortType)
+    : null;
+
+  return {
+    query,
+    search,
+    // Conditionally adds the sort field based on whether it exists or not
+    ...(!!processedSortParam && { sort: processedSortParam }),
+  };
+}
+
+function labelClickQuery(label: AgentLabel, params: AgentFilter) {
+  const queryParts: string[] = [];
+
+  // Add existing query
+  if (params.query) {
+    queryParts.push(params.query);
+  }
+
+  // If there is an existing simple search, convert it to predicate language and add it
+  if (params.search) {
+    queryParts.push(`search("${params.search}")`);
+  }
+
+  const labelQuery = `labels["${label.name}"] == "${label.value}"`;
+  queryParts.push(labelQuery);
+
+  const finalQuery = queryParts.join(' && ');
+
+  return finalQuery;
+}

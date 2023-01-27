@@ -14,16 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* The generatePath function built into react router doesn't use encodeURIComponent. This causes the resulting encoded URL to be
-encoded improperly for this use-case, and the query fails. This custom generateResourcePath function resolves that issue while also
-being more specialized to this use-case and supporting a SortType param.
-
-Example:
-
-Output from generatePath: /v1/webapi/sites/im-a-cluster-name/apps?limit=&startKey=&query=labels.app%20==%20%22banana%22&search=&sort=
-Output from generateResourcePath: /v1/webapi/sites/im-a-cluster-name/apps?limit=5&startKey=&query=labels.app%20%3D%3D%20%22banana%22&search=&sort=name:asc
-
-*/
+// generateGetAgentsPath constructs the agent endpoint URL using `encodeURIComponent`.
+// react-router's `generatePath` uses `encodeURI` which does not encode the entire string.
 
 export default function generateResourcePath(
   path: string,

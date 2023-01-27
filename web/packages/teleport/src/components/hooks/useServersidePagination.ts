@@ -18,10 +18,12 @@ import { useState } from 'react';
 import { FetchStatus, Page } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { AgentResponse, AgentKind } from 'teleport/services/agents';
+import {
+  AgentResponse,
+  AgentKind,
+  AgentFilter,
+} from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
-
-import { ResourceUrlQueryParams } from './useUrlFiltering/useUrlFiltering';
 
 export default function useServerSidePagination<T extends AgentKind>({
   fetchFunc,
@@ -140,7 +142,7 @@ type Props<T extends AgentKind> = {
     params: UrlResourcesParams
   ) => Promise<AgentResponse<T>>;
   clusterId: string;
-  params: ResourceUrlQueryParams;
+  params: AgentFilter;
   pageSize?: number;
 };
 
