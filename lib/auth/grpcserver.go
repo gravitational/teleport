@@ -38,7 +38,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -650,6 +650,48 @@ func (g *GRPCServer) UpsertClusterAlert(ctx context.Context, req *proto.UpsertCl
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) CreateAlertAck(ctx context.Context, ack *types.AlertAcknowledgement) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.CreateAlertAck(ctx, *ack); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetAlertAcks(ctx context.Context, _ *proto.GetAlertAcksRequest) (*proto.GetAlertAcksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	acks, err := auth.GetAlertAcks(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GetAlertAcksResponse{
+		Acks: acks,
+	}, nil
+}
+
+func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *proto.ClearAlertAcksRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.ClearAlertAcks(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -792,6 +834,11 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessR
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := services.ValidateAccessRequestClusterNames(auth, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1481,11 +1528,12 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 	}
 
 	session, err := auth.CreateAppSession(ctx, types.CreateAppSessionRequest{
-		Username:      req.GetUsername(),
-		PublicAddr:    req.GetPublicAddr(),
-		ClusterName:   req.GetClusterName(),
-		AWSRoleARN:    req.GetAWSRoleARN(),
-		AzureIdentity: req.GetAzureIdentity(),
+		Username:          req.GetUsername(),
+		PublicAddr:        req.GetPublicAddr(),
+		ClusterName:       req.GetClusterName(),
+		AWSRoleARN:        req.GetAWSRoleARN(),
+		AzureIdentity:     req.GetAzureIdentity(),
+		GCPServiceAccount: req.GetGCPServiceAccount(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3521,7 +3569,9 @@ func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.Databas
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database.SetOrigin(types.OriginDynamic)
+	if database.Origin() == "" {
+		database.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3534,7 +3584,9 @@ func (g *GRPCServer) UpdateDatabase(ctx context.Context, database *types.Databas
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database.SetOrigin(types.OriginDynamic)
+	if database.Origin() == "" {
+		database.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.UpdateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4266,8 +4318,13 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 	}
 	res, err := auth.GetInstaller(ctx, req.Name)
 	if err != nil {
-		if trace.IsNotFound(err) && req.Name == installers.InstallerScriptName {
-			return installers.DefaultInstaller, nil
+		if trace.IsNotFound(err) {
+			switch req.Name {
+			case installers.InstallerScriptName:
+				return installers.DefaultInstaller, nil
+			case installers.InstallerScriptNameAgentless:
+				return installers.DefaultAgentlessInstaller, nil
+			}
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -4290,13 +4347,17 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 	var installersV1 []*types.InstallerV1
 	needDefault := true
+	needDefaultAgentless := true
 	for _, inst := range res {
 		instV1, ok := inst.(*types.InstallerV1)
 		if !ok {
 			return nil, trace.BadParameter("unsupported installer type %T", inst)
 		}
-		if inst.GetName() == installers.InstallerScriptName {
+		switch inst.GetName() {
+		case installers.InstallerScriptName:
 			needDefault = false
+		case installers.InstallerScriptNameAgentless:
+			needDefaultAgentless = false
 		}
 		installersV1 = append(installersV1, instV1)
 	}
@@ -4305,12 +4366,16 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 		return &types.InstallerV1List{
 			Installers: []*types.InstallerV1{
 				installers.DefaultInstaller,
+				installers.DefaultAgentlessInstaller,
 			},
 		}, nil
 	}
 
 	if needDefault {
 		installersV1 = append(installersV1, installers.DefaultInstaller)
+	}
+	if needDefaultAgentless {
+		installersV1 = append(installersV1, installers.DefaultAgentlessInstaller)
 	}
 
 	return &types.InstallerV1List{

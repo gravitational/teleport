@@ -588,6 +588,7 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 					DNSNames:             params.DNSNames,
 					PublicTLSKey:         params.PublicTLSKey,
 					PublicSSHKey:         params.PublicSSHKey,
+					Expires:              params.Expires,
 				},
 				StsIdentityRequest: signedRequest,
 			}, nil

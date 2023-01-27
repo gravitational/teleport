@@ -325,6 +325,9 @@ func (s *Server) Start() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+
+	listener = s.limiter.WrapListener(listener)
+
 	s.log.WithField("addr", listener.Addr().String()).Debug("Server start.")
 	if err := s.setListener(listener); err != nil {
 		return trace.Wrap(err)
@@ -408,6 +411,12 @@ func (s *Server) acceptConnections() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				proxyConnectionLimitHitCount.Inc()
+				s.log.Error(err.Error())
+				continue
+			}
+
 			if utils.IsUseOfClosedNetworkError(err) {
 				s.log.Debugf("Server %v has closed.", addr)
 				return
@@ -439,22 +448,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		s.ingressReporter.ConnectionAccepted(s.ingressService, conn)
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
-
-	// initiate an SSH connection, note that we don't need to close the conn here
-	// in case of error as ssh server takes care of this
-	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		s.log.Errorf(err.Error())
-	}
-	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
-		if trace.IsLimitExceeded(err) {
-			proxyConnectionLimitHitCount.Inc()
-		}
-		s.log.Errorf(err.Error())
-		conn.Close()
-		return
-	}
-	defer s.limiter.ReleaseConnection(remoteAddr)
 
 	// apply idle read/write timeout to this connection.
 	conn = utils.ObeyIdleTimeout(conn,

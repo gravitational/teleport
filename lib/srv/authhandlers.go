@@ -333,8 +333,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				Code: events.AuthAttemptFailureCode,
 			},
 			UserMetadata: apievents.UserMetadata{
-				Login: conn.User(),
-				User:  teleportUser,
+				Login:         conn.User(),
+				User:          teleportUser,
+				TrustedDevice: eventDeviceMetadataFromCert(cert),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -564,17 +565,17 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 		return nil
 	}
 
-	ap, err := h.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := h.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := accessChecker.MFAParams(ap.GetRequireMFAType())
-	_, mfaParams.Verified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	state := accessChecker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
 		h.c.Server.GetInfo(),
-		mfaParams,
+		state,
 		services.NewLoginMatcher(osUser),
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",

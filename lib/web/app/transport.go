@@ -158,7 +158,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.Header.Del("Cookie")
 	for _, cookie := range cookies {
 		switch cookie.Name {
-		case CookieName, SubjectCookieName, AuthStateCookieName:
+		case CookieName, SubjectCookieName:
 			continue
 		default:
 			r.AddCookie(cookie)

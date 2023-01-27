@@ -146,11 +146,20 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v3
+version: v6
 `
-	role, err := types.NewRoleV3("roleName", types.RoleSpecV6{
+	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{"test"},
+			Logins:           []string{"test"},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -193,7 +202,7 @@ func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
-		role, err := types.NewRoleV3("test", types.RoleSpecV6{
+		role, err := types.NewRole("test", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
 			},

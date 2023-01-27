@@ -33,10 +33,13 @@ import (
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
 
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
@@ -63,6 +66,10 @@ const (
 	// FormatDatabase produces CA and key pair suitable for configuring a
 	// database instance for mutual TLS.
 	FormatDatabase Format = "db"
+
+	// FormatWindows produces a certificate suitable for logging
+	// in to Windows via Active Directory.
+	FormatWindows = "windows"
 
 	// FormatMongo produces CA and key pair in the format suitable for
 	// configuring a MongoDB database for mutual TLS authentication.
@@ -99,8 +106,8 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{
-	FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla,
+	FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatWindows,
+	FormatMongo, FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla,
 }
 
 // String returns human-readable version of FormatList, ex:
@@ -180,7 +187,7 @@ type WriteConfig struct {
 
 // Write writes user credentials to disk in a specified format.
 // It returns the names of the files successfully written.
-func Write(cfg WriteConfig) (filesWritten []string, err error) {
+func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err error) {
 	// If no writer was set, use the standard implementation.
 	writer := cfg.Writer
 	if writer == nil {
@@ -195,7 +202,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	// dump user identity into a single file:
 	case FormatFile:
 		filesWritten = append(filesWritten, cfg.OutputPath)
-		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -207,14 +214,18 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			},
 		}
 		// append trusted host certificate authorities
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			// append ssh ca certificates
-			for _, publicKey := range ca.HostCertificates {
-				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, publicKey, nil)
+			for _, publicKey := range ca.AuthorizedKeys {
+				knownHost, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
+					Hostname:      ca.ClusterName,
+					ProxyHost:     cfg.Key.ProxyHost,
+					AuthorizedKey: publicKey,
+				})
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(data))
+				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(knownHost))
 			}
 			// append tls ca certificates
 			idFile.CACerts.TLS = append(idFile.CACerts.TLS, ca.TLSCertificates...)
@@ -234,7 +245,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		keyPath := cfg.OutputPath
 		certPath := keypaths.IdentitySSHCertPath(keyPath)
 		filesWritten = append(filesWritten, keyPath, certPath)
-		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -246,6 +257,20 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+	case FormatWindows:
+		for k, cert := range cfg.Key.WindowsDesktopCerts {
+			certPath := cfg.OutputPath + "." + k + ".der"
+			filesWritten = append(filesWritten, certPath)
+			if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, certPath); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			err = writer.WriteFile(certPath, cert, identityfile.FilePermissions)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatElasticsearch, FormatScylla:
@@ -261,7 +286,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		filesWritten = append(filesWritten, keyPath, certPath, casPath)
-		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -275,7 +300,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -291,7 +316,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
 		filesWritten = append(filesWritten, certPath, casPath)
-		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKeyPEM()...), identityfile.FilePermissions)
@@ -299,7 +324,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -312,12 +337,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		pubPath := cfg.OutputPath + ".pub"
 		filesWritten = append(filesWritten, pubPath)
 
-		if err := checkOverwrite(writer, cfg.OverwriteDestination, pubPath); err != nil {
+		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, pubPath); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				block, _ := pem.Decode(cert)
 				cert, err := x509.ParseCertificate(block.Bytes)
@@ -351,7 +376,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		// If the user does not want to override,  it will merge the previous kubeconfig
 		// with the new entry.
-		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil && !trace.IsAlreadyExists(err) {
+		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil && !trace.IsAlreadyExists(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
 			// Clean up the existing file, if it exists.
@@ -422,7 +447,7 @@ func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error
 
 func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 	var caCerts []byte
-	for _, ca := range cfg.Key.TrustedCA {
+	for _, ca := range cfg.Key.TrustedCerts {
 		for _, cert := range ca.TLSCertificates {
 			block, _ := pem.Decode(cert)
 			caCerts = append(caCerts, block.Bytes...)
@@ -482,7 +507,7 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	return &buff, nil
 }
 
-func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {
+func checkOverwrite(ctx context.Context, writer ConfigWriter, force bool, paths ...string) error {
 	var existingFiles []string
 	// Check if the destination file exists.
 	for _, path := range paths {
@@ -503,7 +528,7 @@ func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {
 	}
 
 	// Some files exist, prompt user whether to overwrite.
-	overwrite, err := prompt.Confirmation(context.Background(), os.Stderr, prompt.Stdin(), fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
+	overwrite, err := prompt.Confirmation(ctx, os.Stderr, prompt.Stdin(), fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -511,4 +536,107 @@ func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {
 		return trace.AlreadyExists("not overwriting destination files %s", strings.Join(existingFiles, ", "))
 	}
 	return nil
+}
+
+// KeyFromIdentityFile loads client key from identity file.
+func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.Key, error) {
+	if proxyHost == "" {
+		return nil, trace.BadParameter("proxyHost must be provided to parse identity file")
+	}
+	ident, err := identityfile.ReadFile(identityPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse identity file")
+	}
+
+	priv, err := keys.ParsePrivateKey(ident.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := client.NewKey(priv)
+	key.Cert = ident.Certs.SSH
+	key.TLSCert = ident.Certs.TLS
+	key.KeyIndex = client.KeyIndex{
+		ProxyHost:   proxyHost,
+		ClusterName: clusterName,
+	}
+
+	// validate TLS Cert (if present):
+	if len(ident.Certs.TLS) > 0 {
+		certDERBlock, _ := pem.Decode(ident.Certs.TLS)
+		cert, err := x509.ParseCertificate(certDERBlock.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if key.ClusterName == "" {
+			key.ClusterName = cert.Issuer.CommonName
+		}
+
+		parsedIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key.Username = parsedIdent.Username
+
+		// If this identity file has any database certs, copy it into the DBTLSCerts map.
+		if parsedIdent.RouteToDatabase.ServiceName != "" {
+			key.DBTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
+		}
+
+		// Similarly, if this identity has any app certs, copy them in.
+		if parsedIdent.RouteToApp.Name != "" {
+			key.AppTLSCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
+		}
+	} else {
+		key.Username, err = key.CertUsername()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	key.TrustedCerts, err = client.TrustedCertsFromCACerts(proxyHost, ident.CACerts.TLS, ident.CACerts.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return key, nil
+}
+
+// NewClientStoreFromIdentityFile initializes a new in-memory client store
+// and loads data from the given identity file into it. A temporary profile
+// is also added to its profile store with the limited profile data available
+// in the identity file.
+//
+// Since identity files do not save a proxy address, proxyAddr must be provided
+// to fill in this data gap. clusterName can also be provided to aim the key at
+// a leaf cluster rather than the default root cluster.
+func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*client.Store, error) {
+	proxyHost, err := utils.Host(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Preload the client key from the agent.
+	clientStore := client.NewMemClientStore()
+	if err := clientStore.AddKey(key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Save temporary profile into the key store.
+	profile := &profile.Profile{
+		WebProxyAddr: proxyAddr,
+		SiteName:     key.ClusterName,
+		Username:     key.Username,
+	}
+	if err := clientStore.SaveProfile(profile, true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clientStore, nil
 }

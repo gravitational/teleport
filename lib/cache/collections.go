@@ -844,6 +844,18 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
+	// DELETE IN 13.0.
+	// missingOpenSSHCA is needed only when leaf cluster v11 is connected
+	// to root cluster v12. OpenSSH CA has been added in v12, so older
+	// clusters don't have it and fetchCertAuthorities() returns an error.
+	var missingOpenSSHCA bool
+	applyOpenSSHCAs, err := c.fetchCertAuthorities(ctx, types.OpenSSHCA)
+	if trace.IsBadParameter(err) {
+		missingOpenSSHCA = true
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	applyJWTSigners, err := c.fetchCertAuthorities(ctx, types.JWTSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -862,6 +874,17 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 			}
 		} else {
 			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		if !missingOpenSSHCA {
+			if err := applyOpenSSHCAs(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.trustCache.DeleteAllCertAuthorities(types.OpenSSHCA); err != nil {
 				if !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
