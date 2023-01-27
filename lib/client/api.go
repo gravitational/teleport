@@ -590,6 +590,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
+	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -629,6 +630,7 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		AuthConnector:     c.AuthConnector,
 		MFAMode:           c.AuthenticatorAttachment.String(),
 		LoadAllCAs:        c.LoadAllCAs,
+		PrivateKeyPolicy:  c.PrivateKeyPolicy,
 	}
 
 	if err := c.ClientStore.SaveProfile(p, makeCurrent); err != nil {
@@ -3182,7 +3184,7 @@ type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*auth.SSHLoginRespons
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
 func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFunc) (*Key, error) {
-	priv, err := tc.GetNewLoginKey(ctx, tc.PrivateKeyPolicy)
+	priv, err := tc.GetNewLoginKey(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3195,7 +3197,8 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
 
 			// Set the private key policy to the expected value and re-login.
-			priv, err = tc.GetNewLoginKey(ctx, privateKeyPolicy)
+			tc.PrivateKeyPolicy = privateKeyPolicy
+			priv, err = tc.GetNewLoginKey(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3241,25 +3244,13 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 }
 
 // GetNewLoginKey gets a new private key for login.
-func (tc *TeleportClient) GetNewLoginKey(ctx context.Context, keyPolicy keys.PrivateKeyPolicy) (*keys.PrivateKey, error) {
-	key, err := tc.LocalAgent().GetCoreKey()
-	if err == nil {
-		// If we find an existing key with a non-zero key polic and it meets
-		// the given keyPolicy requirement, then we should use the existing key.
-		if coreKeyPolicy := keys.GetPrivateKeyPolicy(key.PrivateKey); coreKeyPolicy != keys.PrivateKeyPolicyNone {
-			if err := keyPolicy.VerifyPolicy(coreKeyPolicy); err == nil {
-				return key.PrivateKey, nil
-			}
-		}
-	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	switch keyPolicy {
+func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (*keys.PrivateKey, error) {
+	switch tc.PrivateKeyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
 		log.Debugf("Attempting to login with YubiKey private key.")
 
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(keyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
+		touchRequired := tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch
+		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(touchRequired)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
