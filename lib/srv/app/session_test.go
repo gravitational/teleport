@@ -34,7 +34,7 @@ func newSessionChunk(timeout time.Duration) *sessionChunk {
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: timeout,
 		log:          logrus.NewEntry(logrus.StandardLogger()),
-		streamWriter: &events.DiscardStream{},
+		streamCloser: &events.DiscardStream{},
 	}
 }
 

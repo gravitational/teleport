@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -255,7 +255,7 @@ func readOpMsg(header MessageHeader, payload []byte) (*MessageOpMsg, error) {
 				return nil, trace.BadParameter("malformed OP_MSG: %v %v", err, payload)
 			}
 
-			id, docs, rem, ok = ReadMsgSectionDocumentSequence(rem)
+			id, docs, rem, ok = wiremessage.ReadMsgSectionDocumentSequence(rem)
 			if !ok {
 				return nil, trace.BadParameter("malformed OP_MSG: missing document sequence section %v", payload)
 			}
@@ -287,9 +287,8 @@ func validateDocumentSize(src []byte) error {
 
 	// document length is encoded in the first 4 bytes
 	documentLength := int(int32(src[0]) | int32(src[1])<<8 | int32(src[2])<<16 | int32(src[3])<<24)
-
-	// document payload cannot be shorter than the size of the whole message plus the header length.
-	if documentLength+headerLen <= len(src) {
+	// Ensure that idx is not negative.
+	if documentLength-4 < 0 {
 		return trace.BadParameter("invalid document length")
 	}
 	return nil
@@ -310,41 +309,4 @@ func (m *MessageOpMsg) ToWire(responseTo int32) (dst []byte) {
 		dst = bsoncore.AppendInt32(dst, int32(m.Checksum))
 	}
 	return bsoncore.UpdateLength(dst, idx, int32(len(dst[idx:])))
-}
-
-// ReadMsgSectionDocumentSequence reads multiple documents from the source.
-//
-// This function works in the same way as wiremessage.ReadMsgSectionDocumentSequence except that it
-// validate the rem index before reading the document.
-func ReadMsgSectionDocumentSequence(src []byte) (identifier string, docs []bsoncore.Document, rem []byte, ok bool) {
-	length, rem, ok := readi32(src)
-	if !ok || int(length) > len(src) {
-		return "", nil, rem, false
-	}
-	// Ensure that idx is not negative.
-	if length-4 < 0 {
-		return "", nil, rem, false
-	}
-
-	rem, ret := rem[:length-4], rem[length-4:] // reslice so we can just iterate a loop later
-
-	identifier, rem, ok = readcstring(rem)
-	if !ok {
-		return "", nil, rem, false
-	}
-
-	docs = make([]bsoncore.Document, 0)
-	var doc bsoncore.Document
-	for {
-		doc, rem, ok = bsoncore.ReadDocument(rem)
-		if !ok {
-			break
-		}
-		docs = append(docs, doc)
-	}
-	if len(rem) > 0 {
-		return "", nil, append(rem, ret...), false
-	}
-
-	return identifier, docs, ret, true
 }

@@ -30,6 +30,10 @@ import (
 	"testing"
 	"time"
 
+	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	api "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -38,10 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	go_cmp "github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 type blockAction int
@@ -64,7 +64,7 @@ const (
 
 var (
 	testRanges = []blockedRange{
-		blockedRange{
+		{
 			ver:   4,
 			allow: "39.156.69.70/28",
 			deny:  "39.156.69.71",
@@ -77,7 +77,7 @@ var (
 				"72.156.69.80": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   4,
 			allow: "77.88.55.88",
 			probe: map[string]blockAction{
@@ -87,7 +87,7 @@ var (
 				"67.88.55.86": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "39.156.68.48/28",
 			deny:  "39.156.68.48/31",
@@ -101,7 +101,7 @@ var (
 				"::ffff:72.156.68.80": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "fc80::/64",
 			deny:  "fc80::10/124",
@@ -114,7 +114,7 @@ var (
 				"fc60:0:0:1::": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "2607:f8b0:4005:80a::200e",
 			probe: map[string]blockAction{
@@ -141,9 +141,6 @@ type bpfContext struct {
 }
 
 func setupBPFContext(t *testing.T) *bpfContext {
-	tt := bpfContext{}
-	t.Cleanup(func() { tt.Close(t) })
-
 	utils.InitLoggerForTests()
 
 	// This test must be run as root and the host has to be capable of running
@@ -152,38 +149,51 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		t.Skip("Tests for package restrictedsession can only be run as root.")
 	}
 
-	tt.srcAddrs = map[int]string{
+	// Create temporary directory where cgroup2 hierarchy will be mounted.
+	// DO NOT MOVE THIS LINE.
+	// t.TempDir() creates t.Cleanup() action. If this hook is called before
+	// we mount cgroup in Close() this test will fail.
+	cgroupDir := t.TempDir()
+
+	bpfCtx := bpfContext{
+		cgroupDir: cgroupDir,
+	}
+	t.Cleanup(func() { bpfCtx.Close(t) })
+
+	bpfCtx.srcAddrs = map[int]string{
 		4: "0.0.0.0",
 		6: "::",
 	}
 
-	var err error
-	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	tt.cgroupDir = t.TempDir()
+	config := &bpf.RestrictedSessionConfig{
+		Enabled: true,
+	}
 
-	// Create BPF service since we piggy-back on it
-	tt.enhancedRecorder, err = bpf.New(&bpf.Config{
+	var err error
+	// Create BPF service since we piggyback on it
+	bpfCtx.enhancedRecorder, err = bpf.New(&bpf.Config{
 		Enabled:    true,
-		CgroupPath: tt.cgroupDir,
-	})
+		CgroupPath: bpfCtx.cgroupDir,
+	}, config)
 	require.NoError(t, err)
 
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
-	tt.ctx = &bpf.SessionContext{
-		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New().String(),
-		ServerID:  uuid.New().String(),
-		Login:     "foo",
-		User:      "foo@example.com",
-		PID:       os.Getpid(),
-		Emitter:   &tt.emitter,
-		Events:    map[string]bool{},
+	bpfCtx.ctx = &bpf.SessionContext{
+		Namespace:      apidefaults.Namespace,
+		SessionID:      uuid.New().String(),
+		ServerID:       uuid.New().String(),
+		ServerHostname: "ip-172-31-11-148",
+		Login:          "foo",
+		User:           "foo@example.com",
+		PID:            os.Getpid(),
+		Emitter:        &bpfCtx.emitter,
+		Events:         map[string]bool{},
 	}
 
-	// Create enhanced recording session to piggy-back on.
-	tt.cgroupID, err = tt.enhancedRecorder.OpenSession(tt.ctx)
+	// Create enhanced recording session to piggyback on.
+	bpfCtx.cgroupID, err = bpfCtx.enhancedRecorder.OpenSession(bpfCtx.ctx)
 	require.NoError(t, err)
-	require.Equal(t, tt.cgroupID > 0, true)
+	require.Equal(t, bpfCtx.cgroupID > 0, true)
 
 	deny := []api.AddressCondition{}
 	allow := []api.AddressCondition{}
@@ -201,23 +211,19 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	restrictions.SetAllow(allow)
 	restrictions.SetDeny(deny)
 
-	config := &Config{
-		Enabled: true,
-	}
-
 	client := &mockClient{
 		restrictions: restrictions,
 		Fanout:       *services.NewFanout(),
 	}
 
-	tt.restrictedMgr, err = New(config, client)
+	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
 	client.Fanout.SetInit()
 
 	time.Sleep(100 * time.Millisecond)
 
-	return &tt
+	return &bpfCtx
 }
 
 func (tt *bpfContext) Close(t *testing.T) {
@@ -231,6 +237,8 @@ func (tt *bpfContext) Close(t *testing.T) {
 
 	if tt.enhancedRecorder != nil && tt.ctx != nil {
 		err := tt.enhancedRecorder.CloseSession(tt.ctx)
+		require.NoError(t, err)
+		err = tt.enhancedRecorder.Close()
 		require.NoError(t, err)
 	}
 
@@ -301,6 +309,7 @@ func (tt *bpfContext) expectedAuditEvent(ver int, ip string, op apievents.Sessio
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        tt.ctx.ServerID,
+			ServerHostname:  tt.ctx.ServerHostname,
 			ServerNamespace: tt.ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
@@ -379,9 +388,10 @@ func TestRootNetwork(t *testing.T) {
 
 	// Check that the emitted audit events are correct
 	actualAuditEvents := tt.emitter.Events()
-	require.Empty(t, go_cmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
+	require.Empty(t, gocmp.Diff(tt.expectedAuditEvents, actualAuditEvents),
+		"Audit events mismatch (-want +got)")
 
-	// Clear out the expected and actual evetns
+	// Clear out the expected and actual events
 	tt.expectedAuditEvents = nil
 	tt.emitter.Reset()
 
@@ -394,14 +404,6 @@ func TestRootNetwork(t *testing.T) {
 	// Nothing should be reported to the audit log
 	time.Sleep(100 * time.Millisecond)
 	require.Empty(t, tt.emitter.Events())
-}
-
-func mustParseIPSpec(cidr string) *net.IPNet {
-	ipnet, err := ParseIPSpec(cidr)
-	if err != nil {
-		panic(err)
-	}
-	return ipnet
 }
 
 type mockClient struct {

@@ -86,6 +86,34 @@ func TestGetVirtualMachine(t *testing.T) {
 			},
 		},
 		{
+			desc:       "vm with only user managed identities",
+			resourceID: validResourceID,
+			client: &ARMComputeMock{
+				GetResult: armcompute.VirtualMachine{
+					ID:   to.Ptr("id"),
+					Name: to.Ptr("name"),
+					Identity: &armcompute.VirtualMachineIdentity{
+						UserAssignedIdentities: map[string]*armcompute.UserAssignedIdentitiesValue{
+							"identity1": {},
+							"identity2": {},
+						},
+					},
+				},
+			},
+			assertError: require.NoError,
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, vm.ID, "id")
+				require.Equal(t, vm.Name, "name")
+				require.ElementsMatch(t, []Identity{
+					{ResourceID: "identity1"},
+					{ResourceID: "identity2"},
+				}, vm.Identities)
+			},
+		},
+		{
 			desc:        "invalid resource ID",
 			resourceID:  "random-id",
 			client:      &ARMComputeMock{},
@@ -108,6 +136,52 @@ func TestGetVirtualMachine(t *testing.T) {
 			vm, err := vmClient.Get(ctx, tc.resourceID)
 			tc.assertError(t, err)
 			tc.assertVM(t, vm)
+		})
+	}
+}
+
+func TestListVirtualMachines(t *testing.T) {
+	t.Parallel()
+	mockAPI := &ARMComputeMock{
+		VirtualMachines: map[string][]*armcompute.VirtualMachine{
+			"rg1": {
+				{ID: to.Ptr("vm1")},
+				{ID: to.Ptr("vm2")},
+			},
+			"rg2": {
+				{ID: to.Ptr("vm3")},
+				{ID: to.Ptr("vm4")},
+			},
+		},
+	}
+	tests := []struct {
+		name          string
+		resourceGroup string
+		wantIDs       []string
+	}{
+		{
+			name:          "existing resource group",
+			resourceGroup: "rg1",
+			wantIDs:       []string{"vm1", "vm2"},
+		},
+		{
+			name:          "nonexistant resource group",
+			resourceGroup: "rgfake",
+			wantIDs:       []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := NewVirtualMachinesClientByAPI(mockAPI)
+
+			vms, err := client.ListVirtualMachines(context.Background(), tc.resourceGroup)
+			require.NoError(t, err)
+			var vmIDs []string
+			for _, vm := range vms {
+				vmIDs = append(vmIDs, *vm.ID)
+			}
+			require.ElementsMatch(t, tc.wantIDs, vmIDs)
 		})
 	}
 }

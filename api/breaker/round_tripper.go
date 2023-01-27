@@ -34,13 +34,11 @@ func NewRoundTripper(cb *CircuitBreaker, tripper http.RoundTripper) *RoundTrippe
 
 // RoundTrip forwards the request on to the provided http.RoundTripper if
 // the CircuitBreaker allows it
-//
-// nolint:bodyclose
-// The interface{} conversion to *http.Response trips the linter even though this
-// is merely a pass through function. Closing the body here would prevent the actual
-// consumer to not be able to read it. Copying here to satisfy the linter seems wasteful.
 func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	v, err := t.cb.Execute(func() (interface{}, error) {
+		//nolint:bodyclose // The interface{} conversion to *http.Response trips the linter even though this
+		// is merely a pass through function. Closing the body here would prevent the actual
+		// consumer to not be able to read it. Copying here to satisfy the linter seems wasteful.
 		return t.tripper.RoundTrip(request)
 	})
 

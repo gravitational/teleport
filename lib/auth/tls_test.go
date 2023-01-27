@@ -21,7 +21,9 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/base32"
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -939,11 +941,6 @@ func TestNopUser(t *testing.T) {
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
 	require.True(t, trace.IsAccessDenied(err))
-
-	// Endpoints that allow current user access should return access denied to
-	// the Nop user.
-	err = client.CheckPassword("foo", nil, "")
-	require.True(t, trace.IsAccessDenied(err))
 }
 
 // TestOwnRole tests that user can read roles assigned to them (used by web UI)
@@ -1147,15 +1144,13 @@ func TestPasswordGarbage(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
 	garbage := [][]byte{
 		nil,
 		make([]byte, defaults.MaxPasswordLength+1),
 		make([]byte, defaults.MinPasswordLength-1),
 	}
 	for _, g := range garbage {
-		err := clt.CheckPassword("user1", g, "123456")
+		_, err := tt.server.Auth().checkPassword("user1", g, "123456")
 		require.True(t, trace.IsBadParameter(err))
 	}
 }
@@ -1166,14 +1161,11 @@ func TestPasswordCRUD(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
 	pass := []byte("abc123")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	err = clt.CheckPassword("user1", pass, "123456")
+	_, err := tt.server.Auth().checkPassword("user1", pass, "123456")
 	require.Error(t, err)
 
 	err = tt.server.Auth().UpsertPassword("user1", pass)
@@ -1188,7 +1180,7 @@ func TestPasswordCRUD(t *testing.T) {
 	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
 	require.NoError(t, err)
 
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.NoError(t, err)
 }
 
@@ -1212,16 +1204,13 @@ func TestOTPCRUD(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
 	user := "user1"
 	pass := []byte("abc123")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = tt.server.Auth().UpsertPassword("user1", pass)
+	err := tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
 	require.NoError(t, err)
@@ -1230,7 +1219,7 @@ func TestOTPCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// a completely invalid token should return access denied
-	err = clt.CheckPassword("user1", pass, "123456")
+	_, err = tt.server.Auth().checkPassword("user1", pass, "123456")
 	require.Error(t, err)
 
 	// an invalid token should return access denied
@@ -1242,18 +1231,18 @@ func TestOTPCRUD(t *testing.T) {
 	// invalidity starts at 61 seconds in the future.
 	invalidToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now().Add(61*time.Second))
 	require.NoError(t, err)
-	err = clt.CheckPassword("user1", pass, invalidToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, invalidToken)
 	require.Error(t, err)
 
 	// a valid token (created right now and from a valid key) should return success
 	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
 	require.NoError(t, err)
 
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.NoError(t, err)
 
 	// try the same valid token now it should fail because we don't allow re-use of tokens
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.Error(t, err)
 }
 
@@ -1384,7 +1373,14 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	roleReq, err := services.NewAccessRequest(username, requestableRoleName)
 	require.NoError(t, err)
 	roleReq.SetState(types.RequestState_APPROVED)
+	roleReq.SetAccessExpiry(tt.clock.Now().Add(8 * time.Hour))
 	err = clt.CreateAccessRequest(ctx, roleReq)
+	require.NoError(t, err)
+
+	// Create remote cluster so create access request doesn't err due to non existent cluster
+	rc, err := types.NewRemoteCluster("foobar")
+	require.NoError(t, err)
+	err = tt.server.AuthServer.AuthServer.CreateRemoteCluster(rc)
 	require.NoError(t, err)
 
 	// Create approved resource request
@@ -1723,7 +1719,6 @@ func TestGetCertAuthority(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
-		fmt.Printf("--> keyPair.Key: %v.\n", keyPair)
 		require.Nil(t, keyPair.Key)
 	}
 	for _, keyPair := range ca.GetActiveKeys().SSH {
@@ -1993,7 +1988,7 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
-		superImpersonatorRole, err := types.NewRoleV3("superimpersonator", types.RoleSpecV5{
+		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
 			},
@@ -2011,7 +2006,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
-		role, err := types.NewRoleV3("impersonate", types.RoleSpecV5{
+		role, err := types.NewRole("impersonate", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{superImpersonator.GetName()},
 				Impersonate: &types.ImpersonateConditions{
@@ -2265,7 +2260,7 @@ func TestGenerateAppToken(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	signer, err := tt.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	signer, err := tt.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
 	require.NoError(t, err)
 	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), tt.clock)
 	require.NoError(t, err)
@@ -2416,7 +2411,7 @@ func TestClusterConfigContext(t *testing.T) {
 
 	// try and generate a host cert, this should fail because we are recording
 	// at the nodes not at the proxy
-	_, err = proxy.GenerateHostCert(pub,
+	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
 	require.True(t, trace.IsAccessDenied(err))
@@ -2431,7 +2426,7 @@ func TestClusterConfigContext(t *testing.T) {
 
 	// try and generate a host cert, now the proxy should be able to generate a
 	// host cert because it's in recording mode.
-	_, err = proxy.GenerateHostCert(pub,
+	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
 	require.NoError(t, err)
@@ -2968,6 +2963,108 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestClusterAlertAck(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 1)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "alert-1",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
+}
+
+func TestClusterAlertClearAckWildcard(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	alert2, err := types.NewClusterAlert("alert-2", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert2)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	ack = types.AlertAcknowledgement{AlertID: "alert-2", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 2)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+	require.Equal(t, acks[1].AlertID, "alert-2")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "*",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
+}
+
 // TestClusterAlertAccessControls verifies expected behaviors of cluster alert
 // access controls.
 func TestClusterAlertAccessControls(t *testing.T) {
@@ -3112,9 +3209,9 @@ func TestEventsNodePresence(t *testing.T) {
 	case keepAliver.KeepAlives() <- *keepAlive:
 		// ok
 	case <-time.After(time.Second):
-		t.Fatalf("time out sending keep ailve")
+		t.Fatalf("time out sending keep alive")
 	case <-keepAliver.Done():
-		t.Fatalf("unknown problem sending keep ailve")
+		t.Fatalf("unknown problem sending keep alive")
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
@@ -3475,6 +3572,12 @@ func newTestTLSServer(t *testing.T) *TestTLSServer {
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
 
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	t.Cleanup(func() {
+		err := srv.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
 	return srv
 }

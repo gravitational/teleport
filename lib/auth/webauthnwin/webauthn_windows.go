@@ -21,11 +21,12 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/duo-labs/webauthn/protocol"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 var (

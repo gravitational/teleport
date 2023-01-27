@@ -111,6 +111,10 @@ type AuthPreference interface {
 	// SetLockingMode sets the cluster-wide locking mode default.
 	SetLockingMode(constants.LockingMode)
 
+	// GetDeviceTrust returns the cluster device trust settings, or nil if no
+	// explicit configurations are present.
+	GetDeviceTrust() *DeviceTrust
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -387,6 +391,15 @@ func (c *AuthPreferenceV2) SetLockingMode(mode constants.LockingMode) {
 	c.Spec.LockingMode = mode
 }
 
+// GetDeviceTrust returns the cluster device trust settings, or nil if no
+// explicit configurations are present.
+func (c *AuthPreferenceV2) GetDeviceTrust() *DeviceTrust {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.DeviceTrust
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -521,6 +534,17 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("locking mode %q not supported", c.Spec.LockingMode)
 	}
 
+	if dt := c.Spec.DeviceTrust; dt != nil {
+		switch dt.Mode {
+		case "": // OK, "default" mode. Varies depending on OSS or Enterprise.
+		case constants.DeviceTrustModeOff,
+			constants.DeviceTrustModeOptional,
+			constants.DeviceTrustModeRequired: // OK.
+		default:
+			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
+		}
+	}
+
 	return nil
 }
 
@@ -585,7 +609,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	// AttestationAllowedCAs.
 	switch {
 	case u != nil && len(u.DeviceAttestationCAs) > 0 && len(w.AttestationAllowedCAs) == 0 && len(w.AttestationDeniedCAs) == 0:
-		log.Infof("WebAuthn: using U2F device attestion CAs as allowed CAs")
+		log.Infof("WebAuthn: using U2F device attestation CAs as allowed CAs")
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {

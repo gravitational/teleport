@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
 	"github.com/keys-pub/go-libfido2"
 	"github.com/stretchr/testify/assert"
@@ -42,8 +42,10 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-var makeCredentialAuthDataRaw, makeCredentialAuthDataCBOR, makeCredentialSig []byte
-var assertionAuthDataRaw, assertionAuthDataCBOR, assertionSig []byte
+var (
+	makeCredentialAuthDataRaw, makeCredentialAuthDataCBOR, makeCredentialSig []byte
+	assertionAuthDataRaw, assertionAuthDataCBOR, assertionSig                []byte
+)
 
 func init() {
 	// Initialize arrays with random data, but use realistic sizes.
@@ -189,8 +191,8 @@ func TestFIDO2Login(t *testing.T) {
 	// User IDs and names for resident credentials / passwordless.
 	const llamaName = "llama"
 	const alpacaName = "alpaca"
-	var llamaID = make([]byte, 16)
-	var alpacaID = make([]byte, 16)
+	llamaID := make([]byte, 16)
+	alpacaID := make([]byte, 16)
 	for _, b := range [][]byte{llamaID, alpacaID} {
 		_, err := rand.Read(b)
 		require.NoError(t, err, "Read failed")
@@ -1236,7 +1238,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 				},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
-				RequireResidentKey: protocol.ResidentKeyUnrequired(),
+				RequireResidentKey: protocol.ResidentKeyNotRequired(),
 				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
 				UserVerification:   protocol.VerificationDiscouraged,
 			},

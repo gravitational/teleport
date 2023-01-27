@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
+	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -132,7 +133,10 @@ func TestListKube(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			captureStdout := new(bytes.Buffer)
 			err := Run(
 				context.Background(),
@@ -152,7 +156,6 @@ func TestListKube(t *testing.T) {
 			require.Contains(t, captureStdout.String(), tc.wantTable())
 		})
 	}
-
 }
 
 func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
@@ -161,7 +164,7 @@ func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
 	kubeConf := clientcmdapi.NewConfig()
 	for _, name := range clusterNames {
 		kubeConf.Clusters[name] = &clientcmdapi.Cluster{
-			Server:                "http://localhost:8080",
+			Server:                newKubeSelfSubjectServer(t),
 			InsecureSkipTLSVerify: true,
 		}
 		kubeConf.AuthInfos[name] = &clientcmdapi.AuthInfo{}
@@ -185,4 +188,12 @@ func formatServiceLabels(labels map[string]string) string {
 
 	sort.Strings(labelSlice)
 	return strings.Join(labelSlice, " ")
+}
+
+func newKubeSelfSubjectServer(t *testing.T) string {
+	srv, err := kubeserver.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	return srv.URL
 }

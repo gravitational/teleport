@@ -137,7 +137,7 @@ func TestStartAccountRecovery(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -205,7 +205,7 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -258,7 +258,7 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -320,7 +320,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -453,7 +453,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -522,7 +522,7 @@ func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -621,7 +621,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -735,7 +735,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -907,7 +907,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -1153,7 +1153,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -1264,7 +1264,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 

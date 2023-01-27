@@ -82,8 +82,7 @@ type NodeSession struct {
 	terminal *terminal.Terminal
 
 	// forceDisconnect if we should immediately disconnect upon finish instead of waiting for the remote status.
-	// This value must always be accessed atomically.
-	forceDisconnect int32
+	forceDisconnect atomic.Bool
 
 	// shouldClearOnExit marks whether or not the terminal should be cleared
 	// when the session ends.
@@ -246,7 +245,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
-	tc := ns.nodeClient.Proxy.teleportClient
+	tc := ns.nodeClient.TC
 	targetAgent := selectKeyAgent(tc)
 
 	if targetAgent != nil {
@@ -270,7 +269,7 @@ func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.Debugf("Selecting system key agent.")
-		return tc.localAgent.sshAgent
+		return tc.localAgent.systemAgent
 	case ForwardAgentLocal:
 		log.Debugf("Selecting local Teleport key agent.")
 		return tc.localAgent.ExtendedAgent
@@ -332,7 +331,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 	// Wait for any cleanup tasks (particularly terminal reset on Windows).
 	ns.closeWait.Wait()
 
-	if atomic.LoadInt32(&ns.forceDisconnect) == 1 {
+	if ns.forceDisconnect.Load() {
 		return nil
 	}
 
@@ -437,7 +436,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 
 			// Send the "window-change" request over the channel.
 			if err = s.WindowChange(ctx, int(currHeight), int(currWidth)); err != nil {
-				log.Warnf("Unable to send %v reqest: %v.", sshutils.WindowChangeRequest, err)
+				log.Warnf("Unable to send %v request: %v.", sshutils.WindowChangeRequest, err)
 				continue
 			}
 
@@ -721,12 +720,16 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 					fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
 				}
 			})
+
+			// Force disconnect the session. We want to release the local terminal
+			// connected to the session rather than wait for the session to end.
+			ns.forceDisconnect.Store(true)
 		}()
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
 		go func() {
 			if handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell) {
-				atomic.StoreInt32(&ns.forceDisconnect, 1)
+				ns.forceDisconnect.Store(true)
 			}
 
 			ns.closer.Close()

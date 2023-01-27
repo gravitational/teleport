@@ -24,6 +24,9 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
@@ -128,6 +132,12 @@ func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
+func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &AuthCommand{}
+	args = append([]string{"auth"}, args...)
+	return runCommand(t, fc, command, args, opts...)
+}
+
 func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
 	err := json.NewDecoder(r).Decode(i)
 	require.NoError(t, err)
@@ -149,6 +159,27 @@ func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(configYamlContent)
+}
+
+func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
+	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
+	fileConfYAML, err := yaml.Marshal(fc)
+	require.NoError(t, err)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0600)
+	require.NoError(t, err)
+	return fileConfPath
+}
+
+func mustAddUser(t *testing.T, fc *config.FileConfig, username string, roles ...string) {
+	err := runUserCommand(t, fc, []string{"add", username, "--roles", strings.Join(roles, ",")})
+	require.NoError(t, err)
+}
+
+func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string) string {
+	identityFilePath := filepath.Join(t.TempDir(), "identity")
+	err := runAuthCommand(t, fc, []string{"sign", "--user", username, "--out", identityFilePath})
+	require.NoError(t, err)
+	return identityFilePath
 }
 
 type testServerOptions struct {
@@ -179,6 +210,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())

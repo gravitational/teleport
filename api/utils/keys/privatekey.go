@@ -20,18 +20,14 @@ package keys
 import (
 	"bytes"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"os"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
@@ -134,40 +130,6 @@ func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error
 	}
 
 	return cert, nil
-}
-
-// agentKeyComment is used to generate an agent key comment.
-type agentKeyComment struct {
-	user string
-}
-
-func (a *agentKeyComment) String() string {
-	return fmt.Sprintf("teleport:%s", a.user)
-}
-
-// AsAgentKey converts PrivateKey to a agent.AddedKey. If the given PrivateKey is not
-// supported as an agent key, a trace.NotImplemented error is returned.
-func (k *PrivateKey) AsAgentKey(sshCert *ssh.Certificate) (agent.AddedKey, error) {
-	switch k.Signer.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		// put a teleport identifier along with the teleport user into the comment field
-		comment := agentKeyComment{user: sshCert.KeyId}
-		return agent.AddedKey{
-			PrivateKey:       k.Signer,
-			Certificate:      sshCert,
-			Comment:          comment.String(),
-			LifetimeSecs:     0,
-			ConfirmBeforeUse: false,
-		}, nil
-	default:
-		// We return a not implemented error because agent.AddedKey only
-		// supports plain RSA, ECDSA, and ED25519 keys. Non-standard private
-		// keys, like hardware-based private keys, will require custom solutions
-		// which may not be included in their initial implementation. This will
-		// only affect functionality related to agent forwarding, so we give the
-		// caller the ability to handle the error gracefully.
-		return agent.AddedKey{}, trace.NotImplemented("cannot create an agent key using private key signer of type %T", k.Signer)
-	}
 }
 
 // PPKFile returns a PuTTY PPK-formatted keypair

@@ -27,6 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/container/apiv1/containerpb"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -34,8 +37,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -46,6 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -91,8 +99,8 @@ type mockEC2Client struct {
 
 func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	ctx context.Context, input *ec2.DescribeInstancesInput,
-	f func(dio *ec2.DescribeInstancesOutput, b bool) bool, opts ...request.Option) error {
-
+	f func(dio *ec2.DescribeInstancesOutput, b bool) bool, opts ...request.Option,
+) error {
 	f(m.output, true)
 	return nil
 }
@@ -290,7 +298,7 @@ func TestDiscoveryServer(t *testing.T) {
 			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
 				scanner := bufio.NewScanner(logs)
 				instances := genEC2Instances(58)
-				findAll := []string{genInstancesLogStr(instances[:50]), genInstancesLogStr(instances[50:])}
+				findAll := []string{genEC2InstancesLogStr(instances[:50]), genEC2InstancesLogStr(instances[50:])}
 				index := 0
 				for scanner.Scan() {
 					if index == len(findAll) {
@@ -393,7 +401,6 @@ func TestDiscoveryServer(t *testing.T) {
 			server.Wait()
 		})
 	}
-
 }
 
 func TestDiscoveryKube(t *testing.T) {
@@ -403,6 +410,7 @@ func TestDiscoveryKube(t *testing.T) {
 		existingKubeClusters          []types.KubeCluster
 		awsMatchers                   []services.AWSMatcher
 		azureMatchers                 []services.AzureMatcher
+		gcpMatchers                   []services.GCPMatcher
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
 	}{
@@ -522,6 +530,22 @@ func TestDiscoveryKube(t *testing.T) {
 			},
 			clustersNotUpdated: []string{"aks-cluster1"},
 		},
+		{
+			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
+			existingKubeClusters: []types.KubeCluster{},
+			gcpMatchers: []services.GCPMatcher{
+				{
+					Types:      []string{"gke"},
+					Locations:  []string{"*"},
+					ProjectIDs: []string{"p1"},
+					Tags:       map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0]),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1]),
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -532,6 +556,7 @@ func TestDiscoveryKube(t *testing.T) {
 			testClients := cloud.TestCloudClients{
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
+				GCPGKE:         newPopulatedGCPMock(),
 			}
 
 			ctx := context.Background()
@@ -572,7 +597,7 @@ func TestDiscoveryKube(t *testing.T) {
 				// the current state of the cluster is equal to the previous.
 				// [r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetName())]
 				// lib/services/reconciler.go
-				var reconcileRegexp = regexp.MustCompile("kube_cluster (.*) is already registered")
+				reconcileRegexp := regexp.MustCompile("kube_cluster (.*) is already registered")
 
 				scanner := bufio.NewScanner(r)
 				for scanner.Scan() {
@@ -596,6 +621,7 @@ func TestDiscoveryKube(t *testing.T) {
 					AccessPoint:   tlsServer.Auth(),
 					AWSMatchers:   tc.awsMatchers,
 					AzureMatchers: tc.azureMatchers,
+					GCPMatchers:   tc.gcpMatchers,
 					Emitter:       authClient,
 					Log:           logger,
 				})
@@ -633,11 +659,9 @@ func TestDiscoveryKube(t *testing.T) {
 						}
 						break loop
 					}
-
 				}
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
-
 		})
 	}
 }
@@ -758,7 +782,6 @@ func newPopulatedEKSMock() *mockEKSAPI {
 }
 
 var eksMockClusters = []*eks.Cluster{
-
 	{
 		Name:   aws.String("eks-cluster1"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
@@ -821,4 +844,291 @@ func sliceToSet[T comparable](slice []T) map[T]struct{} {
 		set[v] = struct{}{}
 	}
 	return set
+}
+
+func newPopulatedGCPMock() *mockGKEAPI {
+	return &mockGKEAPI{
+		clusters: gkeMockClusters,
+	}
+}
+
+var gkeMockClusters = []gcp.GKECluster{
+	{
+		Name:   "cluster1",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "prod",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster2",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "prod",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster3",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "stg",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster4",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "stg",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+}
+
+func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster) types.KubeCluster {
+	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	require.NoError(t, err)
+	return cluster
+}
+
+type mockGKEAPI struct {
+	gcp.GKEClient
+	clusters []gcp.GKECluster
+}
+
+func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, location string) ([]gcp.GKECluster, error) {
+	return m.clusters, nil
+}
+
+func TestDiscoveryDatabase(t *testing.T) {
+	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1")
+	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US")
+
+	testClients := &cloud.TestCloudClients{
+		Redshift: &mocks.RedshiftMock{
+			Clusters: []*redshift.Cluster{awsRedshiftResource},
+		},
+		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
+			Servers: []*armredis.ResourceInfo{azRedisResource},
+		}),
+		AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
+			&azure.ARMRedisEnterpriseClusterMock{},
+			&azure.ARMRedisEnterpriseDatabaseMock{},
+		),
+	}
+
+	tcs := []struct {
+		name              string
+		existingDatabases []types.Database
+		awsMatchers       []services.AWSMatcher
+		azureMatchers     []services.AzureMatcher
+		expectDatabases   []types.Database
+	}{
+		{
+			name: "discover AWS database",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{awsRedshiftDB},
+		},
+		{
+			name: "discover Azure database",
+			azureMatchers: []services.AzureMatcher{{
+				Types:          []string{services.AzureMatcherRedis},
+				ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:        []string{types.Wildcard},
+				ResourceGroups: []string{types.Wildcard},
+				Subscriptions:  []string{"sub1"},
+			}},
+			expectDatabases: []types.Database{azRedisDB},
+		},
+		{
+			name: "update existing database",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "aws-redshift",
+					Description: "should be updated",
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+				}, types.DatabaseSpecV3{
+					Protocol: "redis",
+					URI:      "should.be.updated.com:12345",
+				}),
+			},
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{awsRedshiftDB},
+		},
+		{
+			name: "delete existing database",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "aws-redshift",
+					Description: "should be deleted",
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+				}, types.DatabaseSpecV3{
+					Protocol: "redis",
+					URI:      "should.be.deleted.com:12345",
+				}),
+			},
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{},
+		},
+		{
+			name: "skip self-hosted database",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "self-hosted",
+					Description: "should be ignored (not deleted)",
+					Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
+				}, types.DatabaseSpecV3{
+					Protocol: "mysql",
+					URI:      "localhost:12345",
+				}),
+			},
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "self-hosted",
+					Description: "should be ignored (not deleted)",
+					Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
+				}, types.DatabaseSpecV3{
+					Protocol: "mysql",
+					URI:      "localhost:12345",
+				}),
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			// Create and start test auth server.
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			for _, database := range tc.existingDatabases {
+				err := tlsServer.Auth().CreateDatabase(ctx, database)
+				require.NoError(t, err)
+			}
+
+			waitForReconcile := make(chan struct{})
+			srv, err := New(
+				ctx,
+				&Config{
+					Clients:       testClients,
+					AccessPoint:   tlsServer.Auth(),
+					AWSMatchers:   tc.awsMatchers,
+					AzureMatchers: tc.azureMatchers,
+					Emitter:       authClient,
+					onDatabaseReconcile: func() {
+						waitForReconcile <- struct{}{}
+					},
+				})
+
+			require.NoError(t, err)
+
+			t.Cleanup(srv.Stop)
+			go srv.Start()
+
+			select {
+			case <-waitForReconcile:
+				actualDatabases, err := authClient.GetDatabases(ctx)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
+				))
+			case <-time.After(time.Second):
+				t.Fatal("Didn't receive reconcile event after 1s.")
+			}
+		})
+	}
+}
+
+func makeRedshiftCluster(t *testing.T, name, region string) (*redshift.Cluster, types.Database) {
+	t.Helper()
+	cluster := &redshift.Cluster{
+		ClusterIdentifier:   aws.String(name),
+		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:123456789012:namespace:%s", region, name)),
+		ClusterStatus:       aws.String("available"),
+		Endpoint: &redshift.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5439),
+		},
+	}
+
+	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
+	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloud)
+	return cluster, database
+}
+
+func makeAzureRedisServer(t *testing.T, name, subscription, group, region string) (*armredis.ResourceInfo, types.Database) {
+	t.Helper()
+	resourceInfo := &armredis.ResourceInfo{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)),
+		Location: to.Ptr(region),
+		Properties: &armredis.Properties{
+			HostName:          to.Ptr(fmt.Sprintf("%v.redis.cache.windows.net", name)),
+			SSLPort:           to.Ptr(int32(6380)),
+			ProvisioningState: to.Ptr(armredis.ProvisioningStateSucceeded),
+		},
+	}
+
+	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloud)
+	return resourceInfo, database
+}
+
+func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV3) types.Database {
+	t.Helper()
+	database, err := types.NewDatabaseV3(meta, spec)
+	require.NoError(t, err)
+	return database
 }

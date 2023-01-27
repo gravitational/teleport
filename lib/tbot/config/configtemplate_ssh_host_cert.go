@@ -94,7 +94,7 @@ func (c *TemplateSSHHostCert) Describe(destination bot.Destination) []FileDescri
 
 // exportSSHUserCAs generates SSH CAs.
 func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, error) {
-	var exported []string
+	var exported string
 
 	for _, ca := range cas {
 		// Don't export trusted CAs.
@@ -111,11 +111,11 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 			// remove "cert-authority "
 			s = strings.TrimPrefix(s, sshHostTrimPrefix)
 
-			exported = append(exported, s)
+			exported += s
 		}
 	}
 
-	return strings.Join(exported, "\n") + "\n", nil
+	return exported, nil
 }
 
 // Render generates SSH host cert files.
@@ -146,7 +146,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	botCfg := bot.Config()
-	key.Cert, err = authClient.GenerateHostCert(key.MarshalSSHPublicKey(),
+	key.Cert, err = authClient.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
 		"", "", c.Principals,
 		clusterName, types.RoleNode, botCfg.CertificateTTL)
 	if err != nil {
@@ -165,7 +165,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 		OverwriteDestination: true,
 	}
 
-	files, err := identityfile.Write(cfg)
+	files, err := identityfile.Write(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -302,13 +302,6 @@ func waitForDockerRegistryStep() step {
 	}
 }
 
-func verifyValidPromoteRunSteps() []step {
-	tagStep := verifyTaggedStep()
-	verifyStep := verifyNotPrereleaseStep()
-
-	return []step{tagStep, verifyStep}
-}
-
 func verifyTaggedStep() step {
 	return step{
 		Name:  "Verify build is tagged",

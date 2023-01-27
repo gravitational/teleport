@@ -230,8 +230,6 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 
 		select {
 		case err := <-errC:
-			// TODO(zmb3, isaiah): send some sort of error to the browser,
-			// otherwise it just sits at the player UI
 			if err != nil && !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
 				var errorText string

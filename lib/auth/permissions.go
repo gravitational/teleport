@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -47,18 +48,31 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 	return authContext, nil
 }
 
+// AuthorizerOpts holds creation options for [NewAuthorizer].
+type AuthorizerOpts struct {
+	ClusterName string
+	AccessPoint AuthorizerAccessPoint
+	LockWatcher *services.LockWatcher
+
+	// DisableDeviceAuthorization disables device authorization via [Authorizer].
+	// It is meant for services that do explicit device authorization, like the
+	// Auth Server APIs. Most services should not set this field.
+	DisableDeviceAuthorization bool
+}
+
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, accessPoint AuthorizerAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
-	if clusterName == "" {
+func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
+	if opts.ClusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
-	if accessPoint == nil {
+	if opts.AccessPoint == nil {
 		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
 	return &authorizer{
-		clusterName: clusterName,
-		accessPoint: accessPoint,
-		lockWatcher: lockWatcher,
+		clusterName:                opts.ClusterName,
+		accessPoint:                opts.AccessPoint,
+		lockWatcher:                opts.LockWatcher,
+		disableDeviceAuthorization: opts.DisableDeviceAuthorization,
 	}, nil
 }
 
@@ -97,9 +111,10 @@ type AuthorizerAccessPoint interface {
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName string
-	accessPoint AuthorizerAccessPoint
-	lockWatcher *services.LockWatcher
+	clusterName                string
+	accessPoint                AuthorizerAccessPoint
+	lockWatcher                *services.LockWatcher
+	disableDeviceAuthorization bool
 }
 
 // Context is authorization context
@@ -164,15 +179,16 @@ func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, 
 	return nil
 }
 
-// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
-func (c *Context) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	params := c.Checker.MFAParams(authPrefMFARequirement)
+// GetAccessState returns the AccessState based on the underlying
+// [services.AccessChecker] and [tlsca.Identity].
+func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.Checker.GetAccessState(authPref)
 
 	// Builtin services (like proxy_service and kube_service) are not gated
 	// on MFA and only need to pass normal RBAC action checks.
 	_, isService := c.Identity.(BuiltinRole)
-	params.Verified = isService || c.Identity.GetIdentity().MFAVerified != ""
-	return params
+	state.MFAVerified = isService || c.Identity.GetIdentity().MFAVerified != ""
+	return state
 }
 
 // Authorize authorizes user based on identity supplied via context
@@ -199,6 +215,13 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	// Enforce required private key policy if set.
 	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Device Trust: authorize device extensions.
+	if !a.disableDeviceAuthorization {
+		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return authContext, nil
@@ -273,6 +296,12 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// Adjust expiry based on locally mapped roles.
 	ttl := time.Until(u.Identity.Expires)
 	ttl = checker.AdjustSessionTTL(ttl)
+	var previousIdentityExpires time.Time
+	if u.Identity.MFAVerified != "" {
+		prevIdentityTTL := time.Until(u.Identity.PreviousIdentityExpires)
+		prevIdentityTTL = checker.AdjustSessionTTL(prevIdentityTTL)
+		previousIdentityExpires = time.Now().Add(prevIdentityTTL)
+	}
 
 	kubeUsers, kubeGroups, err := checker.CheckKubeGroupsAndUsers(ttl, false)
 	// IsNotFound means that the user has no k8s users or groups, which is fine
@@ -290,14 +319,15 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// This prevents downstream users from accidentally using the unmapped
 	// identity information and confusing who's accessing a resource.
 	identity := tlsca.Identity{
-		Username:         user.GetName(),
-		Groups:           user.GetRoles(),
-		Traits:           accessInfo.Traits,
-		Principals:       principals,
-		KubernetesGroups: kubeGroups,
-		KubernetesUsers:  kubeUsers,
-		TeleportCluster:  a.clusterName,
-		Expires:          time.Now().Add(ttl),
+		Username:                user.GetName(),
+		Groups:                  user.GetRoles(),
+		Traits:                  accessInfo.Traits,
+		Principals:              principals,
+		KubernetesGroups:        kubeGroups,
+		KubernetesUsers:         kubeUsers,
+		TeleportCluster:         a.clusterName,
+		Expires:                 time.Now().Add(ttl),
+		PreviousIdentityExpires: previousIdentityExpires,
 
 		// These fields are for routing and restrictions, safe to re-use from
 		// unmapped identity.
@@ -334,7 +364,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roleSet, err := services.RoleSetFromSpec(
 		string(types.RoleRemoteProxy),
-		types.RoleSpecV5{
+		types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:       []string{types.Wildcard},
 				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -359,6 +389,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
+					types.NewRule(types.KindDatabaseService, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -395,14 +426,14 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}, nil
 }
 
-func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV5 {
+func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV6 {
 	base := roleSpecForProxy(clusterName)
 	base.Allow.Rules = append(base.Allow.Rules, types.NewRule(types.KindHostCert, services.RW()))
 	return base
 }
 
-func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
-	return types.RoleSpecV5{
+func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
+	return types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Namespaces:       []string{types.Wildcard},
 			ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -450,6 +481,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				types.NewRule(types.KindDatabaseService, services.RO()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -491,7 +523,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAuth:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -500,11 +532,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProvisionToken:
-		return services.RoleFromSpec(role.String(), types.RoleSpecV5{})
+		return services.RoleFromSpec(role.String(), types.RoleSpecV6{})
 	case types.RoleNode:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -536,7 +568,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleApp:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -567,7 +599,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDatabase:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:     []string{types.Wildcard},
 					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -587,9 +619,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
+						types.NewRule(types.KindDatabaseService, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 					},
 				},
 			})
@@ -609,7 +643,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleSignup:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -621,7 +655,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAdmin:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.MaxDuration(),
 				},
@@ -636,13 +670,14 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
+						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 					},
 				},
 			})
 	case types.RoleNop:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{},
 					Rules:      []types.Rule{},
@@ -651,7 +686,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleKube:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -670,13 +705,14 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
+						types.NewRule(types.KindSemaphore, services.RW()),
 					},
 				},
 			})
 	case types.RoleWindowsDesktop:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -700,7 +736,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDiscovery:
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
+			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -710,9 +746,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
+						types.NewRule(types.KindDatabase, services.RW()),
 					},
 					// wildcard any cluster available.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	}
@@ -795,6 +833,11 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 type contextKey string
 
 const (
+	// contextUserCertificate is the X.509 certificate used by the ContextUser to
+	// establish the mTLS connection.
+	// Holds a *x509.Certificate.
+	contextUserCertificate contextKey = "teleport-user-cert"
+
 	// ContextUser is a user set in the context of the request
 	ContextUser contextKey = "teleport-user"
 	// ContextClientAddr is a client address set in the context of the request
@@ -853,14 +896,13 @@ func ClientImpersonator(ctx context.Context) string {
 // did not come from an HTTP request, metadata for teleport.UserSystem is
 // returned.
 func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
+	identityGetter, ok := ctx.Value(ContextUser).(IdentityGetter)
 	if !ok {
 		return apievents.UserMetadata{
 			User: teleport.UserSystem,
 		}
 	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := identityGetter.GetIdentity().GetUserMetadata()
 	if meta.User == "" {
 		meta.User = teleport.UserSystem
 	}
@@ -871,14 +913,7 @@ func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
 // by a remote client making a call, with the specified username overriding the one
 // from the remote client.
 func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
-		return apievents.UserMetadata{
-			User: user,
-		}
-	}
-	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta := ClientUserMetadata(ctx)
 	meta.User = user
 	return meta
 }

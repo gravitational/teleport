@@ -69,9 +69,7 @@ const minUploadBytes = events.MaxProtoMessageSizeBytes * 2
 
 // NewStreamer creates a streamer sending uploads to disk
 func NewStreamer(dir string) (*events.ProtoStreamer, error) {
-	handler, err := NewHandler(Config{
-		Directory: dir,
-	})
+	handler, err := NewHandler(Config{Directory: dir})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

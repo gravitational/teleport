@@ -274,7 +274,7 @@ func New(c ServerConfig) (*Server, error) {
 	// Build a pipe connection to hook up the client and the server. we save both
 	// here and will pass them along to the context when we create it so they
 	// can be closed by the context.
-	serverConn, clientConn := utils.DualPipeNetConn(c.SrcAddr, c.DstAddr)
+	serverConn, clientConn, err := utils.DualPipeNetConn(c.SrcAddr, c.DstAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -425,7 +425,7 @@ func (s *Server) UseTunnel() bool {
 // GetBPF returns the BPF service used by enhanced session recording. BPF
 // for the forwarding server makes no sense (it has to run on the actual
 // node), so return a NOP implementation.
-func (s Server) GetBPF() bpf.BPF {
+func (s *Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }
 
@@ -435,7 +435,7 @@ func (s *Server) GetCreateHostUser() bool {
 	return false
 }
 
-// GetHostUser returns the HostUsers instance being used to manage
+// GetHostUsers returns the HostUsers instance being used to manage
 // host user provisioning, unimplemented for the forwarder server.
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return nil
@@ -444,7 +444,7 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 // GetRestrictedSessionManager returns a NOP manager since for a
 // forwarding server it makes no sense (it has to run on the actual
 // node).
-func (s Server) GetRestrictedSessionManager() restricted.Manager {
+func (s *Server) GetRestrictedSessionManager() restricted.Manager {
 	return &restricted.NOP{}
 }
 
@@ -603,7 +603,7 @@ func (s *Server) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// newRemoteSession will create and return a *ssh.Client and *ssh.Session
+// newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
@@ -611,7 +611,13 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	if s.userAgent == nil {
 		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
-	authMethod := ssh.PublicKeysCallback(s.userAgent.Signers)
+
+	signers, err := s.userAgent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
 	clientConfig := &ssh.ClientConfig{
 		User: systemLogin,
@@ -636,8 +642,27 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return client, nil
+}
+
+// signersWithSHA1Fallback returns the signers provided by signersCb and appends
+// the same signers with forced SHA-1 signature to the end. This behavior is
+// required as older OpenSSH version <= 7.6 don't support SHA-2 signed certificates.
+func signersWithSHA1Fallback(signers []ssh.Signer) func() ([]ssh.Signer, error) {
+	return func() ([]ssh.Signer, error) {
+		var sha1Signers []ssh.Signer
+		for _, signer := range signers {
+			if s, ok := signer.(ssh.AlgorithmSigner); ok && s.PublicKey().Type() == ssh.CertAlgoRSAv01 {
+				// If certificate signer supports SignWithAlgorithm(rand io.Reader, data []byte, algorithm string)
+				// method from the ssh.AlgorithmSigner interface add SHA-1 signer.
+				sha1Signers = append(sha1Signers, &sshutils.LegacySHA1Signer{Signer: s})
+			}
+		}
+
+		// Merge original signers with the SHA-1 we created.
+		// Order is important here as we want SHA2 signers to be used first.
+		return append(signers, sha1Signers...), nil
+	}
 }
 
 func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
@@ -759,6 +784,16 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
+		// On forward server in direct-tcpip" channels from SessionJoinPrincipal
+		//  should be rejected, otherwise it's possible to use the
+		// "-teleport-internal-join" user to bypass RBAC.
+		if s.identityContext.Login == teleport.SSHSessionJoinPrincipal {
+			s.log.Error("Connection rejected, direct-tcpip with SessionJoinPrincipal in forward node must be blocked")
+			if err := nch.Reject(ssh.Prohibited, fmt.Sprintf("attempted %v channel open in join-only mode", channelType)); err != nil {
+				s.log.Warnf("Failed to reject channel: %v", err)
+			}
+			return
+		}
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			s.log.Errorf("Failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
@@ -1233,7 +1268,7 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 }
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
-	s.log.Error(err)
+	s.log.WithError(err).Errorf("failure handling SSH %q request", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
 	// stderr so the output does not mix with the rest of the output if the remote
 	// side is not doing additional formatting for extended data.

@@ -17,18 +17,14 @@ limitations under the License.
 package tdp
 
 import (
-	"bufio"
 	"bytes"
-	"encoding/binary"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -78,67 +74,9 @@ func TestBadDecode(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRejectsLongUsername(t *testing.T) {
-	const lengthTooLong = 4096
-
-	b := &bytes.Buffer{}
-	b.WriteByte(byte(TypeClientUsername))
-	binary.Write(b, binary.BigEndian, uint32(lengthTooLong))
-	b.Write(bytes.Repeat([]byte("a"), lengthTooLong))
-
-	_, err := Decode(b.Bytes())
-	require.True(t, trace.IsBadParameter(err))
-}
-
-var encodedFrame []byte
-
-func BenchmarkEncodePNG(b *testing.B) {
-	b.StopTimer()
-	frames := loadBitmaps(b)
-	b.StartTimer()
-	var err error
-	for i := 0; i < b.N; i++ {
-		fi := i % len(frames)
-		encodedFrame, err = frames[fi].Encode()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func loadBitmaps(b *testing.B) []PNG2Frame {
-	b.Helper()
-
-	f, err := os.Open(filepath.Join("testdata", "png_frames.json"))
-	require.NoError(b, err)
-	defer f.Close()
-
-	enc := PNGEncoder()
-
-	var result []PNG2Frame
-	type record struct {
-		Top, Left, Right, Bottom int
-		Pix                      []byte
-	}
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		var r record
-		require.NoError(b, json.Unmarshal(s.Bytes(), &r))
-
-		img := image.NewNRGBA(image.Rectangle{
-			Min: image.Pt(r.Left, r.Top),
-			Max: image.Pt(r.Right, r.Bottom),
-		})
-		copy(img.Pix, r.Pix)
-		result = append(result, NewPNG(img, enc))
-	}
-	require.NoError(b, s.Err())
-	return result
-}
-
 func TestMFA(t *testing.T) {
 	var buff bytes.Buffer
-	c := NewConn(&buff)
+	c := NewConn(&fakeConn{Buffer: &buff})
 
 	mfaWant := &MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
@@ -199,4 +137,161 @@ func TestMFA(t *testing.T) {
 	respGot, err := c.ReadMessage()
 	require.NoError(t, err)
 	require.Equal(t, respWant, respGot)
+}
+
+func TestIsNonFatalErr(t *testing.T) {
+	// Test that nil returns false
+	require.False(t, IsNonFatalErr(nil))
+	// Test that any other error returns false
+	require.False(t, IsNonFatalErr(errors.New("some other error")))
+}
+
+// TDP messages must have size limits in order to prevent attacks that
+// soak up system memory. At the same time, exceeding such size limits shouldn't
+// kill a user's running session, or else that becomes a DoS attack vector.
+// To this end, TestSizeLimitsAreNonFatal checks that exceeding size limits causes
+// only non-fatal errors.
+//
+// An exception to this rule is a long ClientUsername, which can't be used in a DoS
+// attack (because there's no way for the RDP server to send a message that's translated
+// into a too-long ClientUsername). The best UX in this case is to send a fatal error
+// letting them know that the username was too long.
+func TestSizeLimitsAreNonFatal(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		msg   Message
+		fatal bool
+	}{
+		{
+			name: "rejects long ClientUsername as fatal",
+			msg: ClientUsername{
+				Username: string(bytes.Repeat([]byte("a"), windowsMaxUsernameLength+1)),
+			},
+			fatal: true,
+		},
+		{
+			name:  "rejects long Clipboard",
+			msg:   ClipboardData(bytes.Repeat([]byte("a"), maxClipboardDataLength+1)),
+			fatal: false,
+		},
+		{
+			name: "rejects long Error",
+			msg: Error{
+				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long Notification",
+			msg: Notification{
+				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryAnnounce",
+			msg: SharedDirectoryAnnounce{
+				Name: string(bytes.Repeat([]byte("a"), windowsMaxUsernameLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryInfoRequest",
+			msg: SharedDirectoryInfoRequest{
+				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryCreateRequest",
+			msg: SharedDirectoryCreateRequest{
+				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryDeleteRequest",
+			msg: SharedDirectoryDeleteRequest{
+				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryListRequest",
+			msg: SharedDirectoryListRequest{
+				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryReadRequest",
+			msg: SharedDirectoryReadRequest{
+				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryReadResponse",
+			msg: SharedDirectoryReadResponse{
+				ReadDataLength: tdpMaxFileReadWriteLength + 1,
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryWriteRequest",
+			msg: SharedDirectoryWriteRequest{
+				WriteDataLength: tdpMaxFileReadWriteLength + 1,
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryMoveRequest",
+			msg: SharedDirectoryMoveRequest{
+				OriginalPath: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryInfoResponse",
+			msg: SharedDirectoryInfoResponse{
+				CompletionID: 0,
+				ErrCode:      0,
+				Fso: FileSystemObject{
+					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				},
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryCreateResponse",
+			msg: SharedDirectoryCreateResponse{
+				CompletionID: 0,
+				ErrCode:      0,
+				Fso: FileSystemObject{
+					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				},
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryListResponse",
+			msg: SharedDirectoryListResponse{
+				CompletionID: 0,
+				ErrCode:      0,
+				FsoList: []FileSystemObject{{
+					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				}},
+			},
+			fatal: false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			bytes, err := test.msg.Encode()
+			require.NoError(t, err)
+			_, err = Decode(bytes)
+			require.True(t, trace.IsLimitExceeded(err))
+			require.Equal(t, test.fatal, IsFatalErr(err))
+			require.Equal(t, !test.fatal, IsNonFatalErr(err))
+		})
+	}
 }

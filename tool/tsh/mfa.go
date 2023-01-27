@@ -669,7 +669,7 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	}
 	log.Debugf("Opened QR code via %q", imageViewer)
 	return func() {
-		if err := os.Remove(imageFile.Name()); err != nil {
+		if err := utils.RemoveSecure(imageFile.Name()); err != nil {
 			log.WithError(err).Debugf("Failed to clean up temporary QR code file %q", imageFile.Name())
 		}
 		if err := cmd.Process.Kill(); err != nil {

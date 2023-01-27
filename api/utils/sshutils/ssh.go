@@ -23,6 +23,8 @@ import (
 	"crypto/subtle"
 	"io"
 	"net"
+	"regexp"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -67,21 +69,65 @@ func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 }
 
 // ParseKnownHosts parses provided known_hosts entries into ssh.PublicKey list.
-func ParseKnownHosts(knownHosts [][]byte) ([]ssh.PublicKey, error) {
+// If one or more hostnames are provided, only keys that have at least one match
+// will be returned.
+func ParseKnownHosts(knownHosts [][]byte, matchHostnames ...string) ([]ssh.PublicKey, error) {
 	var keys []ssh.PublicKey
 	for _, line := range knownHosts {
 		for {
-			_, _, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
+			_, hosts, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
 			if err == io.EOF {
 				break
 			} else if err != nil {
 				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
 			}
-			keys = append(keys, publicKey)
+
+			if len(matchHostnames) == 0 || HostNameMatch(matchHostnames, hosts) {
+				keys = append(keys, publicKey)
+			}
+
 			line = bytes
 		}
 	}
 	return keys, nil
+}
+
+// HostNameMatch returns whether at least one of the given hosts matches one
+// of the given matchHosts. If a host has a wildcard prefix "*.", it will be
+// used to match. Ex: "*.example.com" will  match "proxy.example.com".
+func HostNameMatch(matchHosts []string, hosts []string) bool {
+	for _, matchHost := range matchHosts {
+		for _, host := range hosts {
+			if host == matchHost || matchesWildcard(matchHost, host) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchesWildcard ensures the given `hostname` matches the given `pattern`.
+// The `pattern` should be prefixed with `*.` which will match exactly one domain
+// segment, meaning `*.example.com` will match `foo.example.com` but not
+// `foo.bar.example.com`.
+func matchesWildcard(hostname, pattern string) bool {
+	pattern = strings.TrimSpace(pattern)
+
+	// Don't allow non-wildcard or empty patterns.
+	if !strings.HasPrefix(pattern, "*.") || len(pattern) < 3 {
+		return false
+	}
+	matchHost := pattern[2:]
+
+	// Trim any trailing "." in case of an absolute domain.
+	hostname = strings.TrimSuffix(hostname, ".")
+
+	_, hostnameRoot, found := strings.Cut(hostname, ".")
+	if !found {
+		return false
+	}
+
+	return hostnameRoot == matchHost
 }
 
 // ParseAuthorizedKeys parses provided authorized_keys entries into ssh.PublicKey list.
@@ -205,4 +251,13 @@ func KeysEqual(ak, bk ssh.PublicKey) bool {
 	a := ak.Marshal()
 	b := bk.Marshal()
 	return subtle.ConstantTimeCompare(a, b) == 1
+}
+
+// OpenSSH cert types look like "<key-type>-cert-v<version>@openssh.com".
+var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.com$`)
+
+// IsSSHCertType checks if the given string looks like an ssh cert type.
+// e.g. ssh-rsa-cert-v01@openssh.com.
+func IsSSHCertType(val string) bool {
+	return sshCertTypeRegex.MatchString(val)
 }

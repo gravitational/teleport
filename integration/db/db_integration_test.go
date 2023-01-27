@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -563,6 +565,13 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("root role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
+			assert.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
@@ -578,6 +587,13 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("leaf role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
+			assert.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
@@ -849,7 +865,10 @@ func (p *DatabasePack) testAgentState(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusOK, resp.StatusCode)
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 		})
 	}
 }

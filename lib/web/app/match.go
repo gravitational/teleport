@@ -22,10 +22,10 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -134,7 +134,7 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, p
 	if len(fqdnParts) != 2 {
 		return nil, "", trace.BadParameter("invalid FQDN: %v", fqdn)
 	}
-	if !apiutils.SliceContainsStr(proxyDNSNames, fqdnParts[1]) {
+	if !slices.Contains(proxyDNSNames, fqdnParts[1]) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
 	appName := fqdnParts[0]

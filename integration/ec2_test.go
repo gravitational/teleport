@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
@@ -66,6 +67,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
@@ -87,6 +89,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
@@ -119,6 +122,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	config.Clock = clock
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
@@ -365,13 +369,13 @@ func TestEC2Labels(t *testing.T) {
 
 	helpers.EnableKubernetesService(t, tconf)
 
-	imClient := &mockIMDSClient{
+	tconf.InstanceMetadataClient = &mockIMDSClient{
 		tags: map[string]string{
 			"Name": "my-instance",
 		},
 	}
 
-	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
+	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })
@@ -398,7 +402,7 @@ func TestEC2Labels(t *testing.T) {
 		// dedupClusters is required because GetKubernetesServers returns duplicated servers
 		// because it lists the KindKubeServer and KindKubeService.
 		// We must remove this once legacy heartbeat is removed.
-		// DELETE IN 12.0.0
+		// DELETE IN 13.0.0
 		var dedupClusters []types.KubeServer
 		dedup := map[string]struct{}{}
 		for _, kube := range kubes {
@@ -466,13 +470,13 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
-	imClient := &mockIMDSClient{
+	tconf.InstanceMetadataClient = &mockIMDSClient{
 		tags: map[string]string{
 			types.CloudHostnameTag: teleportHostname,
 		},
 	}
 
-	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
+	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })

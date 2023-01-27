@@ -49,7 +49,7 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 }
 
 // newDirectDialer makes a new dialer to connect directly to an Auth server.
-func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) *net.Dialer {
 	return &net.Dialer{
 		Timeout:   dialTimeout,
 		KeepAlive: keepAlivePeriod,
@@ -116,7 +116,12 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-		conn, err = dialer.DialContext(ctx, network, addr)
+		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
+			conn, err = DialProxyWithDialer(ctx, proxyURL, addr, dialer)
+		} else {
+			conn, err = dialer.DialContext(ctx, network, addr)
+		}
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

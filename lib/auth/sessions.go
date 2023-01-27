@@ -77,13 +77,17 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New().String(),
-		appPublicAddr:  req.PublicAddr,
-		appClusterName: req.ClusterName,
-		awsRoleARN:     req.AWSRoleARN,
+		appSessionID:      uuid.New().String(),
+		appPublicAddr:     req.PublicAddr,
+		appClusterName:    req.ClusterName,
+		awsRoleARN:        req.AWSRoleARN,
+		azureIdentity:     req.AzureIdentity,
+		gcpServiceAccount: req.GCPServiceAccount,
 		// Since we are generating the keys and certs directly on the Auth Server,
 		// we need to skip attestation.
 		skipAttestation: true,
+		// Pass along device extensions from the user.
+		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,12 +98,17 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	bearer, err := utils.CryptoRandomHex(SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
-		User:    req.Username,
-		Priv:    privateKey,
-		Pub:     certs.SSH,
-		TLSCert: certs.TLS,
-		Expires: s.clock.Now().Add(ttl),
+		User:        req.Username,
+		Priv:        privateKey,
+		Pub:         certs.SSH,
+		TLSCert:     certs.TLS,
+		Expires:     s.clock.Now().Add(ttl),
+		BearerToken: bearer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -216,7 +225,7 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	signer, err := s.GetKeyStore().GetJWTSigner(ca)
+	signer, err := s.GetKeyStore().GetJWTSigner(ctx, ca)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -238,7 +247,7 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
+func (s *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	session, err := s.NewWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -252,7 +261,7 @@ func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRe
 	return session, nil
 }
 
-func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.

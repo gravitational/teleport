@@ -22,7 +22,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -239,7 +239,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			return nil, convertGCSError(err)
 		}
 		// Skip entries that are not parts
-		if filepath.Ext(attrs.Name) != partExt {
+		if path.Ext(attrs.Name) != partExt {
 			continue
 		}
 		part, err := partFromPath(attrs.Name)
@@ -267,7 +267,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			return nil, convertGCSError(err)
 		}
 		// Skip entries that are not uploads
-		if filepath.Ext(attrs.Name) != uploadExt {
+		if path.Ext(attrs.Name) != uploadExt {
 			continue
 		}
 		upload, err := uploadFromPath(attrs.Name)
@@ -316,17 +316,17 @@ const (
 
 // uploadsPrefix is "path/uploads"
 func (h *Handler) uploadsPrefix() string {
-	return strings.TrimPrefix(filepath.Join(h.Path, uploadsKey), slash)
+	return strings.TrimPrefix(path.Join(h.Path, uploadsKey), slash)
 }
 
 // uploadPrefix is "path/uploads/<upload-id>"
 func (h *Handler) uploadPrefix(upload events.StreamUpload) string {
-	return filepath.Join(h.uploadsPrefix(), upload.ID)
+	return path.Join(h.uploadsPrefix(), upload.ID)
 }
 
 // uploadPath is "path/uploads/<upload-id>/<session-id>.upload"
 func (h *Handler) uploadPath(upload events.StreamUpload) string {
-	return filepath.Join(h.uploadPrefix(upload), string(upload.SessionID)) + uploadExt
+	return path.Join(h.uploadPrefix(upload), string(upload.SessionID)) + uploadExt
 }
 
 // partsPrefix is "path/parts/<upload-id>"
@@ -334,12 +334,12 @@ func (h *Handler) uploadPath(upload events.StreamUpload) string {
 // iteration of uploads more efficient (that otherwise would have
 // scan and skip the parts that could be 5K parts per upload)
 func (h *Handler) partsPrefix(upload events.StreamUpload) string {
-	return strings.TrimPrefix(filepath.Join(h.Path, partsKey, upload.ID), slash)
+	return strings.TrimPrefix(path.Join(h.Path, partsKey, upload.ID), slash)
 }
 
 // partPath is "path/parts/<upload-id>/<part-number>.part"
 func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string {
-	return filepath.Join(h.partsPrefix(upload), fmt.Sprintf("%v%v", partNumber, partExt))
+	return path.Join(h.partsPrefix(upload), fmt.Sprintf("%v%v", partNumber, partExt))
 }
 
 // mergesPrefix is "path/merges/<upload-id>"
@@ -347,12 +347,12 @@ func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string 
 // iteration of uploads more efficient (that otherwise would have
 // scan and skip the parts that could be 5K parts per upload)
 func (h *Handler) mergesPrefix(upload events.StreamUpload) string {
-	return strings.TrimPrefix(filepath.Join(h.Path, mergesKey, upload.ID), slash)
+	return strings.TrimPrefix(path.Join(h.Path, mergesKey, upload.ID), slash)
 }
 
 // mergePath is "path/merges/<upload-id>/<merge-id>.merge"
 func (h *Handler) mergePath(upload events.StreamUpload, mergeID string) string {
-	return filepath.Join(h.mergesPrefix(upload), fmt.Sprintf("%v%v", mergeID, mergeExt))
+	return path.Join(h.mergesPrefix(upload), fmt.Sprintf("%v%v", mergeID, mergeExt))
 }
 
 // hashOfNames creates an object with hash of names
@@ -365,9 +365,9 @@ func hashOfNames(objects []*storage.ObjectHandle) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func uploadFromPath(path string) (*events.StreamUpload, error) {
-	dir, file := filepath.Split(path)
-	if filepath.Ext(file) != uploadExt {
+func uploadFromPath(uploadPath string) (*events.StreamUpload, error) {
+	dir, file := path.Split(uploadPath)
+	if path.Ext(file) != uploadExt {
 		return nil, trace.BadParameter("expected extension %v, got %v", uploadExt, file)
 	}
 	sessionID := session.ID(strings.TrimSuffix(file, uploadExt))
@@ -385,9 +385,9 @@ func uploadFromPath(path string) (*events.StreamUpload, error) {
 	}, nil
 }
 
-func partFromPath(path string) (*events.StreamPart, error) {
-	base := filepath.Base(path)
-	if filepath.Ext(base) != partExt {
+func partFromPath(uploadPath string) (*events.StreamPart, error) {
+	base := path.Base(uploadPath)
+	if path.Ext(base) != partExt {
 		return nil, trace.BadParameter("expected extension %v, got %v", partExt, base)
 	}
 	numberString := strings.TrimSuffix(base, partExt)

@@ -51,7 +51,8 @@ func NewFixture(t *testing.T) *Fixture {
 	require.NoError(t, err)
 
 	// Find AllocatePortsNum free listening ports to use.
-	fixture.Me, _ = user.Current()
+	fixture.Me, err = user.Current()
+	require.NoError(t, err)
 
 	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
 	stdin, err := os.Open("/dev/tty")

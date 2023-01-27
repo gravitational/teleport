@@ -110,11 +110,11 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 }
 
 func sidecarRole(roleName string) (types.Role, error) {
-	return types.NewRole(roleName, types.RoleSpecV5{
+	return types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
-					Resources: []string{"role", "user"},
+					Resources: []string{"role", "user", "auth_connector"},
 					Verbs:     []string{"*"},
 				},
 			},

@@ -394,6 +394,13 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
+  // RedshiftServerless contains AWS Redshift Serverless specific metadata.
+  RedshiftServerless RedshiftServerless = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "redshift_serverless,omitempty"
+  ];
+  // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+  string ExternalID = 10 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
 
 // SecretStore contains secret store configurations.
@@ -456,6 +463,16 @@ message MemoryDB {
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
+// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+message RedshiftServerless {
+  // WorkgroupName is the workgroup name.
+  string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
+  // EndpointName is the VPC endpoint name.
+  string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
+  // WorkgroupID is the workgroup ID.
+  string WorkgroupID = 3 [(gogoproto.jsontag) = "workgroup_id,omitempty"];
+}
+
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
 message GCPCloudSQL {
   // ProjectID is the GCP project ID the Cloud SQL instance resides in.
@@ -475,6 +492,8 @@ message Azure {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redis,omitempty"
   ];
+  // IsFlexiServer is true if the database is an Azure Flexible server.
+  bool IsFlexiServer = 4 [(gogoproto.jsontag) = "is_flexi_server,omitempty"];
 }
 
 // AzureRedis contains Azure Cache for Redis specific database metadata.
@@ -486,13 +505,17 @@ message AzureRedis {
 // AD contains Active Directory specific database configuration.
 message AD {
   // KeytabFile is the path to the Kerberos keytab file.
-  string KeytabFile = 1 [(gogoproto.jsontag) = "keytab_file"];
+  string KeytabFile = 1 [(gogoproto.jsontag) = "keytab_file,omitempty"];
   // Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
   string Krb5File = 2 [(gogoproto.jsontag) = "krb5_file,omitempty"];
   // Domain is the Active Directory domain the database resides in.
   string Domain = 3 [(gogoproto.jsontag) = "domain"];
   // SPN is the service principal name for the database.
   string SPN = 4 [(gogoproto.jsontag) = "spn"];
+  // LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+  string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
+  // KDCHostName is the host name for a KDC for x509 Authentication.
+  string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by
@@ -523,6 +546,111 @@ message MySQLOptions {
   // ServerVersion is the server version reported by DB proxy if the runtime information is
   // not available.
   string ServerVersion = 1 [(gogoproto.jsontag) = "server_version,omitempty"];
+}
+
+// InstanceV1 represents the state of a running teleport instance independent
+// of the specific services that instance exposes.
+message InstanceV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  InstanceSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+message InstanceSpecV1 {
+  // Version is the version of teleport this instance most recently advertised.
+  string Version = 1 [(gogoproto.jsontag) = "version,omitempty"];
+
+  // Services is the list of active services this instance most recently advertised.
+  repeated string Services = 2 [
+    (gogoproto.casttype) = "SystemRole",
+    (gogoproto.jsontag) = "services,omitemtpy"
+  ];
+
+  // Hostname is the hostname this instance most recently advertised.
+  string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
+
+  // AuthID is the ID of the auth server that most recently observed this instance.
+  string AuthID = 4 [(gogoproto.jsontag) = "auth_id,omitempty"];
+
+  // LastSeen is the last time an auth server reported observing this instance.
+  google.protobuf.Timestamp LastSeen = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "last_seen,omitempty"
+  ];
+
+  // ControlLog is the log of recent important instance control events related to this instance. See comments
+  // on the InstanceControlLogEntry type for details.
+  repeated InstanceControlLogEntry ControlLog = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "control_log,omitempty"
+  ];
+}
+
+// InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
+// an instance is protected by CompareAndSwap semantics, allowing entries to function as a means of
+// synchronization as well as recordkeeping. For example, an auth server intending to trigger an upgrade
+// for a given instance can check its control log for 'upgrade-attempt' entries. If no such entry exists,
+// it can attempt to write an 'upgrade-attempt' entry of its own. If that entry successfully writes without
+// hiting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
+// attempts while that entry persists.
+//
+// NOTE: Due to resource size and backend throughput limitations, care should be taken to minimize the
+// use and size of instance control log entries.
+//
+message InstanceControlLogEntry {
+  // Type represents the type of control log entry this is (e.g. 'upgrade-attempt').
+  string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+
+  // ID is a random identifier used to assist in uniquely identifying entries. This value may
+  // be unique, or it may be used to associate a collection of related entries (e.g. an upgrade
+  // attempt entry may use the same ID as an associated upgrade failure entry if appropriate).
+  uint64 ID = 2 [(gogoproto.jsontag) = "id,omitempty"];
+
+  // Time is the time at which the event represented by this entry occurred (used in determining
+  // ordering and expiry).
+  google.protobuf.Timestamp Time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "time,omitempty"
+  ];
+
+  // TTL is an optional custom time to live for this control log entry. Some control log entries
+  // (e.g. an upgrade failure) may require longer than normal TTLs in order to ensure visibility.
+  // If a log entry's TTL results in it having an intended expiry further in the future than the
+  // expiry of the enclosing Instance resource, the instance resource's expiry will be bumped
+  // to accommodate preservation of the log. Because of this fact, custom entry TTLs should be
+  // used sparingly, as excess usage could result in unexpected backend growth for high churn
+  // clusters.
+  int64 TTL = 4 [
+    (gogoproto.jsontag) = "ttl,omitempty",
+    (gogoproto.casttype) = "time.Duration"
+  ];
+
+  // Labels is an arbitrary collection of key-value pairs. The expected labels are determined by the
+  // type of the entry. Use of labels is preferable to adding new fields in some cases in order to
+  // preserve fields across auth downgrades (this is mostly relevant for the version-control system).
+  map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
+}
+
+// InstanceFilter matches instance resources.
+message InstanceFilter {
+  // ServerID matches exactly one instance by server ID if specified.
+  string ServerID = 1;
+
+  // Version matches instance version if specified.
+  string Version = 2;
+
+  // Services matches the instance services if specified. Note that this field matches all instances which
+  // expose *at least* one of the listed services. This is in contrast to service matching in version
+  // directives which match instances that expose a *at most* the listed services.
+  repeated string Services = 3 [(gogoproto.casttype) = "SystemRole"];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
@@ -689,6 +817,8 @@ message AppSpecV3 {
   Rewrite Rewrite = 5 [(gogoproto.jsontag) = "rewrite,omitempty"];
   // AWS contains additional options for AWS applications.
   AppAWS AWS = 6 [(gogoproto.jsontag) = "aws,omitempty"];
+  // Cloud identifies the cloud instance the app represents.
+  string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
 }
 
 // App is a specific application that a server proxies.
@@ -762,6 +892,8 @@ enum PrivateKeyType {
   RAW = 0;
   // PKCS11 is a private key backed by a PKCS11 device such as HSM.
   PKCS11 = 1;
+  // GCP_KMS is a private key backed by GCP KMS.
+  GCP_KMS = 2;
 }
 
 // SSHKeyPair is an SSH CA key pair.
@@ -981,7 +1113,8 @@ message ProvisionTokenSpecV2 {
   // BotName is the name of the bot this token grants access to, if any
   string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
   // SuggestedLabels is a set of labels that resources should set when using this token to enroll
-  // themselves in the cluster
+  // themselves in the cluster.
+  // Currently, only node-join scripts create a configuration according to the suggestion.
   wrappers.LabelValues SuggestedLabels = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "suggested_labels,omitempty",
@@ -991,8 +1124,21 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
   // CircleCI allows the configuration of options specific to the "circleci" join method.
   ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
+  // SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources.
+  // When an agent uses this token, the agent should monitor resources that match those labels.
+  // For databases, this means adding the labels to `db_service.resources.labels`.
+  // Currently, only node-join scripts create a configuration according to the suggestion.
+  wrappers.LabelValues SuggestedAgentMatcherLabels = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // Kubernetes allows the configuration of options specific to the "kubernetes" join method.
+  ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
 }
 
+// ProvisionTokenSpecV2Github contains the GitHub-specific part of the
+// ProvisionTokenSpecV2
 message ProvisionTokenSpecV2GitHub {
   // Rule includes fields mapped from `lib/githubactions.IDToken`
   // Not all fields should be included, only ones that we expect to be useful
@@ -1022,8 +1168,19 @@ message ProvisionTokenSpecV2GitHub {
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // EnterpriseServerHost allows joining from runners associated with a
+  // GitHub Enterprise Server instance. When unconfigured, tokens will be
+  // validated against github.com, but when configured to the host of a GHES
+  // instance, then the tokens will be validated against host.
+  //
+  // This value should be the hostname of the GHES instance, and should not
+  // include the scheme or a path. The instance must be accessible over HTTPS
+  // at this hostname and the certificate must be trusted by the Auth Server.
+  string EnterpriseServerHost = 2 [(gogoproto.jsontag) = "enterprise_server_host,omitempty"];
 }
 
+// ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
+// ProvisionTokenSpecV2
 message ProvisionTokenSpecV2CircleCI {
   message Rule {
     string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
@@ -1033,6 +1190,21 @@ message ProvisionTokenSpecV2CircleCI {
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
   string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
+}
+
+// ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2Kubernetes {
+  // Rule is a set of properties the Kubernetes-issued token might have to be
+  // allowed to use this ProvisionToken
+  message Rule {
+    // ServiceAccount is the namespaced name of the Kubernetes service account.
+    // Its format is "namespace:service-account".
+    string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1414,6 +1586,10 @@ message AuthPreferenceSpecV2 {
 
   // RequireMFAType is the type of MFA requirement enforced for this cluster.
   RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+
+  // DeviceTrust holds settings related to trusted device verification.
+  // Requires Teleport Enterprise.
+  DeviceTrust DeviceTrust = 13 [(gogoproto.jsontag) = "device_trust,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -1464,6 +1640,25 @@ message Webauthn {
   // By default no devices are denied.
   repeated string AttestationDeniedCAs = 3 [(gogoproto.jsontag) = "attestation_denied_cas,omitempty"];
   reserved 4; // bool Disabled
+}
+
+// DeviceTrust holds settings related to trusted device verification.
+// Requires Teleport Enterprise.
+message DeviceTrust {
+  // Mode of verification for trusted devices.
+  //
+  // The following modes are supported:
+  //
+  // - "off": disables both device authentication and authorization.
+  // - "optional": allows both device authentication and authorization, but
+  //   doesn't enforce the presence of device extensions for sensitive
+  //   endpoints.
+  // - "required": enforces the presence of device extensions for sensitive
+  //   endpoints.
+  //
+  // Mode is always "off" for OSS.
+  // Defaults to "optional" for Enterprise.
+  string Mode = 1 [(gogoproto.jsontag) = "mode,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -1801,6 +1996,8 @@ message AccessCapabilities {
   repeated string RequestableRoles = 1 [(gogoproto.jsontag) = "requestable_roles,omitempty"];
   // SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
   repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  // ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
+  repeated string ApplicableRolesForResources = 3 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -1814,6 +2011,12 @@ message AccessCapabilitiesRequest {
   // SuggestedReviewers is a flag indicating that we would like to view the list of all
   // reviewers which are suggested by the user's roles.
   bool SuggestedReviewers = 3 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  // ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+  // the necessary roles for.
+  repeated ResourceID ResourceIDs = 4 [
+    (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -1824,6 +2027,12 @@ message ResourceID {
   string Kind = 2 [(gogoproto.jsontag) = "kind"];
   // Name is the name of the specific resource.
   string Name = 3 [(gogoproto.jsontag) = "name"];
+  // SubResourceName is the resource belonging to resource identified by "Name"
+  // that the user is allowed to access to.
+  // When granting access to a subresource, access to other resources is limited.
+  // Currently it just supports resources of Kind=pod and the format is the following
+  // "<kube_namespace>/<kube_pod>".
+  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -1893,8 +2102,8 @@ message PluginDataUpdateParams {
   map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
 }
 
-// RoleV5 represents role resource specification
-message RoleV5 {
+// RoleV6 represents role resource specification
+message RoleV6 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
 
@@ -1910,14 +2119,14 @@ message RoleV5 {
     (gogoproto.jsontag) = "metadata"
   ];
   // Spec is a role specification
-  RoleSpecV5 Spec = 5 [
+  RoleSpecV6 Spec = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
 }
 
-// RoleSpecV5 is role specification for RoleV5.
-message RoleSpecV5 {
+// RoleSpecV6 is role specification for RoleV6.
+message RoleSpecV6 {
   // Options is for OpenSSH options like agent forwarding.
   RoleOptions Options = 1 [
     (gogoproto.nullable) = false,
@@ -2072,6 +2281,12 @@ message RoleOptions {
 
   // RequireMFAType is the type of MFA requirement enforced for this user.
   RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+
+  // DeviceTrustMode is the device authorization mode used for the resources
+  // associated with the role.
+  // See DeviceTrust.Mode.
+  // Reserved for future use, not yet used by Teleport.
+  string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
 }
 
 message RecordSession {
@@ -2221,6 +2436,31 @@ message RoleConditions {
   repeated string HostGroups = 21 [(gogoproto.jsontag) = "host_groups,omitempty"];
   // HostSudoers is a list of entries to include in a users sudoer file
   repeated string HostSudoers = 22 [(gogoproto.jsontag) = "host_sudoers,omitempty"];
+
+  // AzureIdentities is a list of Azure identities this role is allowed to assume.
+  repeated string AzureIdentities = 23 [(gogoproto.jsontag) = "azure_identities,omitempty"];
+
+  // KubernetesResources is the Kubernetes Resources this Role grants access to.
+  repeated KubernetesResource KubernetesResources = 24 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
+  ];
+
+  // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
+  repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+}
+
+// KubernetesResource is the Kubernetes resource identifier.
+message KubernetesResource {
+  // Kind specifies the Kubernetes Resource type.
+  // At the moment only "pod" is supported.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // Namespace is the resource namespace.
+  // It supports wildcards.
+  string Namespace = 2 [(gogoproto.jsontag) = "namespace,omitempty"];
+  // Name is the resource name.
+  // It supports wildcards.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -2977,6 +3217,11 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "aws,omitempty"
   ];
+  // GCP holds the required GCP information for Teleport to access the cluster.
+  KubeGCP GCP = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "gcp,omitempty"
+  ];
 }
 
 // KubeAzure contains the Azure information about the cluster.
@@ -2998,6 +3243,16 @@ message KubeAWS {
   // AccountID is a AWS Account ID.
   string AccountID = 2 [(gogoproto.jsontag) = "account_id,omitempty"];
   // Name is a AWS EKS cluster name.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// KubeGCP contains the GCP information about the cluster.
+message KubeGCP {
+  // Location is a GKE cluster location.
+  string Location = 1 [(gogoproto.jsontag) = "location,omitempty"];
+  // ProjectID is the GKE Project ID.
+  string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
+  // Name is a GCP GKE cluster name.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
@@ -3494,6 +3749,7 @@ message GithubConnectorSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "teams_to_roles"
   ];
+  string EndpointURL = 7 [(gogoproto.jsontag) = "endpoint_url"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -3955,6 +4211,9 @@ message WindowsDesktopSpecV3 {
   string Domain = 2 [(gogoproto.jsontag) = "domain"];
   // HostID is the ID of the host the Windows Desktop Service proxying the desktop.
   string HostID = 3 [(gogoproto.jsontag) = "host_id"];
+  // NonAD marks this desktop as a standalone host that is
+  // not joined to an Active Directory domain.
+  bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
 }
 
 // RegisterUsingTokenRequest is a request to register with the auth server using
@@ -4308,6 +4567,14 @@ message ConnectionDiagnosticTrace {
     RBAC_KUBE = 6;
     // KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
     KUBE_PRINCIPAL = 7;
+    // RBAC_DATABASE is for RBAC checks to database access (db_labels).
+    RBAC_DATABASE = 8;
+    // RBAC_DATABASE_LOGIN is for RBAC checks to database login (db_name and db_user).
+    RBAC_DATABASE_LOGIN = 9;
+    // DATABASE_DB_USER is used when checking whether the Database has the requested Database User.
+    DATABASE_DB_USER = 10;
+    // DATABASE_DB_NAME is used when checking whether the Database has the requested Database Name.
+    DATABASE_DB_NAME = 11;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.
@@ -4321,6 +4588,34 @@ message ConnectionDiagnosticTrace {
   string Details = 3 [(gogoproto.jsontag) = "details"];
   // Error contains the low level error message in case of a failure.
   string Error = 4 [(gogoproto.jsontag) = "error"];
+}
+
+// DatabaseServiceV1 is the representation of a DatabaseService (agent) process.
+message DatabaseServiceV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  DatabaseServiceSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DatabaseServiceSpecV1 is the DatabaseService Spec.
+message DatabaseServiceSpecV1 {
+  // ResourceMatchers is the configured match for Database resources.
+  repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+}
+
+// DatabaseResourceMatcher is a set of properties that is used to match on resources.
+message DatabaseResourceMatcher {
+  wrappers.LabelValues Labels = 1 [
+    (gogoproto.jsontag) = "labels",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
@@ -4366,6 +4661,70 @@ message GetClusterAlertsRequest {
   string AlertID = 2;
   // Labels is an optional label selector.
   map<string, string> Labels = 3;
+  // WithSuperseded includes superseded alerts in the output of the request.
+  bool WithSuperseded = 4;
+  // WithAcknowledged includes acknowledged alerts in the output of the request.
+  bool WithAcknowledged = 5;
+}
+
+// AlertAcknowledgement marks a cluster alert as having been "acknowledged".
+// This causes the alert to no longer be displayed in 'tsh login', UI banners,
+// etc. Acknowledgements must have an expiry and a message describing why the
+// alert can be considered acknowledged.
+message AlertAcknowledgement {
+  // AlertID is the ID of the alert being acknowledged.
+  string AlertID = 1 [(gogoproto.jsontag) = "alert_id,omitempty"];
+  // Reason describes the reason why the alert can be considered
+  // acknowledged (e.g. 'alice will fix next week').
+  string Reason = 2 [(gogoproto.jsontag) = "reason,omitempty"];
+  // Severity is the maximum severity for which the acknowledgement will
+  // perform suppression (e.g. an ack with severity MEDIUM will suppress
+  // alerts with severity MEDIUM or lower, but not alerts with severity HIGH).
+  AlertSeverity Severity = 3 [(gogoproto.jsontag) = "severity,omitempty"];
+  // Expires is the time after which the acknowledgement expires.
+  google.protobuf.Timestamp Expires = 4 [
+    (gogoproto.jsontag) = "expires,omitempty",
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+// Release correspond to a Teleport Enterprise releases
+message Release {
+  // NotesMD is the notes of the release in markdown
+  string NotesMD = 1 [(gogoproto.jsontag) = "notes_md"];
+  // Product is the release product, teleport or teleport-ent
+  string Product = 2 [(gogoproto.jsontag) = "product"];
+  // ReleaseID is the ID of the product
+  string ReleaseID = 3 [(gogoproto.jsontag) = "release_id"];
+  // Status is the status of the release
+  string Status = 4 [(gogoproto.jsontag) = "status"];
+  // Version is the version of the release
+  string Version = 5 [(gogoproto.jsontag) = "version"];
+  // Assets is a list of assets related to the release
+  repeated Asset Assets = 6 [(gogoproto.jsontag) = "assets"];
+}
+
+// Asset represents a release asset
+message Asset {
+  // Arch is the architecture of the asset
+  string Arch = 1 [(gogoproto.jsontag) = "arch"];
+  // Description is the description of the asset
+  string Description = 2 [(gogoproto.jsontag) = "description"];
+  // Name is the name of the asset
+  string Name = 3 [(gogoproto.jsontag) = "name"];
+  // OS is which OS the asset is built for
+  string OS = 4 [(gogoproto.jsontag) = "os"];
+  // SHA256 is the sha256 of the asset
+  string SHA256 = 5 [(gogoproto.jsontag) = "sha256"];
+  // Size is the size of the release in bytes
+  int64 AssetSize = 6 [(gogoproto.jsontag) = "asset_size"];
+  // DisplaySize is the human-readable size of the asset
+  string DisplaySize = 7 [(gogoproto.jsontag) = "display_size"];
+  // ReleaseIDs is a list of releases that have the asset included
+  repeated string ReleaseIDs = 8 [(gogoproto.jsontag) = "release_ids"];
+  // PublicURL is the public URL used to download the asset
+  string PublicURL = 9 [(gogoproto.jsontag) = "public_url"];
 }
 
 // RequireMFAType is a type of MFA requirement enforced outside of login,

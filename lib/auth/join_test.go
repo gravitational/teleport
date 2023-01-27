@@ -27,11 +27,14 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -193,7 +196,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			errorAssertion: trace.IsBadParameter,
 		},
 		{
-			desc: "check additional pricipals",
+			desc: "check additional principals",
 			req: &types.RegisterUsingTokenRequest{
 				Token:                dynamicToken,
 				HostID:               "localhost",
@@ -253,6 +256,18 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			if tc.certsAssertion != nil {
 				tc.certsAssertion(certs)
 			}
+
+			// Check audit log event is emitted
+			evt := p.mockEmitter.LastEvent()
+			require.NotNil(t, evt)
+			joinEvent, ok := evt.(*apievents.InstanceJoin)
+			require.True(t, ok)
+			require.Equal(t, events.InstanceJoinEvent, joinEvent.Type)
+			require.Equal(t, events.InstanceJoinCode, joinEvent.Code)
+			require.Equal(t, tc.req.NodeName, joinEvent.NodeName)
+			require.Equal(t, tc.req.HostID, joinEvent.HostID)
+			require.EqualValues(t, tc.req.Role, joinEvent.Role)
+			require.EqualValues(t, types.JoinMethodToken, joinEvent.Method)
 		})
 	}
 }
@@ -271,15 +286,16 @@ func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole,
 // renewable certificates for a non-interactive user.
 func TestRegister_Bot(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
 
 	botName := "test"
 	botResourceName := BotResourceName(botName)
 
-	_, err := createBotRole(context.Background(), srv.Auth(), botName, botResourceName, []string{})
+	_, err := createBotRole(ctx, srv.Auth(), botName, botResourceName, []string{})
 	require.NoError(t, err)
-	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName, wrappers.Traits{})
+	_, err = createBotUser(ctx, srv.Auth(), botName, botResourceName, wrappers.Traits{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
@@ -290,13 +306,13 @@ func TestRegister_Bot(t *testing.T) {
 	wrongUser := newBotToken(t, "wrong-user", "llama", types.RoleBot, later)
 	invalidToken := newBotToken(t, "this-token-does-not-exist", botName, types.RoleBot, later)
 
-	err = srv.Auth().UpsertToken(context.Background(), goodToken)
+	err = srv.Auth().UpsertToken(ctx, goodToken)
 	require.NoError(t, err)
-	err = srv.Auth().UpsertToken(context.Background(), expiredToken)
+	err = srv.Auth().UpsertToken(ctx, expiredToken)
 	require.NoError(t, err)
-	err = srv.Auth().UpsertToken(context.Background(), wrongKind)
+	err = srv.Auth().UpsertToken(ctx, wrongKind)
 	require.NoError(t, err)
-	err = srv.Auth().UpsertToken(context.Background(), wrongUser)
+	err = srv.Auth().UpsertToken(ctx, wrongUser)
 	require.NoError(t, err)
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
@@ -338,6 +354,7 @@ func TestRegister_Bot(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
+			start := srv.Clock().Now()
 			certs, err := Register(RegisterParams{
 				Token: test.token.GetName(),
 				ID: IdentityID{
@@ -354,7 +371,7 @@ func TestRegister_Bot(t *testing.T) {
 				require.NotEmpty(t, certs.TLS)
 
 				// ensure token was removed
-				_, err = srv.Auth().GetToken(context.Background(), test.token.GetName())
+				_, err = srv.Auth().GetToken(ctx, test.token.GetName())
 				require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 				// ensure cert is renewable
@@ -363,6 +380,24 @@ func TestRegister_Bot(t *testing.T) {
 				id, err := tlsca.FromSubject(x509.Subject, later)
 				require.NoError(t, err)
 				require.True(t, id.Renewable)
+
+				// Check audit event
+				evts, _, err := srv.Auth().SearchEvents(
+					start,
+					srv.Clock().Now(),
+					apidefaults.Namespace,
+					[]string{events.BotJoinEvent},
+					1,
+					types.EventOrderDescending,
+					"",
+				)
+				require.NoError(t, err)
+				require.Len(t, evts, 1)
+				evt, ok := evts[0].(*apievents.BotJoin)
+				require.True(t, ok)
+				require.Equal(t, events.BotJoinEvent, evt.Type)
+				require.Equal(t, events.BotJoinCode, evt.Code)
+				require.EqualValues(t, types.JoinMethodToken, evt.Method)
 			}
 		})
 	}

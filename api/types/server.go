@@ -74,10 +74,10 @@ type Server interface {
 	SetApps([]*App)
 	// GetKubeClusters returns the kubernetes clusters directly handled by this
 	// server.
-	// DELETE IN 12.0.0
+	// DELETE IN 13.0.0
 	GetKubernetesClusters() []*KubernetesCluster
 	// SetKubeClusters sets the kubernetes clusters handled by this server.
-	// DELETE IN 12.0.0
+	// DELETE IN 13.0.0
 	SetKubernetesClusters([]*KubernetesCluster)
 	// GetPeerAddr returns the peer address of the server.
 	GetPeerAddr() string

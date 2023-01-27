@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/gravitational/trace"
 )
@@ -27,12 +28,16 @@ import (
 type armCompute interface {
 	// Get retrieves information about an Azure Virtual Machine.
 	Get(ctx context.Context, resourceGroupName string, vmName string, options *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error)
+	// NewListPagers lists Azure Virtual Machines.
+	NewListPager(resourceGroup string, opts *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse]
 }
 
 // VirtualMachinesClient is a client for Azure Virtual Machines.
 type VirtualMachinesClient interface {
 	// Get returns the Virtual Machine for the given resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
+	// ListVirtualMachines gets all of the virtual machines in the given resource group.
+	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
 }
 
 // VirtualMachine represents an Azure Virtual Machine.
@@ -89,7 +94,10 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 
 	var identities []Identity
 	if resp.Identity != nil {
-		identities = append(identities, Identity{ResourceID: *resp.Identity.PrincipalID})
+		if systemAssigned := StringVal(resp.Identity.PrincipalID); systemAssigned != "" {
+			identities = append(identities, Identity{ResourceID: systemAssigned})
+		}
+
 		for identityID := range resp.Identity.UserAssignedIdentities {
 			identities = append(identities, Identity{ResourceID: identityID})
 		}
@@ -100,4 +108,20 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 		Name:       *resp.Name,
 		Identities: identities,
 	}, nil
+}
+
+// ListVirtualMachines lists all virtual machines in a given resource group using the Azure Virtual Machines API.
+func (c *vmClient) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error) {
+	pagerOpts := &armcompute.VirtualMachinesClientListOptions{}
+	pager := c.api.NewListPager(resourceGroup, pagerOpts)
+	var virtualMachines []*armcompute.VirtualMachine
+	for pager.More() {
+		res, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+		virtualMachines = append(virtualMachines, res.Value...)
+	}
+
+	return virtualMachines, nil
 }

@@ -19,26 +19,26 @@ package services
 import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	utils "github.com/gravitational/teleport/api/utils"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
-	role := &types.RoleV5{
+	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V5,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Edit cluster configuration",
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -70,8 +70,13 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
+					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
+					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+					types.NewRule(types.KindDatabaseService, RO()),
+					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindLoginRule, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -83,15 +88,15 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
-	role := &types.RoleV5{
+	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V5,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Access cluster resources",
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -109,6 +114,13 @@ func NewPresetAccessRole() types.Role {
 				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -116,6 +128,7 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.VerbRead, types.VerbList},
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -126,6 +139,8 @@ func NewPresetAccessRole() types.Role {
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
+	role.SetAzureIdentities(types.Allow, []string{teleport.TraitInternalAzureIdentities})
+	role.SetGCPServiceAccounts(types.Allow, []string{teleport.TraitInternalGCPServiceAccounts})
 	return role
 }
 
@@ -133,15 +148,15 @@ func NewPresetAccessRole() types.Role {
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() types.Role {
-	role := &types.RoleV5{
+	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V5,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Review cluster events and replay sessions",
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -173,6 +188,9 @@ func defaultAllowRules() map[string][]types.Rule {
 		},
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
+			types.NewRule(types.KindDatabase, RW()),
+			types.NewRule(types.KindDatabaseService, RO()),
+			types.NewRule(types.KindLoginRule, RW()),
 		},
 	}
 }
@@ -204,7 +222,7 @@ func AddDefaultAllowRules(role types.Role) types.Role {
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
 	for _, rule := range rules {
 		for _, ruleResource := range rule.Resources {
-			if utils.SliceContainsStr(resources, ruleResource) {
+			if slices.Contains(resources, ruleResource) {
 				return true
 			}
 		}

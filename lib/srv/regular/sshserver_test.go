@@ -59,7 +59,9 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -68,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 // teleportTestUser is additional user used for tests
@@ -211,6 +214,18 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
+	lockWatcher := newLockWatcher(ctx, t, nodeClient)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	nodeDir := t.TempDir()
 	serverOptions := []ServerOption{
 		SetUUID(nodeID),
@@ -222,7 +237,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Millisecond),
+					Period:  types.NewDuration(time.Second),
 					Command: []string{"expr", "1", "+", "3"},
 				},
 			}, nil,
@@ -230,13 +245,15 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(clock),
-		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
+		SetLockWatcher(lockWatcher),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
+		SetSessionController(sessionController),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
 
 	sshSrv, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
 		[]ssh.Signer{signer},
@@ -247,7 +264,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		nodeClient,
 		serverOptions...)
 	require.NoError(t, err)
-	require.NoError(t, auth.CreateUploaderDir(nodeDir))
 	require.NoError(t, sshSrv.Start())
 	t.Cleanup(func() {
 		require.NoError(t, sshSrv.Close())
@@ -521,7 +537,7 @@ func TestInactivityTimeout(t *testing.T) {
 func TestLockInForce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// If all goes well, the client will be closed by the time cleanup happens,
 	// so change the assertion on closing the client to expect it to fail.
@@ -571,16 +587,30 @@ func TestLockInForce(t *testing.T) {
 		// an error on this second attempt.
 		require.Error(t, newClient.Close())
 	})
-	_, err = newClient.NewSession(context.Background())
+	_, err = newClient.NewSession(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), lockInForceMsg)
+
+	// As long as the lock is in force, global requests are rejected.
+	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// The client is expected to be closed by the lock monitor therefore expect
+		// an error on this second attempt.
+		require.Error(t, newClient2.Close())
+	})
+	ok, _, err := newClient2.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+	require.False(t, ok)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), lockInForceMsg)
 
 	// Once the lock is lifted, new sessions should go through without error.
 	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
-	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	newClient3, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, newClient2.Close()) })
-	_, err = newClient2.NewSession(context.Background())
+
+	t.Cleanup(func() { require.NoError(t, newClient3.Close()) })
+	_, err = newClient3.NewSession(ctx)
 	require.NoError(t, err)
 }
 
@@ -589,7 +619,7 @@ func TestLockInForce(t *testing.T) {
 // forwarding is built upon.
 func TestDirectTCPIP(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// Startup a test server that will reply with "hello, world\n"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -621,11 +651,28 @@ func TestDirectTCPIP(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, []byte("hello, world\n"), body)
+
+	t.Run("SessionJoinPrincipal cannot use direct-tcpip", func(t *testing.T) {
+		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
+		// connect using "direct-tcpip".
+		ctx := context.Background()
+		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
+		httpClientUsingSessionJoin := http.Client{
+			Transport: &http.Transport{
+				Dial: func(network string, addr string) (net.Conn, error) {
+					return cliUsingSessionJoin.DialContext(ctx, "tcp", u.Host)
+				},
+			},
+		}
+		//nolint:bodyclose // We expect an error here, no need to close.
+		_, err := httpClientUsingSessionJoin.Get(ts.URL)
+		require.ErrorContains(t, err, "ssh: rejected: administratively prohibited (attempted direct-tcpip channel open in join-only mode")
+	})
 }
 
 func TestAdvertiseAddr(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// No advertiseAddr was set in fixture, should default to srvAddress.
 	require.Equal(t, f.ssh.srv.Addr(), f.ssh.srv.AdvertiseAddr())
@@ -684,13 +731,13 @@ func TestAgentForwardPermission(t *testing.T) {
 	require.NotContains(t, string(output), "SSH_AUTH_SOCK")
 }
 
-// TestMaxSesssions makes sure that MaxSessions RBAC rules prevent
+// TestMaxSessions makes sure that MaxSessions RBAC rules prevent
 // too many concurrent sessions.
 func TestMaxSessions(t *testing.T) {
 	t.Parallel()
 
 	const maxSessions int64 = 2
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(f.user)
@@ -726,7 +773,7 @@ func TestMaxSessions(t *testing.T) {
 // command and send the command to then launch through a pipe.
 func TestExecLongCommand(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	// Get the path to where the "echo" command is on disk.
@@ -1035,7 +1082,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	require.NoError(t, err)
 
 	// Allow non-root user to write to the temp file
-	err = tmpFile.Chmod(fs.FileMode(0777))
+	err = tmpFile.Chmod(fs.FileMode(0o777))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.Remove(tmpFile.Name())
@@ -1084,7 +1131,7 @@ func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
 
 func TestAllowedUsers(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
@@ -1115,7 +1162,7 @@ func TestAllowedUsers(t *testing.T) {
 
 func TestAllowedLabels(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	tests := []struct {
 		desc       string
@@ -1173,9 +1220,9 @@ func TestAllowedLabels(t *testing.T) {
 // certificates. The main check is the certificate algorithms.
 func TestKeyAlgorithms(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
-	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 
 	sshConfig := &ssh.ClientConfig{
@@ -1190,7 +1237,7 @@ func TestKeyAlgorithms(t *testing.T) {
 
 func TestInvalidSessionID(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	session, err := f.ssh.clt.NewSession(ctx)
@@ -1211,7 +1258,7 @@ func TestSessionHijack(t *testing.T) {
 		t.Skipf("user %v is not found, skipping test", teleportTestUser)
 	}
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// user 1 has access to the server
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
@@ -1383,7 +1430,27 @@ func TestProxyRoundRobin(t *testing.T) {
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         f.testSrv.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: proxyClient,
+		SiteGetter:          reverseTunnelServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   proxyClient,
+		AccessPoint:  proxyClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      proxyClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	proxy, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -1392,7 +1459,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1401,6 +1468,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1468,7 +1536,7 @@ func TestProxyRoundRobin(t *testing.T) {
 func TestProxyDirectAccess(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
@@ -1503,7 +1571,27 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         f.testSrv.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: proxyClient,
+		SiteGetter:          reverseTunnelServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	proxy, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -1512,7 +1600,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1521,6 +1609,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1547,7 +1636,7 @@ func TestPTY(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -1565,7 +1654,7 @@ func TestEnv(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -1577,7 +1666,8 @@ func TestEnv(t *testing.T) {
 // TestNoAuth tries to log in with no auth methods and should be rejected
 func TestNoAuth(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
+
 	_, err := tracessh.Dial(context.Background(), "tcp", f.ssh.srv.Addr(), &ssh.ClientConfig{})
 	require.Error(t, err)
 }
@@ -1585,7 +1675,7 @@ func TestNoAuth(t *testing.T) {
 // TestPasswordAuth tries to log in with empty pass and should be rejected
 func TestPasswordAuth(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	config := &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.Password("")},
 		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
@@ -1614,14 +1704,6 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
-func getWaitForNumberOfConnsFunc(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
-	return func() bool {
-		connNumber, err := limiter.GetNumConnection(token)
-		require.NoError(t, err)
-		return connNumber == num
-	}
-}
-
 // fakeClock is a wrapper around clockwork.FakeClock that satisfies the timetoools.TimeProvider interface.
 // We are wrapping this so we can use the same mocked clock across the server and rate limiter.
 type fakeClock struct {
@@ -1644,12 +1726,20 @@ var _ timetools.TimeProvider = (*fakeClock)(nil)
 
 func TestLimiter(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	fClock := &fakeClock{
 		clock: f.clock,
 	}
+
+	getConns := func(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
+		return func() bool {
+			connNumber, err := limiter.GetNumConnection(token)
+			return err == nil && connNumber == num
+		}
+	}
+
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
 			Clock:          fClock,
@@ -1671,8 +1761,22 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
+
+	lockWatcher := newLockWatcher(ctx, t, nodeClient)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	nodeStateDir := t.TempDir()
 	srv, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -1689,12 +1793,12 @@ func TestLimiter(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
-		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
+		SetLockWatcher(lockWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
 
-	require.NoError(t, auth.CreateUploaderDir(nodeStateDir))
 	defer srv.Close()
 
 	config := &ssh.ClientConfig{
@@ -1728,7 +1832,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	clt, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
@@ -1747,7 +1851,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	// requests rate should exceed now
@@ -1765,53 +1869,11 @@ func TestLimiter(t *testing.T) {
 // server and expecting a response in return.
 func TestServerAliveInterval(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
+
 	ok, _, err := f.ssh.clt.SendRequest(context.Background(), teleport.KeepAliveReqType, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
-}
-
-// TestGlobalRequestRecordingProxy simulates sending a global out-of-band
-// recording-proxy@teleport.com request.
-func TestGlobalRequestRecordingProxy(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	f := newFixture(t)
-
-	// set cluster config to record at the node
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
-	})
-	require.NoError(t, err)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
-
-	// send the request again, we have cluster config and when we parse the
-	// response, it should be false because recording is occurring at the node.
-	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
-	require.NoError(t, err)
-	require.True(t, ok)
-	response, err := strconv.ParseBool(string(responseBytes))
-	require.NoError(t, err)
-	require.False(t, response)
-
-	// set cluster config to record at the proxy
-	recConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtProxy,
-	})
-	require.NoError(t, err)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
-
-	// send request again, now that we have cluster config and it's set to record
-	// at the proxy, we should return true and when we parse the payload it should
-	// also be true
-	ok, responseBytes, err = f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
-	require.NoError(t, err)
-	require.True(t, ok)
-	response, err = strconv.ParseBool(string(responseBytes))
-	require.NoError(t, err)
-	require.True(t, response)
 }
 
 // TestGlobalRequestClusterDetails simulates sending a global out-of-band
@@ -2117,12 +2179,14 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that the proxy is in recording mode
-	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
+	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
-	response, err := strconv.ParseBool(string(responseBytes))
+
+	var details sshutils.ClusterDetails
+	require.NoError(t, ssh.Unmarshal(responseBytes, &details))
 	require.NoError(t, err)
-	require.True(t, response)
+	require.True(t, details.RecordingProxy)
 
 	// setup our fake X11 echo server.
 	x11Ctx, x11Cancel := context.WithCancel(ctx)
@@ -2233,7 +2297,27 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         f.testSrv.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: proxyClient,
+		SiteGetter:          reverseTunnelServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   proxyClient,
+		AccessPoint:  proxyClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      proxyClient,
+		Component:    teleport.ComponentProxy,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	proxy, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -2242,7 +2326,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -2251,6 +2335,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())

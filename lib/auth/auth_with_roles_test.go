@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -156,189 +155,14 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSAMLAuthRequest(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	_, err = CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAML},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAML, types.KindSAMLRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLRequest},
-					Verbs:     []string{types.VerbRead},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
-		Issuer:                   "test",
-		SSO:                      "test",
-		Cert:                     fixtures.TLSCACertPEM,
-		AssertionConsumerService: "test",
-		AttributesToRoles: []types.AttributeMapping{{
-			Name:  "foo",
-			Value: "bar",
-			Roles: []string{"baz"},
-		}},
-	})
-	require.NoError(t, err)
-
-	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
-	require.NoError(t, err)
-
-	reqNormal := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
-	reqTest := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
-		Issuer:                   "test",
-		Audience:                 "test",
-		ServiceProviderIssuer:    "test",
-		SSO:                      "test",
-		Cert:                     fixtures.TLSCACertPEM,
-		AssertionConsumerService: "test",
-		AttributesToRoles: []types.AttributeMapping{{
-			Name:  "foo",
-			Value: "bar",
-			Roles: []string{"baz"},
-		}},
-	}}
-
-	tests := []struct {
-		desc               string
-		roles              []string
-		request            types.SAMLAuthRequest
-		expectAccessDenied bool
-	}{
-		{
-			desc:               "empty role - no access",
-			roles:              []string{emptyRole.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "can create regular request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-		},
-		{
-			desc:               "cannot create sso test request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create normal request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create sso test request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "can create regular request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-		},
-		{
-			desc:               "can create sso test request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: false,
-		},
-	}
-
-	user, err := CreateUser(srv.Auth(), "dummy")
-	require.NoError(t, err)
-
-	userReader, err := CreateUser(srv.Auth(), "dummy-reader", readerRole)
-	require.NoError(t, err)
-
-	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
-	require.NoError(t, err)
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			user.SetRoles(tt.roles)
-			err = srv.Auth().UpsertUser(user)
-			require.NoError(t, err)
-
-			client, err := srv.NewClient(TestUser(user.GetName()))
-			require.NoError(t, err)
-
-			request, err := client.CreateSAMLAuthRequest(ctx, tt.request)
-			if tt.expectAccessDenied {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotEmpty(t, request.ID)
-			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
-
-			requestCopy, err := clientReader.GetSAMLAuthRequest(ctx, request.ID)
-			require.NoError(t, err)
-			require.Equal(t, request, requestCopy)
-		})
-	}
-}
-
 func TestInstaller(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	_, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = CreateRole(ctx, srv.Auth(), "test-read", types.RoleSpecV5{
+	_, err = CreateRole(ctx, srv.Auth(), "test-read", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -349,7 +173,7 @@ func TestInstaller(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = CreateRole(ctx, srv.Auth(), "test-update", types.RoleSpecV5{
+	_, err = CreateRole(ctx, srv.Auth(), "test-update", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -360,7 +184,7 @@ func TestInstaller(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = CreateRole(ctx, srv.Auth(), "test-delete", types.RoleSpecV5{
+	_, err = CreateRole(ctx, srv.Auth(), "test-delete", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -423,197 +247,14 @@ func TestInstaller(t *testing.T) {
 	}
 }
 
-func TestOIDCAuthRequest(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDCRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDC},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDC, types.KindOIDCRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDCRequest},
-					Verbs:     []string{types.VerbRead},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:    "https://gitlab.com",
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-		ClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "groups",
-				Value: "idp-admin",
-				Roles: []string{"access"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	err = srv.Auth().UpsertOIDCConnector(context.Background(), conn)
-	require.NoError(t, err)
-
-	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-	reqTest := types.OIDCAuthRequest{
-		ConnectorID: conn.GetName(),
-		Type:        constants.OIDC,
-		SSOTestFlow: true,
-		ConnectorSpec: &types.OIDCConnectorSpecV3{
-			IssuerURL:    "https://gitlab.com",
-			ClientID:     "example-client-id",
-			ClientSecret: "example-client-secret",
-			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
-			Display:      "sign in with example.com",
-			Scope:        []string{"foo", "bar"},
-			ClaimsToRoles: []types.ClaimMapping{
-				{
-					Claim: "groups",
-					Value: "idp-admin",
-					Roles: []string{"access"},
-				},
-			},
-		},
-	}
-
-	tests := []struct {
-		desc               string
-		roles              []string
-		request            types.OIDCAuthRequest
-		expectAccessDenied bool
-	}{
-		{
-			desc:               "empty role - no access",
-			roles:              []string{emptyRole.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "can create regular request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-		},
-		{
-			desc:               "cannot create sso test request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create normal request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create sso test request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "can create regular request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-		},
-		{
-			desc:               "can create sso test request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: false,
-		},
-	}
-
-	user, err := CreateUser(srv.Auth(), "dummy")
-	require.NoError(t, err)
-
-	userReader, err := CreateUser(srv.Auth(), "dummy-reader", readerRole)
-	require.NoError(t, err)
-
-	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
-	require.NoError(t, err)
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			user.SetRoles(tt.roles)
-			err = srv.Auth().UpsertUser(user)
-			require.NoError(t, err)
-
-			client, err := srv.NewClient(TestUser(user.GetName()))
-			require.NoError(t, err)
-
-			request, err := client.CreateOIDCAuthRequest(ctx, tt.request)
-			if tt.expectAccessDenied {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotEmpty(t, request.StateToken)
-			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
-
-			requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
-			require.NoError(t, err)
-			require.Equal(t, request, requestCopy)
-		})
-	}
-}
-
 func TestGithubAuthRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -625,7 +266,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -637,7 +278,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -649,7 +290,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -785,11 +426,11 @@ func TestSSODiagnosticInfo(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// empty role
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// privileged role
-	privRole, err := CreateRole(ctx, srv.Auth(), "priv-access", types.RoleSpecV5{
+	privRole, err := CreateRole(ctx, srv.Auth(), "priv-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -848,31 +489,31 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV5{
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"foo"},
 		},
 	})
 	require.NoError(t, err)
 
-	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV5{
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"bar"},
 		},
 	})
 	require.NoError(t, err)
 
-	loginsTraitsRole, err := CreateRole(ctx, srv.Auth(), "test-access-traits", types.RoleSpecV5{
+	loginsTraitsRole, err := CreateRole(ctx, srv.Auth(), "test-access-traits", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"{{internal.logins}}"},
 		},
 	})
 	require.NoError(t, err)
 
-	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Roles: []string{
@@ -885,7 +526,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	denyBarRole, err := CreateRole(ctx, srv.Auth(), "test-deny", types.RoleSpecV5{
+	denyBarRole, err := CreateRole(ctx, srv.Auth(), "test-deny", types.RoleSpecV6{
 		Deny: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Roles: []string{accessBarRole.GetName()},
@@ -894,13 +535,13 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dummyUserRole, err := types.NewRoleV3("dummy-user-role", types.RoleSpecV5{})
+	dummyUserRole, err := types.NewRole("dummy-user-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	dummyUser, err := CreateUser(srv.Auth(), "dummy-user", dummyUserRole)
 	require.NoError(t, err)
 
-	dummyUserImpersonatorRole, err := CreateRole(ctx, srv.Auth(), "dummy-user-impersonator", types.RoleSpecV5{
+	dummyUserImpersonatorRole, err := CreateRole(ctx, srv.Auth(), "dummy-user-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Users: []string{dummyUser.GetName()},
@@ -1111,21 +752,21 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV5{
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"foo"},
 		},
 	})
 	require.NoError(t, err)
 
-	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV5{
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"bar"},
 		},
 	})
 	require.NoError(t, err)
 
-	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
@@ -1516,6 +1157,43 @@ func TestGetAndList_Nodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+}
+
+// TestStreamSessionEventsRBAC ensures that session events can not be streamed
+// by users who lack the read permission on the session resource.
+func TestStreamSessionEventsRBAC(t *testing.T) {
+	t.Parallel()
+
+	role, err := types.NewRole("deny-sessions", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"*": []string{types.Wildcard},
+			},
+		},
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindSession, []string{types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	srv := newTestTLSServer(t)
+
+	user, err := CreateUser(srv.Auth(), "user", role)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	_, errC := clt.StreamSessionEvents(context.Background(), "foo", 0)
+	select {
+	case err := <-errC:
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+	case <-time.After(1 * time.Second):
+		require.FailNow(t, "expected access denied error but stream succeeded")
+	}
 }
 
 // TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
@@ -2465,7 +2143,7 @@ func TestKindClusterConfig(t *testing.T) {
 	})
 
 	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRoleV3("test-role", types.RoleSpecV5{
+		role, err := types.NewRole("test-role", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
@@ -2721,6 +2399,148 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	require.Empty(t, cmp.Diff(testResources[:0], resp.Resources))
 }
 
+func TestListDatabaseServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	numInitialResources := 5
+
+	// Create test Database Services.
+	for i := 0; i < numInitialResources; i++ {
+		name := uuid.NewString()
+		s, err := types.NewDatabaseServiceV1(types.Metadata{
+			Name: name,
+		}, types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
+				{
+					Labels: &types.Labels{
+						"env": []string{name},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseService(ctx, s)
+		require.NoError(t, err)
+	}
+
+	listServicesResp, err := srv.Auth().ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	databaseServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+
+	testResources := make([]types.ResourceWithLabels, len(databaseServices))
+	for i, server := range databaseServices {
+		testResources[i] = server
+	}
+
+	// Create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// User is not allowed to list DatabseServices
+	_, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Read operations")
+
+	// Change the user's role to allow them to list DatabaseServices
+	currentAllowRules := role.GetRules(types.Allow)
+	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RO())))
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources)
+
+	require.Empty(t, cmp.Diff(databaseServices, usersViewDBServices))
+
+	// User is not allowed to Upsert DatabaseServices
+	extraDatabaseService, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name: "extra",
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{
+					"env": []string{"extra"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Create/Update operations")
+
+	currentAllowRules = role.GetRules(types.Allow)
+	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RW())))
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources+1)
+
+	// User can also delete a single or multiple DatabaseServices because they have RW permissions now
+	err = clt.DeleteDatabaseService(ctx, extraDatabaseService.GetName())
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Len(t, usersViewDBServices, numInitialResources)
+
+	// After removing all resources, we should have 0 resources being returned.
+	err = clt.DeleteAllDatabaseServices(ctx)
+	require.NoError(t, err)
+
+	listServicesResp, err = clt.ListResources(ctx,
+		proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.DefaultChunkSize,
+		},
+	)
+	require.NoError(t, err)
+	usersViewDBServices, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+	require.NoError(t, err)
+	require.Empty(t, usersViewDBServices)
+}
+
 func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2900,7 +2720,6 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestGetAndList_WindowsDesktops(t *testing.T) {
@@ -3205,8 +3024,9 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	}
 
 	// Ensure the correct number of sessions.
-	sessions, err := srv.Auth().GetAppSessions(ctx)
+	sessions, nextKey, err := srv.Auth().ListAppSessions(ctx, 10, "", "")
 	require.NoError(t, err)
+	require.Empty(t, nextKey)
 	require.Len(t, sessions, 6)
 
 	// Try to delete other user app sessions.
@@ -3223,21 +3043,28 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if only bob's sessions are left.
-	sessions, err = srv.Auth().GetAppSessions(ctx)
+	sessions, nextKey, err = srv.Auth().ListAppSessions(ctx, 10, "", "bob")
 	require.NoError(t, err)
+	require.Empty(t, nextKey)
 	require.Len(t, sessions, 3)
 	for _, session := range sessions {
 		require.Equal(t, "bob", session.GetUser())
 	}
+
+	sessions, nextKey, err = srv.Auth().ListAppSessions(ctx, 10, "", "alice")
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+	require.Empty(t, nextKey)
 
 	// Delete bob sessions.
 	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
 	require.NoError(t, err)
 
 	// No sessions left.
-	sessions, err = srv.Auth().GetAppSessions(ctx)
+	sessions, nextKey, err = srv.Auth().ListAppSessions(ctx, 10, "", "")
 	require.NoError(t, err)
 	require.Len(t, sessions, 0)
+	require.Empty(t, nextKey)
 }
 
 func TestListResources_SortAndDeduplicate(t *testing.T) {
@@ -3440,7 +3267,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// creates roles that deny the given labels
 	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
-		role, err := types.NewRoleV3(name, types.RoleSpecV5{
+		role, err := types.NewRole(name, types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
 					"*": []string{types.Wildcard},
@@ -3731,7 +3558,7 @@ func TestGenerateHostCert(t *testing.T) {
 				})
 			}
 
-			role, err := CreateRole(ctx, srv.Auth(), test.desc, types.RoleSpecV5{
+			role, err := CreateRole(ctx, srv.Auth(), test.desc, types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: rules},
 				Deny:  types.RoleConditions{Rules: denyRules},
 			})
@@ -3743,7 +3570,7 @@ func TestGenerateHostCert(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			_, err = client.GenerateHostCert(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
 		})
 	}
@@ -3855,7 +3682,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{
+		role, err := types.NewRole("foo", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
@@ -3873,7 +3700,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{})
+		role, err := types.NewRole("foo", types.RoleSpecV6{})
 		require.NoError(t, err)
 
 		return getActiveSessionsTestCase{"with no access rule", tracker, role, false}
@@ -3884,7 +3711,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{
+		role, err := types.NewRole("foo", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
@@ -3903,7 +3730,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{
+		role, err := types.NewRole("foo", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
@@ -3940,6 +3767,116 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 			found, err := clt.GetActiveSessionTrackers(ctx)
 			require.NoError(t, err)
 			require.Equal(t, testCase.hasAccess, len(found) != 0)
+		})
+	}
+}
+
+func TestListReleasesPermissions(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	tt := []struct {
+		Name         string
+		Role         types.RoleSpecV6
+		ErrAssertion require.BoolAssertionFunc
+	}{
+		{
+			Name: "no permission error if user has allow rule to list downloads",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDownload},
+					Verbs:     []string{types.VerbList},
+				}}},
+			},
+			ErrAssertion: require.False,
+		},
+		{
+			Name: "permission error if user deny allow rule to list downloads",
+			Role: types.RoleSpecV6{
+				Deny: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDownload},
+					Verbs:     []string{types.VerbList},
+				}}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "permission error if user has no rules regarding downloads",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertion: require.True,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.ListReleases(ctx)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
+		})
+	}
+}
+
+func TestGetLicensePermissions(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	tt := []struct {
+		Name         string
+		Role         types.RoleSpecV6
+		ErrAssertion require.BoolAssertionFunc
+	}{
+		{
+			Name: "no permission error if user has allow rule to read license",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindLicense},
+					Verbs:     []string{types.VerbRead},
+				}}},
+			},
+			ErrAssertion: require.False,
+		},
+		{
+			Name: "permission error if user deny allow rule to read license",
+			Role: types.RoleSpecV6{
+				Deny: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindLicense},
+					Verbs:     []string{types.VerbRead},
+				}}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "permission error if user has no rules regarding license",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertion: require.True,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.GetLicense(ctx)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
 		})
 	}
 }

@@ -39,6 +39,8 @@ type BootstrapFlags struct {
 	ForceRDSProxyPermissions bool
 	// ForceRedshiftPermissions forces the presence of Redshift permissions.
 	ForceRedshiftPermissions bool
+	// ForceRedshiftServerlessPermissions forces the presence of Redshift Serverless permissions.
+	ForceRedshiftServerlessPermissions bool
 	// ForceElastiCachePermissions forces the presence of ElastiCache permissions.
 	ForceElastiCachePermissions bool
 	// ForceMemoryDBPermissions forces the presence of MemoryDB permissions.

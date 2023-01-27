@@ -1,7 +1,7 @@
 ---
 title: Server Access Getting Started Guide
 description: Getting started with Teleport Server Access.
-videoBanner: 6ynLlAUipNE
+videoBanner: 8aiVin0LvmE
 ---
 
 Server Access involves managing your resources, configuring new clusters, and issuing commands through a CLI or programmatically to an API.
@@ -37,24 +37,14 @@ This guide introduces some of these common scenarios and how to interact with Te
 ## Step 1/4. Install Teleport on your Linux host
 
 1. Your Linux host will be a private resource. Open port 22 so you can initially
-   access, configure, and provision your instance. 
-   
+   access, configure, and provision your instance.
+
    We'll configure and launch our instance, then demonstrate how to use the
    `tsh` tool and Teleport in SSH mode.
 
-2. <ScopedBlock scope={["oss", "enterprise"]}>
-
-   On the host where you will run your Teleport Node, follow the instructions for
-   your environment to install Teleport.
+2. On the host where you will run your Teleport Node, follow the instructions for your environment to install Teleport.
 
    (!docs/pages/includes/install-linux.mdx!)
-
-   </ScopedBlock>
-   <ScopedBlock scope={["cloud"]}>
-
-   (!docs/pages/includes/install-agent-cloud.mdx!)
-
-   </ScopedBlock>
 
    Next, we'll create a **join token** so you can start the Teleport Node and
    add it to your cluster.

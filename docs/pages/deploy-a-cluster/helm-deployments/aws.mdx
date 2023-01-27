@@ -116,22 +116,63 @@ Teleport will always look at the oldest version of a recording.
 
 The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport Proxy Service.
 
-We now need to configure TLS certificates for Teleport to secure its communications and allow external clients to connect.
+We now need to configure TLS certificates for Teleport to secure its
+communications and allow external clients to connect.
 
-There are two supported options when using AWS:
-- Use `cert-manager` to provision and automatically renew ACME certs (described in [Step 4a](#step-4a7-install-and-configure-cert-manager-to-handle-tls)).
-  - This approach is recommended if you require CLI access to web applications using client certificates via Teleport Application Access.
-- Use AWS Certificate Manager to handle TLS termination with AWS-managed certificates (described in [Step 4b](#step-4b7-configure-teleport-to-use-acm-to-handle-tls)).
-  - This will prevent Teleport Application Access from working via CLI using client certificates. Application Access will still work via a browser.
+### Determining an approach
 
-You must choose only one of these options.
+There are three supported options when using AWS. You must choose only one of
+these options:
 
+#### Using `cert-manager` 
 
-## Step 4a/7. Install and configure cert-manager to handle TLS
+You can use `cert-manager` to provision and automatically renew TLS credentials
+by completing ACME challenges via Let's Encrypt. We recommend this approach if
+you require CLI access to web applications using client certificates via
+Teleport Application Access.
 
-In this example, we are using multiple pods to create a High Availability Teleport cluster. As such, we will be using
-`cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
-Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
+#### Using AWS Certificate Manager
+
+You can use AWS Certificate Manager to handle TLS termination with AWS-managed
+certificates.
+
+You should be aware of the limitations for using AWS Certificate Manager to
+provision TLS credentials for Teleport:
+
+- This will prevent Teleport Application Access from working via CLI using
+  client certificates. Application Access will still work via a browser.
+- Command-line Application Access does not work with ACM. Using ACM will prevent
+  Teleport from facilitating Application Access via CLI (using client
+  certificates), as Teleport will not be handling its own TLS termination.
+- Using ACM through a AWS Load Balancer prevents the required traffic for
+  Postgres or MongoDB through Teleport's web port. If you choose to use the ACM
+  approach, we will show you how to configure a separate listener for Postgres
+  or MongoDB. 
+
+<Notice type="warning">
+
+If you would like the Teleport Application Service and Database Service to
+function as expected, you should use the `cert-manager` approach unless there is
+a specific reason to use ACM.
+
+</Notice>
+
+#### Using your own TLS credentials
+
+With this approach, you are responsible for determining how to obtain a TLS
+certificate and private key for your Teleport cluster, and for renewing your
+credentials periodically. Use this approach if you would like to use a trusted
+internal certificate authority instead of Let's Encrypt or AWS Certificate
+Manager.
+
+<Tabs>
+<TabItem label="cert-manager">
+
+In this example, we are using multiple pods to create a High Availability
+Teleport cluster. As such, we will be using `cert-manager` to centrally
+provision TLS certificates using Let's Encrypt. These certificates will be
+mounted into each Teleport pod, and automatically renewed and kept up to date by
+`cert-manager`.
 
 If you are planning to use `cert-manager`, you will need to add one IAM policy to your cluster to enable it
 to update Route53 records.
@@ -224,23 +265,21 @@ $ kubectl create namespace teleport
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
-## Step 4b/7. Configure Teleport to use ACM to handle TLS
+</TabItem>
+<TabItem label="AWS Certificate Manager">
+In this step, you will configure Teleport to use AWS Certificate Manager (ACM)
+to provision your Teleport instances with TLS credentials. 
 
-<Admonition type="warning" title="Warning">
-  Command-line Teleport Application Access does not work with ACM. Using ACM will prevent Teleport
-  from facilitating Application Access via CLI (using client certificates), as Teleport
-  will not be handling its own TLS termination.
+To use ACM to handle TLS, add annotations to the chart specifying the ACM
+certificate ARN to use and the port it should be served on.
 
-  If you need to use Teleport Application Access from the command line, you should use `cert-manager` instead (as described in
-  [Step 4a](#step-4a7-install-and-configure-cert-manager-to-handle-tls) above).
-</Admonition>
+Replace
+`arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece`
+with your actual ACM certificate ARN.
 
-To use ACM to handle TLS, add annotations to the chart specifying the ACM certificate ARN to use and the port it should be served on.
+Edit your `values.yaml` file to complete the `annotations.service` field as
+follows:
 
-Replace `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece` with your actual ACM certificate ARN.
-
-<Tabs>
-  <TabItem label="Using values.yaml">
   ```yaml
   annotations:
     service:
@@ -248,32 +287,44 @@ Replace `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c4
       service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
       service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
   ```
-  </TabItem>
 
-  <TabItem label="Using --set via CLI">
-
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. This gets harder and harder with
-    nested values containing dots like AWS annotations. We recommend using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-
-  ```code
-    --set "annotations.service.service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert=arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece" \
-    --set "annotations.service.service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports=\"443\"" \
-    --set "annotations.service.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol=ssl"
-  ```
-  </TabItem>
-</Tabs>
-
-<Admonition type="note" title="Internal load balancers">
-  To use an internal AWS network load balancer (as opposed to the default internet-facing NLB), you should add two annotations:
+To use an internal AWS network load balancer (as opposed to the default
+internet-facing NLB), you should add two annotations:
 
   ```yaml
     service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
     service.beta.kubernetes.io/aws-load-balancer-internal: "true"
   ```
-</Admonition>
 
+If you plan to use Postgres or MongoDB with Teleport, add the following options,
+depending on whether you are running PostgreSQL or MongoDB, to your values file:
+  
+  ```yaml
+  separatePostgresListener: true
+  separateMongoListener: true
+  ```
+
+</TabItem>
+<TabItem label="Your own TLS credentials">
+
+You can configure the `teleport-cluster` Helm chart to secure the Teleport Web
+UI using existing TLS credentials within a Kubernetes secret.
+
+Use the following command to create your secret:
+
+```code
+$ kubectl -n teleport create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
+```
+
+Edit your `values.yaml` file to refer to the name of your secret:
+
+```yaml
+  tls:
+    existingSecretName: my-tls-secret
+```
+
+</TabItem>
+</Tabs>
 
 ## Step 5/7. Set values to configure the cluster
 
@@ -549,6 +600,12 @@ If you want to remove the `cert-manager` installation later, you can use this co
 ```code
 $ helm --namespace cert-manager uninstall cert-manager
 ```
+
+## Troubleshooting
+
+### AWS quotas
+
+(!docs/pages/includes/aws-quotas.mdx!)
 
 ## Next steps
 

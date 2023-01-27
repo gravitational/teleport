@@ -19,11 +19,9 @@ package types
 import (
 	"fmt"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -32,7 +30,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
-// Database represents a database proxied by a database server.
+// Database represents a single database proxied by a database server.
 type Database interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
@@ -60,10 +58,14 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
+	// SetCA sets the database CA certificate in the Spec.TLS field.
+	SetCA(string)
 	// GetTLS returns the database TLS configuration.
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
+	// GetStatusCA gets the database CA certificate in the status field.
+	GetStatusCA() string
 	// GetMySQL returns the database options from spec.
 	GetMySQL() MySQLOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
@@ -85,12 +87,6 @@ type Database interface {
 	GetAD() AD
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
-	// GetIAMPolicy returns AWS IAM policy for the database.
-	GetIAMPolicy() (string, error)
-	// GetIAMAction returns AWS IAM action needed to connect to the database.
-	GetIAMAction() string
-	// GetIAMResources returns AWS IAM resources that provide access to the database.
-	GetIAMResources() []string
 	// GetSecretStore returns secret store configurations.
 	GetSecretStore() SecretStore
 	// GetManagedUsers returns a list of database users that are managed by Teleport.
@@ -267,6 +263,11 @@ func (d *DatabaseV3) GetCA() string {
 	return d.Status.CACert
 }
 
+// SetCA sets the database CA certificate in the Spec.TLS.CACert field.
+func (d *DatabaseV3) SetCA(caCert string) {
+	d.Spec.TLS.CACert = caCert
+}
+
 // GetTLS returns Database TLS configuration.
 func (d *DatabaseV3) GetTLS() DatabaseTLS {
 	return d.Spec.TLS
@@ -275,6 +276,11 @@ func (d *DatabaseV3) GetTLS() DatabaseTLS {
 // SetStatusCA sets the database CA certificate in the status field.
 func (d *DatabaseV3) SetStatusCA(ca string) {
 	d.Status.CACert = ca
+}
+
+// GetStatusCA gets the database CA certificate in the status field.
+func (d *DatabaseV3) GetStatusCA() string {
+	return d.Status.CACert
 }
 
 // GetMySQL returns the MySQL options from spec.
@@ -299,7 +305,7 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
-	return cmp.Equal(a, AWS{})
+	return protoEqual(&a, &AWS{})
 }
 
 // GetAWS returns the database AWS metadata.
@@ -322,7 +328,7 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 
 // IsEmpty returns true if Azure metadata is empty.
 func (a Azure) IsEmpty() bool {
-	return cmp.Equal(a, Azure{})
+	return protoEqual(&a, &Azure{})
 }
 
 // GetAzure returns Azure database server metadata.
@@ -383,6 +389,10 @@ func (d *DatabaseV3) IsAWSKeyspaces() bool {
 	return d.GetType() == DatabaseTypeAWSKeyspaces
 }
 
+func (d *DatabaseV3) IsDynamoDB() bool {
+	return d.GetType() == DatabaseTypeDynamoDB
+}
+
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
 	_, ok := d.getAWSType()
@@ -398,11 +408,19 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 // getAWSType returns the database type.
 func (d *DatabaseV3) getAWSType() (string, bool) {
 	aws := d.GetAWS()
-	if aws.AccountID != "" && d.Spec.Protocol == DatabaseTypeCassandra {
-		return DatabaseTypeAWSKeyspaces, true
+	switch d.Spec.Protocol {
+	case DatabaseTypeCassandra:
+		if aws.AccountID != "" {
+			return DatabaseTypeAWSKeyspaces, true
+		}
+	case DatabaseTypeDynamoDB:
+		return DatabaseTypeDynamoDB, true
 	}
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
+	}
+	if aws.RedshiftServerless.WorkgroupName != "" || aws.RedshiftServerless.EndpointName != "" {
+		return DatabaseTypeRedshiftServerless, true
 	}
 	if aws.ElastiCache.ReplicationGroupID != "" {
 		return DatabaseTypeElastiCache, true
@@ -413,7 +431,7 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	if aws.RDSProxy.Name != "" || aws.RDSProxy.CustomEndpointName != "" {
 		return DatabaseTypeRDSProxy, true
 	}
-	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ClusterID != "" {
+	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ResourceID != "" || aws.RDS.ClusterID != "" {
 		return DatabaseTypeRDS, true
 	}
 	return "", false
@@ -481,6 +499,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if d.Spec.Protocol == "" {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
+	if d.IsDynamoDB() {
+		// DynamoDB gets its own checking logic for its unusual config.
+		return trace.Wrap(d.handleDynamoDBConfig())
+	}
 	if d.Spec.URI == "" {
 		switch {
 		case d.IsAWSKeyspaces() && d.GetAWS().Region != "":
@@ -533,6 +555,24 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
+	case awsutils.IsRedshiftServerlessEndpoint(d.Spec.URI):
+		details, err := awsutils.ParseRedshiftServerlessEndpoint(d.Spec.URI)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to parse Redshift Serverless endpoint %v.", d.Spec.URI)
+			break
+		}
+		if d.Spec.AWS.RedshiftServerless.WorkgroupName == "" {
+			d.Spec.AWS.RedshiftServerless.WorkgroupName = details.WorkgroupName
+		}
+		if d.Spec.AWS.RedshiftServerless.EndpointName == "" {
+			d.Spec.AWS.RedshiftServerless.EndpointName = details.EndpointName
+		}
+		if d.Spec.AWS.AccountID == "" {
+			d.Spec.AWS.AccountID = details.AccountID
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = details.Region
+		}
 	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseElastiCacheEndpoint(d.Spec.URI)
 		if err != nil {
@@ -571,16 +611,21 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
-	case strings.Contains(d.Spec.URI, awsutils.AWSEndpointSuffix) || strings.Contains(d.Spec.URI, awsutils.AWSCNEndpointSuffix):
+	case awsutils.IsKeyspacesEndpoint(d.Spec.URI):
 		if d.Spec.AWS.AccountID == "" {
 			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 		}
 		if d.Spec.AWS.Region == "" {
-			region, err := awsutils.CassandraEndpointRegion(d.Spec.URI)
-			if err != nil {
-				return trace.Wrap(err)
+			switch {
+			case d.IsAWSKeyspaces():
+				region, err := awsutils.CassandraEndpointRegion(d.Spec.URI)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				d.Spec.AWS.Region = region
+			default:
+				return trace.BadParameter("database %q AWS region is empty", d.GetName())
 			}
-			d.Spec.AWS.Region = region
 		}
 	case azureutils.IsCacheForRedisEndpoint(d.Spec.URI):
 		// ResourceID is required for fetching Redis tokens.
@@ -605,56 +650,57 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.Spec.Azure.Name = name
 		}
 	}
+
+	// Validate AWS Specific configuration
+	if d.Spec.AWS.AccountID != "" {
+		if err := awsutils.IsValidAccountID(d.Spec.AWS.AccountID); err != nil {
+			return trace.BadParameter("invalid AWS Account ID: %v", err)
+		}
+	}
+
+	// Validate Cloud SQL specific configuration.
+	switch {
+	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
+		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.GetName())
+	case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
+		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.GetName())
+	}
 	return nil
 }
 
-// GetIAMPolicy returns AWS IAM policy for this database.
-func (d *DatabaseV3) GetIAMPolicy() (string, error) {
-	switch d.GetType() {
-	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
-		policy, err := d.getRDSPolicy()
-		return policy, trace.Wrap(err)
-	case DatabaseTypeRedshift:
-		policy, err := d.getRedshiftPolicy()
-		return policy, trace.Wrap(err)
+// handleDynamoDBConfig handles DynamoDB configuration checking.
+func (d *DatabaseV3) handleDynamoDBConfig() error {
+	if d.Spec.AWS.AccountID == "" {
+		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 	}
-	return "", trace.BadParameter("GetIAMPolicy is not supported policy for database type %s", d.GetType())
-}
 
-// GetIAMAction returns AWS IAM action needed to connect to the database.
-func (d *DatabaseV3) GetIAMAction() string {
-	switch d.GetType() {
-	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
-		return "rds-db:connect"
-	case DatabaseTypeRedshift:
-		return "redshift:GetClusterCredentials"
+	info, err := awsutils.ParseDynamoDBEndpoint(d.Spec.URI)
+	switch {
+	case err != nil:
+		// when region parsing returns an error but the region is set, it's ok because we can just construct the URI using the region,
+		// so we check if the region is configured to see if this is really a configuration error.
+		if d.Spec.AWS.Region == "" {
+			// the AWS region is empty and we can't derive it from the URI, so this is a config error.
+			return trace.BadParameter("database %q AWS region is empty and cannot be derived from the URI %q",
+				d.GetName(), d.Spec.URI)
+		}
+		if awsutils.IsAWSEndpoint(d.Spec.URI) {
+			// The user configured an AWS URI that which doesn't look like a DynamoDB endpoint.
+			// The URI must look like <service>.<region>.<partition> or <region>.<partition>
+			return trace.Wrap(err)
+		}
+	case d.Spec.AWS.Region == "":
+		// if the AWS region is empty we can just use the region extracted from the URI.
+		d.Spec.AWS.Region = info.Region
+	case d.Spec.AWS.Region != info.Region:
+		// if the AWS region is not empty but doesn't match the URI, this may indicate a user configuration mistake.
+		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q, "+
+			" omit the URI and it will be derived automatically for the configured AWS region",
+			d.GetName(), d.Spec.AWS.Region, info.Region)
 	}
-	return ""
-}
 
-// GetIAMResources returns AWS IAM resources that provide access to the database.
-func (d *DatabaseV3) GetIAMResources() []string {
-	aws := d.GetAWS()
-	partition := awsutils.GetPartitionFromRegion(aws.Region)
-	switch d.GetType() {
-	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
-		if aws.Region != "" && aws.AccountID != "" && d.getRDSResourceID() != "" {
-			return []string{
-				fmt.Sprintf("arn:%v:rds-db:%v:%v:dbuser:%v/*",
-					partition, aws.Region, aws.AccountID, d.getRDSResourceID()),
-			}
-		}
-	case DatabaseTypeRedshift:
-		if aws.Region != "" && aws.AccountID != "" && aws.Redshift.ClusterID != "" {
-			return []string{
-				fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*",
-					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-				fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*",
-					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-				fmt.Sprintf("arn:%v:redshift:%v:%v:dbgroup:%v/*",
-					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-			}
-		}
+	if d.Spec.URI == "" {
+		d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
 	}
 	return nil
 }
@@ -674,74 +720,6 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
 }
 
-// getRDSPolicy returns IAM policy document for this RDS or RDS Proxy database.
-func (d *DatabaseV3) getRDSPolicy() (string, error) {
-	region := d.GetAWS().Region
-	if region == "" {
-		region = "<region>"
-	}
-	accountID := d.GetAWS().AccountID
-	if accountID == "" {
-		accountID = "<account_id>"
-	}
-	resourceID := d.getRDSResourceID()
-	if resourceID == "" {
-		resourceID = "<resource_id>"
-	}
-
-	var sb strings.Builder
-	err := rdsPolicyTemplate.Execute(&sb, arnTemplateInput{
-		Partition:  awsutils.GetPartitionFromRegion(region),
-		Region:     region,
-		AccountID:  accountID,
-		ResourceID: resourceID,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return sb.String(), nil
-}
-
-// getRDSResourceID returns the resource ID for RDS or RDS Proxy database.
-func (d *DatabaseV3) getRDSResourceID() string {
-	switch d.GetType() {
-	case DatabaseTypeRDS:
-		return d.GetAWS().RDS.ResourceID
-	case DatabaseTypeRDSProxy:
-		return d.GetAWS().RDSProxy.ResourceID
-	default:
-		return ""
-	}
-}
-
-// getRedshiftPolicy returns IAM policy document for this Redshift database.
-func (d *DatabaseV3) getRedshiftPolicy() (string, error) {
-	region := d.GetAWS().Region
-	if region == "" {
-		region = "<region>"
-	}
-	accountID := d.GetAWS().AccountID
-	if accountID == "" {
-		accountID = "<account_id>"
-	}
-	clusterID := d.GetAWS().Redshift.ClusterID
-	if clusterID == "" {
-		clusterID = "<cluster_id>"
-	}
-
-	var sb strings.Builder
-	err := redshiftPolicyTemplate.Execute(&sb, arnTemplateInput{
-		Partition:  awsutils.GetPartitionFromRegion(region),
-		Region:     region,
-		AccountID:  accountID,
-		ResourceID: clusterID,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return sb.String(), nil
-}
-
 const (
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -751,6 +729,8 @@ const (
 	DatabaseTypeRDSProxy = "rdsproxy"
 	// DatabaseTypeRedshift is AWS Redshift database.
 	DatabaseTypeRedshift = "redshift"
+	// DatabaseTypeRedshiftServerless is AWS Redshift Serverless database.
+	DatabaseTypeRedshiftServerless = "redshift-serverless"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
 	// DatabaseTypeAzure is Azure-hosted database.
@@ -763,6 +743,8 @@ const (
 	DatabaseTypeAWSKeyspaces = "keyspace"
 	// DatabaseTypeCassandra is AWS-hosted Keyspace database.
 	DatabaseTypeCassandra = "cassandra"
+	// DatabaseTypeDynamoDB is a DynamoDB database.
+	DatabaseTypeDynamoDB = "dynamodb"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
@@ -811,36 +793,3 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-
-type arnTemplateInput struct {
-	Partition, Region, AccountID, ResourceID string
-}
-
-var (
-	// rdsPolicyTemplate is the IAM policy template for RDS databases access.
-	rdsPolicyTemplate = template.Must(template.New("").Parse(`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "rds-db:connect",
-      "Resource": "arn:{{.Partition}}:rds-db:{{.Region}}:{{.AccountID}}:dbuser:{{.ResourceID}}/*"
-    }
-  ]
-}`))
-	// redshiftPolicyTemplate is the IAM policy template for Redshift databases access.
-	redshiftPolicyTemplate = template.Must(template.New("").Parse(`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "redshift:GetClusterCredentials",
-      "Resource": [
-        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbuser:{{.ResourceID}}/*",
-        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbname:{{.ResourceID}}/*",
-        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbgroup:{{.ResourceID}}/*"
-      ]
-    }
-  ]
-}`))
-)

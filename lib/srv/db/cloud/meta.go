@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -79,6 +81,8 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 		return m.updateAWS(ctx, database, m.fetchRDSProxyMetadata)
 	case types.DatabaseTypeRedshift:
 		return m.updateAWS(ctx, database, m.fetchRedshiftMetadata)
+	case types.DatabaseTypeRedshiftServerless:
+		return m.updateAWS(ctx, database, m.fetchRedshiftServerlessMetadata)
 	case types.DatabaseTypeElastiCache:
 		return m.updateAWS(ctx, database, m.fetchElastiCacheMetadata)
 	case types.DatabaseTypeMemoryDB:
@@ -170,6 +174,21 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 			ClusterID: aws.StringValue(cluster.ClusterIdentifier),
 		},
 	}, nil
+}
+
+// fetchRedshiftServerlessMetadata fetches metadata for the provided Redshift
+// Serverless database.
+func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	meta := database.GetAWS()
+	client, err := m.cfg.Clients.GetAWSRedshiftServerlessClient(meta.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if meta.RedshiftServerless.EndpointName != "" {
+		return fetchRedshiftServerlessVPCEndpointMetadata(ctx, client, meta.RedshiftServerless.EndpointName)
+	}
+	return fetchRedshiftServerlessWorkgroupMetadata(ctx, client, meta.RedshiftServerless.WorkgroupName)
 }
 
 // fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
@@ -349,4 +368,39 @@ func describeRDSProxyCustomEndpoint(ctx context.Context, rdsClient rdsiface.RDSA
 		}
 	}
 	return nil, trace.BadParameter("could not find RDS Proxy custom endpoint %v with URI %v, got %s", proxyEndpointName, uri, out.DBProxyEndpoints)
+}
+
+func fetchRedshiftServerlessWorkgroupMetadata(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) (*types.AWS, error) {
+	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, workgroupName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.MetadataFromRedshiftServerlessWorkgroup(workgroup)
+}
+func fetchRedshiftServerlessVPCEndpointMetadata(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) (*types.AWS, error) {
+	endpoint, err := describeRedshiftServerlessVCPEndpoint(ctx, client, endpointName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, aws.StringValue(endpoint.WorkgroupName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.MetadataFromRedshiftServerlessVPCEndpoint(endpoint, workgroup)
+}
+func describeRedshiftServerlessWorkgroup(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) (*redshiftserverless.Workgroup, error) {
+	input := new(redshiftserverless.GetWorkgroupInput).SetWorkgroupName(workgroupName)
+	output, err := client.GetWorkgroupWithContext(ctx, input)
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	return output.Workgroup, nil
+}
+func describeRedshiftServerlessVCPEndpoint(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) (*redshiftserverless.EndpointAccess, error) {
+	input := new(redshiftserverless.GetEndpointAccessInput).SetEndpointName(endpointName)
+	output, err := client.GetEndpointAccessWithContext(ctx, input)
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	return output.Endpoint, nil
 }

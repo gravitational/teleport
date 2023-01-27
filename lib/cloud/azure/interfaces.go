@@ -21,8 +21,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
 
 // DBServersClient provides an interface for fetching Azure DB Servers.
@@ -85,4 +88,36 @@ type RedisEnterpriseClient interface {
 	ListAll(ctx context.Context) ([]*RedisEnterpriseDatabase, error)
 	// ListWithinGroup returns all Azure Redis Enterprise databases within an Azure resource group.
 	ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseDatabase, error)
+}
+
+// SQLServerClient is an interface for a SQL Server client.
+type SQLServerClient interface {
+	// ListAll returns all Azure SQL servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]*armsql.Server, error)
+	// ListWithinGroup returns all Azure SQL servers databases within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*armsql.Server, error)
+}
+
+// ManagedSQLServerClient is an interface for a Managed SQL Server client.
+type ManagedSQLServerClient interface {
+	// ListAll returns all Azure Managed SQL servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]*armsql.ManagedInstance, error)
+	// ListWithinGroup returns all Azure Managed SQL servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*armsql.ManagedInstance, error)
+}
+
+// MySQLFlexServersClient is an interface for an Azure MySQL Flexible server client.
+type MySQLFlexServersClient interface {
+	// ListAll returns all Azure MySQL Flex servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]*armmysqlflexibleservers.Server, error)
+	// ListWithinGroup returns all Azure MySQL Flex servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*armmysqlflexibleservers.Server, error)
+}
+
+// PostgresFlexServersClient is an interface for an Azure PostgreSQL Flexible server client.
+type PostgresFlexServersClient interface {
+	// ListAll returns all Azure Postgres Flex servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]*armpostgresqlflexibleservers.Server, error)
+	// ListWithinGroup returns all Azure Postgres Flex servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*armpostgresqlflexibleservers.Server, error)
 }

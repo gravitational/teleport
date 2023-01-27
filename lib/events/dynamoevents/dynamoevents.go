@@ -466,7 +466,7 @@ func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, max
 // (oldest first).
 //
 // after is used to return events after a specified cursor ID
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
+func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
 	var values []events.EventFields
 	query := "SessionID = :sessionID AND EventIndex >= :eventIndex"
 	attributes := map[string]interface{}{

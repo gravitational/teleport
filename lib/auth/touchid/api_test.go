@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,7 +96,7 @@ func TestRegisterAndLogin(t *testing.T) {
 
 			reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
 			require.NoError(t, err, "Register failed")
-			assert.Equal(t, 1, fake.userPrompts, "unexpected number of Registation prompts")
+			assert.Equal(t, 1, fake.userPrompts, "unexpected number of Registration prompts")
 
 			// We have to marshal and parse ccr due to an unavoidable quirk of the
 			// webauthn API.

@@ -21,7 +21,7 @@ use self::scard::IoctlCode;
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
-use crate::{util, Encode, Messages};
+use crate::{util, Encode, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -110,7 +110,7 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
         Client {
-            vchan: vchan::Client::new(),
+            vchan: vchan::Client::new(MAX_ALLOWED_VCHAN_MSG_SIZE),
             scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
 
             allow_directory_sharing: cfg.allow_directory_sharing,
@@ -218,19 +218,12 @@ impl Client {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("received RDP ServerClientIdConfirm: {:?}", req);
 
-        // The smartcard initialization sequence that contains this message happens once at session startup,
-        // and once when login succeeds. We only need to announce the smartcard once.
-        let resp = if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
+        if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
             self.push_active_device_id(SCARD_DEVICE_ID)?;
-            let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
-            debug!("sending RDP {:?}", resp);
-            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
-        } else {
-            let resp = ClientDeviceListAnnounceRequest::new_empty();
-            debug!("sending RDP {:?}", resp);
-            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
-        };
-        Ok(resp)
+        }
+        let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
+        debug!("sending RDP {:?}", resp);
+        self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)
     }
 
     fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Messages> {
@@ -2002,13 +1995,6 @@ impl ClientDeviceListAnnounceRequest {
             }],
         }
     }
-
-    fn new_empty() -> Self {
-        Self {
-            device_count: 0,
-            device_list: vec![],
-        }
-    }
 }
 
 impl Encode for ClientDeviceListAnnounceRequest {
@@ -2976,7 +2962,7 @@ impl FileRenameInformation {
         w.write_u8(Boolean::to_u8(&self.replace_if_exists).unwrap())?;
         // RootDirectory. For network operations, this value MUST be zero.
         w.write_u8(0)?;
-        w.write_u32::<LittleEndian>(self.file_name.len() as u32)?;
+        w.write_u32::<LittleEndian>(self.file_name.len())?;
         w.extend_from_slice(&util::to_unicode(&self.file_name.path, false));
         Ok(w)
     }
@@ -2998,7 +2984,7 @@ impl FileRenameInformation {
     }
 
     fn size(&self) -> u32 {
-        Self::BASE_SIZE + self.file_name.len() as u32
+        Self::BASE_SIZE + self.file_name.len()
     }
 }
 
@@ -3746,7 +3732,7 @@ impl ClientDriveSetInformationResponse {
     fn new(req: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
         Self {
             device_io_reply: DeviceIoResponse::new(&req.device_io_request, io_status),
-            length: req.set_buffer.size() as u32,
+            length: req.set_buffer.size(),
         }
     }
 

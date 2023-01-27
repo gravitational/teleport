@@ -609,15 +609,15 @@ just have been a user creating a brand new file within the shared directory and 
 we will instead simply log all events that indicate security-relevant information, which is to say events indicating a data transfer between the local and remote machines,
 which is to say `Shared Directory Read` ("desktop.directory.read") and `Shared Directory Write` ("desktop.directory.write") events.
 
-`Shared Directory Announce/Acknowledge` ("desktop.directory.start") is also included in the audit event log to make the sequence of events more easily comprehensible.
+`Shared Directory Announce/Acknowledge` ("desktop.directory.share") is also included in the audit event log to make the sequence of events more easily comprehensible.
 
-**TDP Shared Directory Messages Logged --> Proposed Event Name**
+**TDP Shared Directory Messages Logged**
 
 The following list includes the type of TDP messages that will be logged and their propsed corresponding event names.
 
-- `Shared Directory Announce/Acknowledge` --> "desktop.directory.start"
-- `Shared Directory ReadRequest/ReadResponse` --> "desktop.directory.read"
-- `Shared Directory WriteRequest/WriteResponse` --> "desktop.directory.write"
+- `Shared Directory Announce/Acknowledge`
+- `Shared Directory ReadRequest/ReadResponse`
+- `Shared Directory WriteRequest/WriteResponse`
 
 **TDP Shared Directory Messages Skipped**
 
@@ -725,6 +725,23 @@ message DesktopSharedDirectoryWrite {
   uint32 Offset = 10 [(gogoproto.jsontag) = "offset"];
 }
 ```
+
+#### Event Names and Codes
+
+|             | `Shared Directory Announce/Acknowledge` | `Shared Directory ReadRequest/ReadResponse` | `Shared Directory WriteRequest/WriteResponse` |
+| ----------- | --------------------------------------- | ------------------------------------------- | --------------------------------------------- |
+| **Name**    | `"desktop.directory.share"`             | `"desktop.directory.read"`                  | `"desktop.directory.write"`                   |
+| **Success** | `"TDP04I"`                              | `"TDP05I"`                                  | `"TDP06I"`                                    |
+| **Failure** | `"TDP04W"`                              | `"TDP05W"`                                  | `"TDP06W"`                                    |
+
+The failure codes in the table above will usually correspond to a Shared Directory `Acknowledge`/`ReadResponse`/`WriteResponse` being returned with a
+non-nil error code.
+
+Because of the asynchronous nature of these request/response pairs, audit information will need to be cached, and there is
+therefore a chance of some information being lost in the audit events due to a programmer error causing the cache to get out of sync. Such a possibility
+is accounted for in the code, with the missing information being recorded as `"unknown"`, and the event code being recorded as the failure code. Because
+such a situation should in practice never happen, it won't be accounted for in the Audit Events UI, and all failure codes will show up in the UI as some
+variation of "Start/Read/Write failed".
 
 #### Debouncing for read/write
 

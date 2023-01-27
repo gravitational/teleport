@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
@@ -138,9 +138,9 @@ type Server interface {
 	// Shutdown performs graceful server shutdown closing open connections.
 	Shutdown(context.Context) error
 	// Wait waits for server to close all outstanding operations
-	Wait()
+	Wait(ctx context.Context)
 	// GetProxyPeerClient returns the proxy peer client
-	GetProxyPeerClient() *proxy.Client
+	GetProxyPeerClient() *peer.Client
 }
 
 const (

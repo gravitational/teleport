@@ -69,7 +69,7 @@ func Test_remoteSite_getLocalWatchedCerts(t *testing.T) {
 						ClusterName: "test",
 					},
 				},
-				Entry: log.NewEntry(utils.NewLoggerForTests()),
+				logger: log.NewEntry(utils.NewLoggerForTests()),
 			}
 			got, err := s.getLocalWatchedCerts(tt.clusterVersion)
 			tt.errorAssertion(t, err)

@@ -18,14 +18,16 @@ package fetchers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 type aksFetcher struct {
@@ -66,7 +68,7 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 }
 
 // NewAKSFetcher creates a new AKS fetcher configuration.
-func NewAKSFetcher(cfg AKSFetcherConfig) (Fetcher, error) {
+func NewAKSFetcher(cfg AKSFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,12 +129,18 @@ func (a *aksFetcher) getAKSClusters(ctx context.Context) ([]*azure.AKSCluster, e
 }
 
 func (a *aksFetcher) isRegionSupported(region string) bool {
-	return utils.SliceContainsStr(a.Regions, types.Wildcard) || utils.SliceContainsStr(a.Regions, region)
+	return slices.Contains(a.Regions, types.Wildcard) || slices.Contains(a.Regions, region)
 }
 
 func (a *aksFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
+
 func (a *aksFetcher) Cloud() string {
-	return Azure
+	return types.CloudAzure
+}
+
+func (a *aksFetcher) String() string {
+	return fmt.Sprintf("aksFetcher(ResourceGroups=%v, Regions=%v, FilterLabels=%v)",
+		a.ResourceGroups, a.Regions, a.FilterLabels)
 }

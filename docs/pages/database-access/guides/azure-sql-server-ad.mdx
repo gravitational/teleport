@@ -39,15 +39,15 @@ This guide will help you to:
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
-## Step 1/7. Set up the Teleport Auth and Proxy Services
+## Step 1/9. Set up the Teleport Auth and Proxy Services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-## Step 2/7. Create a Teleport user
+## Step 2/9. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Enable the SQL Server Azure Active Directory integration
+## Step 3/9. Enable the SQL Server Azure Active Directory integration
 
 If you have it enabled, you can go to the next step.
 
@@ -62,7 +62,7 @@ login to SQL Server.
 
 ![Azure SQL Server Azure Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
-## Step 4/7. Configure Azure Managed Identities
+## Step 4/9. Configure Azure Managed Identities
 
 The Teleport Database Service needs access tokens from Azure AD to authenticate with
 SQL Server databases.
@@ -82,7 +82,7 @@ created:
 
 ![Azure Virtual machine user managed identities page](../../../img/database-access/guides/sqlserver/azure-attach-managed-identity-vm.png)
 
-## Step 5/7. Enable managed identities login on SQL Server
+## Step 5/9. Enable managed identities login on SQL Server
 
 Azure AD SQL Server integration uses database-level authentication (contained
 users), meaning we must create a user for our identities on each database we
@@ -90,6 +90,7 @@ want to access.
 
 To create contained users for the identities, connect to your SQL server using
 its Activity Directory Admin and execute the query:
+
 ```sql
 USE MyDatabase;
 CREATE USER [sqlserver-identity] FROM EXTERNAL PROVIDER;
@@ -99,38 +100,116 @@ The newly created user will be attached to the public role, which might not
 have enough permissions to perform queries. Consider granting individual
 permissions to the user or assigning it to an existing role. For example, add
 the user as a member of the `db_datareader` role:
+
 ```sql
 ALTER ROLE db_datareader ADD MEMBER [sqlserver-identity];
 ```
 
-## Step 6/7. Start Teleport Database Service
+## Step 6/9. Create a Database Service configuration
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com:3080 \
-   --name=sqlserver \
-   --protocol=sqlserver \
-   --uri=my-server.database.windows.net:1433 \
-   --labels=env=dev
+   --proxy=teleport.example.com \
+   --azure-sqlserver-discovery=eastus
 ```
+
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 ```code
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=mytenant.teleport.sh:443 \
-   --name=sqlserver \
-   --protocol=sqlserver \
-   --uri=my-server.database.windows.net:1433 \
-   --labels=env=dev
+   --proxy=mytenant.teleport.sh \
+   --azure-sqlserver-discovery=eastus
 ```
 </ScopedBlock>
+
+The command will generate a Database Service configuration with Azure SQL
+Server auto-discovery enabled in the `eastus` region and place it at the
+`/etc/teleport.yaml` location.
+
+## Step 7/9. Configure IAM permissions for Teleport
+
+The Teleport Database Service needs Azure IAM permissions to discover and
+register SQL Server instances.
+
+### Configure an Azure service principal
+
+(!docs/pages/includes/database-access/azure-configure-service-principal.mdx!)
+
+### Create a custom role
+
+Teleport requires `<resource-type>/read` permissions for discovery, but
+only for the resource types you have.
+
+Here is a sample role definition allowing Teleport to read **Azure SQL Servers**
+and **Azure SQL Managed Instances**:
+
+```json
+{
+    "properties": {
+        "roleName": "SQLServerAutoDiscovery",
+        "description": "Allows Teleport to discover SQL Servers and SQL Managed Instances.",
+        "assignableScopes": [
+            "/subscriptions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        ],
+        "permissions": [
+            {
+                "actions": [
+                    "Microsoft.Sql/managedInstances/read",
+                    "Microsoft.Sql/servers/read"
+                ],
+                "notActions": [],
+                "dataActions": [],
+                "notDataActions": []
+            }
+        ]
+    }
+}
+```
+
+The `assignableScopes` field above includes a subscription
+`/subscriptions/<subscription>`, allowing the role to be assigned at any
+resource scope within that subscription or the subscription scope itself.
+If you want to further limit the `assignableScopes`, you can use a resource
+group (`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
+group (`/providers/Microsoft.Management/managementGroups/<group>`) instead.
+
+Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)
+page and select a subscription.
+
+Click on **Access control (IAM)** in the subscription and select **Add** >
+**Add custom role**:
+
+![IAM custom role](../../../img/database-access/guides/azure/add-custom-role@2x.png)
+
+In the custom role creation page, click the **JSON** tab and click **Edit**,
+then paste the JSON example and replace the subscription in `assignableScopes`
+with your own subscription id:
+
+![Create JSON role](../../../img/database-access/guides/sqlserver/create-role-from-json.png)
+
+### Create a role assignment for the Teleport Database Service principal
+
+(!docs/pages/includes/database-access/azure-assign-service-principal.mdx!)
+
+## Step 8/9. Start Teleport Database Service
+
+Start the Database Service:
+
+```code
+$ teleport start --config=/etc/teleport.yaml
+```
 
 <Admonition
   type="tip"
@@ -139,37 +218,36 @@ $ teleport db configure create \
   A single Teleport process can run multiple different services, for example
   multiple Database Service agents as well as the SSH Service or Application
   Service.
-  
 </Admonition>
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
-
-## Step 7/7. Connect
+## Step 9/9. Connect
 
 Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-# Name      Description         Labels
-# --------- ------------------- -------
-# sqlserver                     env=dev
+Name                Description                       Allowed Users Labels Connect
+------------------ ---------------------------------- ------------- ------ -------
+sqlserver          Azure SQL Server in westeurope     [*]           ...
+sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 ```
+
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
+
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-# Name      Description         Labels
-# --------- ------------------- -------
-# sqlserver                     env=dev
+Name                Description                       Allowed Users Labels Connect
+------------------ ---------------------------------- ------------- ------ -------
+sqlserver          Azure SQL Server in westeurope     [*]           ...
+sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 ```
+
 </ScopedBlock>
 
 To retrieve credentials for a database and connect to it:
@@ -195,7 +273,7 @@ connect with is not attached to the Teleport Database Service virtual machine.
 You can navigate to the [Virtual Machines](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines) page within Azure Portal,
 open the **Teleport instance**, **Identity** section, and choose **User
 assigned** to see all identities you can connect with. If you don’t see your
-identity check [Step 4](#step-47-configure-azure-managed-identities) to see how
+identity check [Step 4](#step-49-configure-azure-managed-identities) to see how
 to add it.
 
 ### Login failed for the user
@@ -203,7 +281,7 @@ to add it.
 When connecting to your database, and you see the error `mssql: login error: Login
 failed for user '<token-identified principal>'`, it means your managed identity
 login is not present on the SQL database. You’ll need to create their users as
-described in [Step 5](#step-57-enable-managed-identities-login-on-sql-server).
+described in [Step 5](#step-59-enable-managed-identities-login-on-sql-server).
 Remember: you must create the users on all databases you want to connect.
 
 ## Next steps

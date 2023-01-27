@@ -296,9 +296,10 @@ func withLeafClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOp
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRoleV3(roleName, types.RoleSpecV5{
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{username},
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
@@ -368,7 +369,6 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 			ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
 			err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
 			require.NoError(t, err)
-
 		}
 	}
 }
@@ -391,7 +391,6 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 			require.NoError(t, err)
 
 			options.trustedCluster = trustedCluster
-
 		}
 	}
 }
@@ -593,12 +592,12 @@ func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
 }
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
-func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) { //nolint:unused // Only used by skipped test TestProxyTunnelStrategyProxyPeering
 	require.Eventually(t, func() bool {
 		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
 	},
 		30*time.Second,
 		time.Second,
-		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
+		"Peer proxy connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
 }

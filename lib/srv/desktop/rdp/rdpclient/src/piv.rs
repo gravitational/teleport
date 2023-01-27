@@ -26,7 +26,7 @@ use std::fmt::Write as _;
 use std::io::{Cursor, Read};
 use uuid::Uuid;
 
-// AID (Application ID) of PIV application, per
+// AID (Application ID) of PIV application, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 const PIV_AID: Aid = Aid::new_truncatable(
     &[
@@ -45,8 +45,8 @@ pub struct Card<const S: usize> {
     piv_auth_cert: Vec<u8>,
     piv_auth_key: RsaPrivateKey,
     pin: String,
-    // Pending command and response to receive/send over multiple messages when they don't fit into
-    // one.
+    // Pending command and response to receive/send over multiple messages when
+    // they don't fit into one.
     pending_command: Option<Command<S>>,
     pending_response: Option<Cursor<Vec<u8>>>,
 }

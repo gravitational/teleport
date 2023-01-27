@@ -21,6 +21,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -39,12 +40,16 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -58,6 +63,7 @@ type testContext struct {
 	emitter     *eventstest.ChannelEmitter
 	listener    net.Listener
 	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
 // kubeClusterConfig defines the cluster to be created
@@ -71,14 +77,17 @@ type testConfig struct {
 	clusters         []kubeClusterConfig
 	resourceMatchers []services.ResourceMatcher
 	onReconcile      func(types.KubeClusters)
+	onEvent          func(apievents.AuditEvent)
 }
 
 // setupTestContext creates a kube service with clusters configured.
 func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testContext {
+	ctx, cancel := context.WithCancel(ctx)
 	testCtx := &testContext{
 		clusterName: "root.example.com",
 		hostID:      uuid.New().String(),
 		ctx:         ctx,
+		cancel:      cancel,
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -102,6 +111,8 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	// Use sync recording to not involve the uploader.
 	recConfig, err := authServer.AuthServer.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
+	// Always use *-sync to prevent fileStreamer from running against os.RemoveAll
+	// once the test ends.
 	recConfig.SetMode(types.RecordAtNodeSync)
 	err = authServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
@@ -123,7 +134,14 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyLockWatcher)
+	t.Cleanup(func() {
+		proxyLockWatcher.Close()
+	})
+	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: testCtx.clusterName,
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
@@ -134,7 +152,19 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 
 	// Create test audit events emitter.
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
-	keyGen := native.New(testCtx.ctx)
+	go func() {
+		for {
+			select {
+			case evt := <-testCtx.emitter.C():
+				if cfg.onEvent != nil {
+					cfg.onEvent(evt)
+				}
+			case <-testCtx.ctx.Done():
+				return
+			}
+		}
+	}()
+	keyGen := keygen.New(testCtx.ctx)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters)+1)
@@ -142,12 +172,20 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	// Create kubernetes service server.
 	testCtx.kubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
-			Namespace:         apidefaults.Namespace,
-			Keygen:            keyGen,
-			ClusterName:       testCtx.clusterName,
-			Authz:             proxyAuthorizer,
-			AuthClient:        testCtx.authClient,
-			StreamEmitter:     testCtx.authClient,
+			Namespace:   apidefaults.Namespace,
+			Keygen:      keyGen,
+			ClusterName: testCtx.clusterName,
+			Authz:       proxyAuthorizer,
+			// fileStreamer continues to write events after the server is shutdown and
+			// races against os.RemoveAll leading the test to fail.
+			// Using "node-sync" mode to write the events and session recordings
+			// directly to AuthClient solves the issue.
+			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
+			// events like session.end to testCtx.emitter as well.
+			AuthClient: newAuthClientWithStreamer(testCtx),
+			// StreamEmitter is required although not used because we are using
+			// "node-sync" as session recording mode.
+			StreamEmitter:     testCtx.emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: testCtx.authClient,
 			HostID:            testCtx.hostID,
@@ -187,12 +225,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 
 	// Waits for len(clusters) heartbeats to start
 	waitForHeartbeats := len(cfg.clusters)
-	// we must also wait for the legacy heartbeat.
-	// FIXME (tigrato): his check was added to force
-	// the person that removes the legacy heartbeat to adapt this code as well
-	// in order to wait just for len(cfg.clusters).
-	_ = testCtx.kubeServer.legacyHeartbeat
-	waitForHeartbeats++
 
 	testCtx.startKubeService(t)
 
@@ -224,6 +256,7 @@ func (c *testContext) Close() error {
 	err := c.kubeServer.Close()
 	authCErr := c.authClient.Close()
 	authSErr := c.authServer.Close()
+	c.cancel()
 	return trace.NewAggregate(err, authCErr, authSErr)
 }
 
@@ -234,9 +267,12 @@ func (c *testContext) KubeServiceAddress() string {
 
 // roleSpec defiens the role name and kube details to be created.
 type roleSpec struct {
-	name       string
-	kubeUsers  []string
-	kubeGroups []string
+	name           string
+	kubeUsers      []string
+	kubeGroups     []string
+	sessionRequire []*types.SessionRequirePolicy
+	sessionJoin    []*types.SessionJoinPolicy
+	setupRoleFunc  func(types.Role) // If nil all pods are allowed.
 }
 
 // createUserAndRole creates Teleport user and role with specified names
@@ -245,6 +281,13 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, usern
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.kubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.kubeGroups)
+	role.SetSessionRequirePolicies(roleSpec.sessionRequire)
+	role.SetSessionJoinPolicies(roleSpec.sessionJoin)
+	if roleSpec.setupRoleFunc == nil {
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard}})
+	} else {
+		roleSpec.setupRoleFunc(role)
+	}
 	err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role
@@ -287,13 +330,13 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(c.ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	require.NoError(t, err)
 
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.ctx, ca)
 	require.NoError(t, err)
 
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
@@ -339,4 +382,43 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	require.NoError(t, err)
 
 	return client, restConfig
+}
+
+func (c *testContext) newJoiningSession(cfg *rest.Config, sessionID string, mode types.SessionParticipantMode) (*streamproto.SessionStream, error) {
+	ws, err := newWebSocketClient(cfg, http.MethodPost, &url.URL{
+		Scheme: "wss",
+		Host:   c.KubeServiceAddress(),
+		Path:   "/api/v1/teleport/join/" + sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = ws.connectViaWebsocket()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	stream, err := streamproto.NewSessionStream(ws.conn, streamproto.ClientHandshake{Mode: mode})
+	return stream, trace.Wrap(err)
+}
+
+// authClientWithStreamer wraps auth.Client and replaces the CreateAuditStream
+// and ResumeAuditStream methods to use a events.TeeStreamer to leverage the StreamEmitter
+// even when recording mode is *-sync.
+type authClientWithStreamer struct {
+	*auth.Client
+	streamer *events.TeeStreamer
+}
+
+// newAuthClientWithStreamer creates a new authClient wrapper.
+func newAuthClientWithStreamer(testCtx *testContext) *authClientWithStreamer {
+	return &authClientWithStreamer{Client: testCtx.authClient, streamer: events.NewTeeStreamer(testCtx.authClient, testCtx.emitter)}
+}
+
+func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {
+	return a.streamer.CreateAuditStream(ctx, sID)
+}
+
+func (a *authClientWithStreamer) ResumeAuditStream(ctx context.Context, sID sessPkg.ID, uploadID string) (apievents.Stream, error) {
+	return a.streamer.ResumeAuditStream(ctx, sID, uploadID)
 }

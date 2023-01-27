@@ -156,7 +156,8 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 		})
 		return config, nil
 	}
-	pool.Start()
+
+	err = pool.Start()
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

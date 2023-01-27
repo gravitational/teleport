@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -56,7 +57,8 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log: utils.NewLoggerForTests(),
+		log:    utils.NewLoggerForTests(),
+		Config: Config{Clock: clockwork.NewRealClock()},
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
 		},
@@ -168,9 +170,21 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name:      "remote running 11.0.0",
+			name:      "remote running 13.0.0",
 			assertion: require.NoError,
-			version:   "11.0.0",
+			version:   "13.0.0",
+		},
+		{
+			name:           "remote running 12.0.0",
+			assertion:      require.NoError,
+			version:        "12.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 11.0.0",
+			assertion:      require.NoError,
+			version:        "11.0.0",
+			oldRemoteProxy: true,
 		},
 		{
 			name:           "remote running 10.0.0",

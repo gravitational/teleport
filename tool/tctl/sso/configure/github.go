@@ -38,7 +38,7 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 
 	gh := &ghExtraFlags{}
 
-	sub := cmd.ConfigureCmd.Command("github", "Configure Github auth connector.")
+	sub := cmd.ConfigureCmd.Command("github", "Configure GitHub auth connector.")
 	// commonly used flags
 	sub.Flag("name", "Connector name.").Default("github").Short('n').StringVar(&gh.connectorName)
 	sub.Flag("teams-to-roles", "Sets teams-to-roles mapping using format 'organization,name,role1,role2,...'. Repeatable.").
@@ -47,8 +47,8 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 		PlaceHolder("org,team,role1,role2,...").
 		SetValue(newTeamsToRolesParser(&spec.TeamsToRoles))
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
-	sub.Flag("id", "Github app client ID.").PlaceHolder("ID").Required().StringVar(&spec.ClientID)
-	sub.Flag("secret", "Github app client secret.").Required().PlaceHolder("SECRET").StringVar(&spec.ClientSecret)
+	sub.Flag("id", "GitHub app client ID.").PlaceHolder("ID").Required().StringVar(&spec.ClientID)
+	sub.Flag("secret", "GitHub app client secret.").Required().PlaceHolder("SECRET").StringVar(&spec.ClientSecret)
 
 	// auto
 	sub.Flag("redirect-url", "Authorization callback URL.").PlaceHolder("URL").StringVar(&spec.RedirectURL)
@@ -63,7 +63,7 @@ Examples:
 
   > tctl sso configure gh -r octocats,admin,access,editor,auditor -r octocats,dev,access --secret GH_SECRET --id CLIENT_ID
 
-  Generate Github auth connector. Two role mappings are defined:
+  Generate GitHub auth connector. Two role mappings are defined:
     - members of 'admin' team in 'octocats' org will receive 'access', 'editor' and 'auditor' roles.
     - members of 'dev' team in 'octocats' org will receive 'access' role.
 

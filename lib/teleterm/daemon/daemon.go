@@ -17,14 +17,26 @@ package daemon
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/usagereporter"
+)
+
+const (
+	// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
+	// wait for a response from the tshd events server managed by the Electron app. This timeout
+	// should be used for quick one-off calls where the client doesn't need the server or the user to
+	// perform any additional work, such as the SendNotification RPC.
+	tshdEventsTimeout = time.Second
 )
 
 // New creates an instance of Daemon service
@@ -33,9 +45,22 @@ func New(cfg Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeContext, cancel := context.WithCancel(context.Background())
+
+	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	go connectUsageReporter.Run(closeContext)
+
 	return &Service{
-		cfg:      &cfg,
-		gateways: make(map[string]*gateway.Gateway),
+		cfg:           &cfg,
+		closeContext:  closeContext,
+		cancel:        cancel,
+		gateways:      make(map[string]*gateway.Gateway),
+		usageReporter: connectUsageReporter,
 	}, nil
 }
 
@@ -99,9 +124,10 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	return nil
 }
 
-// ResolveCluster resolves a cluster by URI and returns
-// information stored in the profile along with a TeleportClient.
-// It will not include detailed information returned from the web/auth servers
+// ResolveCluster resolves a cluster by URI by reading data stored on disk in the profile.
+//
+// It doesn't make network requests so the returned clusters.Cluster will not include full
+// information returned from the web/auth servers.
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
@@ -111,19 +137,18 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// GetCluster returns cluster information
-func (s *Service) GetCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+// ResolveFullCluster returns full cluster information. It makes a request to the auth server and includes
+// details about the cluster and logged in user
+func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	features, err := cluster.GetClusterFeatures(ctx)
+	cluster, err = cluster.EnrichWithDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cluster.Features = features
 
 	return cluster, nil
 }
@@ -169,6 +194,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
+		OnExpiredCert:         s.onExpiredGatewayCert,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -185,6 +211,15 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
+}
+
+func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
+	cluster, err := s.ResolveCluster(gateway.TargetURI())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster))
 }
 
 // RemoveGateway removes cluster gateway
@@ -312,7 +347,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 		return oldGateway, nil
 	}
 
-	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
+	newGateway, err := gateway.NewWithLocalPort(oldGateway, localPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -379,13 +414,14 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetRequestableRoles(ctx)
+	response, err := cluster.GetRequestableRoles(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.GetRequestableRolesResponse{
-		Roles: response,
+		Roles:           response.RequestableRoles,
+		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
 }
 
@@ -404,7 +440,7 @@ func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 }
 
 // GetAccessRequest returns AccessRequests filtered by ID
-func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) ([]clusters.AccessRequest, error) {
+func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) (*clusters.AccessRequest, error) {
 	if req.AccessRequestId == "" {
 		return nil, trace.BadParameter("missing request id")
 	}
@@ -414,7 +450,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetAccessRequests(ctx, types.AccessRequestFilter{
+	response, err := cluster.GetAccessRequest(ctx, types.AccessRequestFilter{
 		ID: req.AccessRequestId,
 	})
 	if err != nil {
@@ -533,9 +569,51 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	s.cfg.Log.Info("Stopping")
+
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
+
+	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
+	defer cancel()
+
+	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
+	}
+
+	// s.closeContext is used for the tshd events client which might make requests as long as any of
+	// the resources managed by daemon.Service are up and running. So let's cancel the context only
+	// after closing those resources.
+	s.cancel()
+}
+
+// UpdateAndDialTshdEventsServerAddress allows the Electron app to provide the tshd events server
+// address.
+//
+// The startup of the app is orchestrated so that this method is called before any other method on
+// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
+// client is available right from the beginning, without the need for nil checks.
+func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	withCreds, err := s.cfg.CreateTshdEventsClientCredsFunc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	conn, err := grpc.Dial(serverAddress, withCreds)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client := api.NewTshdEventsServiceClient(conn)
+	// If the need arises to reuse the client in other places,
+	// read https://github.com/gravitational/teleport/pull/17950#discussion_r1039434456
+	s.cfg.GatewayCertReissuer.TSHDEventsClient = client
+
+	return nil
 }
 
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
@@ -550,10 +628,17 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 // Service is the daemon service
 type Service struct {
 	cfg *Config
-	mu  sync.RWMutex
+	// mu guards gateways and the creation of tshdEventsClient.
+	mu sync.RWMutex
+	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
+	// to the tshd events gRPC client.
+	closeContext context.Context
+	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
+	// usageReporter batches the events and sends them to prehog
+	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest]
 }
 
 type CreateGatewayParams struct {

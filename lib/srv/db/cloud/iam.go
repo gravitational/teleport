@@ -21,9 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -106,9 +104,6 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 
 // Start starts the IAM configurator service.
 func (c *IAM) Start(ctx context.Context) error {
-	// DELETE IN 11.0.
-	go c.deleteOldPolicy(ctx)
-
 	go func() {
 		c.log.Info("Started IAM configurator service.")
 		defer c.log.Info("Stopped IAM configurator service.")
@@ -282,86 +277,6 @@ func (c *IAM) addTask(task iamTask) error {
 
 	default:
 		return trace.LimitExceeded("failed to create IAM task for %v", task.database.GetName())
-	}
-}
-
-// deleteOldPolicy removes old inline policies "teleport-<host-id>" for the
-// caller identity. DELETE IN 11.0.
-func (c *IAM) deleteOldPolicy(ctx context.Context) {
-	identity, err := c.getAWSIdentity(ctx)
-	if err != nil {
-		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
-			c.log.Debug("No AWS credentials provider. Skipping delete old policy.")
-			return
-		}
-		c.log.WithError(err).Error("Failed to get AWS identity.")
-		return
-	}
-
-	oldPolicyName := "teleport-" + c.cfg.HostID
-	newPolicyName, err := c.getPolicyName()
-	if err != nil {
-		c.log.WithError(err).Error("Failed to get new policy name.")
-		return
-	}
-
-	iamClient, err := c.cfg.Clients.GetAWSIAMClient("")
-	if err != nil {
-		c.log.WithError(err).Error("Failed to get IAM client.")
-		return
-	}
-
-	findPolicy := func(policyName string) error {
-		switch identity.(type) {
-		case awslib.Role:
-			_, err := iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-				PolicyName: aws.String(policyName),
-				RoleName:   aws.String(identity.GetName()),
-			})
-			return awslib.ConvertIAMError(err)
-		case awslib.User:
-			_, err := iamClient.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
-				PolicyName: aws.String(policyName),
-				UserName:   aws.String(identity.GetName()),
-			})
-			return awslib.ConvertIAMError(err)
-		default:
-			return trace.BadParameter("can only fetch policies for roles or users, got %v", identity)
-		}
-	}
-
-	// Check on old policy. If the old policy does not exist or any other
-	// error, this operation is aborted.
-	if err = findPolicy(oldPolicyName); err != nil {
-		if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
-			c.log.WithError(err).Errorf("Failed to get inline policy %v for %v.", oldPolicyName, identity)
-		}
-		return
-	}
-
-	// Wait a bit and check on new policy. Only proceed if new policy is found.
-	c.cfg.Clock.Sleep(10 * time.Minute)
-	if err = findPolicy(newPolicyName); err != nil {
-		c.log.WithError(err).Errorf("Failed to get inline policy %v for %v.", newPolicyName, identity)
-		return
-	}
-
-	// Remove old policy.
-	switch identity.(type) {
-	case awslib.Role:
-		_, err = iamClient.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
-			PolicyName: aws.String(oldPolicyName),
-			RoleName:   aws.String(identity.GetName()),
-		})
-	case awslib.User:
-		_, err = iamClient.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
-			PolicyName: aws.String(oldPolicyName),
-			UserName:   aws.String(identity.GetName()),
-		})
-	}
-
-	if err != nil && !trace.IsNotFound(awslib.ConvertIAMError(err)) {
-		c.log.WithError(err).Errorf("Failed to delete inline policy %q for %v. It is recommended to remove this policy since it is no longer required.", oldPolicyName, identity)
 	}
 }
 

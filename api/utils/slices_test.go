@@ -17,28 +17,11 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestSliceContainsStr(t *testing.T) {
-	tests := []struct {
-		name         string
-		slice        []string
-		target       string
-		wantContains bool
-	}{
-		{name: "does contain", slice: []string{"two", "one"}, target: "one", wantContains: true},
-		{name: "does not contain", slice: []string{"two", "one"}, target: "five", wantContains: false},
-		{name: "empty slice", slice: nil, target: "one", wantContains: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.wantContains, SliceContainsStr(tc.slice, tc.target))
-		})
-	}
-}
 
 func TestDeduplicate(t *testing.T) {
 	tests := []struct {
@@ -52,6 +35,22 @@ func TestDeduplicate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expected, Deduplicate(tc.in))
+		})
+	}
+}
+
+func TestDeduplicateAny(t *testing.T) {
+	tests := []struct {
+		name         string
+		in, expected [][]byte
+	}{
+		{name: "empty slice", in: [][]byte{}, expected: [][]byte{}},
+		{name: "slice with unique elements", in: [][]byte{{0}, {1}}, expected: [][]byte{{0}, {1}}},
+		{name: "slice with duplicate elements", in: [][]byte{{0}, {1}, {1}, {0}, {2}}, expected: [][]byte{{0}, {1}, {2}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, DeduplicateAny(tc.in, bytes.Equal))
 		})
 	}
 }

@@ -90,7 +90,8 @@ cat teleport.yaml
 # ...
 ```
 
-Once you have the config, you should upload this to a separate Kubernetes namespace (where you intend to run the `teleport-cluster` chart).
+Once you have the config, you should upload this to a separate Kubernetes
+namespace (where you intend to run the `teleport-cluster` chart).
 
 ```code
 $ kubectl create namespace teleport-cluster
@@ -132,11 +133,13 @@ $ kubectl --namespace teleport-cluster create secret generic bootstrap --from-fi
 
 ## Step 5/6. Start the new cluster with your old config file and backup
 
-We will start the new cluster and bootstrap it using the backup of your cluster's data. Once this step is complete and the cluster is working,
-we'll modify the deployment to remove references to the backup data, and remove it from Kubernetes for security.
+We will start the new cluster and bootstrap it using the backup of your
+cluster's data. Once this step is complete and the cluster is working, we'll
+modify the deployment to remove references to the backup data, and remove it
+from Kubernetes for security.
 
 <Tabs>
-  <TabItem label="Using values.yaml">
+  <TabItem scope="oss" label="Teleport Community Edition">
   Write a `teleport-cluster-values.yaml` file containing the following values:
 
   ```yaml
@@ -154,23 +157,41 @@ we'll modify the deployment to remove references to the backup data, and remove 
   ```code
   $ helm install teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
-    --create-namespace \
     -f teleport-cluster-values.yaml
   ```
 
   </TabItem>
-  <TabItem label="Using --set via CLI">
-    ```code
-    $ helm install teleport teleport/teleport-cluster \
-    --create-namespace \
+  <TabItem scope="enterprise" label="Teleport Enterprise">
+
+  Obtain your Teleport Enterprise license file from the [Teleport Customer
+  Portal](https://dashboard.gravitational.com/web/login). Create a secret called
+  "license" in the namespace you created:
+
+  ```code
+  $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
+  ```
+
+  Write a `teleport-cluster-values.yaml` file containing the following values:
+
+  ```yaml
+  enterprise: true
+  chartMode: custom
+  extraArgs: ['--bootstrap', '/etc/teleport-bootstrap/backup.yaml']
+  extraVolumes:
+  - name: bootstrap
+    secret:
+      name: bootstrap
+  extraVolumeMounts:
+  - name: bootstrap
+    path: /etc/teleport-bootstrap
+  ```
+
+  ```code
+  $ helm install teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
-    --set chartMode=custom \
-    --set extraArgs="{'--bootstrap', '/etc/teleport-bootstrap/backup.yaml'}" \
-    --set extraVolumes[0].name="bootstrap" \
-    --set extraVolumes[0].secret.name="bootstrap" \
-    --set extraVolumeMounts[0].name="bootstrap" \
-    --set extraVolumeMounts[0].path="/etc/teleport-bootstrap"
-    ```
+    -f teleport-cluster-values.yaml
+  ```
+
   </TabItem>
 </Tabs>
 
@@ -253,3 +274,10 @@ To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. 
 ```code
 $ helm --namespace teleport-cluster uninstall teleport
 ```
+
+## Next steps
+
+To see all of the options you can set in the values file for the
+`teleport-cluster` Helm chart, consult our [reference
+guide](../../reference/helm-reference/teleport-cluster.mdx).
+

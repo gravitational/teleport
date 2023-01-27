@@ -24,17 +24,20 @@ import (
 
 // HalfJitter is a global jitter instance used for one-off jitters.
 // Prefer instantiating a new jitter instance for operations that require
-// repeated calls.
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
 var HalfJitter = retryutils.NewHalfJitter()
 
 // SeventhJitter is a global jitter instance used for one-off jitters.
 // Prefer instantiating a new jitter instance for operations that require
-// repeated calls.
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
 var SeventhJitter = retryutils.NewSeventhJitter()
 
 // FullJitter is a global jitter instance used for one-off jitters.
 // Prefer instantiating a new jitter instance for operations that require
-// repeated calls
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
 var FullJitter = retryutils.NewFullJitter()
 
 // NewDefaultLinear creates a linear retry using a half jitter, 10s step, and maxing out

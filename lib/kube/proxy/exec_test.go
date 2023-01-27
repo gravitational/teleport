@@ -102,7 +102,9 @@ func TestExecKubeService(t *testing.T) {
 				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
 				// is merged into k8s go-client.
 				// For now go-client does not support connections over websockets.
-				executorBuilder: newWebSocketExecutor,
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return newWebSocketClient(c, s, u)
+				},
 			},
 		},
 	}
@@ -137,14 +139,13 @@ func TestExecKubeService(t *testing.T) {
 			exec, err := tt.args.executorBuilder(config, http.MethodPost, req.URL())
 			require.NoError(t, err)
 
-			err = exec.Stream(streamOpts)
+			err = exec.StreamWithContext(testCtx.ctx, streamOpts)
 			require.NoError(t, err)
 
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stdout.String())
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stderr.String())
 		})
 	}
-
 }
 
 // generateExecRequest generates a Kube API url for executing commands in pods.

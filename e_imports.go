@@ -21,6 +21,7 @@ package teleport
 // Any import that is present only in this file, but not in e/, can be safely
 // removed.
 import (
+	_ "github.com/beevik/etree"          // hold for e/
 	_ "github.com/go-piv/piv-go/piv"     // hold for e/
 	_ "github.com/gravitational/form"    // hold for e/
 	_ "github.com/gravitational/license" // hold for e/

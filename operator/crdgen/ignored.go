@@ -34,4 +34,7 @@ var ignoredFields = map[string]stringSet{
 		"CreatedBy": struct{}{},
 		"Status":    struct{}{},
 	},
+	"GithubConnectorSpecV3": {
+		"TeamsToLogins": struct{}{}, // Deprecated field, removed since v11
+	},
 }

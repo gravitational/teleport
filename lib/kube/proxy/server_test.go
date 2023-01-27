@@ -263,10 +263,12 @@ func TestHeartbeat(t *testing.T) {
 		kubeClusterGetter func(auth.ClientI) []string
 	}
 	tests := []struct {
-		name string
-		args args
+		name      string
+		args      args
+		wantEmpty bool
 	}{
 		{
+			// DELETE IN 13.0.0
 			name: "List KubeServices (legacy)",
 			args: args{
 				kubeClusterGetter: func(authClient auth.ClientI) []string {
@@ -287,6 +289,7 @@ func TestHeartbeat(t *testing.T) {
 					return clusters
 				},
 			},
+			wantEmpty: true,
 		},
 		{
 			name: "List KubeServers",
@@ -311,10 +314,12 @@ func TestHeartbeat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			kubeClusters := tt.args.kubeClusterGetter(testCtx.authClient)
-			require.Equal(t, []string{kubeCluster1, kubeCluster2}, kubeClusters)
+			if tt.wantEmpty {
+				require.Empty(t, kubeClusters)
+			} else {
+				require.Equal(t, []string{kubeCluster1, kubeCluster2}, kubeClusters)
+			}
 		})
 	}
-
 }

@@ -48,19 +48,3 @@ func appendCString(b []byte, str string) []byte {
 	b = append(b, str...)
 	return append(b, 0x00)
 }
-
-func readi32(src []byte) (int32, []byte, bool) {
-	if len(src) < 4 {
-		return 0, src, false
-	}
-
-	return (int32(src[0]) | int32(src[1])<<8 | int32(src[2])<<16 | int32(src[3])<<24), src[4:], true
-}
-
-func readcstring(src []byte) (string, []byte, bool) {
-	idx := bytes.IndexByte(src, 0x00)
-	if idx < 0 {
-		return "", src, false
-	}
-	return string(src[:idx]), src[idx+1:], true
-}

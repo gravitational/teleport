@@ -23,9 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -108,7 +108,7 @@ func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, acl
 	managedUsers := []*memorydb.User{}
 	for _, user := range allUsers {
 		// Match ACL.
-		if !utils.SliceContainsStr(aws.StringValueSlice(user.ACLNames), aclName) {
+		if !slices.Contains(aws.StringValueSlice(user.ACLNames), aclName) {
 			continue
 		}
 

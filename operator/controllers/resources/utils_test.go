@@ -19,7 +19,6 @@ package resources
 import (
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -27,33 +26,19 @@ import (
 )
 
 func TestCheckOwnership(t *testing.T) {
-	type check func(t2 *testing.T, err error)
-
-	hasNoErr := func() check {
-		return func(t2 *testing.T, err error) {
-			require.NoError(t2, err)
-		}
-	}
-
-	hasAlreadyExistsErr := func() check {
-		return func(t2 *testing.T, err error) {
-			require.IsType(t2, &trace.AlreadyExistsError{}, err.(*trace.TraceErr).OrigError())
-		}
-	}
-
 	tests := []struct {
 		name                    string
 		existingResource        types.Resource
 		expectedConditionStatus metav1.ConditionStatus
 		expectedConditionReason string
-		check                   check
+		isOwned                 bool
 	}{
 		{
 			name:                    "new resource",
 			existingResource:        nil,
 			expectedConditionStatus: metav1.ConditionTrue,
 			expectedConditionReason: ConditionReasonNewResource,
-			check:                   hasNoErr(),
+			isOwned:                 true,
 		},
 		{
 			name: "existing owned resource",
@@ -65,7 +50,7 @@ func TestCheckOwnership(t *testing.T) {
 			},
 			expectedConditionStatus: metav1.ConditionTrue,
 			expectedConditionReason: ConditionReasonOriginLabelMatching,
-			check:                   hasNoErr(),
+			isOwned:                 true,
 		},
 		{
 			name: "existing unowned resource (no label)",
@@ -76,7 +61,7 @@ func TestCheckOwnership(t *testing.T) {
 			},
 			expectedConditionStatus: metav1.ConditionFalse,
 			expectedConditionReason: ConditionReasonOriginLabelNotMatching,
-			check:                   hasAlreadyExistsErr(),
+			isOwned:                 false,
 		},
 		{
 			name: "existing unowned resource (bad origin)",
@@ -88,7 +73,7 @@ func TestCheckOwnership(t *testing.T) {
 			},
 			expectedConditionStatus: metav1.ConditionFalse,
 			expectedConditionReason: ConditionReasonOriginLabelNotMatching,
-			check:                   hasAlreadyExistsErr(),
+			isOwned:                 false,
 		},
 		{
 			name: "existing unowned resource (no origin)",
@@ -100,15 +85,15 @@ func TestCheckOwnership(t *testing.T) {
 			},
 			expectedConditionStatus: metav1.ConditionFalse,
 			expectedConditionReason: ConditionReasonOriginLabelNotMatching,
-			check:                   hasAlreadyExistsErr(),
+			isOwned:                 false,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 
-			condition, err := checkOwnership(tc.existingResource)
+			condition, isOwned := checkOwnership(tc.existingResource)
 
-			tc.check(t, err)
+			require.Equal(t, tc.isOwned, isOwned)
 			require.Equal(t, condition.Type, ConditionTypeTeleportResourceOwned)
 			require.Equal(t, condition.Status, tc.expectedConditionStatus)
 			require.Equal(t, condition.Reason, tc.expectedConditionReason)

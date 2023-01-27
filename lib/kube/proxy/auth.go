@@ -14,7 +14,7 @@
 
 package proxy
 
-//nolint:goimports
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"fmt"
@@ -177,6 +177,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 		transportConfig: transportConfig,
 		targetAddr:      targetAddr,
 		kubeClient:      client,
+		clientRestCfg:   clientCfg,
 	}, nil
 }
 

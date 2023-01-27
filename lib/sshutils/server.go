@@ -310,6 +310,9 @@ func (s *Server) Start() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+
+	listener = s.limiter.WrapListener(listener)
+
 	s.log.WithField("addr", listener.Addr().String()).Debug("Server start.")
 	if err := s.setListener(listener); err != nil {
 		return trace.Wrap(err)
@@ -393,6 +396,12 @@ func (s *Server) acceptConnections() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				proxyConnectionLimitHitCount.Inc()
+				s.log.Error(err.Error())
+				continue
+			}
+
 			if utils.IsUseOfClosedNetworkError(err) {
 				s.log.Debugf("Server %v has closed.", addr)
 				return
@@ -420,22 +429,6 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
 func (s *Server) HandleConnection(conn net.Conn) {
-	// initiate an SSH connection, note that we don't need to close the conn here
-	// in case of error as ssh server takes care of this
-	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		s.log.Errorf(err.Error())
-	}
-	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
-		if trace.IsLimitExceeded(err) {
-			proxyConnectionLimitHitCount.Inc()
-		}
-		s.log.Errorf(err.Error())
-		conn.Close()
-		return
-	}
-	defer s.limiter.ReleaseConnection(remoteAddr)
-
 	// apply idle read/write timeout to this connection.
 	conn = utils.ObeyIdleTimeout(conn,
 		defaults.DefaultIdleConnectionDuration,
@@ -512,19 +505,43 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			s.log.Warnf("Dropping inbound ssh connection due to error: %v", err)
 			// Immediately dropping the ssh connection results in an
 			// EOF error for the client.  We therefore wait briefly
-			// to see if the client opens a channel, which will give
-			// us the opportunity to respond with a human-readable
-			// error.
-			select {
-			case firstChan := <-chans:
-				if firstChan != nil {
-					firstChan.Reject(ssh.Prohibited, err.Error())
+			// to see if the client opens a channel or sends any global
+			// requests, which will give us the opportunity to respond
+			// with a human-readable error.
+			waitCtx, waitCancel := context.WithTimeout(s.closeContext, time.Second)
+			defer waitCancel()
+			for {
+				select {
+				case req := <-reqs:
+					// wait for a request that wants a reply to send the error
+					if !req.WantReply {
+						continue
+					}
+
+					if err := req.Reply(false, []byte(err.Error())); err != nil {
+						s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
+					}
+				case firstChan := <-chans:
+					// channel was closed, terminate the connection
+					if firstChan == nil {
+						break
+					}
+
+					if err := firstChan.Reject(ssh.Prohibited, err.Error()); err != nil {
+						s.log.WithError(err).Warnf("failed to reject channel %s", firstChan.ChannelType())
+					}
+				case <-waitCtx.Done():
 				}
-			case <-s.closeContext.Done():
-			case <-time.After(time.Second * 1):
+
+				break
 			}
-			sconn.Close()
-			conn.Close()
+
+			if err := sconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh server connection")
+			}
+			if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh client connection")
+			}
 			return
 		}
 	}

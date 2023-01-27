@@ -15,15 +15,25 @@
 package gatewaytest
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const timeout = time.Second * 5
@@ -66,7 +76,7 @@ type MockTCPPortAllocator struct {
 func (m *MockTCPPortAllocator) Listen(localAddress, localPort string) (net.Listener, error) {
 	m.CallCount++
 
-	if apiutils.SliceContainsStr(m.PortsInUse, localPort) {
+	if slices.Contains(m.PortsInUse, localPort) {
 		return nil, trace.BadParameter("address already in use")
 	}
 
@@ -128,4 +138,84 @@ func (m *MockListener) Addr() net.Addr {
 
 func (m *MockListener) RealAddr() net.Addr {
 	return m.realListener.Addr()
+}
+
+type KeyPairPaths struct {
+	CertPath string
+	KeyPath  string
+}
+
+func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	ca := mustGenCACert(t)
+
+	tlsCert := mustGenCertSignedWithCA(t, ca, identity)
+
+	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
+	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
+
+	// Save the cert.
+
+	certFile, err := os.CreateTemp(dir, "cert")
+	require.NoError(t, err)
+
+	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCert.Certificate[0]})
+
+	_, err = certFile.Write(pemCert)
+	require.NoError(t, err)
+	require.NoError(t, certFile.Close())
+
+	// Save the private key.
+
+	keyFile, err := os.CreateTemp(dir, "key")
+	require.NoError(t, err)
+
+	pemPrivateKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
+
+	_, err = keyFile.Write(pemPrivateKey)
+	require.NoError(t, err)
+	require.NoError(t, keyFile.Close())
+
+	return KeyPairPaths{
+		CertPath: certFile.Name(),
+		KeyPath:  keyFile.Name(),
+	}
+}
+
+func mustGenCACert(t *testing.T) *tlsca.CertAuthority {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromKeys(caCert, caKey)
+	require.NoError(t, err)
+	return ca
+}
+
+func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) tls.Certificate {
+	clock := clockwork.NewRealClock()
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  clock.Now().UTC().Add(time.Minute),
+		DNSNames:  []string{"localhost", "*.localhost"},
+	})
+	require.NoError(t, err)
+
+	keyRaw := x509.MarshalPKCS1PrivateKey(privateKey)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
+	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
+	require.NoError(t, err)
+	return cert
 }

@@ -222,6 +222,10 @@ func (p *AgentPool) GetConnectedProxyGetter() *ConnectedProxyGetter {
 }
 
 func (p *AgentPool) updateConnectedProxies() {
+	if p.IsRemoteCluster {
+		trustedClustersStats.WithLabelValues(p.Cluster).Set(float64(p.active.len()))
+	}
+
 	if !p.runtimeConfig.reportConnectedProxies() {
 		p.ConnectedProxyGetter.setProxyIDs(nil)
 		return
@@ -349,7 +353,7 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 
 	// Continue to process new events until an agent is required.
 	for {
-		p.log.Debugf("processing events...")
+		p.log.Debugf("Processing events...")
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -580,7 +584,7 @@ type agentPoolRuntimeConfig struct {
 
 	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting. This helps prevent
 	// proxy endpoint stagnation where an even numbers of proxies are hidden behind a round robin
-	// load balancer. For instance in a situation where there are two proxies [A, B] due to the
+	// load balancer. For instance in a situation where there are two proxies [A, B] due to
 	// the agent pools sequential webclient.Find and ssh dial, the Find call will always reach
 	// Proxy A and the ssh dial call will always be forwarded to Proxy B.
 	remoteTLSRoutingEnabled bool
@@ -612,7 +616,7 @@ func (c *agentPoolRuntimeConfig) reportConnectedProxies() bool {
 	return c.tunnelStrategyType == types.ProxyPeering
 }
 
-// reportConnectedProxies returns true if the the number of agents should be restricted.
+// reportConnectedProxies returns true if the number of agents should be restricted.
 func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
