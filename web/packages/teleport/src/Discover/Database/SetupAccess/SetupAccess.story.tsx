@@ -47,6 +47,18 @@ export const WithTraitsAwsPostgres = () => (
   </MemoryRouter>
 );
 
+export const WithTraitsAwsMySql = () => (
+  <MemoryRouter>
+    <SetupAccess
+      {...props}
+      resourceState={{
+        engine: DatabaseEngine.MySQL,
+        location: DatabaseLocation.AWS,
+      }}
+    />
+  </MemoryRouter>
+);
+
 export const WithTraitsPostgres = () => (
   <MemoryRouter>
     <SetupAccess {...props} />

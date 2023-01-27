@@ -28,6 +28,7 @@ import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
 import serviceSession, {
   Session,
   ParticipantList,
+  ParticipantMode,
 } from 'teleport/services/session';
 import serviceNodes from 'teleport/services/nodes';
 import serviceClusters from 'teleport/services/clusters';
@@ -83,13 +84,14 @@ export default class ConsoleContext {
     });
   }
 
-  addSshDocument({ login, serverId, sid, clusterId }: UrlSshParams) {
+  addSshDocument({ login, serverId, sid, clusterId, mode }: UrlSshParams) {
     const title = login && serverId ? `${login}@${serverId}` : sid;
     const url = this.getSshDocumentUrl({
       clusterId,
       login,
       serverId,
       sid,
+      mode,
     });
 
     return this.storeDocs.add({
@@ -101,6 +103,7 @@ export default class ConsoleContext {
       login,
       sid,
       url,
+      mode,
       created: new Date(),
     });
   }
@@ -170,7 +173,7 @@ export default class ConsoleContext {
     webSession.logout();
   }
 
-  createTty(session: Session): Tty {
+  createTty(session: Session, mode?: ParticipantMode): Tty {
     const { login, sid, serverId, clusterId } = session;
 
     const propagator = new W3CTraceContextPropagator();
@@ -192,6 +195,7 @@ export default class ConsoleContext {
         login,
         sid,
         server_id: serverId,
+        mode,
       },
     });
 

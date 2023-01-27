@@ -777,9 +777,9 @@ fi
 if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
     # handle centos6 URL override
     if [[ ${DISTRO_TYPE} == "centos6" ]]; then
-        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-centos6-bin.tar.gz"
+        URL="https://get.gravitational.com/{{.packageName}}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-centos6-bin.tar.gz"
     else
-        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+        URL="https://get.gravitational.com/{{.packageName}}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
     fi
     # check that needed tools are installed
     check_exists_fatal curl tar
@@ -804,7 +804,7 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
         DEB_ARCH="arm64"
     fi
-    URL="https://get.gravitational.com/teleport_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
+    URL="https://get.gravitational.com/{{.packageName}}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
     check_deb_not_already_installed
     # check that needed tools are installed
     check_exists_fatal curl dpkg
@@ -826,7 +826,7 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
     elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
         RPM_ARCH="arm64"
     fi
-    URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
+    URL="https://get.gravitational.com/{{.packageName}}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
     check_rpm_not_already_installed
     # check for package managers
     if check_exists dnf; then
