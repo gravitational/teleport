@@ -78,7 +78,8 @@ export function ReAuthenticate({
           <DialogHeader style={{ flexDirection: 'column' }}>
             <DialogTitle>Verify your identity</DialogTitle>
             <Text textAlign="center" color="text.secondary">
-              You must verify your identity before peforming this action.
+              You must first verify your identity with an already registered
+              two-factor device before peforming this action.
             </Text>
           </DialogHeader>
           {attempt.status === 'failed' && (
