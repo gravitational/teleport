@@ -1,15 +1,18 @@
 import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
+import * as api from 'gen-proto-js/teleterm/v1/service_pb';
+import { TerminalServiceClient } from 'gen-proto-js/teleterm/v1/service_grpc_pb';
+import {
+  AccessRequest,
+  ResourceID,
+} from 'gen-proto-js/teleterm/v1/access_request_pb';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
 
-import * as api from './v1/service_pb';
-import { TerminalServiceClient } from './v1/service_grpc_pb';
 import { createFileTransferStream } from './createFileTransferStream';
 import middleware, { withLogging } from './middleware';
 import * as types from './types';
 import createAbortController from './createAbortController';
-import { AccessRequest, ResourceID } from './v1/access_request_pb';
 import { mapUsageEvent } from './mapUsageEvent';
 import { ReportUsageEventRequest } from './types';
 
