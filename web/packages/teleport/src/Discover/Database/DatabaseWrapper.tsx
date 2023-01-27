@@ -15,7 +15,7 @@ export function DatabaseWrapper(props: DatabaseWrapperProps) {
   useEffect(() => {
     return () => {
       // once the user leaves the desktop setup flow, delete the existing token
-      clearCachedJoinTokenResult(ResourceKind.Desktop);
+      clearCachedJoinTokenResult(ResourceKind.Database);
     };
   }, []);
 
