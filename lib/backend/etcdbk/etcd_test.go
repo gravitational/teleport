@@ -43,7 +43,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// commonEtcdParams holds the common etcd configuration for all tests.
+// commonEtcdParams holds the common etcd configuration for all tests
 var commonEtcdParams = backend.Params{
 	"peers":         []string{etcdTestEndpoint()},
 	"prefix":        examplePrefix,
