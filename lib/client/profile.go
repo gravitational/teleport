@@ -67,6 +67,9 @@ func NewMemProfileStore() *MemProfileStore {
 
 // CurrentProfile returns the current profile.
 func (ms *MemProfileStore) CurrentProfile() (string, error) {
+	if ms.currentProfile == "" {
+		return "", trace.NotFound("current-profile is not set")
+	}
 	return ms.currentProfile, nil
 }
 
