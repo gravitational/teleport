@@ -129,8 +129,6 @@ export function Navigation() {
       history.push(
         previousRoute || getFirstRouteForCategory(features, category)
       );
-
-      setView(category);
     },
     [view, location.pathname, previousRoute]
   );
