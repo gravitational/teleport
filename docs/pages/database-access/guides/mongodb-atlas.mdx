@@ -27,9 +27,7 @@ In this guide you will:
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Configure Teleport
-
-### Set up the Teleport Database Service
+## Step 1/4. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -178,11 +176,11 @@ $ curl -o /tmp/isrgrootx1.pem https://letsencrypt.org/certs/isrgrootx1.pem.txt
 
 You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases[*].ca_cert_file` configuration option or `--ca-cert` CLI flag.
 
-### Create Teleport user
+## Step 2/4. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 2/3. Configure Atlas
+## Step 3/4. Configure Atlas
 
 ### Enable self-managed X.509 authentication
 
@@ -225,7 +223,7 @@ certificate with `CN=alice` subject.
   letters `CN=`.
 </Admonition>
 
-## Step 3/3. Connect
+## Step 4/4. Connect
 
 Log into your Teleport cluster and see available databases:
 
