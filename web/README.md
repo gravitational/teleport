@@ -31,7 +31,7 @@ To build the Teleport open source version
 $ yarn build-ui-oss
 ```
 
-The resulting output will be in the `packages/{package-name}/dist/` folders respectively.
+The resulting output will be in the `webassets` folder.
 
 ### Docker Build
 
@@ -47,18 +47,69 @@ See [`README.md` in `packages/teleterm`](packages/teleterm#readme).
 
 ## Development
 
+### Local HTTPS
+
+To run `vite` for either Teleport or Teleport enterprise, you'll need to generate local
+self-signed certificates. The recommended way of doing this is via [mkcert](https://github.com/FiloSottile/mkcert).
+
+You can install mkcert via
+
+```
+brew install mkcert
+```
+
+After you've done this, run:
+
+```
+mkcert -install
+```
+
+This will generate a root CA on your machine and automatically trust it (you'll be prompted for your password).
+
+Once you've generated a root CA, you'll need to generate a certificate for local usage.
+
+Run the following from the `web/` directory, replacing `localhost` if you're using a different hostname.
+
+```
+mkdir -p certs && mkcert -cert-file certs/server.crt -key-file certs/server.key localhost "*.localhost"
+```
+
+(Note: the `certs/` directory in this repo is ignored by git, so you can place your certificate/keys
+in there without having to worry that they'll end up in a commit.)
+
+
+#### Certificates in an alternative location
+
+If you already have local certificates, you can set the environment variables:
+
+- `VITE_HTTPS_CERT` **(required)** - absolute path to the certificate
+- `VITE_HTTPS_KEY` **(required)** - absolute path to the key
+
+You can set these in your `~/.zshrc`, `~/.bashrc`, etc.
+
+```
+export VITE_HTTPS_CERT=/Users/you/certs/server.crt
+export VITE_HTTPS_KEY=/Users/you/certs/server.key
+```
+
 ### Web UI
 
 To avoid having to install a dedicated Teleport cluster,
 you can use a local development server which can proxy network requests
 to an existing cluster.
 
-For example, if `https://example.com:3080/web` is the URL of your cluster then:
+For example, if `https://example.com:3080` is the URL of your cluster then:
 
 To start your local Teleport development server
 
 ```
-$ yarn start-teleport --target=https://example.com:3080/web
+PROXY_TARGET=example.com:3080 yarn start-teleport
+```
+
+If you're running a local cluster at `https://localhost:3080`, you can just run
+
+```
+yarn start-teleport
 ```
 
 This service will serve your local javascript files and proxy network
@@ -66,105 +117,6 @@ requests to the given target.
 
 > Keep in mind that you have to use a local user because social
 > logins (google/github) are not supported by development server.
-
-#### Caching
-
-By default, Webpack will store a cache in `node_modules/.cache/webpack` during development. This
-makes starting `webpack-dev-server` really quick after having ran it once, as it will re-use the
-cache from the last time it was running.
-
-If you want to change the location of the cache, you can set `WEBPACK_CACHE_DIRECTORY` to an
-absolute file path of the folder where you want to store Webpack's cache.
-
-If you wish to disable the cache, you can set `WEBPACK_CACHE_DISABLED` to `yes`.
-
-#### Source Maps
-
-During development, Webpack will default to generating source maps using `eval-source-map`.
-This can be overridden by setting the `WEBPACK_SOURCE_MAP` environment variable to one of the
-[available values that Webpack offers](https://webpack.js.org/configuration/devtool/#devtool).
-
-To turn them off, set `WEBPACK_SOURCE_MAP` to `none` -
-
-```
-$ WEBPACK_SOURCE_MAP=none yarn start-teleport --target=https://example.com:3080/web
-```
-
-#### Changing the port Webpack runs on
-
-To make Webpack listen on a different port, you can set the `WEBPACK_PORT` environment variable
-to whatever port you need.
-
-```
-$ WEBPACK_PORT=6060 yarn start-teleport --target=https://example.com:3080/web
-```
-
-#### Custom HTTPS configuration
-
-If you'd like to provide your own key/certificate for Webpack's development server, you can
-override the default behavior by setting some environment variables.
-
-You should either set:
-
-- `WEBPACK_HTTPS_CERT` **(required)** - absolute path to the certificate
-- `WEBPACK_HTTPS_KEY` **(required)** - absolute path to the key
-- `WEBPACK_HTTPS_CA` - absolute path to the ca
-- `WEBPACK_HTTPS_PASSPHRASE` - the passphrase
-
-Or:
-
-- `WEBPACK_HTTPS_PFX` **(required)** - absolute path to the certificate
-- `WEBPACK_HTTPS_PASSPHRASE` - the passphrase
-
-You can set these in your `~/.zshrc`, `~/.bashrc`, etc.
-
-```
-export WEBPACK_HTTPS_CERT=/Users/you/go/src/github.com/gravitational/webapps/certs/server.crt
-export WEBPACK_HTTPS_KEY=/Users/you/go/src/github.com/gravitational/webapps/certs/server.key
-```
-
-The `certs/` directory in this repo is ignored by git, so you can place your certificate/keys
-in there without having to worry that they'll end up in a commit.
-
-#### Making application access work locally
-
-For application access to work, you should have it set so you're running Webpack on the same machine
-as Teleport. This is so you can access both Webpack and Teleport via the same domain.
-
-Imagine you're using the domain `go.teleport` instead of `localhost`.
-
-You should setup `/etc/hosts.yml` like so:
-
-```
-0.0.0.0 go.teleport
-0.0.0.0 dumper.go.teleport
-```
-
-Then, run Webpack with the environment variable `WEBPACK_PROXY_APP_ACCESS` set to `true`. This will
-check the incoming `Host` header and compare it against the hostname of the given target flag.
-
-```
-WEBPACK_PROXY_APP_ACCESS=true yarn start-teleport --target=https://go.teleport:3080/web
-```
-
-Going to `go.teleport`, Webpack will compare the `Host` header (`go.teleport`) and the hostname of the target (also
-`go.teleport`). It will therefore only proxy API requests through to Teleport, and serve the Webpack content for all
-other requests.
-
-Going to `dumper.go.teleport`, comparing the `Host` header (`dumper.go.teleport`) and the hostname of the target
-(`go.teleport`). It will proxy every request for this host through to Teleport, making application access work properly.
-
-Note: this only works for local Teleport instances, and won't work for Cloud.
-
-#### Analyzing Webpack's bundle output
-
-To see what is being included in each bundle via [webpack-bundle-analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer), you can set `WEBPACK_ANALYZE_BUNDLE` to `true` to have it running at `localhost:8888`.
-
-```
-$ WEBPACK_ANALYZE_BUNDLE=true yarn start-teleport --target=https://example.com:3080/web
-```
-
-And then go to http://localhost:8888.
 
 ### Unit-Tests
 
