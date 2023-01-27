@@ -105,8 +105,6 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 		return nil, trace.Errorf("release server responded with status %d", resp.Code())
 	}
 
-	fmt.Printf("\n\nso far so good, resp is  %+v\n\n", string(resp.Bytes()))
-
 	var releases []Release
 	err = json.Unmarshal(resp.Bytes(), &releases)
 	if err != nil {
