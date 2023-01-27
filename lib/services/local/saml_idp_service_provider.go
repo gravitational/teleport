@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const samlIdPServiceProviderMaxPageSize = 200
+const samlIDPServiceProviderMaxPageSize = 200
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
@@ -44,8 +44,8 @@ func (s *SAMLIdPServiceProviderService) ListSAMLIdPServiceProviders(ctx context.
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > samlIdPServiceProviderMaxPageSize {
-		pageSize = samlIdPServiceProviderMaxPageSize
+	if pageSize <= 0 || pageSize > samlIDPServiceProviderMaxPageSize {
+		pageSize = samlIDPServiceProviderMaxPageSize
 	}
 
 	// Increment pageSize to allow for the extra item represented by nextKey.

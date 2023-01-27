@@ -127,8 +127,9 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	// Delete a service provider.
 	err = service.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName())
 	require.NoError(t, err)
-	out, _, err = service.ListSAMLIdPServiceProviders(ctx, 200, "")
+	out, nextToken, err = service.ListSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
+	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
@@ -140,7 +141,8 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	// Delete all service providers.
 	err = service.DeleteAllSAMLIdPServiceProviders(ctx)
 	require.NoError(t, err)
-	out, _, err = service.GetSAMLIdPServiceProviders(ctx, 200, "")
+	out, nextToken, err = service.ListSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, nextToken)
+	require.Empty(t, out)
 }

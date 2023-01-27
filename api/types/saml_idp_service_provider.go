@@ -191,7 +191,6 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		} else {
 			return trace.Wrap(err)
 		}
-		readAnyXML = true
 	}
 	return nil
 }
