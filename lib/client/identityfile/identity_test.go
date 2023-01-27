@@ -16,6 +16,7 @@ package identityfile
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/x509/pkix"
 	"fmt"
@@ -127,7 +128,7 @@ func TestWrite(t *testing.T) {
 	// test OpenSSH-compatible identity file creation:
 	cfg.OutputPath = filepath.Join(outputDir, "openssh")
 	cfg.Format = FormatOpenSSH
-	_, err := Write(cfg)
+	_, err := Write(context.Background(), cfg)
 	require.NoError(t, err)
 
 	// key is OK:
@@ -143,7 +144,7 @@ func TestWrite(t *testing.T) {
 	// test standard Teleport identity file creation:
 	cfg.OutputPath = filepath.Join(outputDir, "file")
 	cfg.Format = FormatFile
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 
 	// key+cert are OK:
@@ -172,7 +173,7 @@ func TestWrite(t *testing.T) {
 	cfg.Format = FormatKubernetes
 	cfg.KubeProxyAddr = "far.away.cluster"
 	cfg.KubeTLSServerName = "kube.far.away.cluster"
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
 }
@@ -203,7 +204,7 @@ func TestWriteAllFormats(t *testing.T) {
 				cfg.OutputPath = t.TempDir()
 			}
 
-			files, err := Write(cfg)
+			files, err := Write(context.Background(), cfg)
 			require.NoError(t, err)
 			for _, file := range files {
 				require.True(t, strings.HasPrefix(file, cfg.OutputPath))
@@ -223,13 +224,13 @@ func TestKubeconfigOverwrite(t *testing.T) {
 		Key:                  key,
 		OverwriteDestination: true,
 	}
-	_, err := Write(cfg)
+	_, err := Write(context.Background(), cfg)
 	require.NoError(t, err)
 
 	// Write a kubeconfig to the same file path. It should be overwritten.
 	cfg.Format = FormatKubernetes
 	cfg.KubeProxyAddr = "far.away.cluster"
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", "")
 
@@ -237,7 +238,7 @@ func TestKubeconfigOverwrite(t *testing.T) {
 	// should be overwritten.
 	cfg.KubeProxyAddr = "other.cluster"
 	cfg.KubeTLSServerName = "kube.other.cluster"
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "other.cluster", cfg.KubeTLSServerName)
 }
@@ -321,7 +322,7 @@ func TestKeyFromIdentityFile(t *testing.T) {
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
 	// First write an ssh key to the file.
-	_, err := Write(WriteConfig{
+	_, err := Write(context.Background(), WriteConfig{
 		OutputPath:           identityFilePath,
 		Format:               FormatFile,
 		Key:                  key,
@@ -355,7 +356,7 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
 	// First write an ssh key to the file.
-	_, err := Write(WriteConfig{
+	_, err := Write(context.Background(), WriteConfig{
 		OutputPath:           identityFilePath,
 		Format:               FormatFile,
 		Key:                  key,
