@@ -5858,6 +5858,14 @@ func TestCreateDatabase(t *testing.T) {
 
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
 
+	// Create an initial database to table test a duplicate creation
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+		Name:     "duplicatedb",
+		Protocol: "mysql",
+		URI:      "someuri:3306",
+	})
+	require.NoError(t, err)
+
 	for _, tt := range []struct {
 		name           string
 		req            createDatabaseRequest
@@ -5946,6 +5954,19 @@ func TestCreateDatabase(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "missing port in address")
+			},
+		},
+		{
+			name: "duplicatedb",
+			req: createDatabaseRequest{
+				Name:     "duplicatedb",
+				Protocol: "mysql",
+				URI:      "someuri:3306",
+			},
+			expectedStatus: http.StatusConflict,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+				require.Contains(t, err.Error(), `failed to create database ("duplicatedb" already exists), please use another name`)
 			},
 		},
 	} {
