@@ -40,6 +40,12 @@ func TestTeletermRPCService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Run("adding root cluster", func(t *testing.T) {
+		t.Parallel()
+
+		testAddingRootCluster(t, pack, creds)
+	})
+
 	t.Run("list root clusters returning logged in user", func(t *testing.T) {
 		t.Parallel()
 
@@ -50,6 +56,34 @@ func TestTeletermRPCService(t *testing.T) {
 
 		testIfGetClusterReturnsPropertiesFromAuthServer(t, pack)
 	})
+}
+
+func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                t.TempDir(),
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage: storage,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	addedCluster, err := daemonService.AddCluster(context.Background(), pack.Root.Cluster.Web)
+	require.NoError(t, err)
+
+	clusters, err := daemonService.ListRootClusters(context.Background())
+	require.NoError(t, err)
+
+	clusterURIs := make([]uri.ResourceURI, 0, len(clusters))
+	for _, cluster := range clusters {
+		clusterURIs = append(clusterURIs, cluster.URI)
+	}
+	require.ElementsMatch(t, clusterURIs, []uri.ResourceURI{addedCluster.URI})
 }
 
 func testIfListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
