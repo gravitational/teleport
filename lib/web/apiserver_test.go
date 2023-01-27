@@ -1223,7 +1223,7 @@ func TestNewTerminalHandler(t *testing.T) {
 
 func TestResizeTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 	sid := session.NewID()
 
 	errs := make(chan error, 2)
