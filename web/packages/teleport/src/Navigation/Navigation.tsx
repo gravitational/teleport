@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useHistory, useLocation } from 'react-router';
 
 import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
@@ -98,6 +98,7 @@ function getCategoryForRoute(
 export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
+  const location = useLocation();
 
   const [view, setView] = useState(
     getCategoryForRoute(features, history.location) ||
@@ -107,12 +108,17 @@ export function Navigation() {
   const [previousRoute, setPreviousRoute] = useState('');
 
   useEffect(() => {
-    const category = getCategoryForRoute(features, history.location);
+    return history.listen(next => {
+      const previousPathName = location.pathname;
 
-    if (category && category !== view) {
-      setView(category);
-    }
-  }, [history.location, features, view]);
+      const category = getCategoryForRoute(features, next);
+
+      if (category && category !== view) {
+        setPreviousRoute(previousPathName);
+        setView(category);
+      }
+    });
+  }, [history, location.pathname, features, view]);
 
   const handleCategoryChange = useCallback(
     (category: NavigationCategory) => {
@@ -120,16 +126,13 @@ export function Navigation() {
         return;
       }
 
-      const previousPathName = history.location.pathname;
-
       history.push(
         previousRoute || getFirstRouteForCategory(features, category)
       );
 
-      setPreviousRoute(previousPathName);
       setView(category);
     },
-    [view, history.location.pathname, previousRoute]
+    [view, location.pathname, previousRoute]
   );
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (
