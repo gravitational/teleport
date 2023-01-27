@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -1732,7 +1733,10 @@ func onLogin(cf *CLIConf) error {
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
 	// so can be excluded here.
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
+	alertCtx, cancelAlertCtx := context.WithTimeout(cf.Context, constants.TimeoutGetClusterAlerts)
+	defer cancelAlertCtx()
+
+	if err := common.ShowClusterAlerts(alertCtx, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
@@ -3242,7 +3246,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
-			if !trace.IsNotFound(err) {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 				return nil, trace.Wrap(err)
 			}
 			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
@@ -3584,7 +3588,20 @@ func onStatus(cf *CLIConf) error {
 		return nil
 	}
 
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+	clusterAlertTimeout := constants.TimeoutGetClusterAlerts
+
+	// When hardware key touch is required, user's may be prompted for touch on
+	// tsh status. This is an unexpected UX, so we notify the user of the reason.
+	// We also extend the timeout so user can tap within a reasonable span of time.
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		fmt.Println("Checking server for cluster alerts.")
+		clusterAlertTimeout = time.Second * 15
+	}
+
+	alertCtx, cancelAlertCtx := context.WithTimeout(cf.Context, clusterAlertTimeout)
+	defer cancelAlertCtx()
+
+	if err := common.ShowClusterAlerts(alertCtx, tc, os.Stderr, nil,
 		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}

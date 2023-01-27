@@ -148,9 +148,10 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	}
 	key, err := s.GetKey(idx, WithAllCerts...)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// If we can't find a key to match the profile, return a partial status. This
-			// is used for some superficial functions `tsh logout` and `tsh status`.
+		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
+			// If we can't find a key to match the profile, or can't connect to
+			// the key (hardware key), return a partial status. This is used for
+			// some superficial functions `tsh logout` and `tsh status`.
 			return &ProfileStatus{
 				Name: profileName,
 				Dir:  profile.Dir,
