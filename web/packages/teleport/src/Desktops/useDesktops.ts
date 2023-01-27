@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect } from 'react';
-import { FetchStatus } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect } from 'react';
 
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
@@ -26,44 +24,29 @@ import {
   useServerSidePagination,
 } from 'teleport/components/hooks';
 import { openNewTab } from 'teleport/lib/util';
-import { AgentResponse } from 'teleport/services/agents';
-
-import type { Desktop } from 'teleport/services/desktops';
 
 export default function useDesktops(ctx: Ctx) {
-  const { attempt, setAttempt } = useAttempt('processing');
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const username = ctx.storeUser.state.username;
   const windowsLogins = ctx.storeUser.getWindowsLogins();
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [results, setResults] = useState<AgentResponse<Desktop>>({
-    agents: [],
-    startKey: '',
-    totalCount: 0,
-  });
 
   const { params, search, ...filteringProps } = useUrlFiltering({
     fieldName: 'name',
     dir: 'ASC',
   });
 
-  const { setStartKeys, pageSize, ...paginationProps } =
-    useServerSidePagination({
-      fetchFunc: ctx.desktopService.fetchDesktops,
-      clusterId,
-      params,
-      results,
-      setResults,
-      setFetchStatus,
-      setAttempt,
-    });
+  const { fetch, ...paginationProps } = useServerSidePagination({
+    fetchFunc: ctx.desktopService.fetchDesktops,
+    clusterId,
+    params,
+  });
 
   const getWindowsLoginOptions = (desktopName: string) =>
     makeOptions(clusterId, desktopName, windowsLogins);
 
   useEffect(() => {
-    fetchDesktops();
+    fetch();
   }, [clusterId, search]);
 
   const openRemoteDesktopTab = (username: string, desktopName: string) => {
@@ -76,35 +59,14 @@ export default function useDesktops(ctx: Ctx) {
     openNewTab(url);
   };
 
-  function fetchDesktops() {
-    setAttempt({ status: 'processing' });
-    ctx.desktopService
-      .fetchDesktops(clusterId, { ...params, limit: pageSize })
-      .then(res => {
-        setResults(res);
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys(['', res.startKey]);
-        setAttempt({ status: 'success' });
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, agents: [], totalCount: 0 });
-        setStartKeys(['']);
-      });
-  }
-
   return {
-    attempt,
     username,
     clusterId,
     canCreate,
     isLeafCluster,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
-    results,
-    fetchStatus,
     params,
-    pageSize,
     ...filteringProps,
     ...paginationProps,
   };

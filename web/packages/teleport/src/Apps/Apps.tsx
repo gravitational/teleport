@@ -43,26 +43,24 @@ export function Apps(props: State) {
     isLeafCluster,
     canCreate,
     attempt,
-    results,
+    fetchedData,
     fetchNext,
     fetchPrev,
-    from,
-    to,
     pageSize,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    pageIndicators,
     onLabelClick,
   } = props;
 
   const hasNoApps =
     attempt.status === 'success' &&
-    results.agents.length === 0 &&
+    fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
   return (
@@ -88,17 +86,14 @@ export function Apps(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoApps && (
         <AppList
-          apps={results.agents}
+          apps={fetchedData.agents}
           fetchNext={fetchNext}
           fetchPrev={fetchPrev}
           fetchStatus={fetchStatus}
-          from={from}
-          to={to}
-          totalCount={results.totalCount}
+          pageIndicators={pageIndicators}
           pageSize={pageSize}
           params={params}
           setParams={setParams}
-          startKeys={startKeys}
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}

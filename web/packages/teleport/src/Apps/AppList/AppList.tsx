@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, ButtonBorder } from 'design';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { SortType } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import {
   pink,
   teal,
@@ -40,23 +40,22 @@ import { ResourceUrlQueryParams } from 'teleport/components/hooks/useUrlFilterin
 
 import AwsLaunchButton from './AwsLaunchButton';
 
+import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+
 export default function AppList(props: Props) {
   const {
     apps = [],
     pageSize,
-    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
-    from,
-    to,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
+    pageIndicators,
   } = props;
 
   return (
@@ -106,16 +105,14 @@ export default function AppList(props: Props) {
       serversideProps={{
         sort: params.sort,
         setSort,
-        startKeys,
         serversideSearchPanel: (
           <ServersideSearchPanel
-            from={from}
-            to={to}
-            count={totalCount}
+            pageIndicators={pageIndicators}
             params={params}
             setParams={setParams}
             pathname={pathname}
             replaceHistory={replaceHistory}
+            disabled={fetchStatus === 'loading'}
           />
         ),
       }}
@@ -209,17 +206,14 @@ type Props = {
   pageSize: number;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: any;
-  from: number;
-  to: number;
-  totalCount: number;
+  fetchStatus: FetchStatus;
   params: ResourceUrlQueryParams;
   setParams: (params: ResourceUrlQueryParams) => void;
-  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
+  pageIndicators: PageIndicators;
 };
 
 const StyledTable = styled(Table)`

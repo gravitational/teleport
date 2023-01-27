@@ -14,13 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect } from 'react';
-import { FetchStatus } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect } from 'react';
 
-import { AgentResponse } from 'teleport/services/agents';
 import Ctx from 'teleport/teleportContext';
-import { StickyCluster } from 'teleport/types';
+import useStickerClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { openNewTab } from 'teleport/lib/util';
 import {
@@ -30,39 +27,27 @@ import {
 
 import type { Node } from 'teleport/services/nodes';
 
-export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
-  const { isLeafCluster, clusterId } = stickyCluster;
-  const { attempt, setAttempt } = useAttempt('processing');
+export default function useNodes(ctx: Ctx) {
+  const { isLeafCluster, clusterId } = useStickerClusterId();
   const canCreate = ctx.storeUser.getTokenAccess().create;
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [results, setResults] = useState<AgentResponse<Node>>({
-    agents: [],
-    startKey: '',
-    totalCount: 0,
-  });
 
   const { params, search, ...filteringProps } = useUrlFiltering({
     fieldName: 'hostname',
     dir: 'ASC',
   });
 
-  const { setStartKeys, pageSize, ...paginationProps } =
-    useServerSidePagination({
-      fetchFunc: ctx.nodeService.fetchNodes,
-      clusterId,
-      params,
-      results,
-      setResults,
-      setFetchStatus,
-      setAttempt,
-    });
+  const { fetch, fetchedData, ...paginationProps } = useServerSidePagination({
+    fetchFunc: ctx.nodeService.fetchNodes,
+    clusterId,
+    params,
+  });
 
   useEffect(() => {
-    fetchNodes();
+    fetch();
   }, [clusterId, search]);
 
   function getNodeLoginOptions(serverId: string) {
-    const node = results.agents.find(node => node.id == serverId);
+    const node = fetchedData.agents.find(node => node.id == serverId);
     return makeOptions(clusterId, node);
   }
 
@@ -76,34 +61,14 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     openNewTab(url);
   };
 
-  function fetchNodes() {
-    setAttempt({ status: 'processing' });
-    ctx.nodeService
-      .fetchNodes(clusterId, { ...params, limit: pageSize })
-      .then(res => {
-        setResults(res);
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys(['', res.startKey]);
-        setAttempt({ status: 'success' });
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, agents: [], totalCount: 0 });
-        setStartKeys(['']);
-      });
-  }
-
   return {
+    fetchedData,
     canCreate,
-    attempt,
     getNodeLoginOptions,
     startSshSession,
     isLeafCluster,
     clusterId,
-    results,
-    fetchStatus,
     params,
-    pageSize,
     ...filteringProps,
     ...paginationProps,
   };

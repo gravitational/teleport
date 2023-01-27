@@ -19,7 +19,8 @@ import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import renderHook, { act } from 'design/utils/renderHook';
 import { SortType } from 'design/DataTable/types';
-import useUrlFiltering from './useUrlFiltering';
+
+import { useUrlFiltering } from './useUrlFiltering';
 
 test('extracting params from URL with simple search and sort params', () => {
   const url = '/test?search=test%20multiple%20words&sort=name:desc';

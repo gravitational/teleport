@@ -17,12 +17,14 @@ limitations under the License.
 import { useState } from 'react';
 import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
+
 import history from 'teleport/services/history';
 import { AgentLabel } from 'teleport/services/agents';
+
 import getQueryParams from './getQueryParams';
 import labelClick from './labelClick';
 
-export default function useUrlFiltering(initialSort: SortType) {
+export function useUrlFiltering(initialSort: SortType) {
   const { search, pathname } = useLocation();
   const [params, setParams] = useState<ResourceUrlQueryParams>({
     sort: initialSort,

@@ -18,6 +18,8 @@ import {
   ResourceUrlQueryParams,
 } from 'teleport/components/hooks/useUrlFiltering';
 
+import type { PageIndicators } from '../hooks/useServersidePagination';
+
 export default function useServersideSearchPanel(props: Props) {
   const { pathname, params, setParams, replaceHistory } = props;
 
@@ -96,9 +98,8 @@ export type Props = {
   replaceHistory: (path: string) => void;
   params: ResourceUrlQueryParams;
   setParams: (params: ResourceUrlQueryParams) => void;
-  from: number;
-  to: number;
-  count: number;
+  pageIndicators: PageIndicators;
+  disabled?: boolean;
 };
 
 export type State = ReturnType<typeof useServersideSearchPanel>;

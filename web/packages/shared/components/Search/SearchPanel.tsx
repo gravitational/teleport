@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Text, Flex } from 'design';
 import { StyledPanel } from 'design/DataTable';
-import { PageIndicatorText } from 'design/DataTable/Pager/Pager';
 import InputSearch from 'design/DataTable/InputSearch';
 import { AgentFilter } from 'teleport/services/agents';
 import Toggle from 'teleport/components/Toggle';
@@ -13,14 +12,14 @@ import { PredicateDoc } from './PredicateDoc';
 export function SearchPanel({
   updateQuery,
   updateSearch,
-  pageCount,
+  pageIndicators,
   filter,
   showSearchBar,
   disableSearch,
 }: {
   updateQuery(s: string): void;
   updateSearch(s: string): void;
-  pageCount: { from: number; to: number; total: number };
+  pageIndicators: { from: number; to: number; total: number };
   filter: AgentFilter;
   showSearchBar: boolean;
   disableSearch: boolean;
@@ -79,9 +78,9 @@ export function SearchPanel({
           )}
         </Flex>
         <PageIndicatorText
-          from={pageCount.from}
-          to={pageCount.to}
-          count={pageCount.total}
+          from={pageIndicators.from}
+          to={pageIndicators.to}
+          count={pageIndicators.total}
         />
       </Flex>
     </StyledPanel>
@@ -107,3 +106,20 @@ const StyledFlex = styled(Flex)`
     transition: opacity 150ms ease-in;
   }
 `;
+
+export function PageIndicatorText({
+  from,
+  to,
+  count,
+}: {
+  from: number;
+  to: number;
+  count: number;
+}) {
+  return (
+    <Text typography="body2" color="primary.contrastText" mr={1}>
+      SHOWING <strong>{from}</strong> - <strong>{to}</strong> of{' '}
+      <strong>{count}</strong>
+    </Text>
+  );
+}

@@ -47,15 +47,12 @@ export function Kubes(props: State) {
     isLeafCluster,
     clusterId,
     canCreate,
-    results,
+    fetchedData,
     fetchNext,
     fetchPrev,
-    from,
-    to,
     pageSize,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
@@ -63,11 +60,12 @@ export function Kubes(props: State) {
     isSearchEmpty,
     onLabelClick,
     accessRequestId,
+    pageIndicators,
   } = props;
 
   const hasNoKubes =
     attempt.status === 'success' &&
-    results.agents.length === 0 &&
+    fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
   return (
@@ -93,20 +91,17 @@ export function Kubes(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoKubes && (
         <KubeList
-          kubes={results.agents}
+          kubes={fetchedData.agents}
           username={username}
           authType={authType}
           clusterId={clusterId}
           fetchNext={fetchNext}
           fetchPrev={fetchPrev}
           fetchStatus={fetchStatus}
-          from={from}
-          to={to}
-          totalCount={results.totalCount}
+          pageIndicators={pageIndicators}
           pageSize={pageSize}
           params={params}
           setParams={setParams}
-          startKeys={startKeys}
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}

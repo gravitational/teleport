@@ -14,11 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useState } from 'react';
-import { FetchStatus } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect } from 'react';
 
-import { AgentResponse } from 'teleport/services/agents';
 import { sortLogins } from 'teleport/Nodes/useNodes';
 import {
   useUrlFiltering,
@@ -32,50 +29,21 @@ import type { Node } from 'teleport/services/nodes';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
-  const { attempt, setAttempt } = useAttempt('processing');
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [results, setResults] = useState<AgentResponse<Node>>({
-    agents: [],
-    startKey: '',
-    totalCount: 0,
-  });
 
   const { params, search, ...filteringProps } = useUrlFiltering({
     fieldName: 'hostname',
     dir: 'ASC',
   });
 
-  const { setStartKeys, pageSize, ...paginationProps } =
-    useServerSidePagination({
-      fetchFunc: consoleCtx.fetchNodes,
-      clusterId,
-      params,
-      results,
-      setResults,
-      setFetchStatus,
-      setAttempt,
-    });
+  const { fetch, fetchedData, ...paginationProps } = useServerSidePagination({
+    fetchFunc: consoleCtx.fetchNodes,
+    clusterId,
+    params,
+  });
 
   useEffect(() => {
-    fetchNodes();
+    fetch();
   }, [clusterId, search]);
-
-  function fetchNodes() {
-    setAttempt({ status: 'processing' });
-    consoleCtx
-      .fetchNodes(clusterId, { ...params, limit: pageSize })
-      .then(res => {
-        setResults(res);
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys(['', res.startKey]);
-        setAttempt({ status: 'success' });
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, agents: [], totalCount: 0 });
-        setStartKeys(['']);
-      });
-  }
 
   function createSshSession(login: string, serverId: string) {
     const url = consoleCtx.getSshDocumentUrl({
@@ -99,7 +67,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   }
 
   function getNodeSshLogins(serverId: string) {
-    const node = results.agents.find(node => node.id == serverId);
+    const node = fetchedData.agents.find(node => node.id == serverId);
     return makeOptions(clusterId, node);
   }
 
@@ -121,13 +89,10 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     });
   }
   return {
-    attempt,
+    fetchedData,
     createSshSession,
     changeCluster,
     getNodeSshLogins,
-    results,
-    fetchStatus,
-    pageSize,
     params,
     ...filteringProps,
     ...paginationProps,

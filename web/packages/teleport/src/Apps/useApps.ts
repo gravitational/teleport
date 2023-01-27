@@ -14,11 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect } from 'react';
-import { FetchStatus } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect } from 'react';
 
-import { AgentResponse } from 'teleport/services/agents';
 import Ctx from 'teleport/teleportContext';
 import useStickerClusterId from 'teleport/useStickyClusterId';
 import {
@@ -26,67 +23,32 @@ import {
   useServerSidePagination,
 } from 'teleport/components/hooks';
 
-import type { App } from 'teleport/services/apps';
-
 export default function useApps(ctx: Ctx) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const { isLeafCluster, clusterId } = useStickerClusterId();
-  const { attempt, setAttempt } = useAttempt('processing');
   const isEnterprise = ctx.isEnterprise;
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [results, setResults] = useState<AgentResponse<App>>({
-    agents: [],
-    startKey: '',
-    totalCount: 0,
-  });
 
   const { params, search, ...filteringProps } = useUrlFiltering({
     fieldName: 'name',
     dir: 'ASC',
   });
 
-  const { setStartKeys, pageSize, ...paginationProps } =
-    useServerSidePagination({
-      fetchFunc: ctx.appService.fetchApps,
-      clusterId,
-      params,
-      results,
-      setResults,
-      setFetchStatus,
-      setAttempt,
-    });
+  const { fetch, ...paginationProps } = useServerSidePagination({
+    fetchFunc: ctx.appService.fetchApps,
+    clusterId,
+    params,
+  });
 
   useEffect(() => {
-    fetchApps();
+    fetch();
   }, [clusterId, search]);
-
-  function fetchApps() {
-    setAttempt({ status: 'processing' });
-    ctx.appService
-      .fetchApps(clusterId, { ...params, limit: pageSize })
-      .then(res => {
-        setResults(res);
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys(['', res.startKey]);
-        setAttempt({ status: 'success' });
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, agents: [], totalCount: 0 });
-        setStartKeys(['']);
-      });
-  }
 
   return {
     clusterId,
     isLeafCluster,
     isEnterprise,
     canCreate,
-    attempt,
-    results,
-    fetchStatus,
     params,
-    pageSize,
     ...filteringProps,
     ...paginationProps,
   };

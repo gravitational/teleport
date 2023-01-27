@@ -15,46 +15,84 @@ limitations under the License.
 */
 
 import { useState } from 'react';
-import { FetchStatus } from 'design/DataTable/types';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { FetchStatus, Page } from 'design/DataTable/types';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
 import { AgentResponse, AgentKind } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
+
 import { ResourceUrlQueryParams } from './useUrlFiltering/useUrlFiltering';
 
 export default function useServerSidePagination<T extends AgentKind>({
   fetchFunc,
   clusterId,
   params,
-  results,
-  setResults,
-  setFetchStatus,
-  setAttempt,
   pageSize = 15,
-}: PaginationArgs<T>) {
-  const [startKeys, setStartKeys] = useState<string[]>([]);
+}: Props<T>) {
+  const { attempt, setAttempt } = useAttempt('processing');
+  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
+  const [page, setPage] = useState<Page>({ keys: [], index: 0 });
 
-  const from =
-    results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
-  const to = results.totalCount > 0 ? from + results.agents.length - 1 : 0;
+  const [fetchedData, setFetchedData] = useState<AgentResponse<T>>({
+    agents: [],
+    startKey: '',
+    totalCount: 0,
+  });
+
+  let from = 0;
+  let to = 0;
+  let totalCount = 0;
+  if (fetchedData.totalCount) {
+    from = page.index * pageSize + 1;
+    to = from + fetchedData.agents.length - 1;
+    totalCount = fetchedData.totalCount;
+  }
+
+  function fetch() {
+    setAttempt({ status: 'processing' });
+    fetchFunc(clusterId, { ...params, limit: pageSize })
+      .then(res => {
+        setFetchedData({
+          ...fetchedData,
+          agents: res.agents,
+          startKey: res.startKey,
+          totalCount: res.totalCount,
+        });
+        setPage({
+          keys: ['', res.startKey],
+          index: 0,
+        });
+        setFetchStatus(res.startKey ? '' : 'disabled');
+        setAttempt({ status: 'success' });
+      })
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+        setFetchedData({ ...fetchedData, agents: [], totalCount: 0 });
+      });
+  }
 
   const fetchNext = () => {
     setFetchStatus('loading');
     fetchFunc(clusterId, {
       ...params,
       limit: pageSize,
-      startKey: results.startKey,
+      startKey: page.keys[page.index + 1],
     })
       .then(res => {
-        setResults({
-          ...results,
+        setFetchedData({
+          ...fetchedData,
           agents: res.agents,
           startKey: res.startKey,
         });
+        setPage({
+          keys: [...page.keys, res.startKey],
+          index: page.index + 1,
+        });
         setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([...startKeys, res.startKey]);
       })
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });
+        setFetchStatus('');
       });
   };
 
@@ -63,37 +101,57 @@ export default function useServerSidePagination<T extends AgentKind>({
     fetchFunc(clusterId, {
       ...params,
       limit: pageSize,
-      startKey: startKeys[startKeys.length - 3],
+      startKey: page.keys[page.index - 1],
     })
       .then(res => {
-        const tempStartKeys = startKeys;
-        tempStartKeys.pop();
-        setStartKeys(tempStartKeys);
-        setResults({
-          ...results,
+        setFetchedData({
+          ...fetchedData,
           agents: res.agents,
           startKey: res.startKey,
+        });
+        setPage({
+          keys: page.keys.slice(0, -1),
+          index: page.index - 1,
         });
         setFetchStatus('');
       })
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });
+        setFetchStatus('');
       });
   };
 
-  return { from, to, fetchNext, fetchPrev, startKeys, setStartKeys, pageSize };
+  return {
+    pageIndicators: { from, to, totalCount } as PageIndicators,
+    fetch,
+    fetchNext: page.keys[page.index + 1] ? fetchNext : null,
+    fetchPrev: page.index > 0 ? fetchPrev : null,
+    attempt,
+    fetchStatus,
+    page,
+    pageSize,
+    fetchedData,
+  };
 }
 
-type PaginationArgs<T extends AgentKind> = {
+type Props<T extends AgentKind> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
   ) => Promise<AgentResponse<T>>;
   clusterId: string;
   params: ResourceUrlQueryParams;
-  results: AgentResponse<T>;
-  setResults: (results: AgentResponse<T>) => void;
-  setFetchStatus: (fetchStatus: FetchStatus) => void;
-  setAttempt: (attempt: Attempt) => void;
   pageSize?: number;
+};
+
+// Contains the values needed to display 'Showing X - X of X' on the top right of the table.
+export type PageIndicators = {
+  // The position of the first item on the page relative
+  // to all items.
+  from: number;
+  // The position of the last item on the page relative
+  // to all items.
+  to: number;
+  // The total number of all items.
+  totalCount: number;
 };

@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { SortType } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
 import { Node } from 'teleport/services/nodes';
@@ -24,25 +24,24 @@ import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
+import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+
 function NodeList(props: Props) {
   const {
     nodes = [],
     onLoginMenuOpen,
     onLoginSelect,
     pageSize,
-    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
-    from,
-    to,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
+    pageIndicators,
   } = props;
 
   return (
@@ -84,16 +83,14 @@ function NodeList(props: Props) {
       serversideProps={{
         sort: params.sort,
         setSort,
-        startKeys,
         serversideSearchPanel: (
           <ServersideSearchPanel
-            from={from}
-            to={to}
-            count={totalCount}
+            pageIndicators={pageIndicators}
             params={params}
             setParams={setParams}
             pathname={pathname}
             replaceHistory={replaceHistory}
+            disabled={fetchStatus === 'loading'}
           />
         ),
       }}
@@ -155,18 +152,15 @@ type Props = {
   onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: any;
-  from: number;
-  to: number;
-  totalCount: number;
+  fetchStatus: FetchStatus;
   pageSize?: number;
   params: ResourceUrlQueryParams;
   setParams: (params: ResourceUrlQueryParams) => void;
-  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
+  pageIndicators: PageIndicators;
 };
 
 export default NodeList;

@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { SortType } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import { DbProtocol } from 'shared/services/databases';
 
 import { AuthType } from 'teleport/services/user';
@@ -27,6 +27,8 @@ import ConnectDialog from 'teleport/Databases/ConnectDialog';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
+import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+
 function DatabaseList(props: Props) {
   const {
     databases = [],
@@ -34,20 +36,17 @@ function DatabaseList(props: Props) {
     username,
     clusterId,
     authType,
-    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
-    from,
-    to,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
     accessRequestId,
+    pageIndicators,
   } = props;
 
   const [dbConnectInfo, setDbConnectInfo] = useState<{
@@ -96,16 +95,14 @@ function DatabaseList(props: Props) {
         serversideProps={{
           sort: params.sort,
           setSort,
-          startKeys,
           serversideSearchPanel: (
             <ServersideSearchPanel
-              from={from}
-              to={to}
-              count={totalCount}
+              pageIndicators={pageIndicators}
               params={params}
               setParams={setParams}
               pathname={pathname}
               replaceHistory={replaceHistory}
+              disabled={fetchStatus === 'loading'}
             />
           ),
         }}
@@ -158,18 +155,15 @@ type Props = {
   authType: AuthType;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: any;
-  from: number;
-  to: number;
-  totalCount: number;
+  fetchStatus: FetchStatus;
   params: ResourceUrlQueryParams;
   setParams: (params: ResourceUrlQueryParams) => void;
-  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
   accessRequestId?: string;
+  pageIndicators: PageIndicators;
 };
 
 export default DatabaseList;
