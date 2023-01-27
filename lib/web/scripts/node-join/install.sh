@@ -760,17 +760,8 @@ fi
 
 # select correct URL/installation method based on distro
 if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-<<<<<<< Updated upstream
-    # handle centos6 URL override
-    if [[ ${DISTRO_TYPE} == "centos6" ]]; then
-        URL="https://get.gravitational.com/{{.packageName}}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-centos6-bin.tar.gz"
-    else
-        URL="https://get.gravitational.com/{{.packageName}}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
-    fi
-=======
     URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
 
->>>>>>> Stashed changes
     # check that needed tools are installed
     check_exists_fatal curl tar
     # download tarball
