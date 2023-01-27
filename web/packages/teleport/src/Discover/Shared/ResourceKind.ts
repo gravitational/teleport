@@ -55,11 +55,20 @@ export function resourceKindToEventResource(
         if (engine === DatabaseEngine.PostgreSQL) {
           return DiscoverEventResource.DatabasePostgresRds;
         }
+        if (engine === DatabaseEngine.MySQL) {
+          return DiscoverEventResource.DatabaseMysqlRds;
+        }
       }
 
       if (location === DatabaseLocation.SelfHosted) {
         if (engine === DatabaseEngine.PostgreSQL) {
           return DiscoverEventResource.DatabasePostgresSelfHosted;
+        }
+        if (engine === DatabaseEngine.MySQL) {
+          return DiscoverEventResource.DatabaseMysqlSelfHosted;
+        }
+        if (engine === DatabaseEngine.Mongo) {
+          return DiscoverEventResource.DatabaseMongodbSelfHosted;
         }
       }
       return null;
@@ -69,5 +78,8 @@ export function resourceKindToEventResource(
       return DiscoverEventResource.Kubernetes;
     case ResourceKind.Server:
       return DiscoverEventResource.Server;
+
+    default:
+      console.error(`resource event not defined for ${resourceState}`);
   }
 }

@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import React, { useContext, useMemo, useState, useEffect } from 'react';
+import React, {
+  useContext,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
 
 import { useLocation, useHistory } from 'react-router';
 
@@ -91,12 +97,6 @@ export function DiscoverProvider<T = any>(
   const [resourceState, setResourceState] = useState<T>();
 
   const [eventState, setEventState] = useState<EventState>();
-  // Use the latest state for async use.
-  const ref = React.useRef<EventState>();
-  useEffect(() => {
-    ref.current = eventState;
-  }, [eventState]);
-
   const selectedResource = resources.find(r => r.kind === selectedResourceKind);
 
   const views = useMemo<View[]>(() => {
@@ -107,9 +107,25 @@ export function DiscoverProvider<T = any>(
     return addIndexToViews(selectedResource.views);
   }, [selectedResource.views, resourceState]);
 
+  const emitEvent = useCallback(
+    (status: DiscoverEventStepStatus, eventName?: DiscoverEvent) => {
+      const { id, currEventName, resource } = eventState;
+
+      userEventService.captureDiscoverEvent({
+        event: eventName || currEventName,
+        eventData: {
+          id,
+          resource,
+          ...status,
+        },
+      });
+    },
+    [eventState]
+  );
+
   useEffect(() => {
     const emitAbortOrSuccessEvent = () => {
-      if (ref.current.currEventName === DiscoverEvent.Completed) {
+      if (eventState.currEventName === DiscoverEvent.Completed) {
         emitEvent({ stepStatus: DiscoverEventStatus.Success });
       } else {
         emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
@@ -132,10 +148,7 @@ export function DiscoverProvider<T = any>(
 
       window.removeEventListener('beforeunload', emitAbortOrSuccessEvent);
     };
-
-    // Only add listener and umount logic once on init.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [eventState, history.location.pathname, emitEvent]);
 
   useEffect(() => {
     if (selectedResourceKind === ResourceKind.Database && !resourceState) {
@@ -181,6 +194,15 @@ export function DiscoverProvider<T = any>(
 
     // Send reporting events:
 
+    // Emit event for the current view.
+    // If user intentionally skipped the current step, then
+    // skipped event will be emitted, else success.
+    if (!numToIncrement) {
+      emitEvent({ stepStatus: DiscoverEventStatus.Skipped });
+    } else {
+      emitEvent({ stepStatus: DiscoverEventStatus.Success });
+    }
+
     // Whenever a numToIncrement is > 1, it means some steps (after the current view)
     // are being skipped, which we should send events for.
     if (numToIncrement > 1) {
@@ -194,15 +216,6 @@ export function DiscoverProvider<T = any>(
         }
       }
     }
-
-    // Emit event for the current view.
-    // If user intentionally skipped the current step, then
-    // skipped event will be emitted, else success.
-    if (!numToIncrement) {
-      emitEvent({ stepStatus: DiscoverEventStatus.Skipped });
-    } else {
-      emitEvent({ stepStatus: DiscoverEventStatus.Success });
-    }
   }
 
   function prevStep() {
@@ -215,22 +228,6 @@ export function DiscoverProvider<T = any>(
 
   function updateAgentMeta(meta: AgentMeta) {
     setAgentMeta(meta);
-  }
-
-  function emitEvent(
-    status: DiscoverEventStepStatus,
-    eventName?: DiscoverEvent
-  ) {
-    const { id, currEventName, resource } = ref.current;
-
-    userEventService.captureDiscoverEvent({
-      event: eventName || currEventName,
-      eventData: {
-        id,
-        resource,
-        ...status,
-      },
-    });
   }
 
   function emitErrorEvent(errorStr = '') {

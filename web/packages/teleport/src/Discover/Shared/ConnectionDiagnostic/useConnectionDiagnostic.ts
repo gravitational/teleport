@@ -49,11 +49,13 @@ export function useConnectionDiagnostic(props: AgentStepProps) {
           if (!diag.success) {
             // Append all possible errors:
             const errors: string[] = [];
-            diag.traces.forEach(trace =>
-              errors.push(
-                `[${trace.traceType}] ${trace.error} (${trace.details})`
-              )
-            );
+            diag.traces.forEach(trace => {
+              if (trace.status === 'failed') {
+                errors.push(
+                  `[${trace.traceType}] ${trace.error} (${trace.details})`
+                );
+              }
+            });
             emitErrorEvent(`testing failed: ${errors.join('\n')}`);
           }
         })
