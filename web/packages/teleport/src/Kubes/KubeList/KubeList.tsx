@@ -23,7 +23,7 @@ import { Kube } from 'teleport/services/kube';
 import { AuthType } from 'teleport/services/user';
 import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
+import { ResourceUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
 import ConnectDialog from '../ConnectDialog';
 

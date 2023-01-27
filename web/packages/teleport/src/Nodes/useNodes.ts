@@ -15,60 +15,54 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
-import { FetchStatus, SortType } from 'design/DataTable/types';
+import { FetchStatus } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import history from 'teleport/services/history';
+import { AgentResponse } from 'teleport/services/agents';
 import Ctx from 'teleport/teleportContext';
 import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
-
 import { openNewTab } from 'teleport/lib/util';
-import getResourceUrlQueryParams, {
-  ResourceUrlQueryParams,
-} from 'teleport/getUrlQueryParams';
-import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/agents';
+import {
+  useUrlFiltering,
+  useServerSidePagination,
+} from 'teleport/components/hooks';
 
-import type { Node, NodesResponse } from 'teleport/services/nodes';
+import type { Node } from 'teleport/services/nodes';
 
 export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { isLeafCluster, clusterId } = stickyCluster;
-  const { search, pathname } = useLocation();
-  const [startKeys, setStartKeys] = useState<string[]>([]);
   const { attempt, setAttempt } = useAttempt('processing');
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [params, setParams] = useState<ResourceUrlQueryParams>({
-    sort: { fieldName: 'hostname', dir: 'ASC' },
-    ...getResourceUrlQueryParams(search),
-  });
-
-  const isSearchEmpty = !params?.query && !params?.search;
-
-  const [results, setResults] = useState<NodesResponse>({
-    nodes: [],
+  const [results, setResults] = useState<AgentResponse<Node>>({
+    agents: [],
     startKey: '',
     totalCount: 0,
   });
 
-  const pageSize = 15;
+  const { params, search, ...filteringProps } = useUrlFiltering({
+    fieldName: 'hostname',
+    dir: 'ASC',
+  });
 
-  const from =
-    results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
-  const to = results.totalCount > 0 ? from + results.nodes.length - 1 : 0;
+  const { setStartKeys, pageSize, ...paginationProps } =
+    useServerSidePagination({
+      fetchFunc: ctx.nodeService.fetchNodes,
+      clusterId,
+      params,
+      results,
+      setResults,
+      setFetchStatus,
+      setAttempt,
+    });
 
   useEffect(() => {
     fetchNodes();
   }, [clusterId, search]);
 
-  function replaceHistory(path: string) {
-    history.replace(path);
-  }
-
   function getNodeLoginOptions(serverId: string) {
-    const node = results.nodes.find(node => node.id == serverId);
+    const node = results.agents.find(node => node.id == serverId);
     return makeOptions(clusterId, node);
   }
 
@@ -82,79 +76,22 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     openNewTab(url);
   };
 
-  function setSort(sort: SortType) {
-    setParams({ ...params, sort });
-  }
-
   function fetchNodes() {
     setAttempt({ status: 'processing' });
     ctx.nodeService
       .fetchNodes(clusterId, { ...params, limit: pageSize })
       .then(res => {
-        setResults({
-          nodes: res.agents,
-          startKey: res.startKey,
-          totalCount: res.totalCount,
-        });
+        setResults(res);
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, nodes: [], totalCount: 0 });
+        setResults({ ...results, agents: [], totalCount: 0 });
         setStartKeys(['']);
       });
   }
-
-  const fetchNext = () => {
-    setFetchStatus('loading');
-    ctx.nodeService
-      .fetchNodes(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: results.startKey,
-      })
-      .then(res => {
-        setResults({
-          ...results,
-          nodes: res.agents,
-          startKey: res.startKey,
-        });
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([...startKeys, res.startKey]);
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
-
-  const fetchPrev = () => {
-    setFetchStatus('loading');
-    ctx.nodeService
-      .fetchNodes(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: startKeys[startKeys.length - 3],
-      })
-      .then(res => {
-        const tempStartKeys = startKeys;
-        tempStartKeys.pop();
-        setStartKeys(tempStartKeys);
-        setResults({
-          ...results,
-          nodes: res.agents,
-          startKey: res.startKey,
-        });
-        setFetchStatus('');
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
-
-  const onLabelClick = (label: AgentLabel) =>
-    labelClick(label, params, setParams, pathname, replaceHistory);
 
   return {
     canCreate,
@@ -164,20 +101,11 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     isLeafCluster,
     clusterId,
     results,
-    fetchNext,
-    fetchPrev,
-    pageSize,
-    from,
-    to,
-    params,
-    setParams,
-    startKeys,
-    setSort,
-    pathname,
-    replaceHistory,
     fetchStatus,
-    isSearchEmpty,
-    onLabelClick,
+    params,
+    pageSize,
+    ...filteringProps,
+    ...paginationProps,
   };
 }
 

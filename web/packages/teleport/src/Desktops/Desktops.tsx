@@ -65,7 +65,10 @@ export function Desktops(props: State) {
     onLabelClick,
   } = props;
 
-  const hasNoDesktops = results.desktops.length === 0 && isSearchEmpty;
+  const hasNoDesktops =
+    attempt.status === 'success' &&
+    results.agents.length === 0 &&
+    isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -90,7 +93,7 @@ export function Desktops(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoDesktops && (
         <DesktopList
-          desktops={results.desktops}
+          desktops={results.agents}
           username={username}
           clusterId={clusterId}
           onLoginMenuOpen={getWindowsLoginOptions}

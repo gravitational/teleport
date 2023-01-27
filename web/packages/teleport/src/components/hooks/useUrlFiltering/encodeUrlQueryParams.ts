@@ -15,21 +15,19 @@ export default function encodeUrlQueryParams(
   }
   const encodedQuery = encodeURIComponent(searchString);
 
+  const searchParam = isAdvancedSearch
+    ? ADVANCED_SEARCH_PARAM
+    : SIMPLE_SEARCH_PARAM;
+
   if (encodedQuery && !sort) {
-    return `${pathname}?${
-      isAdvancedSearch ? ADVANCED_SEARCH_PARAM : SIMPLE_SEARCH_PARAM
-    }${encodedQuery}`;
+    return `${pathname}?${searchParam}${encodedQuery}`;
   }
+
+  const sortParam = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
 
   if (!encodedQuery && sort) {
-    return `${pathname}?${`${SORT_SEARCH_PARAM}${
-      sort.fieldName
-    }:${sort.dir.toLowerCase()}`}`;
+    return `${pathname}?${`${SORT_SEARCH_PARAM}${sortParam}`}`;
   }
 
-  return `${pathname}?${
-    isAdvancedSearch ? ADVANCED_SEARCH_PARAM : SIMPLE_SEARCH_PARAM
-  }${encodedQuery}&${`${SORT_SEARCH_PARAM}${
-    sort.fieldName
-  }:${sort.dir.toLowerCase()}`}`;
+  return `${pathname}?${searchParam}${encodedQuery}&${`${SORT_SEARCH_PARAM}${sortParam}`}`;
 }

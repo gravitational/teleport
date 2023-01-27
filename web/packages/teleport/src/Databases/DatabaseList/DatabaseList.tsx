@@ -25,7 +25,7 @@ import { Database } from 'teleport/services/databases';
 import { AgentLabel } from 'teleport/services/agents';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
+import { ResourceUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
 function DatabaseList(props: Props) {
   const {

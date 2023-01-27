@@ -36,7 +36,7 @@ export const Empty = () => (
   <MemoryRouter>
     <Nodes
       {...props}
-      results={{ nodes: [], totalCount: 0 }}
+      results={{ agents: [], totalCount: 0 }}
       isSearchEmpty={true}
     />
   </MemoryRouter>
@@ -46,7 +46,7 @@ export const EmptyReadOnly = () => (
   <MemoryRouter>
     <Nodes
       {...props}
-      results={{ nodes: [], totalCount: 0 }}
+      results={{ agents: [], totalCount: 0 }}
       isSearchEmpty={true}
       canCreate={false}
     />
@@ -70,7 +70,7 @@ export const Failed = () => (
 
 const props: State = {
   results: {
-    nodes,
+    agents: nodes,
     totalCount: nodes.length,
   },
   fetchStatus: '',

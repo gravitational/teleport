@@ -29,12 +29,6 @@ export interface Database {
   hostname: string;
 }
 
-export type DatabasesResponse = {
-  databases: Database[];
-  startKey?: string;
-  totalCount?: number;
-};
-
 export type UpdateDatabaseRequest = {
   name: string;
   caCert: string;

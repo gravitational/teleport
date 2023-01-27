@@ -158,11 +158,7 @@ export default class ConsoleContext {
   }
 
   fetchNodes(clusterId: string, params?: UrlResourcesParams) {
-    return this.nodesService.fetchNodes(clusterId, params).then(nodesRes => {
-      return {
-        nodesRes,
-      };
-    });
+    return this.nodesService.fetchNodes(clusterId, params);
   }
 
   fetchClusters() {

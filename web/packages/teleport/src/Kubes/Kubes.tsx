@@ -65,7 +65,10 @@ export function Kubes(props: State) {
     accessRequestId,
   } = props;
 
-  const hasNoKubes = results.kubes.length === 0 && isSearchEmpty;
+  const hasNoKubes =
+    attempt.status === 'success' &&
+    results.agents.length === 0 &&
+    isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -90,7 +93,7 @@ export function Kubes(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoKubes && (
         <KubeList
-          kubes={results.kubes}
+          kubes={results.agents}
           username={username}
           authType={authType}
           clusterId={clusterId}

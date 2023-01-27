@@ -106,7 +106,7 @@ export default function DocumentNodes(props: Props) {
           )}
           {attempt.status !== 'processing' && (
             <NodeList
-              nodes={results.nodes}
+              nodes={results.agents}
               totalCount={results.totalCount}
               onLoginMenuOpen={onLoginMenuOpen}
               onLoginSelect={onLoginMenuSelect}

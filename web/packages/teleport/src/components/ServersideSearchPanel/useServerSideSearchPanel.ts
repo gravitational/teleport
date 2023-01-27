@@ -1,12 +1,9 @@
 /*
 Copyright 2022 Gravitational, Inc.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,10 +14,9 @@ limitations under the License.
 import { useEffect, useState } from 'react';
 
 import {
-  decodeUrlQueryParam,
+  encodeUrlQueryParams,
   ResourceUrlQueryParams,
-} from 'teleport/getUrlQueryParams';
-import encodeUrlQueryParams from 'teleport/encodeUrlQueryParams';
+} from 'teleport/components/hooks/useUrlFiltering';
 
 export default function useServersideSearchPanel(props: Props) {
   const { pathname, params, setParams, replaceHistory } = props;
@@ -84,6 +80,15 @@ export default function useServersideSearchPanel(props: Props) {
     onSubmitSearch,
     ...props,
   };
+}
+
+function decodeUrlQueryParam(param: string) {
+  // Prevents URI malformed error by replacing lone % with %25
+  const decodedQuery = decodeURIComponent(
+    param.replace(/%(?![0-9][0-9a-fA-F]+)/g, '%25')
+  );
+
+  return decodedQuery;
 }
 
 export type Props = {

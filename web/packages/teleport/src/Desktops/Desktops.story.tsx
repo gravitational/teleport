@@ -32,7 +32,7 @@ export const Loading = () => (
 export const Loaded = () => <Desktops {...props} />;
 
 export const Empty = () => (
-  <Desktops {...props} results={{ desktops: [] }} isSearchEmpty={true} />
+  <Desktops {...props} results={{ agents: [] }} isSearchEmpty={true} />
 );
 
 export const Failed = () => (
@@ -44,7 +44,7 @@ export const Failed = () => (
 
 export const props: State = {
   results: {
-    desktops,
+    agents: desktops,
     totalCount: desktops.length,
   },
   fetchStatus: '',

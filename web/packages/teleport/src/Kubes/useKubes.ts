@@ -15,129 +15,68 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
-import { FetchStatus, SortType } from 'design/DataTable/types';
+import { FetchStatus } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import history from 'teleport/services/history';
-import { KubesResponse } from 'teleport/services/kube';
+import { AgentResponse } from 'teleport/services/agents';
 import TeleportContext from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import getResourceUrlQueryParams, {
-  ResourceUrlQueryParams,
-} from 'teleport/getUrlQueryParams';
-import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/agents';
+import {
+  useUrlFiltering,
+  useServerSidePagination,
+} from 'teleport/components/hooks';
+
+import type { Kube } from 'teleport/services/kube';
 
 export default function useKubes(ctx: TeleportContext) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const { username, authType } = ctx.storeUser.state;
-  const { search, pathname } = useLocation();
-  const [startKeys, setStartKeys] = useState<string[]>([]);
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [params, setParams] = useState<ResourceUrlQueryParams>({
-    sort: { fieldName: 'name', dir: 'ASC' },
-    ...getResourceUrlQueryParams(search),
-  });
-
-  const isSearchEmpty = !params?.query && !params?.search;
-
-  const [results, setResults] = useState<KubesResponse>({
-    kubes: [],
+  const [results, setResults] = useState<AgentResponse<Kube>>({
+    agents: [],
     startKey: '',
     totalCount: 0,
   });
 
-  const pageSize = 15;
+  const { params, search, ...filteringProps } = useUrlFiltering({
+    fieldName: 'name',
+    dir: 'ASC',
+  });
 
-  const from =
-    results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
-  const to = results.totalCount > 0 ? from + results.kubes.length - 1 : 0;
+  const { setStartKeys, pageSize, ...paginationProps } =
+    useServerSidePagination({
+      fetchFunc: ctx.kubeService.fetchKubernetes,
+      clusterId,
+      params,
+      results,
+      setResults,
+      setFetchStatus,
+      setAttempt,
+    });
 
   useEffect(() => {
-    fetch();
+    fetchKubes();
   }, [clusterId, search]);
 
-  function replaceHistory(path: string) {
-    history.replace(path);
-  }
-
-  function setSort(sort: SortType) {
-    setParams({ ...params, sort });
-  }
-
-  function fetch() {
+  function fetchKubes() {
     setAttempt({ status: 'processing' });
     ctx.kubeService
       .fetchKubernetes(clusterId, { ...params, limit: pageSize })
       .then(res => {
-        setResults({
-          kubes: res.agents,
-          startKey: res.startKey,
-          totalCount: res.totalCount,
-        });
+        setResults(res);
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, kubes: [], totalCount: 0 });
+        setResults({ ...results, agents: [], totalCount: 0 });
         setStartKeys(['']);
       });
   }
-
-  const fetchNext = () => {
-    setFetchStatus('loading');
-    ctx.kubeService
-      .fetchKubernetes(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: results.startKey,
-      })
-      .then(res => {
-        setResults({
-          ...results,
-          kubes: res.agents,
-          startKey: res.startKey,
-        });
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([...startKeys, res.startKey]);
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
-
-  const fetchPrev = () => {
-    setFetchStatus('loading');
-    ctx.kubeService
-      .fetchKubernetes(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: startKeys[startKeys.length - 3],
-      })
-      .then(res => {
-        const tempStartKeys = startKeys;
-        tempStartKeys.pop();
-        setStartKeys(tempStartKeys);
-        setResults({
-          ...results,
-          kubes: res.agents,
-          startKey: res.startKey,
-        });
-        setFetchStatus('');
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
-
-  const onLabelClick = (label: AgentLabel) =>
-    labelClick(label, params, setParams, pathname, replaceHistory);
 
   return {
     attempt,
@@ -147,21 +86,12 @@ export default function useKubes(ctx: TeleportContext) {
     clusterId,
     canCreate,
     results,
-    fetchNext,
-    fetchPrev,
     pageSize,
-    from,
-    to,
     params,
-    setParams,
-    startKeys,
-    setSort,
-    pathname,
-    replaceHistory,
     fetchStatus,
-    isSearchEmpty,
-    onLabelClick,
     accessRequestId,
+    ...filteringProps,
+    ...paginationProps,
   };
 }
 

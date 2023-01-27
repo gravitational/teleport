@@ -24,11 +24,13 @@ export default function getResourceUrlQueryParams(
   const search = searchParams.get('search');
   const sort = searchParams.get('sort');
 
+  const sortParam = sort ? sort.split(':') : null;
+
   // Converts the "fieldname:dir" format into {fieldName: "", dir: ""}
-  const processedSortParam = sort
+  const processedSortParam = sortParam
     ? ({
-        fieldName: sort.split(':')[0],
-        dir: sort.split(':')[1]?.toUpperCase() || 'ASC',
+        fieldName: sortParam[0],
+        dir: sortParam[1]?.toUpperCase() || 'ASC',
       } as SortType)
     : null;
 
@@ -38,15 +40,6 @@ export default function getResourceUrlQueryParams(
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
   };
-}
-
-export function decodeUrlQueryParam(param: string) {
-  // Prevents URI malformed error by replacing lone % with %25
-  const decodedQuery = decodeURIComponent(
-    param.replace(/%(?![0-9][0-9a-fA-F]+)/g, '%25')
-  );
-
-  return decodedQuery;
 }
 
 export type ResourceUrlQueryParams = {
