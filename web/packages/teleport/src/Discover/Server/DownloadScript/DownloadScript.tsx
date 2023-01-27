@@ -14,28 +14,30 @@
  * limitations under the License.
  */
 
-import React, { Suspense } from 'react';
-import { Box, Indicator } from 'design';
+import React, { Suspense, useEffect, useState } from 'react';
+
+import { Box, Flex, Indicator, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { CatchError } from 'teleport/components/CatchError';
 import {
-  useJoinToken,
   clearCachedJoinTokenResult,
-} from 'teleport/Discover/Shared/JoinTokenContext';
+  useJoinToken,
+} from 'teleport/Discover/Shared/useJoinToken';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { JoinToken } from 'teleport/services/joinToken';
-import { CommandWithTimer } from 'teleport/Discover/Shared/CommandWithTimer';
-import {
-  PollBox,
-  PollState,
-} from 'teleport/Discover/Shared/CommandWithTimer/CommandWithTimer';
+
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+
+import { HintBox, WaitingInfo } from 'teleport/Discover/Shared/HintBox';
 
 import { AgentStepProps } from '../../types';
+
 import {
   ActionButtons,
-  ButtonBlueText,
   Header,
   HeaderSubtitle,
   Mark,
@@ -44,21 +46,19 @@ import {
 } from '../../Shared';
 
 import type { Node } from 'teleport/services/nodes';
-import type { Poll } from 'teleport/Discover/Shared/CommandWithTimer';
+
+const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 
 export default function Container(props: AgentStepProps) {
   return (
     <CatchError
-      onRetry={clearCachedJoinTokenResult}
+      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Server)}
       fallbackFn={props => (
-        <Template pollState="error" nextStep={() => null}>
+        <Template nextStep={() => null}>
           <TextIcon mt={2} mb={3}>
             <Icons.Warning ml={1} color="danger" />
             Encountered Error: {props.error.message}
           </TextIcon>
-          <ButtonBlueText ml={2} onClick={props.retry}>
-            Refetch a command
-          </ButtonBlueText>
         </Template>
       )}
     >
@@ -81,49 +81,19 @@ export default function Container(props: AgentStepProps) {
 
 export function DownloadScript(props: AgentStepProps) {
   // Fetches join token.
-  const { joinToken, reloadJoinToken, timeout } = useJoinToken(
-    ResourceKind.Server
-  );
+  const { joinToken } = useJoinToken(ResourceKind.Server);
   // Starts resource querying interval.
-  const { timedOut: pollingTimedOut, start, result } = usePingTeleport<Node>();
+  const { result, active } = usePingTeleport<Node>();
 
-  function regenerateScriptAndRepoll() {
-    reloadJoinToken();
-    start();
-  }
+  const [showHint, setShowHint] = useState(false);
 
-  let poll: Poll = {
-    state: 'polling',
-    customStateDesc: 'Waiting for Teleport SSH Service',
-  };
-  if (pollingTimedOut) {
-    poll = {
-      state: 'error',
-      error: {
-        customErrContent: (
-          <>
-            We could not detect the server you were trying to add.{' '}
-            <ButtonBlueText ml={1} onClick={regenerateScriptAndRepoll}>
-              Generate a new command
-            </ButtonBlueText>
-          </>
-        ),
-        reasonContents: [
-          <>The command was not run on the server you were trying to add</>,
-          <>
-            The Teleport SSH Service could not join this Teleport cluster. Check
-            the logs for errors by running <br />
-            <Mark>journalctl status teleport</Mark>
-          </>,
-        ],
-      },
-    };
-  } else if (result) {
-    poll = {
-      state: 'success',
-      customStateDesc: 'The server successfully joined this Teleport cluster',
-    };
-  }
+  useEffect(() => {
+    if (active) {
+      const id = window.setTimeout(() => setShowHint(true), SHOW_HINT_TIMEOUT);
+
+      return () => window.clearTimeout(id);
+    }
+  }, [active]);
 
   function handleNextStep() {
     props.updateAgentMeta({
@@ -137,6 +107,60 @@ export function DownloadScript(props: AgentStepProps) {
     props.nextStep();
   }
 
+  let hint;
+  if (showHint) {
+    hint = (
+      <HintBox>
+        <Text color="warning">
+          <Flex alignItems="center" mb={2}>
+            <TextIcon
+              color="warning"
+              css={`
+                white-space: pre;
+              `}
+            >
+              <Icons.Warning fontSize={4} color="warning" />
+            </TextIcon>
+            We're still looking for your server
+          </Flex>
+        </Text>
+
+        <Text mb={3}>
+          There are a couple of possible reasons for why we haven't been able to
+          detect your server.
+        </Text>
+
+        <Text mb={1}>
+          - The command was not run on the server you were trying to add.
+        </Text>
+
+        <Text mb={3}>
+          - The Teleport SSH Service could not join this Teleport cluster. Check
+          the logs for errors by running <Mark>journalctl status teleport</Mark>
+          .
+        </Text>
+
+        <Text>
+          We'll continue to look for the server whilst you diagnose the issue.
+        </Text>
+      </HintBox>
+    );
+  } else {
+    hint = (
+      <WaitingInfo>
+        <TextIcon
+          css={`
+            white-space: pre;
+          `}
+        >
+          <Icons.Restore fontSize={4} />
+        </TextIcon>
+        After running the command above, we'll automatically detect your new
+        Teleport instance.
+      </WaitingInfo>
+    );
+  }
+
   return (
     <>
       <Header>Configure Resource</Header>
@@ -145,26 +169,22 @@ export function DownloadScript(props: AgentStepProps) {
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
-      <CommandWithTimer
-        command={createBashCommand(joinToken.id)}
-        poll={poll}
-        pollingTimeout={timeout}
-      />
-      <ActionButtons
-        onProceed={handleNextStep}
-        disableProceed={poll.state !== 'success'}
-      />
+      <CommandBox>
+        <TextSelectCopyMulti
+          lines={[{ text: createBashCommand(joinToken.id) }]}
+        />
+      </CommandBox>
+      {hint}
+      <ActionButtons onProceed={handleNextStep} disableProceed={!result} />
     </>
   );
 }
 
 const Template = ({
   nextStep,
-  pollState,
   children,
 }: {
   nextStep(): void;
-  pollState?: PollState;
   children: React.ReactNode;
 }) => {
   return (
@@ -175,13 +195,8 @@ const Template = ({
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
-      <PollBox pollState={pollState}>{children}</PollBox>
-      <ActionButtons
-        onProceed={nextStep}
-        disableProceed={
-          !pollState || pollState === 'error' || pollState === 'polling'
-        }
-      />
+      <CommandBox>{children}</CommandBox>
+      <ActionButtons onProceed={nextStep} disableProceed={true} />
     </>
   );
 };
@@ -194,6 +209,4 @@ export type State = {
   joinToken: JoinToken;
   nextStep(): void;
   regenerateScriptAndRepoll(): void;
-  poll: Poll;
-  pollTimeout: number;
 };

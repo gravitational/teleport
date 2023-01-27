@@ -3,17 +3,13 @@ import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useTeleport } from 'teleport';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
 import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
-
-import { useDiscover } from '../useDiscover';
+import { useJoinToken } from 'teleport/Discover/Shared/useJoinToken';
 
 interface PingTeleportContextState<T> {
   active: boolean;
   start: () => void;
   setAlternateSearchTerm: (resourceName: string) => void;
-  timeout: number;
-  timedOut: boolean;
   result: T | null;
 }
 
@@ -21,7 +17,6 @@ const pingTeleportContext =
   React.createContext<PingTeleportContextState<any>>(null);
 
 export function PingTeleportProvider<T>(props: {
-  timeout: number;
   interval?: number;
   children?: React.ReactNode;
   resourceKind: ResourceKind;
@@ -29,8 +24,6 @@ export function PingTeleportProvider<T>(props: {
   const ctx = useTeleport();
 
   const [active, setActive] = useState(false);
-  const [timeout, setPollTimeout] = useState<number>(null);
-  const { emitErrorEvent } = useDiscover();
 
   // alternateSearchTerm when set will be used as the search term
   // instead of the default search term which is the internal resource ID.
@@ -38,9 +31,9 @@ export function PingTeleportProvider<T>(props: {
   // that proxies a database that goes by this alternateSearchTerm (eg. resourceName).
   const [alternateSearchTerm, setAlternateSearchTerm] = useState('');
 
-  const joinToken = useJoinTokenValue();
+  const { joinToken } = useJoinToken(props.resourceKind);
 
-  const { timedOut, result } = usePoll<T>(
+  const result = usePoll<T>(
     signal =>
       servicesFetchFn(signal).then(res => {
         if (res.agents.length) {
@@ -49,7 +42,6 @@ export function PingTeleportProvider<T>(props: {
 
         return null;
       }),
-    timeout,
     active,
     props.interval
   );
@@ -83,22 +75,12 @@ export function PingTeleportProvider<T>(props: {
     }
   }
 
-  useEffect(() => {
-    if (active && Date.now() > timeout) {
-      // This means the polling timed out.
-      emitErrorEvent('polling for resource discovery has timed out');
-      setActive(false);
-    }
-  }, [active, timeout, timedOut]);
-
   const start = useCallback(() => {
-    setPollTimeout(Date.now() + props.timeout);
     setActive(true);
-  }, [props.timeout]);
+  }, []);
 
   useEffect(() => {
     if (result) {
-      setPollTimeout(null);
       setActive(false);
     }
   }, [result]);
@@ -109,8 +91,6 @@ export function PingTeleportProvider<T>(props: {
         active,
         start,
         result,
-        timedOut,
-        timeout,
         setAlternateSearchTerm,
       }}
     >

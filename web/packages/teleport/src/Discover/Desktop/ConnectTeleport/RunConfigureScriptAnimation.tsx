@@ -11,7 +11,7 @@ import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
-import { useJoinToken } from 'teleport/Discover/Shared/JoinTokenContext';
+import { useJoinToken } from 'teleport/Discover/Shared/useJoinToken';
 import { JoinToken } from 'teleport/services/joinToken';
 
 const lines = (joinToken: JoinToken) => [
