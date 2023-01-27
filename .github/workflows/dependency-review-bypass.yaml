@@ -2,7 +2,7 @@ name: Dependency Review
 
 on:
   pull_request:
-    paths:
+    paths-ignore:
       - '**go.mod'
       - '**go.sum'
       - '**package.json'
@@ -11,7 +11,11 @@ on:
 
 jobs:
   dependency-review:
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    uses: gravitational/shared-workflows/.github/workflows/dependency-review.yaml@main
+    name: dependency-review / Dependency Review
+    runs-on: ubuntu-20.04
+
     permissions:
-      contents: read
+      contents: none
+
+    steps:
+      - run: 'echo "No changes to verify"'
