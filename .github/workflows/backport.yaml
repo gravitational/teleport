@@ -17,9 +17,16 @@ permissions:
 jobs:
   backport-pull-request:
     name: Backport Pull Request
+    environment: reviewers
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
@@ -37,4 +44,4 @@ jobs:
           go-version-file: .github/shared-workflows/bot/go.mod
         # Run "check" subcommand on bot.
       - name: Backport PR
-        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
