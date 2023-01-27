@@ -144,6 +144,7 @@ export const ProgressBarDesktop = (props: {
       move={() => {}}
       style={props.style}
       id={props.id}
+      onRestart={() => window.location.reload()}
     />
   );
 };
