@@ -4744,7 +4744,7 @@ enum RequireMFAType {
   HARDWARE_KEY_TOUCH = 3;
 }
 
-// SAMLIdPServiceProviderV1
+// SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
 message SAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
