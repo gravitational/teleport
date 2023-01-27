@@ -40,9 +40,11 @@ interface NavigationItemProps {
 }
 
 const ExternalLink = styled.a`
-  padding: 16px 30px;
-
   ${commonNavigationItemStyles};
+
+  &:focus {
+    background: rgba(255, 255, 255, 0.05);
+  }
 `;
 
 const Link = styled(NavLink)`
@@ -144,7 +146,7 @@ export function NavigationItem(props: NavigationItemProps) {
     []
   );
 
-  if (navigationItem && route) {
+  if (navigationItem) {
     const linkProps = {
       style: {
         transitionDelay: `${props.transitionDelay}ms,0s`,
@@ -164,30 +166,34 @@ export function NavigationItem(props: NavigationItemProps) {
           target="_blank"
           rel="noopener noreferrer"
         >
-          {getIcon(props.feature, props.size)}
-          {navigationItem.title}
+          <LinkContent size={props.size}>
+            {getIcon(props.feature, props.size)}
+            {navigationItem.title}
 
-          <ExternalLinkIndicator>
-            <ExternalLinkIcon size={14} />
-          </ExternalLinkIndicator>
+            <ExternalLinkIndicator>
+              <ExternalLinkIcon size={14} />
+            </ExternalLinkIndicator>
+          </LinkContent>
         </ExternalLink>
       );
     }
 
-    return (
-      <Link
-        {...linkProps}
-        onKeyDown={handleKeyDown}
-        tabIndex={props.visible ? 0 : -1}
-        to={navigationItem.getLink(clusterId)}
-        exact={navigationItem.exact}
-      >
-        <LinkContent size={props.size}>
-          {getIcon(props.feature, props.size)}
-          {navigationItem.title}
-        </LinkContent>
-      </Link>
-    );
+    if (route) {
+      return (
+        <Link
+          {...linkProps}
+          onKeyDown={handleKeyDown}
+          tabIndex={props.visible ? 0 : -1}
+          to={navigationItem.getLink(clusterId)}
+          exact={navigationItem.exact}
+        >
+          <LinkContent size={props.size}>
+            {getIcon(props.feature, props.size)}
+            {navigationItem.title}
+          </LinkContent>
+        </Link>
+      );
+    }
   }
 
   return (
