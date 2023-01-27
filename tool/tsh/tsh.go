@@ -1732,13 +1732,16 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
-	// so can be excluded here.
-	alertCtx, cancelAlertCtx := context.WithTimeout(cf.Context, constants.TimeoutGetClusterAlerts)
-	defer cancelAlertCtx()
+	// so can be excluded here, except when Hardware Key Touch is required
+	// which skips on-status alerts.
+	alertSeverityMax := types.AlertSeverity_MEDIUM
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		alertSeverityMax = types.AlertSeverity_HIGH
+	}
 
-	if err := common.ShowClusterAlerts(alertCtx, tc, os.Stderr, map[string]string{
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
+	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -3588,22 +3591,13 @@ func onStatus(cf *CLIConf) error {
 		return nil
 	}
 
-	clusterAlertTimeout := constants.TimeoutGetClusterAlerts
-
-	// When hardware key touch is required, user's may be prompted for touch on
-	// tsh status. This is an unexpected UX, so we notify the user of the reason.
-	// We also extend the timeout so user can tap within a reasonable span of time.
 	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		fmt.Println("Checking server for cluster alerts.")
-		clusterAlertTimeout = time.Second * 15
-	}
-
-	alertCtx, cancelAlertCtx := context.WithTimeout(cf.Context, clusterAlertTimeout)
-	defer cancelAlertCtx()
-
-	if err := common.ShowClusterAlerts(alertCtx, tc, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
-		log.WithError(err).Warn("Failed to display cluster alerts.")
+		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
+	} else {
+		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+			log.WithError(err).Warn("Failed to display cluster alerts.")
+		}
 	}
 
 	return nil

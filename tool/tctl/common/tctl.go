@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -215,10 +214,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		}
 	}
 
-	alertCtx, cancelAlertCtx := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
-	defer cancelAlertCtx()
-
-	if err := common.ShowClusterAlerts(alertCtx, client, os.Stderr, nil,
+	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
 		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
