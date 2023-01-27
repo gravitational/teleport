@@ -237,8 +237,8 @@ impl<S: Read + Write> RdpClient<S> {
         T: FnMut(RdpEvent),
     {
         let (channel_name, message) = self.mcs.read()?;
-        // De-multiplex static channels. Forward messages to the correct channel client based on
-        // name.
+        // De-multiplex static channels. Forward messages to the correct channel
+        // client based on name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
             "rdpdr" => self.rdpdr.read(message, &mut self.mcs),
