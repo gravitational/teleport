@@ -180,7 +180,7 @@ export class UsageService {
       'usageReporting.enabled'
     ).value;
 
-    if (!(staticConfig.prehogAddress && isCollectingUsageMetricsEnabled)) {
+    if (!staticConfig.prehogAddress || !isCollectingUsageMetricsEnabled) {
       return;
     }
 
