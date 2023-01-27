@@ -1,5 +1,34 @@
 # Changelog
 
+## 11.3.0
+
+This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
+
+## Moderated Sessions
+
+* Fixed issue with moderated sessions not being disconnected on Ctrl+C. [#20588](https://github.com/gravitational/teleport/pull/20588)
+
+## Other fixes and improvements
+
+* Fixed issue with node install script downloading OSS binaries in Enterprise edition. [#20816](https://github.com/gravitational/teleport/pull/20816)
+* Fixed a regression when renewing Kubernetes dynamic credentials that prevented multiple renewals. [#20788](https://github.com/gravitational/teleport/pull/20788)
+* Fixed issue with `tctl auth sign` not respecting Ctrl-C. [#20773](https://github.com/gravitational/teleport/pull/20773)
+* Fixed occasional key attestation error in `tsh login`. [#20712](https://github.com/gravitational/teleport/pull/20712)
+* Fixed issue with being able to create access request with invalid cluster name. [#20674](https://github.com/gravitational/teleport/pull/20674)
+* Fixed issue with EC2 auto-discovery install script for RHEL instances. [#20604](https://github.com/gravitational/teleport/pull/20604)
+* Fixed issue connecting with Oracle MySQL client on Windows. [#20599](https://github.com/gravitational/teleport/pull/20599)
+* Fixed issue with using `tctl auth sign --format kubernetes` against remote auth server. [#20571](https://github.com/gravitational/teleport/pull/20571)
+* Fixed panic in Azure SQL Server access. [#20483](https://github.com/gravitational/teleport/pull/20483)
+* Added support for Moderated Sessions in the Web UI. [#20796](https://github.com/gravitational/teleport/pull/20796)
+* Added support for Login Rules for SSO users. [#20743](https://github.com/gravitational/teleport/pull/20743), [#20738](https://github.com/gravitational/teleport/pull/20738), [#20737](https://github.com/gravitational/teleport/pull/20737), [#20629](https://github.com/gravitational/teleport/pull/20629)
+* Added ability to acknowledge alerts. [#20692](https://github.com/gravitational/teleport/pull/20692)
+* Added `client_idle_timeout_message` support to Windows access. [#20617](https://github.com/gravitational/teleport/pull/20617)
+* Added PodMonitor support in `teleport-cluster` Helm chart. [#20564](https://github.com/gravitational/teleport/pull/20564)
+* Added support for passing raw config in `teleport-kube-agent` Helm chart. [#20449](https://github.com/gravitational/teleport/pull/20449)
+* Added nodeSelector field to `teleport-cluster` Helm chart. [#20441](https://github.com/gravitational/teleport/pull/20441)
+* Improved Kubernetes Access stability for slow clients. [#20517](https://github.com/gravitational/teleport/pull/20517)
+* Updated `teleport-cluster` Helm chart to reload proxy certificate daily. [#20503](https://github.com/gravitational/teleport/pull/20503)
+
 ## 11.2.3
 
 This release of Teleport contains multiple improvements and bug fixes.
