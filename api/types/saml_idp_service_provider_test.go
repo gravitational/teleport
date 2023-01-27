@@ -58,7 +58,9 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := NewSAMLIdPServiceProvider("test", SAMLIdPServiceProviderSpecV1{
+			_, err := NewSAMLIdPServiceProvider(Metadata{
+				Name: "test",
+			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
 			})
 

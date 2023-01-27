@@ -39,10 +39,10 @@ type SAMLIdPServiceProvider interface {
 }
 
 // NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a name and SAMLIdPServiceProviderSpecV1.
-func NewSAMLIdPServiceProvider(name string, spec SAMLIdPServiceProviderSpecV1) (SAMLIdPServiceProvider, error) {
+func NewSAMLIdPServiceProvider(metadata Metadata, spec SAMLIdPServiceProviderSpecV1) (SAMLIdPServiceProvider, error) {
 	s := &SAMLIdPServiceProviderV1{
-		Metadata: Metadata{
-			Name: name,
+		ResourceHeader: ResourceHeader{
+			Metadata: metadata,
 		},
 		Spec: spec,
 	}
@@ -178,15 +178,17 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	// but there doesn't appear to be a good XSD library for go.
 	decoder := xml.NewDecoder(strings.NewReader(s.Spec.EntityDescriptor))
 	readAnyXML := false
+	decodeTarget := new(interface{})
 	for {
-		err := decoder.Decode(new(interface{}))
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				if !readAnyXML {
-					return trace.BadParameter("entity descriptor is not valid XML")
-				}
-				break
+		err := decoder.Decode(decodeTarget)
+		if err == nil {
+			readAnyXML = true
+		} else if errors.Is(err, io.EOF) {
+			if !readAnyXML {
+				return trace.BadParameter("entity descriptor is not valid XML")
 			}
+			break
+		} else {
 			return trace.Wrap(err)
 		}
 		readAnyXML = true

@@ -27,8 +27,8 @@ import (
 
 // SAMLIdPServiceProviderGetter defines interface for fetching SAML IdP service providers.
 type SAMLIdPServiceProviderGetter interface {
-	// GetSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
-	GetSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
+	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
+	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 }

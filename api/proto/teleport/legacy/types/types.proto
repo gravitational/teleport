@@ -4749,19 +4749,14 @@ message SAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
 
-  // Kind is the app resource kind. Always "saml_idp_service_provider".
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource subkind.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
-  string Version = 3 [(gogoproto.jsontag) = "version"];
-  // Metadata is the app resource metadata.
-  Metadata Metadata = 4 [
+  // Header is the resource header for the SAML IdP service provider.
+  ResourceHeader Header = 1 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "metadata"
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
   ];
   // Spec is the SAML IdP service provider spec.
-  SAMLIdPServiceProviderSpecV1 Spec = 5 [
+  SAMLIdPServiceProviderSpecV1 Spec = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];

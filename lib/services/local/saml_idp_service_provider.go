@@ -38,8 +38,8 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServicePr
 	return &SAMLIdPServiceProviderService{Backend: backend}
 }
 
-// GetSAMLIdPServiceProviders returns all SAML IdP service provider resources.
-func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProviders(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLIdPServiceProvider, string, error) {
+// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
+func (s *SAMLIdPServiceProviderService) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLIdPServiceProvider, string, error) {
 	rangeStart := backend.Key(samlIDPServiceProviderPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(rangeStart)
 

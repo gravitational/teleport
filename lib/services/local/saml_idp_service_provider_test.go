@@ -43,21 +43,28 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	service := NewSAMLIdPServiceProviderService(backend)
 
 	// Create a couple service providers.
-	sp1, err := types.NewSAMLIdPServiceProvider("sp1",
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: "<valid />",
 		})
 	require.NoError(t, err)
-	sp2, err := types.NewSAMLIdPServiceProvider("sp2",
+	sp2, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp2",
+		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: "<valid />",
 		})
 	require.NoError(t, err)
 
 	// Initially we expect no service providers.
-	out, _, err := service.GetSAMLIdPServiceProviders(ctx, 200, "")
+	out, nextToken, err := service.ListSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, nextToken)
+	require.Empty(t, out)
 
 	// Create both service providers.
 	err = service.CreateSAMLIdPServiceProvider(ctx, sp1)
@@ -66,19 +73,19 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all service providers.
-	out, _, err = service.GetSAMLIdPServiceProviders(ctx, 200, "")
+	out, nextToken, err = service.ListSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
+	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Fetch a paginated list of service providers
-	nextToken := ""
-	paginatedOut := make([]types.SAMLIdPServiceProvider, 0)
+	paginatedOut := make([]types.SAMLIdPServiceProvider, 0, 2)
 	numPages := 0
 	for {
 		numPages++
-		out, nextToken, err = service.GetSAMLIdPServiceProviders(ctx, 1, nextToken)
+		out, nextToken, err = service.ListSAMLIdPServiceProviders(ctx, 1, nextToken)
 		require.NoError(t, err)
 
 		paginatedOut = append(paginatedOut, out...)
@@ -120,7 +127,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	// Delete a service provider.
 	err = service.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName())
 	require.NoError(t, err)
-	out, _, err = service.GetSAMLIdPServiceProviders(ctx, 200, "")
+	out, _, err = service.ListSAMLIdPServiceProviders(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
@@ -128,7 +135,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 
 	// Try to delete a service provider that doesn't exist.
 	err = service.DeleteSAMLIdPServiceProvider(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.True(t, trace.IsNotFound(err))
 
 	// Delete all service providers.
 	err = service.DeleteAllSAMLIdPServiceProviders(ctx)

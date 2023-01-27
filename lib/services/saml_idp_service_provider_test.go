@@ -27,7 +27,10 @@ import (
 
 // TestSAMLIdPServiceProviderUnmarshal verifies a SAML IdP service provider resource can be unmarshaled.
 func TestSAMLIdPServiceProviderUnmarshal(t *testing.T) {
-	expected, err := types.NewSAMLIdPServiceProvider("test-sp",
+	expected, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "test-sp",
+		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: "<valid />",
 		})
@@ -41,7 +44,10 @@ func TestSAMLIdPServiceProviderUnmarshal(t *testing.T) {
 
 // TestSAMLIdPServiceProviderMarshal verifies a marshaled SAML IdP service provider resources can be unmarshaled back.
 func TestSAMLIdPServiceProviderMarshal(t *testing.T) {
-	expected, err := types.NewSAMLIdPServiceProvider("test-sp",
+	expected, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "test-sp",
+		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: "<valid />",
 		})
