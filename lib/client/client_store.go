@@ -127,7 +127,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	if profileName == "" {
 		profileName, err = s.CurrentProfile()
 		if err != nil {
-			return nil, trace.BadParameter("no profile provided and no current profile")
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		// remove ports from proxy host, because profile name is stored by host name
