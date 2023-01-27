@@ -1269,8 +1269,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
-	fmt.Printf("\nis dashboard?%t\n", getIsDashboard(h.ClusterFeatures))
-
 	webCfg := webclient.WebConfig{
 		Auth:                 authSettings,
 		CanJoinSessions:      canJoinSessions,
