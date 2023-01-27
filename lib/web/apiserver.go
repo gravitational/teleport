@@ -2404,6 +2404,8 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		}
 
 		if len(resources) == 0 {
+			// If we didn't find the resource set host and port,
+			// so we can try direct dial.
 			host, port, err = serverHostPort(req.Server)
 			if err != nil {
 				return session.Session{}, trace.Wrap(err)
