@@ -1534,6 +1534,64 @@ func TestTerminalRouting(t *testing.T) {
 	}
 }
 
+func TestTerminalNameResolution(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo")
+
+	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
+
+	tests := []struct {
+		name           string
+		target         string
+		serverID       string
+		serverHostname string
+		port           int
+	}{
+		{
+			name:           "registered node by name",
+			target:         "llama",
+			serverID:       llama.ID(),
+			serverHostname: "llama",
+		},
+		{
+			name:           "registered node by address",
+			target:         llama.Addr(),
+			serverID:       llama.ID(),
+			serverHostname: llama.Addr(),
+		},
+		{
+			name:           "direct dial",
+			target:         "root@example.com",
+			serverID:       "root@example.com",
+			serverHostname: "root@example.com",
+		},
+		{
+			name:           "direct dial with port",
+			target:         "root@example.com:1234",
+			serverID:       "root@example.com",
+			serverHostname: "root@example.com",
+			port:           1234,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ws, resp, err := s.makeTerminal(t, pack, withServer(tt.target))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			require.Equal(t, tt.serverID, resp.ServerID)
+			require.Equal(t, tt.serverHostname, resp.ServerHostname)
+			require.Equal(t, tt.port, resp.ServerHostPort)
+		})
+	}
+
+}
+
 func TestTerminalRequireSessionMfa(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
