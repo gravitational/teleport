@@ -316,7 +316,7 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.12.0" && \
+    VERSION="1.13.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
