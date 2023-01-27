@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -580,6 +581,99 @@ func TestPresets(t *testing.T) {
 			return true
 		}, "missing default rule")
 	})
+
+	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+		presetRoleCount := 3
+
+		roleManager := &mockRoleManager{
+			roles: make(map[string]types.Role, presetRoleCount),
+		}
+
+		err := createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpectd call to GetRole")
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+
+		// Running a second time should return Already Exists, so it fetches the role.
+		// The role was not changed, so it can't call the UpsertRole method.
+		roleManager.ResetCallCounters()
+
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+
+		// Removing a specific resource which is part of the Default Allow Rules should trigger an UpsertRole call
+		editorRole := roleManager.roles[teleport.PresetEditorRoleName]
+		allowRulesWithoutConnectionDiag := []types.Rule{}
+
+		for _, r := range editorRole.GetRules(types.Allow) {
+			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
+				continue
+			}
+			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
+		}
+		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
+		roleManager.UpsertRole(ctx, editorRole)
+
+		roleManager.ResetCallCounters()
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+	})
+}
+
+type mockRoleManager struct {
+	roles                map[string]types.Role
+	getRoleCallsCount    int
+	createRoleCallsCount int
+	upsertRoleCallsCount int
+}
+
+// ResetCallCounters resets the method call counters.
+func (m *mockRoleManager) ResetCallCounters() {
+	m.getRoleCallsCount = 0
+	m.createRoleCallsCount = 0
+	m.upsertRoleCallsCount = 0
+}
+
+// GetRole returns role by name.
+func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
+	m.getRoleCallsCount = m.getRoleCallsCount + 1
+
+	role, ok := m.roles[name]
+	if !ok {
+		return nil, trace.NotFound("role not found")
+	}
+	return role, nil
+}
+
+// CreateRole creates a role.
+func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error {
+	m.createRoleCallsCount = m.createRoleCallsCount + 1
+
+	_, ok := m.roles[role.GetName()]
+	if ok {
+		return trace.AlreadyExists("role not found")
+	}
+
+	m.roles[role.GetName()] = role
+	return nil
+}
+
+// UpsertRole creates or updates a role and emits a related audit event.
+func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
+	m.upsertRoleCallsCount = m.upsertRoleCallsCount + 1
+	m.roles[role.GetName()] = role
+
+	return nil
 }
 
 func setupConfig(t *testing.T) InitConfig {
