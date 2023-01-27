@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -109,17 +108,18 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 		ttl = time.Hour
 	}
 
-	priv, err := testauthority.New().GeneratePrivateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
-	sshPub := ssh.MarshalAuthorizedKey(priv.SSHPublicKey())
-	sshCert, x509Cert, err := a.GenerateUserTestCerts(
+	sshPub := ssh.MarshalAuthorizedKey(key.SSHPublicKey())
+	key.Cert, key.TLSCert, err = a.GenerateUserTestCerts(
 		sshPub, req.Username, ttl, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -134,10 +134,6 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 
 	return &UserCreds{
 		HostCA: ca,
-		Key: client.Key{
-			PrivateKey: priv,
-			Cert:       sshCert,
-			TLSCert:    x509Cert,
-		},
+		Key:    *key,
 	}, nil
 }
