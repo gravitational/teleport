@@ -117,8 +117,8 @@ export function Table<T>({
         data={state.data}
         renderHeaders={renderHeaders}
         renderBody={renderBody}
-        nextPage={nextPage}
-        prevPage={prevPage}
+        nextPage={fetching.onFetchNext}
+        prevPage={fetching.onFetchPrev}
         pagination={state.pagination}
         serversideProps={serversideProps}
       />

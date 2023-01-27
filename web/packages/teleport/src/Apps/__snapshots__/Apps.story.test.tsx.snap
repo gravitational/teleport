@@ -390,7 +390,7 @@ exports[`failed state 1`] = `
   font-size: 14px;
 }
 
-.c37 {
+.c36 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -500,13 +500,6 @@ exports[`failed state 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c35 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c1 {
@@ -662,31 +655,6 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
-.c36 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c36 .c17 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c36:hover .c17,
-.c36:focus .c17 {
-  opacity: 1;
-}
-
-.c36:disabled {
-  cursor: default;
-}
-
-.c36:disabled .c17 {
-  opacity: 0.1;
-}
-
 .c10 {
   position: absolute;
   height: 100%;
@@ -787,6 +755,31 @@ exports[`failed state 1`] = `
 
 .c13:disabled + .c14:before {
   background: #455a64;
+}
+
+.c35 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c35 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c35:hover .c17,
+.c35:focus .c17 {
+  opacity: 1;
+}
+
+.c35:disabled {
+  cursor: default;
+}
+
+.c35:disabled .c17 {
+  opacity: 0.1;
 }
 
 .c11 {
@@ -1207,29 +1200,24 @@ exports[`failed state 1`] = `
         width="100%"
       >
         <div
-          class="c35"
-        />
-        <div
           class="c19"
         >
           <button
-            class="c36"
-            disabled=""
+            class="c35"
             title="Previous page"
           >
             <span
-              class="c17 c37 icon icon-arrow-left-circle "
+              class="c17 c36 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
           </button>
           <button
-            class="c36"
-            disabled=""
+            class="c35"
             title="Next page"
           >
             <span
-              class="c17 c37 icon icon-arrow-right-circle "
+              class="c17 c36 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />
@@ -1363,7 +1351,7 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c37 {
+.c36 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1473,13 +1461,6 @@ exports[`loaded state 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c35 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c1 {
@@ -1635,31 +1616,6 @@ exports[`loaded state 1`] = `
   cursor: pointer;
 }
 
-.c36 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c36 .c17 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c36:hover .c17,
-.c36:focus .c17 {
-  opacity: 1;
-}
-
-.c36:disabled {
-  cursor: default;
-}
-
-.c36:disabled .c17 {
-  opacity: 0.1;
-}
-
 .c10 {
   position: absolute;
   height: 100%;
@@ -1760,6 +1716,31 @@ exports[`loaded state 1`] = `
 
 .c13:disabled + .c14:before {
   background: #455a64;
+}
+
+.c35 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c35 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c35:hover .c17,
+.c35:focus .c17 {
+  opacity: 1;
+}
+
+.c35:disabled {
+  cursor: default;
+}
+
+.c35:disabled .c17 {
+  opacity: 0.1;
 }
 
 .c11 {
@@ -2186,29 +2167,24 @@ exports[`loaded state 1`] = `
         width="100%"
       >
         <div
-          class="c35"
-        />
-        <div
           class="c19"
         >
           <button
-            class="c36"
-            disabled=""
+            class="c35"
             title="Previous page"
           >
             <span
-              class="c17 c37 icon icon-arrow-left-circle "
+              class="c17 c36 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
           </button>
           <button
-            class="c36"
-            disabled=""
+            class="c35"
             title="Next page"
           >
             <span
-              class="c17 c37 icon icon-arrow-right-circle "
+              class="c17 c36 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />

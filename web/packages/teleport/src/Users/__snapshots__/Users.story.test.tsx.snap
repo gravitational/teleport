@@ -297,31 +297,6 @@ exports[`success state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c12 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c12 .c13 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c12:hover .c13,
-.c12:focus .c13 {
-  opacity: 1;
-}
-
-.c12:disabled {
-  cursor: default;
-}
-
-.c12:disabled .c13 {
-  opacity: 0.1;
-}
-
 .c7 {
   position: absolute;
   height: 100%;
@@ -369,6 +344,31 @@ exports[`success state 1`] = `
 .c6::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
+}
+
+.c12 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c12 .c13 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c12:hover .c13,
+.c12:focus .c13 {
+  opacity: 1;
+}
+
+.c12:disabled {
+  cursor: default;
+}
+
+.c12:disabled .c13 {
+  opacity: 0.1;
 }
 
 <div>

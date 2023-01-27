@@ -22,8 +22,8 @@ import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import { StyledArrowBtn } from './StyledPager';
 
 export default function ServersidePager({ nextPage, prevPage }: Props) {
-  const isNextDisabled = !!nextPage;
-  const isPrevDisabled = !!prevPage;
+  const isNextDisabled = !nextPage;
+  const isPrevDisabled = !prevPage;
 
   return (
     <Flex justifyContent="flex-end" width="100%">

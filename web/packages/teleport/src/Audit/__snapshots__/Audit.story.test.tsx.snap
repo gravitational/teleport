@@ -192,53 +192,6 @@ exports[`list of all events 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c9 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c9 .c10 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c9:hover .c10,
-.c9:focus .c10 {
-  opacity: 1;
-}
-
-.c9:disabled {
-  cursor: default;
-}
-
-.c9:disabled .c10 {
-  opacity: 0.1;
-}
-
-.c7 {
-  color: #03a9f4;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  outline: none;
-  border: none;
-  font-weight: bold;
-  line-height: 0;
-  font-size: 12px;
-}
-
-.c7:hover,
-.c7:focus {
-  cursor: pointer;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.3);
-  cursor: wait;
-}
-
 .c3 {
   position: absolute;
   height: 100%;
@@ -286,6 +239,53 @@ exports[`list of all events 1`] = `
 .c2::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
+}
+
+.c9 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c9 .c10 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c9:hover .c10,
+.c9:focus .c10 {
+  opacity: 1;
+}
+
+.c9:disabled {
+  cursor: default;
+}
+
+.c9:disabled .c10 {
+  opacity: 0.1;
+}
+
+.c7 {
+  color: #03a9f4;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  outline: none;
+  border: none;
+  font-weight: bold;
+  line-height: 0;
+  font-size: 12px;
+}
+
+.c7:hover,
+.c7:focus {
+  cursor: pointer;
+}
+
+.c7:disabled {
+  color: rgba(255,255,255,0.3);
+  cursor: wait;
 }
 
 .c17 {
@@ -7107,31 +7107,6 @@ exports[`loaded audit log screen 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c13 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c13 .c14 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c13:hover .c14,
-.c13:focus .c14 {
-  opacity: 1;
-}
-
-.c13:disabled {
-  cursor: default;
-}
-
-.c13:disabled .c14 {
-  opacity: 0.1;
-}
-
 .c8 {
   position: absolute;
   height: 100%;
@@ -7179,6 +7154,31 @@ exports[`loaded audit log screen 1`] = `
 .c7::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
+}
+
+.c13 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c13 .c14 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c13:hover .c14,
+.c13:focus .c14 {
+  opacity: 1;
+}
+
+.c13:disabled {
+  cursor: default;
+}
+
+.c13:disabled .c14 {
+  opacity: 0.1;
 }
 
 .c18 {

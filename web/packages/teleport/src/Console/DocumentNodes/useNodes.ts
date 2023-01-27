@@ -36,7 +36,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   });
 
   const { fetch, fetchedData, ...paginationProps } = useServerSidePagination({
-    fetchFunc: consoleCtx.fetchNodes,
+    fetchFunc: consoleCtx.nodesService.fetchNodes,
     clusterId,
     params,
   });

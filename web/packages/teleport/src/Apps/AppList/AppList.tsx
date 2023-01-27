@@ -34,9 +34,8 @@ import {
 import { AmazonAws } from 'design/Icon';
 
 import { App } from 'teleport/services/apps';
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, AgentFilter } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-import { ResourceUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
 import AwsLaunchButton from './AwsLaunchButton';
 
@@ -207,8 +206,8 @@ type Props = {
   fetchNext: () => void;
   fetchPrev: () => void;
   fetchStatus: FetchStatus;
-  params: ResourceUrlQueryParams;
-  setParams: (params: ResourceUrlQueryParams) => void;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;

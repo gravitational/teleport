@@ -62,7 +62,7 @@ export function createContext() {
   ctx.fetchClusters = () => {
     return Promise.resolve<any>(clusters);
   };
-  ctx.fetchNodes = () => {
+  ctx.nodesService.fetchNodes = () => {
     return Promise.resolve({ agents: nodes, totalCount: nodes.length });
   };
 
