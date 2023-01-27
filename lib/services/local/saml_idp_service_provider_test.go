@@ -108,11 +108,11 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 
 	// Try to fetch a service provider that doesn't exist.
 	_, err = service.GetSAMLIdPServiceProvider(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.True(t, trace.IsNotFound(err))
 
 	// Try to create the same service provider.
 	err = service.CreateSAMLIdPServiceProvider(ctx, sp1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.True(t, trace.IsAlreadyExists(err))
 
 	// Update a service provider.
 	sp1.SetEntityDescriptor("<updated />")

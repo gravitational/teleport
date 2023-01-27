@@ -22,7 +22,6 @@ import (
 	"fmt"
 	io "io"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -62,41 +61,6 @@ func (s *SAMLIdPServiceProviderV1) SetEntityDescriptor(entityDescriptor string) 
 	s.Spec.EntityDescriptor = entityDescriptor
 }
 
-// GetVersion returns resource version
-func (s *SAMLIdPServiceProviderV1) GetVersion() string {
-	return s.Version
-}
-
-// GetKind returns resource kind
-func (s *SAMLIdPServiceProviderV1) GetKind() string {
-	return s.Kind
-}
-
-// GetSubKind returns resource sub kind
-func (s *SAMLIdPServiceProviderV1) GetSubKind() string {
-	return s.SubKind
-}
-
-// SetSubKind sets resource subkind
-func (s *SAMLIdPServiceProviderV1) SetSubKind(sk string) {
-	s.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (s *SAMLIdPServiceProviderV1) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (s *SAMLIdPServiceProviderV1) SetResourceID(id int64) {
-	s.Metadata.ID = id
-}
-
-// GetMetadata returns object metadata
-func (s *SAMLIdPServiceProviderV1) GetMetadata() Metadata {
-	return s.Metadata
-}
-
 // Origin returns the origin value of the resource.
 func (s *SAMLIdPServiceProviderV1) Origin() string {
 	return s.Metadata.Origin()
@@ -105,26 +69,6 @@ func (s *SAMLIdPServiceProviderV1) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (s *SAMLIdPServiceProviderV1) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
-}
-
-// SetExpiry sets expiry time for the object
-func (s *SAMLIdPServiceProviderV1) SetExpiry(expires time.Time) {
-	s.Metadata.SetExpiry(expires)
-}
-
-// Expiry returns object expiry setting
-func (s *SAMLIdPServiceProviderV1) Expiry() time.Time {
-	return s.Metadata.Expiry()
-}
-
-// GetName returns the name of the service provider
-func (s *SAMLIdPServiceProviderV1) GetName() string {
-	return s.Metadata.GetName()
-}
-
-// SetName sets the name
-func (s *SAMLIdPServiceProviderV1) SetName(name string) {
-	s.Metadata.SetName(name)
 }
 
 // String returns the SAML IdP service provider string representation.
