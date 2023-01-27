@@ -38,7 +38,7 @@ type SAMLIdPServiceProvider interface {
 	SetEntityDescriptor(string)
 }
 
-// NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a name and SAMLIdPServiceProviderSpecV1.
+// NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a metadata object and SAMLIdPServiceProviderSpecV1.
 func NewSAMLIdPServiceProvider(metadata Metadata, spec SAMLIdPServiceProviderSpecV1) (SAMLIdPServiceProvider, error) {
 	s := &SAMLIdPServiceProviderV1{
 		ResourceHeader: ResourceHeader{
