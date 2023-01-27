@@ -76,44 +76,48 @@ func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterReque
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, err := s.DaemonService.ResolveFullCluster(ctx, req.ClusterUri)
+	cluster, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newAPIRootCluster(cluster), nil
+	return newAPIRootClusterWithDetails(cluster), nil
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
+	loggedInUser := cluster.GetLoggedInUser()
+
 	apiCluster := &api.Cluster{
-		Uri:           cluster.URI.String(),
-		Name:          cluster.Name,
-		ProxyHost:     cluster.GetProxyHost(),
-		Connected:     cluster.Connected(),
-		AuthClusterId: cluster.AuthClusterID,
-		LoggedInUser:  newAPILoggedInUser(cluster.LoggedInUser),
+		Uri:       cluster.URI.String(),
+		Name:      cluster.Name,
+		ProxyHost: cluster.GetProxyHost(),
+		Connected: cluster.Connected(),
+		LoggedInUser: &api.LoggedInUser{
+			Name:           loggedInUser.Name,
+			SshLogins:      loggedInUser.SSHLogins,
+			Roles:          loggedInUser.Roles,
+			ActiveRequests: loggedInUser.ActiveRequests,
+		},
 	}
 
-	// Only include features in the api response if they
-	// exist on the supplied cluster
+	return apiCluster
+}
+
+func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) *api.Cluster {
+	apiCluster := newAPIRootCluster(cluster.Cluster)
+
+	// Only include if they exist on the supplied cluster
 	if cluster.Features != nil {
 		apiCluster.Features = &api.Features{
 			AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
 		}
 	}
 
-	return apiCluster
-}
+	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
+	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
+	apiCluster.AuthClusterId = cluster.AuthClusterID
 
-func newAPILoggedInUser(user clusters.LoggedInUser) *api.LoggedInUser {
-	return &api.LoggedInUser{
-		Name:               user.Name,
-		SshLogins:          user.SSHLogins,
-		Roles:              user.Roles,
-		ActiveRequests:     user.ActiveRequests,
-		SuggestedReviewers: user.SuggestedReviewers,
-		RequestableRoles:   user.RequestableRoles,
-	}
+	return apiCluster
 }
 
 func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {
