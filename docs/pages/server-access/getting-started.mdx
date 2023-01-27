@@ -58,13 +58,13 @@ Next, create a join token so you can add the SSH Service to your Teleport cluste
 
 ```code
 # Let's save the token to a file
-$ tctl tokens add --type=node --format json | jq -r '.token'  > token.file
+$ tctl tokens add --type=node --format json | jq -r '.token'  > token
 ```
 
 `--type=node` specifies that the Teleport Agent will act and join as an SSH
 server.
 
-`> token.file` indicates that you'd like to save the output to a file name `token.file`.
+`> token` indicates that you'd like to save the output to a file name `token`.
 
 <Admonition type="tip" title="Tip">
    This helps to minimize the direct sharing of tokens even when they are dynamically generated.
@@ -72,20 +72,20 @@ server.
 
 ### Join your SSH Service to the cluster
 
-On your SSH Service machine, save `token.file` to an appropriate, secure, directory you have
+On your SSH Service machine, save `token` to an appropriate, secure, directory you have
 the rights and access to read.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 Configure the SSH Service instance. Change `tele.example.com` to the address of your Teleport Proxy
 Service. Assign the `--token` flag to the path where you saved
-`token.file`.
+`token`.
 
 ```code
 # Generate the Teleport configuration file, which is written to /etc/teleport.yaml
 $ sudo teleport node configure \
    --labels=env=example \
-   --token=/path/to/token.file \
+   --token=/path/to/token \
    --proxy=tele.example.com:443 \
    -o file
 ```
@@ -94,13 +94,13 @@ $ sudo teleport node configure \
 <ScopedBlock scope={["cloud"]}>
 
 Configure the SSH Service instance. Change `mytenant.teleport.sh` to your Teleport Cloud tenant
-address. Assign the `--token` flag to the path where you saved `token.file`.
+address. Assign the `--token` flag to the path where you saved `token`.
 
 ```code
 # Generate the Teleport configuration file, which is written to /etc/teleport.yaml
 $ sudo teleport node configure \
    --labels=env=example \
-   --token=/path/to/token.file \
+   --token=/path/to/token \
    --proxy=mytenant.teleport.sh:443 \
    -o file
 ```
