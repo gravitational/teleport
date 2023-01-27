@@ -3018,11 +3018,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Set private key policy from ping response if not already set.
-	if tc.PrivateKeyPolicy == "" {
-		tc.PrivateKeyPolicy = pr.Auth.PrivateKeyPolicy
-	}
-
 	key, err := tc.SSHLogin(ctx, sshLoginFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3244,27 +3239,23 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 }
 
 // GetNewLoginKey gets a new private key for login.
-func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (*keys.PrivateKey, error) {
+func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.PrivateKey, err error) {
 	switch tc.PrivateKeyPolicy {
-	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+	case keys.PrivateKeyPolicyHardwareKey:
 		log.Debugf("Attempting to login with YubiKey private key.")
-
-		touchRequired := tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(touchRequired)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return priv, nil
+		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
+	case keys.PrivateKeyPolicyHardwareKeyTouch:
+		log.Debugf("Attempting to login with YubiKey private key with touch required.")
+		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(true)
 	default:
 		log.Debugf("Attempting to login with a new RSA private key.")
-
-		// Generate a new standard key.
-		priv, err := native.GeneratePrivateKey()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return priv, nil
+		priv, err = native.GeneratePrivateKey()
 	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return priv, nil
 }
 
 // new SSHLogin generates a new SSHLogin using the given login key.
@@ -3771,6 +3762,11 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 // authentication settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
+
+	// Update the private key policy from auth settings if it is stricter than the saved setting.
+	if authSettings.PrivateKeyPolicy != "" && authSettings.PrivateKeyPolicy.VerifyPolicy(tc.PrivateKeyPolicy) != nil {
+		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
+	}
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
