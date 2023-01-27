@@ -106,7 +106,7 @@ type CertAuthority struct {
 	Signer crypto.Signer
 }
 
-// Identity is an identity of the user or service, e.g. Proxy or Node
+// Identity is an identity of the user or service, e.g. Proxy or Node.
 type Identity struct {
 	// Username is a username or name of the node connection
 	Username string
