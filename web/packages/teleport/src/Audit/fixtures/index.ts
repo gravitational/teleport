@@ -2671,6 +2671,28 @@ export const events = [
       user: 'lisa',
     },
   },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TLR00I',
+    ei: 0,
+    event: 'login_rule.create',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'test_rule',
+    time: '2023-01-25T19:21:36.144Z',
+    uid: '266e8563-729e-412f-ba26-1050fbec0cd6',
+    user: 'nic',
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TLR01I',
+    ei: 0,
+    event: 'login_rule.delete',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'test_rule',
+    time: '2023-01-25T19:21:36.144Z',
+    uid: '266e8563-729e-412f-ba26-1050fbec0cd6',
+    user: 'nic',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
