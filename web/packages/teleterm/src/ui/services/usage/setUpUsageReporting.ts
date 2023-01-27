@@ -16,7 +16,7 @@
 
 import { ConfigService } from 'teleterm/services/config';
 import { ModalsService } from 'teleterm/ui/services/modals';
-import { ENV } from 'teleterm/env';
+import { staticConfig } from 'teleterm/staticConfig';
 import Logger from 'teleterm/logger';
 
 export async function setUpUsageReporting(
@@ -24,7 +24,7 @@ export async function setUpUsageReporting(
   modalsService: ModalsService
 ): Promise<void> {
   const logger = new Logger('setUpUsageReporting');
-  if (!ENV.prehogAddress) {
+  if (!staticConfig.prehogAddress) {
     logger.info('Prehog address not set, usage reporting disabled.');
     return;
   }

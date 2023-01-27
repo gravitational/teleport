@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
-import { ENV } from 'teleterm/env';
+import { staticConfig } from 'teleterm/staticConfig';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -38,7 +38,7 @@ export function useShareFeedback() {
     formData.set('newsletter-opt-in', formValues.newsletterEnabled ? 'y' : 'n');
     formData.set('sales-opt-in', formValues.salesContactEnabled ? 'y' : 'n');
 
-    const response = await fetch(ENV.feedbackAddress, {
+    const response = await fetch(staticConfig.feedbackAddress, {
       method: 'POST',
       body: formData,
     });

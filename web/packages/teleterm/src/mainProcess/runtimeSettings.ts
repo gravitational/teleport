@@ -5,7 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import Logger from 'teleterm/logger';
-import { ENV } from 'teleterm/env';
+import { staticConfig } from 'teleterm/staticConfig';
 
 import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
@@ -52,7 +52,7 @@ function getRuntimeSettings(): RuntimeSettings {
       // for tshd we have to specify the protocol as well.
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
-      `--prehog-addr=${ENV.prehogAddress}`,
+      `--prehog-addr=${staticConfig.prehogAddress}`,
     ],
   };
   const sharedProcess = {
