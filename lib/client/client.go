@@ -1505,7 +1505,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	// pass the true client IP (if specified) to the proxy so it could pass it into the
 	// SSH session for proper audit
 	if len(proxy.clientAddr) > 0 {
-		if err = proxySession.Setenv(ctx, sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
+		if err := proxySession.SetenvNoReply(ctx, sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
 			log.Error(err)
 		}
 	}

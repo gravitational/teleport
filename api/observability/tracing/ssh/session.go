@@ -75,6 +75,39 @@ func (s *Session) Setenv(ctx context.Context, name, value string) error {
 	return s.Session.Setenv(name, value)
 }
 
+// SetenvNoReply sets an environment variable that will be applied to any
+// command executed by Shell or Run without waiting from a reply from the
+// server.
+func (s *Session) SetenvNoReply(ctx context.Context, name, value string) error {
+	const request = "env"
+	config := tracing.NewConfig(s.wrapper.opts)
+	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
+		ctx,
+		fmt.Sprintf("ssh.Setenv/%s", name),
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String("ssh.Session"),
+			semconv.RPCMethodKey.String("SendRequest"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
+	type envRequest struct {
+		Name  string
+		Value string
+	}
+
+	msg := envRequest{
+		Name:  name,
+		Value: value,
+	}
+
+	s.wrapper.addContext(ctx, request)
+	_, err := s.Session.SendRequest("env", false, ssh.Marshal(&msg))
+	return err
+}
+
 // RequestPty requests the association of a pty with the session on the remote host.
 func (s *Session) RequestPty(ctx context.Context, term string, h, w int, termmodes ssh.TerminalModes) error {
 	const request = "pty-req"

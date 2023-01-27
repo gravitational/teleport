@@ -229,16 +229,14 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 	evarsToPass := []string{"LANG", "LANGUAGE"}
 	for _, evar := range evarsToPass {
 		if value := os.Getenv(evar); value != "" {
-			err = sess.Setenv(ctx, evar, value)
-			if err != nil {
+			if err := sess.SetenvNoReply(ctx, evar, value); err != nil {
 				log.Warn(err)
 			}
 		}
 	}
 	// pass environment variables set by client
 	for key, val := range ns.env {
-		err = sess.Setenv(ctx, key, val)
-		if err != nil {
+		if err := sess.SetenvNoReply(ctx, key, val); err != nil {
 			log.Warn(err)
 		}
 	}

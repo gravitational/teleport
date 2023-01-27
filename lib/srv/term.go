@@ -641,7 +641,7 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 	}
 
 	for k, v := range envs {
-		if err := session.Setenv(ctx, k, v); err != nil {
+		if err := session.SetenvNoReply(ctx, k, v); err != nil {
 			t.log.Debugf("Unable to set environment variable: %v: %v", k, v)
 		}
 	}
