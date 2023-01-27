@@ -851,6 +851,8 @@ func TestMakeClient(t *testing.T) {
 	agentKeys, err := tc.LocalAgent().ExtendedAgent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
+	require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
+		"private key policy should be configured from the identity core key")
 }
 
 // accessApprover allows watching and updating access requests

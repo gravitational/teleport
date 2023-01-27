@@ -511,7 +511,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Activating relogin on %v.", err)
+	log.Debugf("Activating relogin on error %q.", err)
 
 	// check if the error is a private key policy error.
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
@@ -999,6 +999,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 	if tc.HostKeyCallback == nil {
 		tc.HostKeyCallback = tc.localAgent.CheckHostKey
+	}
+
+	// If we haven't already set the private key policy, load it into the client based on the private key.
+	if tc.PrivateKeyPolicy == "" {
+		if key, err := tc.LocalAgent().GetCoreKey(); err == nil {
+			tc.PrivateKeyPolicy = keys.GetPrivateKeyPolicy(key.PrivateKey)
+		}
 	}
 
 	return tc, nil
@@ -3025,6 +3032,9 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// set the key policy from the key we just got from logging in.
+	tc.PrivateKeyPolicy = keys.GetPrivateKeyPolicy(key.PrivateKey)
 
 	// Use proxy identity if set in key response.
 	if key.Username != "" {
