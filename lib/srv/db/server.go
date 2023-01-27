@@ -615,7 +615,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start cloud users that will be monitoring cloud users.
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
-	// Start hearbeating the Database Service itself.
+	// Start heartbeating the Database Service itself.
 	if err := s.startServiceHeartbeat(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -647,7 +647,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 
 	// If the agent doesn’t have any static databases configured, send a
 	// heartbeat without error to make the component “ready”.
-	// This is not necessary on next versions (v12+) because they have a Heartbeat for the Service itself.
+	// DELETE IN 13.0: This is not necessary on next versions (v12+) because they have a Heartbeat for the Service itself.
 	if len(s.cfg.Databases) == 0 && s.cfg.OnHeartbeat != nil {
 		s.cfg.OnHeartbeat(nil)
 	}

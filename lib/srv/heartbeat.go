@@ -135,7 +135,7 @@ const (
 	HeartbeatModeApp
 	// HeartbeatModeDB sets heatbeat to db
 	HeartbeatModeDB
-	// HeartbeatModeDatabaseService sets heatbeat mode to DatabaseService.
+	// HeartbeatModeDatabaseService sets heartbeat mode to DatabaseService.
 	HeartbeatModeDatabaseService
 	// HeartbeatModeWindowsDesktopService sets heatbeat mode to windows desktop
 	// service.
@@ -571,9 +571,10 @@ func (h *Heartbeat) announce() error {
 			}
 			keepAlive, err := h.Announcer.UpsertDatabaseService(h.cancelCtx, dbService)
 			if err != nil {
-				// When Auth Service is running on a previous minor/patch version than 11.2.2, it doesn't know about DatabaseServices
+				// When Auth Service is running on a previous minor/patch version than 11.2.3, it doesn't know about DatabaseServices
 				// In this case there isn't a heartbeat.
 				if trace.IsNotImplemented(err) {
+					h.Debug("Auth server doesn't recognize DatabaseService resource. Upgrade auth server.")
 					return nil
 				}
 				return trace.Wrap(err)
