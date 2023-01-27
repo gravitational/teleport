@@ -23,6 +23,7 @@ rsa = "0.7.2"
 rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "75eb6a30b83e7152ee6213964b5ac6e783304840" }
 uuid = { version = "1.2.2", features = ["v4"] }
 utf16string = "0.2.0"
+png = "0.17.6"
 
 [build-dependencies]
 cbindgen = "0.24.3"
