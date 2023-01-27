@@ -280,8 +280,8 @@ HTTP apps that use the `appLinks` from Okta as their URI. If there is more than 
 associated with an Okta application, it will be split into multiple applications for
 each `appLink` with the unique name of each `appLink` used to disambiguate them. The
 `teleport.dev/origin` field in the application metadata will be set to `okta`. The groups
-that provide access to an Okta application will be added as labels with the format
-`okta/group/<name>:`. Additionally, an annotation called `okta/application_id` will be present
+that provide access to an Okta application will be added into a list under the annotation
+`okta/groups`. Additionally, an annotation called `okta/application_id` will be present
 in the metadata for bookkeeping.
 
 An example of a synchronized application:
@@ -294,11 +294,9 @@ metadata:
   description: Okta description of the application
   annotations:
     okta/application_id: 1234567
+    okta/groups: ['developers', 'admins', 'it-admins']
   labels:
     teleport.dev/origin: okta
-    okta/group/developers: ''
-    okta/group/admins: ''
-    okta/group/it-admins: ''
 spec:
   uri: http://okta.com/app-link
   ...
@@ -324,7 +322,7 @@ spec:
       add_labels:
         label1: value1
         label2: value2
-    - matches:
+    - match:
       - group_ids: ['name', 'other-name']
       add_labels:
         label3: value3
@@ -401,7 +399,9 @@ section:
 ```yaml
 allow:
   group_labels:
-    okta/group
+    teleport.dev/origin: okta
+    additional-label: value
+    ...
 ```
 
 This will dictate what `Group` objects a user has access to. At the moment this will not be
