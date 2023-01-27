@@ -2,6 +2,12 @@
 
 exports[`loaded 1`] = `
 .c18 {
+  box-sizing: border-box;
+  width: 80px;
+  text-align: center;
+}
+
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -20,28 +26,31 @@ exports[`loaded 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
   color: rgba(255,255,255,0.87);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 80px;
 }
 
-.c18:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c18:hover,
-.c18:focus {
-  background: #651FFF;
+.c19:hover,
+.c19:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
 }
 
-.c18:active {
-  background: #354AA4;
+.c19:active {
+  opacity: 0.24;
 }
 
-.c18:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -66,6 +75,14 @@ exports[`loaded 1`] = `
   padding: 4px;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c20 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 4px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
 }
 
 .c9 {
@@ -486,15 +503,22 @@ exports[`loaded 1`] = `
           align="right"
           height="26px"
         >
-          <a
+          <div
             class="c18"
-            href="/web/cluster/im-a-cluster-name/console/session/c7befbb4-3885-4d08-a466-de832a73c3d4"
-            kind="primary"
-            target="_blank"
             width="80px"
           >
-            Join
-          </a>
+            <button
+              class="c19"
+              kind="border"
+            >
+              Join
+              <span
+                class="c12 c20 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
+              />
+            </button>
+          </div>
         </td>
       </tr>
       <tr>
