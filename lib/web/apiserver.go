@@ -1269,12 +1269,15 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
+	fmt.Printf("\nis dashboard?%t\n", getIsDashboard(h.ClusterFeatures))
+
 	webCfg := webclient.WebConfig{
 		Auth:                 authSettings,
 		CanJoinSessions:      canJoinSessions,
 		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
+		IsDashboard:          getIsDashboard(h.ClusterFeatures),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -3615,4 +3618,8 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
 	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
+}
+
+func getIsDashboard(features proto.Features) bool {
+	return !features.GetCloud() && features.GetRecoveryCodes()
 }
