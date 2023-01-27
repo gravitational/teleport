@@ -108,7 +108,6 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	var releases []Release
 	err = json.Unmarshal(resp.Bytes(), &releases)
 	if err != nil {
-		fmt.Println("error unmarshaling")
 		return nil, trace.Wrap(err)
 	}
 
