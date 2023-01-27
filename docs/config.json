@@ -595,7 +595,7 @@
           "slug": "/application-access/getting-started/"
         },
         {
-          "title": "Securing Cloud APIs",
+          "title": "Securing Cloud Provider APIs",
           "slug": "/application-access/cloud-apis/",
           "entries": [
             {
