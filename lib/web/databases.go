@@ -120,6 +120,9 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 	}
 
 	if err := clt.CreateDatabase(r.Context(), database); err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("failed to create database (%q already exists), please use another name", req.Name)
+		}
 		return nil, trace.Wrap(err)
 	}
 

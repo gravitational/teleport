@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -424,6 +425,8 @@ type Server struct {
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
 
+	loginRuleEvaluator loginrule.Evaluator
+
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -501,6 +504,22 @@ type Server struct {
 	loadAllCAs bool
 }
 
+// SetLoginRuleEvaluator sets the login rule evaluator.
+func (a *Server) SetLoginRuleEvaluator(l loginrule.Evaluator) {
+	a.loginRuleEvaluator = l
+}
+
+// GetLoginRuleEvaluator returns the login rule evaluator. It is guaranteed not
+// to return nil, if no evaluator has been installed it will return
+// [loginrule.NullEvaluator].
+func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
+	if a.loginRuleEvaluator == nil {
+		return loginrule.NullEvaluator{}
+	}
+	return a.loginRuleEvaluator
+}
+
+// CloseContext returns the close context
 func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
@@ -1319,12 +1338,15 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	// verify that the required private key policy for the requesting identity
-	// is met by the provided attestation statement.
+	attestedKeyPolicy := keys.PrivateKeyPolicyNone
 	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	attestedKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if requiredKeyPolicy != keys.PrivateKeyPolicyNone {
+		// verify that the required private key policy for the requesting identity
+		// is met by the provided attestation statement.
+		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := a.GetDomainName()

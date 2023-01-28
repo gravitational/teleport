@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -197,13 +198,21 @@ func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServicePr
 	return serviceProvider, nil
 }
 
-func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateSAMLUser(ctx context.Context, diagCtx *ssoDiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      assertionInfo.NameID,
 	}
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
+
+	evaluationOutput, err := a.GetLoginRuleEvaluator().Evaluate(ctx, &loginrule.EvaluationInput{
+		Traits: p.traits,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.traits = evaluationOutput.Traits
 
 	diagCtx.info.SAMLTraitsFromAssertions = p.traits
 	diagCtx.info.SAMLConnectorTraitMapping = connector.GetTraitMappings()
@@ -242,7 +251,7 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 	return &p, nil
 }
 
-func (a *Server) createSAMLUser(p *createUserParams, dryRun bool) (types.User, error) {
+func (a *Server) createSAMLUser(ctx context.Context, p *createUserParams, dryRun bool) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v. Dry run: %v.", p.connectorName, p.username, p.roles, dryRun)
@@ -287,8 +296,6 @@ func (a *Server) createSAMLUser(p *createUserParams, dryRun bool) (types.User, e
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-
-	ctx := context.TODO()
 
 	// Overwrite exisiting user if it was created from an external identity provider.
 	if existingUser != nil {
@@ -558,7 +565,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateSAMLUser(diagCtx, connector, *assertionInfo, request)
+	params, err := a.calculateSAMLUser(ctx, diagCtx, connector, *assertionInfo, request)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -573,7 +580,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		SessionTTL:    types.Duration(params.sessionTTL),
 	}
 
-	user, err := a.createSAMLUser(params, request != nil && request.SSOTestFlow)
+	user, err := a.createSAMLUser(ctx, params, request != nil && request.SSOTestFlow)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}

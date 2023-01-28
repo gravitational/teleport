@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -587,6 +588,15 @@ func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
 	clt := *c
 	clt.callOpts = append(clt.callOpts, opts...)
 	return &clt
+}
+
+// LoginRuleClient returns an unadorned Login Rule client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a login rule client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
+	return loginrulepb.NewLoginRuleServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -2902,5 +2912,26 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
 	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
 
+	return trail.FromGRPC(err)
+}
+
+// CreateAlertAck marks a cluster alert as acknowledged.
+func (c *Client) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
+	_, err := c.grpc.CreateAlertAck(ctx, &ack, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetAlertAcks gets active alert ackowledgements.
+func (c *Client) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
+	rsp, err := c.grpc.GetAlertAcks(ctx, &proto.GetAlertAcksRequest{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp.Acks, nil
+}
+
+// ClearAlertAcks clears alert acknowledgments.
+func (c *Client) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
+	_, err := c.grpc.ClearAlertAcks(ctx, &req, c.callOpts...)
 	return trail.FromGRPC(err)
 }

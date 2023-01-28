@@ -74,6 +74,19 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set nodeSelector when set in values
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+      nodeSelector:
+        role: bastion
+        environment: security
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.nodeSelector
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
     values:
       - ../.lint/aws-ha-antiaffinity.yaml
