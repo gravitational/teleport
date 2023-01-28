@@ -230,7 +230,7 @@ func TestAWSSignerHandler(t *testing.T) {
 					http.Error(w, err.Error(), trace.ErrorToCode(err))
 					return
 				}
-				w.Write(nil)
+				w.WriteHeader(http.StatusOK)
 			}
 			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock)
 
