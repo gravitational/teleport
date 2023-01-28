@@ -1563,7 +1563,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssuedEvent{
+	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
