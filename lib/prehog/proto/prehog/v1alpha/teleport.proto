@@ -54,14 +54,16 @@ message CertificateIssuedEvent {
   string user_name = 1;
   // The issued certificate TTL.
   google.protobuf.Duration ttl = 2;
+  // If true, the certificate was requested by a bot (i.e. Machine ID) user.
+  bool is_bot = 3;
   // If true, the certificate usage is restricted to database access.
-  bool usage_database = 3;
+  bool usage_database = 4;
   // If true, the certificate usage is restricted to app access.
-  bool usage_app = 4;
+  bool usage_app = 5;
   // If true, the certificate usage is restricted to Kubernetes access.
-  bool usage_kubernetes = 5;
+  bool usage_kubernetes = 6;
   // If true, the certificate usage is restricted to desktop access.
-  bool usage_desktop = 6;
+  bool usage_desktop = 7;
 }
 
 message UIBannerClickEvent {
@@ -124,6 +126,8 @@ message SubmitEventRequest {
     UserLoginEvent user_login = 3;
     SSOCreateEvent sso_create = 4;
     ResourceCreateEvent resource_create = 5;
+
+    // REMOVE IN V14: Use session_start_v2 instead
     SessionStartEvent session_start = 6;
 
     UIBannerClickEvent ui_banner_click = 7;
@@ -136,6 +140,12 @@ message SubmitEventRequest {
     UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 15;
     UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 16;
     CertificateIssuedEvent certificate_issued_event = 17;
+
+    // Note: semantics of SessionStartEvent type values have changed to
+    // differentiate SSH from Kubernetes exec sessions (as well as adding
+    // db/app/desktop events). The structures are the same, however, so we don't
+    // need a new message type.
+    SessionStartEvent session_start_v2 = 18;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

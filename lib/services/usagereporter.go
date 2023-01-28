@@ -117,8 +117,8 @@ type UsageSessionStart prehogv1.SessionStartEvent
 
 func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_SessionStart{
-			SessionStart: &prehogv1.SessionStartEvent{
+		Event: &prehogv1.SubmitEventRequest_SessionStartV2{
+			SessionStartV2: &prehogv1.SessionStartEvent{
 				UserName:    a.AnonymizeString(u.UserName),
 				SessionType: u.SessionType,
 			},
@@ -273,6 +273,7 @@ func (u *UsageCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1.Sub
 			CertificateIssuedEvent: &prehogv1.CertificateIssuedEvent{
 				UserName:        a.AnonymizeString(u.UserName),
 				Ttl:             u.Ttl,
+				IsBot:           u.IsBot,
 				UsageDatabase:   u.UsageDatabase,
 				UsageApp:        u.UsageApp,
 				UsageKubernetes: u.UsageKubernetes,
