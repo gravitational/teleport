@@ -265,12 +265,12 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 
 // UsageCertificateIssued is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
-type UsageCertificateIssued prehogv1.CertificateIssuedEvent
+type UsageCertificateIssued prehogv1.UserCertificateIssuedEvent
 
 func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_CertificateIssuedEvent{
-			CertificateIssuedEvent: &prehogv1.CertificateIssuedEvent{
+		Event: &prehogv1.SubmitEventRequest_UserCertificateIssuedEvent{
+			UserCertificateIssuedEvent: &prehogv1.UserCertificateIssuedEvent{
 				UserName:        a.AnonymizeString(u.UserName),
 				Ttl:             u.Ttl,
 				IsBot:           u.IsBot,

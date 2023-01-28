@@ -48,7 +48,7 @@ message SessionStartEvent {
   string session_type = 2;
 }
 
-message CertificateIssuedEvent {
+message UserCertificateIssuedEvent {
   // The anonymized username/principal of the entity that requested the
   // certificate.
   string user_name = 1;
@@ -139,7 +139,7 @@ message SubmitEventRequest {
     UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 14;
     UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 15;
     UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 16;
-    CertificateIssuedEvent certificate_issued_event = 17;
+    UserCertificateIssuedEvent user_certificate_issued_event = 17;
 
     // Note: semantics of SessionStartEvent type values have changed to
     // differentiate SSH from Kubernetes exec sessions (as well as adding
