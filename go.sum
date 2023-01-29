@@ -290,7 +290,6 @@ github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f/go.mod h1:F5haX7
 github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 h1:rtAn27wIbmOGUs7RIbVgPEjb31ehTVniDwPGXyMxm5U=
 github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
-github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f h1:lBNOc5arjvs8E5mO2tbpBpLoyyu8B6e44T7hJy6potg=
 github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
 github.com/cpuguy83/go-md2man v1.0.10/go.mod h1:SmD6nW6nTyfqj6ABTjUi3V3JVMnlJmwcJI5acqYI6dE=
 github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
@@ -436,8 +435,8 @@ github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LB
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/go-webauthn/revoke v0.1.6 h1:3tv+itza9WpX5tryRQx4GwxCCBrCIiJ8GIkOhxiAmmU=
 github.com/go-webauthn/revoke v0.1.6/go.mod h1:TB4wuW4tPlwgF3znujA96F70/YSQXHPPWl7vgY09Iy8=
-github.com/go-webauthn/webauthn v0.5.0 h1:Tbmp37AGIhYbQmcy2hEffo3U3cgPClqvxJ7cLUnF7Rc=
-github.com/go-webauthn/webauthn v0.5.0/go.mod h1:0CBq/jNfPS9l033j4AxMk8K8MluiMsde9uGNSPFLEVE=
+github.com/go-webauthn/webauthn v0.7.0 h1:Tk2evkiZGtmbgGoYUbNw2BbPyI8e65tfi8HY9mSluWA=
+github.com/go-webauthn/webauthn v0.7.0/go.mod h1:FrFAvvr9oP+tXr1WeDpRz/rYJi5GRG0/EVFfpN7YhKA=
 github.com/gobuffalo/flect v1.0.0 h1:eBFmskjXZgAOagiTXJH25Nt5sdFwNRcb8DKZsIsAUQI=
 github.com/gobuffalo/flect v1.0.0/go.mod h1:l9V6xSb4BlXwsxEMj3FVEub2nkdQjWhPvD8XTTlHPQc=
 github.com/gocql/gocql v0.0.0-20200624222514-34081eda590e/go.mod h1:DL0ekTmBSTdlNF25Orwt/JMzqIq3EJ4MVa/J/uK64OY=
