@@ -36,7 +36,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -537,7 +536,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessChecker.Roles()) {
+	if osUser == teleport.SSHSessionJoinPrincipal && services.HasV5Role(accessChecker.Roles()) {
 		return nil
 	}
 
@@ -549,10 +548,10 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	_, mfaParams.Verified = cert.Extensions[teleport.CertExtensionMFAVerified]
 
 	// check if roles allow access to server
-	if err := accessChecker.CheckAccess(
+	if err := accessChecker.CheckLoginAccessToNode(
 		h.c.Server.GetInfo(),
+		osUser,
 		mfaParams,
-		services.NewLoginMatcher(osUser),
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)

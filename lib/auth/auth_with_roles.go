@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -298,9 +299,25 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		return true
 	}
 
-	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
-	return len(modes) != 0
+	owner, err := a.authServer.GetUser(tracker.GetHostUser(), false)
+	if err != nil {
+		return false
+	}
+
+	ownerInfo := &predicate.User{
+		Name:     owner.GetName(),
+		Policies: owner.GetAccessPolicies(),
+		Traits:   owner.GetTraits(),
+	}
+
+	// TODO(joel): use a custom path to avoid this wasteful loop
+	for _, mode := range []types.SessionParticipantMode{types.SessionPeerMode, types.SessionObserverMode, types.SessionObserverMode} {
+		if a.context.Checker.CheckSessionJoinAccess(tracker, ownerInfo, mode) == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 const (
@@ -1381,7 +1398,7 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 		hasK8SRequirePolicy := func() bool {
 			for _, role := range roles {
 				for _, policy := range role.GetSessionRequirePolicies() {
-					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
+					if services.ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
 						return true
 					}
 				}
@@ -1389,7 +1406,7 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 			return false
 		}
 
-		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
+		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*services.MinSupportedModeratedSessionsVersion)) {
 			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
 		}
 	}
@@ -2251,8 +2268,10 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 // impersonation request.
 func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
-		Roles:  user.GetRoles(),
-		Traits: user.GetTraits(),
+		Name:           req.Username,
+		AccessPolicies: user.GetAccessPolicies(),
+		Roles:          user.GetRoles(),
+		Traits:         user.GetTraits(),
 	}, nil
 }
 
@@ -2275,6 +2294,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// Traits are copied across from the impersonating user so that role
 	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
+		Name:   a.context.User.GetName(),
 		Roles:  req.RoleRequests,
 		Traits: traits,
 	}, nil

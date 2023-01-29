@@ -1568,6 +1568,29 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	return role, err
 }
 
+// GetAccessPolicy returns a given access policy by name.
+func (c *Cache) GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessPolicy")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	policy, err := rg.access.GetAccessPolicy(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if policy, err := c.Config.Access.GetAccessPolicy(ctx, name); err == nil {
+			return policy, nil
+		}
+	}
+	return policy, err
+}
+
 // GetNamespace returns namespace
 func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")

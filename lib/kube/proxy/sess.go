@@ -36,9 +36,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/predicate"
+	"github.com/gravitational/teleport/lib/services"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -274,7 +275,7 @@ type session struct {
 
 	tracker *srv.SessionTracker
 
-	accessEvaluator auth.SessionAccessEvaluator
+	accessEvaluator services.SessionAccessEvaluator
 
 	recorder events.StreamWriter
 
@@ -319,7 +320,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	accessEvaluator := services.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
 
@@ -758,13 +759,12 @@ func (s *session) join(p *party) error {
 			return trace.Wrap(err)
 		}
 
-		accessContext := auth.SessionAccessContext{
+		accessContext := services.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
 			Roles:    roles,
 		}
 
-		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, p.Mode) {
+		if s.accessEvaluator.CanJoin(accessContext) != predicate.AccessAllowed {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
 	}
@@ -992,8 +992,8 @@ func (s *session) allParticipants() []string {
 }
 
 // canStart checks if a session can start with the current set of participants.
-func (s *session) canStart() (bool, auth.PolicyOptions, error) {
-	var participants []auth.SessionAccessContext
+func (s *session) canStart() (bool, services.PolicyOptions, error) {
+	var participants []services.SessionAccessContext
 	for _, party := range s.parties {
 		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
 			continue
@@ -1002,10 +1002,10 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 		roleNames := party.Ctx.Identity.GetIdentity().Groups
 		roles, err := getRolesByName(s.forwarder, roleNames)
 		if err != nil {
-			return false, auth.PolicyOptions{}, trace.Wrap(err)
+			return false, services.PolicyOptions{}, trace.Wrap(err)
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, services.SessionAccessContext{
 			Username: party.Ctx.User.GetName(),
 			Roles:    roles,
 			Mode:     party.Mode,

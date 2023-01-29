@@ -81,6 +81,10 @@ func (m *mockGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+func (m *mockGetter) GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
 // ListResources is a very dumb implementation for the mockGetter that just
 // returns all resources which have names matching the request
 // PredicateExpression.

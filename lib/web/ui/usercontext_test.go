@@ -78,7 +78,8 @@ func TestNewUserContext(t *testing.T) {
 	role2.SetWindowsLogins(types.Allow, []string{"d"})
 
 	roleSet := []types.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
+	accessChecker := services.NewAccessCheckerWithRoleSet(nil, "local", roleSet)
+	userContext, err := NewUserContext(user, accessChecker, proto.Features{}, true)
 	require.NoError(t, err)
 
 	allowed := access{true, true, true, true, true}
@@ -115,16 +116,16 @@ func TestNewUserContext(t *testing.T) {
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true)
+	userContext, err = NewUserContext(user, accessChecker, proto.Features{}, true)
 	require.NoError(t, err)
 	require.Equal(t, userContext.AuthType, authSSO)
 
-	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext, err = NewUserContext(user, accessChecker, proto.Features{Cloud: true}, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userContext.ACL.Billing, access{true, true, false, false, false}))
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
-	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false)
+	userContext, err = NewUserContext(user, accessChecker, proto.Features{}, false)
 	require.NoError(t, err)
 	require.Equal(t, userContext.ACL.DesktopSessionRecording, false)
 }
@@ -151,10 +152,10 @@ func TestNewUserContextCloud(t *testing.T) {
 	role.SetWindowsLogins(types.Deny, []string{"c"})
 
 	roleSet := []types.Role{role}
-
+	accessChecker := services.NewAccessCheckerWithRoleSet(nil, "local", roleSet)
 	allowed := access{true, true, true, true, true}
 
-	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext, err := NewUserContext(user, accessChecker, proto.Features{Cloud: true}, true)
 	require.NoError(t, err)
 
 	require.Equal(t, userContext.Name, "root")

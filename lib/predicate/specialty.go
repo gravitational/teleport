@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth/predicate/partial"
+	"github.com/gravitational/teleport/lib/predicate/partial"
 	"github.com/gravitational/trace"
 )
 
@@ -31,14 +31,14 @@ func (c *PredicateAccessChecker) ComputeValidNodeLogins(ctx context.Context, nod
 	var constraints []partial.Constraint
 
 	for _, policy := range c.policies {
-		if expr, ok := policy.GetAllow()["node"]; ok {
+		if expr, ok := policy.GetAllow()[AccessNodeField]; ok {
 			constraints = append(constraints, partial.Constraint{
 				Allow: true,
 				Expr:  expr,
 			})
 		}
 
-		if expr, ok := policy.GetDeny()["node"]; ok {
+		if expr, ok := policy.GetDeny()[AccessNodeField]; ok {
 			constraints = append(constraints, partial.Constraint{
 				Allow: false,
 				Expr:  expr,

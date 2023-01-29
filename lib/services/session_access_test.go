@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package services
 
 import (
 	"testing"
@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/predicate"
 )
 
 type startTestCase struct {
@@ -348,7 +349,7 @@ func TestSessionAccessJoin(t *testing.T) {
 				policy := testCase.host.GetSessionPolicySet()
 				evaluator := NewSessionAccessEvaluator([]*types.SessionTrackerPolicySet{&policy}, kind, testCase.owner)
 				result := evaluator.CanJoin(testCase.participant)
-				require.Equal(t, testCase.expected[i], len(result) > 0)
+				require.Equal(t, testCase.expected[i], result == predicate.AccessAllowed)
 			}
 		})
 	}

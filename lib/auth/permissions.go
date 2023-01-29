@@ -76,6 +76,9 @@ type AuthorizerAccessPoint interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
+
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
 
@@ -385,6 +388,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	roles := []string{string(types.RoleRemoteProxy)}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+		Name:               r.Username,
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
@@ -750,6 +754,7 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+		Name:               r.Username,
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,

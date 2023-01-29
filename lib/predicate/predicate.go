@@ -39,6 +39,8 @@ const (
 // NamedParameter is an object with a name that can be added to the environment in which a predicate expression runs.
 type NamedParameter interface {
 	// GetName returns the name of the object.
+	// This is not the name of the object instantiation itself, but the name which is used to access the object
+	// in the predicate expression.
 	GetName() string
 }
 
@@ -194,6 +196,8 @@ type Resource struct {
 }
 
 // GetName returns the name of the object.
+// This is not the name of the object instantiation itself, but the name which is used to access the object
+// in the predicate expression.
 func (n *Resource) GetName() string {
 	return "resource"
 }
@@ -211,6 +215,8 @@ type Node struct {
 }
 
 // GetName returns the name of the object.
+// This is not the name of the object instantiation itself, but the name which is used to access the object
+// in the predicate expression.
 func (n *Node) GetName() string {
 	return "node"
 }
@@ -228,6 +234,8 @@ type AccessNode struct {
 }
 
 // GetName returns the name of the object.
+// This is not the name of the object instantiation itself, but the name which is used to access the object
+// in the predicate expression.
 func (n *AccessNode) GetName() string {
 	return AccessNodeField
 }
@@ -245,6 +253,8 @@ type User struct {
 }
 
 // GetName returns the name of the object.
+// This is not the name of the object instantiation itself, but the name which is used to access the object
+// in the predicate expression.
 func (u *User) GetName() string {
 	return "user"
 }
@@ -259,6 +269,8 @@ type Session struct {
 }
 
 // GetName returns the name of the object.
+// This is not the name of the object instantiation itself, but the name which is used to access the object
+// in the predicate expression.
 func (u *Session) GetName() string {
 	return "session"
 }
@@ -270,6 +282,8 @@ type JoinSession struct {
 }
 
 // GetName returns the name of the object.
+// This is not the name of the object instantiation itself, but the name which is used to access the object
+// in the predicate expression.
 func (u *JoinSession) GetName() string {
 	return "join_session"
 }

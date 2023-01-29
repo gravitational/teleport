@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	tpredicate "github.com/gravitational/teleport/lib/predicate"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -682,10 +683,13 @@ func ReadNoSecrets() []string {
 	return []string{types.VerbList, types.VerbReadNoSecrets}
 }
 
-// RoleGetter is an interface that defines GetRole method
+// RoleGetter is an interface that defines the GetRole and GetAccessPolicy methods.
 type RoleGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
 }
 
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
@@ -724,6 +728,22 @@ func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, 
 	}
 
 	return identity.Groups, identity.Traits, nil
+}
+
+// FetchRoleList fetches roles by their names, applies the traits to role
+// variables, and returns the list
+func FetchAccessPoliciesList(policyNames []string, access RoleGetter) ([]types.AccessPolicy, error) {
+	var policies []types.AccessPolicy
+
+	for _, policyName := range policyNames {
+		policy, err := access.GetAccessPolicy(context.TODO(), policyName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		policies = append(policies, policy)
+	}
+
+	return policies, nil
 }
 
 // FetchRoleList fetches roles by their names, applies the traits to role
@@ -940,7 +960,7 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(database, AccessMFAParams{Verified: true}); err == nil {
+		if _, err := NewRoleSet(role).checkAccess(database, AccessMFAParams{Verified: true}); err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 
@@ -950,7 +970,7 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 
 	// check each individual user against the database.
 	for _, user := range users {
-		err := set.checkAccess(database, AccessMFAParams{Verified: true}, &DatabaseUserMatcher{User: user})
+		_, err := set.checkAccess(database, AccessMFAParams{Verified: true}, &DatabaseUserMatcher{User: user})
 		result.allowedDeniedMap[user] = err == nil
 	}
 
@@ -974,7 +994,7 @@ func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult 
 
 	// check each individual user against the server.
 	for _, user := range logins {
-		err := set.checkAccess(server, AccessMFAParams{Verified: true}, NewLoginMatcher(user))
+		_, err := set.checkAccess(server, AccessMFAParams{Verified: true}, NewLoginMatcher(user))
 		result.allowedDeniedMap[user] = err == nil
 	}
 
@@ -1996,7 +2016,7 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 
 // checkAccess checks if this role set has access to a particular resource,
 // optionally matching the resource's labels.
-func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) (tpredicate.AccessDecision, error) {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -2004,7 +2024,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 
 	if mfa.Required == MFARequiredAlways && !mfa.Verified {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
-		return ErrSessionMFARequired
+		return tpredicate.AccessDenied, ErrSessionMFARequired
 	}
 
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
@@ -2021,9 +2041,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		additionalDeniedMessage = "Confirm database user and name."
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
-	case types.KindNode:
-		getRoleLabels = types.Role.GetNodeLabels
-		additionalDeniedMessage = "Confirm SSH login."
 	case types.KindKubernetesCluster:
 		getRoleLabels = types.Role.GetKubernetesLabels
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
@@ -2033,7 +2050,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	case types.KindWindowsDesktopService:
 		getRoleLabels = types.Role.GetWindowsDesktopLabels
 	default:
-		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
+		return tpredicate.AccessUndecided, trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}
 
 	// Check deny rules.
@@ -2045,12 +2062,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 
 		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Deny), allLabels)
 		if err != nil {
-			return trace.Wrap(err)
+			return tpredicate.AccessUndecided, trace.Wrap(err)
 		}
 		if matchLabels {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			return tpredicate.AccessDenied, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 
@@ -2058,12 +2075,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		// at least one of the matchers returns true.
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
-			return trace.Wrap(err)
+			return tpredicate.AccessUndecided, trace.Wrap(err)
 		}
 		if matchMatchers {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
-			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			return tpredicate.AccessDenied, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 	}
@@ -2083,7 +2100,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 
 		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Allow), allLabels)
 		if err != nil {
-			return trace.Wrap(err)
+			return tpredicate.AccessUndecided, trace.Wrap(err)
 		}
 		if !matchLabels {
 			if isDebugEnabled {
@@ -2097,7 +2114,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		// matchers return true.
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
-			return trace.Wrap(err)
+			return tpredicate.AccessUndecided, trace.Wrap(err)
 		}
 		if !matchMatchers {
 			if isDebugEnabled {
@@ -2110,13 +2127,13 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		// if we've reached this point, namespace, labels, and matchers all match.
 		// if MFA is verified or never required, we're done.
 		if mfa.Verified || mfa.Required == MFARequiredNever {
-			return nil
+			return tpredicate.AccessAllowed, nil
 		}
 		// if MFA is not verified and we require session MFA, deny access
 		if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
-			return ErrSessionMFARequired
+			return tpredicate.AccessDenied, ErrSessionMFARequired
 		}
 
 		// Check all remaining roles, even if we found a match.
@@ -2128,11 +2145,11 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	if allowed {
-		return nil
+		return tpredicate.AccessAllowed, nil
 	}
 
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+	return tpredicate.AccessUndecided, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
 }
 
@@ -2370,13 +2387,13 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
-// GuessIfAccessIsPossible guesses if access is possible for an entire category
+// guessIfAccessIsPossible guesses if access is possible for an entire category
 // of resources.
 // It responds the question: "is it possible that there is a resource of this
 // kind that the current user can access?".
-// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+// guessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
 // for resource X appear"?). Most callers should use CheckAccessToRule instead.
-func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) guessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) (tpredicate.AccessDecision, error) {
 	// "Where" clause are handled differently by the method:
 	// - "allow" rules have their "where" clause always match, as it's assumed
 	//   that there could be a resource that matches it.
@@ -2401,13 +2418,13 @@ func (p boolParser) Parse(string) (interface{}, error) {
 	}), nil
 }
 
-// CheckAccessToRule checks if the RoleSet provides access in the given
+// checkAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
-func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) checkAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) (tpredicate.AccessDecision, error) {
 	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return tpredicate.AccessUndecided, trace.Wrap(err)
 	}
 
 	return set.checkAccessToRuleImpl(checkAccessParams{
@@ -2430,10 +2447,10 @@ type checkAccessParams struct {
 	silent                bool
 }
 
-func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
+func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (tpredicate.AccessDecision, error) {
 	actionsParser, err := NewActionsParser(p.ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return tpredicate.AccessUndecided, trace.Wrap(err)
 	}
 
 	// check deny: a single match on a deny rule prohibits access
@@ -2442,7 +2459,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
 		if matchNamespace {
 			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
-				return trace.Wrap(err)
+				return tpredicate.AccessUndecided, trace.Wrap(err)
 			}
 			if matched {
 				if !p.silent {
@@ -2451,7 +2468,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
 					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
 						p.verb, p.resource, p.namespace, role.GetName())
 				}
-				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
+				return tpredicate.AccessDenied, trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
 	}
@@ -2462,10 +2479,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
 		if matchNamespace {
 			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
-				return trace.Wrap(err)
+				return tpredicate.AccessUndecided, trace.Wrap(err)
 			}
 			if match {
-				return nil
+				return tpredicate.AccessAllowed, nil
 			}
 		}
 	}
@@ -2476,7 +2493,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
 		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
 			p.verb, p.resource, p.namespace, set)
 	}
-	return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
+	return tpredicate.AccessDenied, trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 }
 
 // ExtractConditionForIdentifier returns a restrictive filter expression

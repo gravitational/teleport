@@ -138,24 +138,24 @@ func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
 	return desktopLogins
 }
 
-func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
+func hasAccess(access services.AccessChecker, ctx *services.Context, kind string, verbs ...string) bool {
 	for _, verb := range verbs {
 		// Since this check occurs often and does not imply the caller is trying to
 		// access any resource, silence any logging done on the proxy.
-		if err := roleSet.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, kind, verb, true); err != nil {
+		if err := access.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, kind, verb, true); err != nil {
 			return false
 		}
 	}
 	return true
 }
 
-func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) access {
+func newAccess(accessChecker services.AccessChecker, ctx *services.Context, kind string) access {
 	return access{
-		List:   hasAccess(roleSet, ctx, kind, types.VerbList),
-		Read:   hasAccess(roleSet, ctx, kind, types.VerbRead),
-		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
-		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
-		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
+		List:   hasAccess(accessChecker, ctx, kind, types.VerbList),
+		Read:   hasAccess(accessChecker, ctx, kind, types.VerbRead),
+		Edit:   hasAccess(accessChecker, ctx, kind, types.VerbUpdate),
+		Create: hasAccess(accessChecker, ctx, kind, types.VerbCreate),
+		Delete: hasAccess(accessChecker, ctx, kind, types.VerbDelete),
 	}
 }
 
@@ -184,34 +184,34 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
+func NewUserContext(user types.User, accessChecker services.AccessChecker, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
 	ctx := &services.Context{User: user}
-	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
-	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
-	roleAccess := newAccess(userRoles, ctx, types.KindRole)
-	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
-	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
-	eventAccess := newAccess(userRoles, ctx, types.KindEvent)
-	userAccess := newAccess(userRoles, ctx, types.KindUser)
-	tokenAccess := newAccess(userRoles, ctx, types.KindToken)
-	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
-	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
-	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
-	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
-	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
-	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
-	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
+	recordedSessionAccess := newAccess(accessChecker, ctx, types.KindSession)
+	activeSessionAccess := newAccess(accessChecker, ctx, types.KindSSHSession)
+	roleAccess := newAccess(accessChecker, ctx, types.KindRole)
+	authConnectors := newAccess(accessChecker, ctx, types.KindAuthConnector)
+	trustedClusterAccess := newAccess(accessChecker, ctx, types.KindTrustedCluster)
+	eventAccess := newAccess(accessChecker, ctx, types.KindEvent)
+	userAccess := newAccess(accessChecker, ctx, types.KindUser)
+	tokenAccess := newAccess(accessChecker, ctx, types.KindToken)
+	nodeAccess := newAccess(accessChecker, ctx, types.KindNode)
+	appServerAccess := newAccess(accessChecker, ctx, types.KindAppServer)
+	dbServerAccess := newAccess(accessChecker, ctx, types.KindDatabaseServer)
+	kubeServerAccess := newAccess(accessChecker, ctx, types.KindKubeServer)
+	requestAccess := newAccess(accessChecker, ctx, types.KindAccessRequest)
+	desktopAccess := newAccess(accessChecker, ctx, types.KindWindowsDesktop)
+	cnDiagnosticAccess := newAccess(accessChecker, ctx, types.KindConnectionDiagnostic)
 
 	var billingAccess access
 	if features.Cloud {
-		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
+		billingAccess = newAccess(accessChecker, ctx, types.KindBilling)
 	}
 
-	accessStrategy := getAccessStrategy(userRoles)
-	windowsLogins := getWindowsDesktopLogins(userRoles)
-	clipboard := userRoles.DesktopClipboard()
-	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
-	directorySharing := userRoles.DesktopDirectorySharing()
+	accessStrategy := getAccessStrategy(accessChecker.Roles())
+	windowsLogins := getWindowsDesktopLogins(accessChecker.Roles())
+	clipboard := accessChecker.DesktopClipboard()
+	desktopSessionRecording := desktopRecordingEnabled && accessChecker.RecordDesktopSession()
+	directorySharing := accessChecker.DesktopDirectorySharing()
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
