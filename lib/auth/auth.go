@@ -2694,6 +2694,8 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		return nil, trace.Wrap(err)
 	}
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Name:               user.GetName(),
+		AccessPolicies:     user.GetAccessPolicies(),
 		Roles:              req.Roles,
 		Traits:             req.Traits,
 		AllowedResourceIDs: req.RequestedResourceIDs,

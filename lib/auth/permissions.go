@@ -388,6 +388,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	roles := []string{string(types.RoleRemoteProxy)}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+		Name:               r.Username,
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
@@ -753,6 +754,7 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+		Name:               r.Username,
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
