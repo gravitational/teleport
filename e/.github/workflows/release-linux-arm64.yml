@@ -31,7 +31,7 @@ on:
           override to specify a tag for build debugging purposes.
         type: string
         default: ""
-
+run-name: "Build ARM64 Release Artifacts for ${{ inputs.oss-teleport-ref }}"
 jobs:
   build-artifacts:
     strategy:
