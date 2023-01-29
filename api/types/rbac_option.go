@@ -67,84 +67,84 @@ func CombineOptions[T FromRawOption[T]](instances ...T) T {
 	return combined
 }
 
-type AccessPolicySessionTTL time.Duration
+type SessionTTL time.Duration
 
 // Name is the static name of the option type.
-func (o *AccessPolicySessionTTL) Name() string {
+func (o *SessionTTL) Name() string {
 	return "session_ttl"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySessionTTL) deserializeInto(raw string) error {
+func (o *SessionTTL) deserializeInto(raw string) error {
 	d, err := deserializeOptionDuration(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySessionTTL(d)
+	*o = SessionTTL(d)
 	return nil
 }
 
-func (o *AccessPolicySessionTTL) combineOptions(instances ...AccessPolicySessionTTL) {
+func (o *SessionTTL) combineOptions(instances ...*SessionTTL) {
 	*o = 0
 	for _, instance := range instances {
-		if instance > *o {
-			*o = instance
+		if *instance > *o {
+			*o = *instance
 		}
 	}
 }
 
-func (o *AccessPolicySessionTTL) fromRoleOptions(options RoleOptions) bool {
+func (o *SessionTTL) fromRoleOptions(options RoleOptions) bool {
 	if options.MaxSessionTTL == 0 {
 		return false
 	}
 
-	*o = AccessPolicySessionTTL(options.MaxSessionTTL)
+	*o = SessionTTL(options.MaxSessionTTL)
 	return true
 }
 
-type AccessPolicyLockingMode int
+type LockingMode int
 
 const (
-	AccessPolicyLockingModeBestEffort AccessPolicyLockingMode = iota
-	AccessPolicyLockingModeStrict
+	LockingModeBestEffort LockingMode = iota
+	LockingModeStrict
 )
 
 // Name is the static name of the option type.
-func (o *AccessPolicyLockingMode) Name() string {
+func (o *LockingMode) Name() string {
 	return "locking_mode"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicyLockingMode) deserializeInto(raw string) error {
+func (o *LockingMode) deserializeInto(raw string) error {
 	switch raw {
 	case "best_effort":
-		*o = AccessPolicyLockingModeBestEffort
+		*o = LockingModeBestEffort
 		return nil
 	case "strict":
-		*o = AccessPolicyLockingModeStrict
+		*o = LockingModeStrict
 		return nil
 	default:
 		return trace.BadParameter("invalid locking mode %q", raw)
 	}
 }
 
-func (o *AccessPolicyLockingMode) combineOptions(instances ...AccessPolicyLockingMode) {
-	*o = AccessPolicyLockingModeBestEffort
+func (o *LockingMode) combineOptions(instances ...*LockingMode) {
+	*o = LockingModeBestEffort
 	for _, instance := range instances {
-		if instance == AccessPolicyLockingModeStrict {
-			*o = instance
+		if *instance == LockingModeStrict {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicyLockingMode) fromRoleOptions(options RoleOptions) bool {
+func (o *LockingMode) fromRoleOptions(options RoleOptions) bool {
 	switch options.Lock {
 	case constants.LockingModeBestEffort:
-		*o = AccessPolicyLockingModeBestEffort
+		*o = LockingModeBestEffort
 	case constants.LockingModeStrict:
-		*o = AccessPolicyLockingModeStrict
+		*o = LockingModeStrict
 	default:
 		return false
 	}
@@ -152,81 +152,81 @@ func (o *AccessPolicyLockingMode) fromRoleOptions(options RoleOptions) bool {
 	return true
 }
 
-type AccessPolicySessionMFA bool
+type SessionMFA bool
 
 // Name is the static name of the option type.
-func (o *AccessPolicySessionMFA) Name() string {
+func (o *SessionMFA) Name() string {
 	return "session_mfa"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySessionMFA) deserializeInto(raw string) error {
+func (o *SessionMFA) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySessionMFA(b)
+	*o = SessionMFA(b)
 	return nil
 }
 
-func (o *AccessPolicySessionMFA) combineOptions(instances ...AccessPolicySessionMFA) {
+func (o *SessionMFA) combineOptions(instances ...*SessionMFA) {
 	*o = false
 	for _, instance := range instances {
-		if instance {
-			*o = instance
+		if *instance {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySessionMFA) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySessionMFA(options.RequireSessionMFA)
+func (o *SessionMFA) fromRoleOptions(options RoleOptions) bool {
+	*o = SessionMFA(options.RequireSessionMFA)
 	return true
 }
 
-type AccessPolicySSHSessionRecordingMode int
+type SSHSessionRecordingMode int
 
 const (
-	AccessPolicySSHSessionRecordingModeBestEffort AccessPolicySSHSessionRecordingMode = iota
-	AccessPolicySSHSessionRecordingModeStrict
+	SSHSessionRecordingModeBestEffort SSHSessionRecordingMode = iota
+	SSHSessionRecordingModeStrict
 )
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHSessionRecordingMode) Name() string {
+func (o *SSHSessionRecordingMode) Name() string {
 	return "ssh.session_recording_mode"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHSessionRecordingMode) deserializeInto(raw string) error {
+func (o *SSHSessionRecordingMode) deserializeInto(raw string) error {
 	switch raw {
 	case "best_effort":
-		*o = AccessPolicySSHSessionRecordingModeBestEffort
+		*o = SSHSessionRecordingModeBestEffort
 		return nil
 	case "strict":
-		*o = AccessPolicySSHSessionRecordingModeStrict
+		*o = SSHSessionRecordingModeStrict
 		return nil
 	default:
 		return trace.BadParameter("invalid session recording mode %q", raw)
 	}
 }
 
-func (o *AccessPolicySSHSessionRecordingMode) combineOptions(instances ...AccessPolicySSHSessionRecordingMode) {
-	*o = AccessPolicySSHSessionRecordingModeBestEffort
+func (o *SSHSessionRecordingMode) combineOptions(instances ...*SSHSessionRecordingMode) {
+	*o = SSHSessionRecordingModeBestEffort
 	for _, instance := range instances {
-		if instance == AccessPolicySSHSessionRecordingModeStrict {
-			*o = instance
+		if *instance == SSHSessionRecordingModeStrict {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySSHSessionRecordingMode) fromRoleOptions(options RoleOptions) bool {
+func (o *SSHSessionRecordingMode) fromRoleOptions(options RoleOptions) bool {
 	switch options.Lock {
 	case constants.LockingModeBestEffort:
-		*o = AccessPolicySSHSessionRecordingModeBestEffort
+		*o = SSHSessionRecordingModeBestEffort
 	case constants.LockingModeStrict:
-		*o = AccessPolicySSHSessionRecordingModeStrict
+		*o = SSHSessionRecordingModeStrict
 	default:
 		return false
 	}
@@ -234,304 +234,304 @@ func (o *AccessPolicySSHSessionRecordingMode) fromRoleOptions(options RoleOption
 	return true
 }
 
-type AccessPolicySSHAllowAgentForwarding bool
+type SSHAllowAgentForwarding bool
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHAllowAgentForwarding) Name() string {
+func (o *SSHAllowAgentForwarding) Name() string {
 	return "ssh.allow_agent_forwarding"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowAgentForwarding) deserializeInto(raw string) error {
+func (o *SSHAllowAgentForwarding) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHAllowAgentForwarding(b)
+	*o = SSHAllowAgentForwarding(b)
 	return nil
 }
 
-func (o *AccessPolicySSHAllowAgentForwarding) combineOptions(instances ...AccessPolicySSHAllowAgentForwarding) {
+func (o *SSHAllowAgentForwarding) combineOptions(instances ...*SSHAllowAgentForwarding) {
 	*o = false
 	for _, instance := range instances {
-		if instance {
-			*o = instance
+		if *instance {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySSHAllowAgentForwarding) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySSHAllowAgentForwarding(options.ForwardAgent)
+func (o *SSHAllowAgentForwarding) fromRoleOptions(options RoleOptions) bool {
+	*o = SSHAllowAgentForwarding(options.ForwardAgent)
 	return true
 }
 
-type AccessPolicySSHAllowPortForwarding bool
+type SSHAllowPortForwarding bool
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHAllowPortForwarding) Name() string {
+func (o *SSHAllowPortForwarding) Name() string {
 	return "ssh.allow_port_forwarding"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowPortForwarding) deserializeInto(raw string) error {
+func (o *SSHAllowPortForwarding) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHAllowPortForwarding(b)
+	*o = SSHAllowPortForwarding(b)
 	return nil
 }
 
-func (o *AccessPolicySSHAllowPortForwarding) combineOptions(instances ...AccessPolicySSHAllowPortForwarding) {
+func (o *SSHAllowPortForwarding) combineOptions(instances ...*SSHAllowPortForwarding) {
 	*o = true
 	for _, instance := range instances {
-		if !instance {
-			*o = instance
+		if !*instance {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySSHAllowPortForwarding) fromRoleOptions(options RoleOptions) bool {
+func (o *SSHAllowPortForwarding) fromRoleOptions(options RoleOptions) bool {
 	if options.PortForwarding == nil {
 		return false
 	}
 
-	*o = AccessPolicySSHAllowPortForwarding(options.PortForwarding.Value)
+	*o = SSHAllowPortForwarding(options.PortForwarding.Value)
 	return true
 }
 
-type AccessPolicySSHAllowX11Forwarding bool
+type SSHAllowX11Forwarding bool
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHAllowX11Forwarding) Name() string {
+func (o *SSHAllowX11Forwarding) Name() string {
 	return "ssh.allow_x11_forwarding"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowX11Forwarding) deserializeInto(raw string) error {
+func (o *SSHAllowX11Forwarding) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHAllowX11Forwarding(b)
+	*o = SSHAllowX11Forwarding(b)
 	return nil
 }
 
-func (o *AccessPolicySSHAllowX11Forwarding) combineOptions(instances ...AccessPolicySSHAllowX11Forwarding) {
+func (o *SSHAllowX11Forwarding) combineOptions(instances ...*SSHAllowX11Forwarding) {
 	*o = false
 	for _, instance := range instances {
-		if instance {
-			*o = instance
+		if *instance {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySSHAllowX11Forwarding) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySSHAllowX11Forwarding(options.PermitX11Forwarding)
+func (o *SSHAllowX11Forwarding) fromRoleOptions(options RoleOptions) bool {
+	*o = SSHAllowX11Forwarding(options.PermitX11Forwarding)
 	return true
 }
 
-type AccessPolicySSHAllowFileCopying bool
+type SSHAllowFileCopying bool
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHAllowFileCopying) Name() string {
+func (o *SSHAllowFileCopying) Name() string {
 	return "ssh.allow_file_copying"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowFileCopying) deserializeInto(raw string) error {
+func (o *SSHAllowFileCopying) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHAllowFileCopying(b)
+	*o = SSHAllowFileCopying(b)
 	return nil
 }
 
-func (o *AccessPolicySSHAllowFileCopying) combineOptions(instances ...AccessPolicySSHAllowFileCopying) {
+func (o *SSHAllowFileCopying) combineOptions(instances ...*SSHAllowFileCopying) {
 	*o = true
 	for _, instance := range instances {
-		if !instance {
-			*o = instance
+		if !*instance {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySSHAllowFileCopying) fromRoleOptions(options RoleOptions) bool {
+func (o *SSHAllowFileCopying) fromRoleOptions(options RoleOptions) bool {
 	if options.SSHFileCopy == nil {
 		return false
 	}
 
-	*o = AccessPolicySSHAllowFileCopying(options.SSHFileCopy.Value)
+	*o = SSHAllowFileCopying(options.SSHFileCopy.Value)
 	return true
 }
 
-type AccessPolicySSHAllowExpiredCert bool
+type SSHAllowExpiredCert bool
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHAllowExpiredCert) Name() string {
+func (o *SSHAllowExpiredCert) Name() string {
 	return "ssh.allow_expired_cert"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHAllowExpiredCert) deserializeInto(raw string) error {
+func (o *SSHAllowExpiredCert) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHAllowExpiredCert(b)
+	*o = SSHAllowExpiredCert(b)
 	return nil
 }
 
-func (o *AccessPolicySSHAllowExpiredCert) combineOptions(instances ...AccessPolicySSHAllowExpiredCert) {
+func (o *SSHAllowExpiredCert) combineOptions(instances ...*SSHAllowExpiredCert) {
 	*o = true
 	for _, instance := range instances {
-		if !instance {
-			*o = instance
+		if !*instance {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySSHAllowExpiredCert) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySSHAllowExpiredCert(options.DisconnectExpiredCert)
+func (o *SSHAllowExpiredCert) fromRoleOptions(options RoleOptions) bool {
+	*o = SSHAllowExpiredCert(options.DisconnectExpiredCert)
 	return true
 }
 
-type AccessPolicySSHPinSourceIP bool
+type SSHPinSourceIP bool
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHPinSourceIP) Name() string {
+func (o *SSHPinSourceIP) Name() string {
 	return "ssh.pin_source_ip"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHPinSourceIP) deserializeInto(raw string) error {
+func (o *SSHPinSourceIP) deserializeInto(raw string) error {
 	b, err := deserializeOptionBool(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHPinSourceIP(b)
+	*o = SSHPinSourceIP(b)
 	return nil
 }
 
-func (o *AccessPolicySSHPinSourceIP) combineOptions(instances ...AccessPolicySSHPinSourceIP) {
+func (o *SSHPinSourceIP) combineOptions(instances ...*SSHPinSourceIP) {
 	*o = false
 	for _, instance := range instances {
-		if instance {
-			*o = instance
+		if *instance {
+			*o = *instance
 			break
 		}
 	}
 }
 
-func (o *AccessPolicySSHPinSourceIP) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySSHPinSourceIP(options.PinSourceIP)
+func (o *SSHPinSourceIP) fromRoleOptions(options RoleOptions) bool {
+	*o = SSHPinSourceIP(options.PinSourceIP)
 	return true
 }
 
-type AccessPolicySSHMaxConnections int
+type SSHMaxConnections int
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHMaxConnections) Name() string {
+func (o *SSHMaxConnections) Name() string {
 	return "ssh.max_connections"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHMaxConnections) deserializeInto(raw string) error {
+func (o *SSHMaxConnections) deserializeInto(raw string) error {
 	i, err := deserializeOptionInt(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHMaxConnections(i)
+	*o = SSHMaxConnections(i)
 	return nil
 }
 
-func (o *AccessPolicySSHMaxConnections) combineOptions(instances ...AccessPolicySSHMaxConnections) {
+func (o *SSHMaxConnections) combineOptions(instances ...*SSHMaxConnections) {
 	*o = 0
 	for _, instance := range instances {
-		if instance > *o {
-			*o = instance
+		if *instance > *o {
+			*o = *instance
 		}
 	}
 }
 
-func (o *AccessPolicySSHMaxConnections) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySSHMaxConnections(options.MaxConnections)
+func (o *SSHMaxConnections) fromRoleOptions(options RoleOptions) bool {
+	*o = SSHMaxConnections(options.MaxConnections)
 	return true
 }
 
-type AccessPolicySSHMaxSessionsPerConnection int
+type SSHMaxSessionsPerConnection int
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHMaxSessionsPerConnection) Name() string {
+func (o *SSHMaxSessionsPerConnection) Name() string {
 	return "ssh.max_sessions_per_connection"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHMaxSessionsPerConnection) deserializeInto(raw string) error {
+func (o *SSHMaxSessionsPerConnection) deserializeInto(raw string) error {
 	i, err := deserializeOptionInt(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHMaxSessionsPerConnection(i)
+	*o = SSHMaxSessionsPerConnection(i)
 	return nil
 }
 
-func (o *AccessPolicySSHMaxSessionsPerConnection) combineOptions(instances ...AccessPolicySSHMaxSessionsPerConnection) {
+func (o *SSHMaxSessionsPerConnection) combineOptions(instances ...*SSHMaxSessionsPerConnection) {
 	*o = 0
 	for _, instance := range instances {
-		if instance > *o {
-			*o = instance
+		if *instance > *o {
+			*o = *instance
 		}
 	}
 }
 
-func (o *AccessPolicySSHMaxSessionsPerConnection) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySSHMaxSessionsPerConnection(options.MaxSessions)
+func (o *SSHMaxSessionsPerConnection) fromRoleOptions(options RoleOptions) bool {
+	*o = SSHMaxSessionsPerConnection(options.MaxSessions)
 	return true
 }
 
-type AccessPolicySSHClientIdleTimeout time.Duration
+type SSHClientIdleTimeout time.Duration
 
 // Name is the static name of the option type.
-func (o *AccessPolicySSHClientIdleTimeout) Name() string {
+func (o *SSHClientIdleTimeout) Name() string {
 	return "ssh.client_idle_timeout"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *AccessPolicySSHClientIdleTimeout) deserializeInto(raw string) error {
+func (o *SSHClientIdleTimeout) deserializeInto(raw string) error {
 	d, err := deserializeOptionDuration(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	*o = AccessPolicySSHClientIdleTimeout(d)
+	*o = SSHClientIdleTimeout(d)
 	return nil
 }
 
-func (o *AccessPolicySSHClientIdleTimeout) combineOptions(instances ...AccessPolicySSHClientIdleTimeout) {
+func (o *SSHClientIdleTimeout) combineOptions(instances ...*SSHClientIdleTimeout) {
 	*o = 0
 	for _, instance := range instances {
-		if instance > *o {
-			*o = instance
+		if *instance > *o {
+			*o = *instance
 		}
 	}
 }
 
-func (o *AccessPolicySSHClientIdleTimeout) fromRoleOptions(options RoleOptions) bool {
-	*o = AccessPolicySSHClientIdleTimeout(options.ClientIdleTimeout)
+func (o *SSHClientIdleTimeout) fromRoleOptions(options RoleOptions) bool {
+	*o = SSHClientIdleTimeout(options.ClientIdleTimeout)
 	return true
 }

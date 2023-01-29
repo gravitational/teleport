@@ -212,6 +212,32 @@ type AccessChecker interface {
 
 	// CheckSessionJoinAccess checks if the identity has access to join the given session.
 	CheckSessionJoinAccess(session types.SessionTracker, sessionOwner *predicate.User, mode types.SessionParticipantMode) error
+
+	OptionSessionTTL() types.SessionTTL
+
+	OptionLockingMode() types.LockingMode
+
+	OptionSessionMFA() types.SessionMFA
+
+	OptionSSHSessionRecordingMode() types.SSHSessionRecordingMode
+
+	OptionSSHAllowAgentForwarding() types.SSHAllowAgentForwarding
+
+	OptionSSHAllowPortForwarding() types.SSHAllowPortForwarding
+
+	OptionSSHAllowX11Forwarding() types.SSHAllowX11Forwarding
+
+	OptionsSSHAllowFileCopying() types.SSHAllowFileCopying
+
+	OptionsSSHAllowExpiredCert() types.SSHAllowExpiredCert
+
+	OptionsSSHPinSourceIP() types.SSHPinSourceIP
+
+	OptionSSHMaxConnections() types.SSHMaxConnections
+
+	OptionSSHMaxSessionsPerConnection() types.SSHMaxSessionsPerConnection
+
+	OptionSSHClientIdleTimeout() types.SSHClientIdleTimeout
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -480,6 +506,75 @@ func (a *accessChecker) CheckLoginAccessToNode(r types.Server, login string, mfa
 // there are no resource-specific restrictions.
 func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
 	return a.info.AllowedResourceIDs
+}
+
+func (a *accessChecker) OptionSessionTTL() types.SessionTTL {
+	return *RoleOption[*types.SessionTTL](a)
+}
+
+func (a *accessChecker) OptionLockingMode() types.LockingMode {
+	return *RoleOption[*types.LockingMode](a)
+}
+
+func (a *accessChecker) OptionSessionMFA() types.SessionMFA {
+	return *RoleOption[*types.SessionMFA](a)
+}
+
+func (a *accessChecker) OptionSSHSessionRecordingMode() types.SSHSessionRecordingMode {
+	return *RoleOption[*types.SSHSessionRecordingMode](a)
+}
+
+func (a *accessChecker) OptionSSHAllowAgentForwarding() types.SSHAllowAgentForwarding {
+	return *RoleOption[*types.SSHAllowAgentForwarding](a)
+}
+
+- getoptions
+- pinsourceip
+- mfaparams
+- adjustsessionttl
+- maxconnections
+- maxsessions
+- adjustclientidletimeout
+- adjustdisconnectexpiredcert
+- getloginsforttl
+- lockingmode
+- sessionrecordingmode
+- canforwardagents
+- canportforward
+- permitx11forwarding
+- cancopyfiles
+- checkagentforward
+
+func (a *accessChecker) OptionSSHAllowPortForwarding() types.SSHAllowPortForwarding {
+	return *RoleOption[*types.SSHAllowPortForwarding](a)
+}
+
+func (a *accessChecker) OptionSSHAllowX11Forwarding() types.SSHAllowX11Forwarding {
+	return *RoleOption[*types.SSHAllowX11Forwarding](a)
+}
+
+func (a *accessChecker) OptionsSSHAllowFileCopying() types.SSHAllowFileCopying {
+	return *RoleOption[*types.SSHAllowFileCopying](a)
+}
+
+func (a *accessChecker) OptionsSSHAllowExpiredCert() types.SSHAllowExpiredCert {
+	return *RoleOption[*types.SSHAllowExpiredCert](a)
+}
+
+func (a *accessChecker) OptionsSSHPinSourceIP() types.SSHPinSourceIP {
+	return *RoleOption[*types.SSHPinSourceIP](a)
+}
+
+func (a *accessChecker) OptionSSHMaxConnections() types.SSHMaxConnections {
+	return *RoleOption[*types.SSHMaxConnections](a)
+}
+
+func (a *accessChecker) OptionSSHMaxSessionsPerConnection() types.SSHMaxSessionsPerConnection {
+	return *RoleOption[*types.SSHMaxSessionsPerConnection](a)
+}
+
+func (a *accessChecker) OptionSSHClientIdleTimeout() types.SSHClientIdleTimeout {
+	return *RoleOption[*types.SSHClientIdleTimeout](a)
 }
 
 // RoleOption retrieves and attempts to deserialize it into the provided type.
