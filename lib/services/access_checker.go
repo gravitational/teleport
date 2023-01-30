@@ -73,30 +73,6 @@ type AccessChecker interface {
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
 
-	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
-	// for this role set, otherwise it returns ttl unchanged
-	AdjustSessionTTL(ttl time.Duration) time.Duration
-
-	// AdjustClientIdleTimeout adjusts requested idle timeout
-	// to the lowest max allowed timeout, the most restrictive
-	// option will be picked
-	AdjustClientIdleTimeout(ttl time.Duration) time.Duration
-
-	// AdjustDisconnectExpiredCert adjusts the value based on the role set
-	// the most restrictive option will be picked
-	AdjustDisconnectExpiredCert(disconnect bool) bool
-
-	// CheckAgentForward checks if the role can request agent forward for this
-	// user.
-	CheckAgentForward(login string) error
-
-	// CanForwardAgents returns true if this role set offers capability to forward
-	// agents.
-	CanForwardAgents() bool
-
-	// CanPortForward returns true if this RoleSet can forward ports.
-	CanPortForward() bool
-
 	// DesktopClipboard returns true if the role set has enabled shared
 	// clipboard for desktop sessions. Clipboard sharing is disabled if
 	// one or more of the roles in the set has disabled it.
@@ -113,14 +89,6 @@ type AccessChecker interface {
 	// to a user who should be submitting access reviews. Because not all rolesets
 	// are derived from statically assigned roles, this may return false positives.
 	MaybeCanReviewRequests() bool
-
-	// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
-	PermitX11Forwarding() bool
-
-	// CanCopyFiles returns true if the role set has enabled remote file
-	// operations via SCP or SFTP. Remote file operations are disabled if
-	// one or more of the roles in the set has disabled it.
-	CanCopyFiles() bool
 
 	// CertificateFormat returns the most permissive certificate format in a
 	// RoleSet.
@@ -145,9 +113,6 @@ type AccessChecker interface {
 	// CanImpersonateSomeone returns true if this checker has any impersonation rules
 	CanImpersonateSomeone() bool
 
-	// LockingMode returns the locking mode to apply with this checker.
-	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
-
 	// ExtractConditionForIdentifier returns a restrictive filter expression
 	// for list queries based on the rules' `where` conditions.
 	ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error)
@@ -161,16 +126,6 @@ type AccessChecker interface {
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
 
-	// MaxConnections returns the maximum number of concurrent ssh connections
-	// allowed.  If MaxConnections is zero then no maximum was defined and the
-	// number of concurrent connections is unconstrained.
-	MaxConnections() int64
-
-	// MaxSessions returns the maximum number of concurrent ssh sessions per
-	// connection. If MaxSessions is zero then no maximum was defined and the
-	// number of sessions is unconstrained.
-	MaxSessions() int64
-
 	// SessionPolicySets returns the list of SessionPolicySets for all roles.
 	SessionPolicySets() []*types.SessionTrackerPolicySet
 
@@ -182,19 +137,10 @@ type AccessChecker interface {
 	// there are no resource-specific restrictions.
 	GetAllowedResourceIDs() []types.ResourceID
 
-	// SessionRecordingMode returns the recording mode for a specific service.
-	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
-
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
 	HostUsers(types.Server) (*HostUsersInfo, error)
 
-	// PinSourceIP forces the same client IP for certificate generation and SSH usage
-	PinSourceIP() bool
-
-	// MFAParams returns MFA params for the given use given their roles, the cluster
-	// auth preference, and whether mfa has been verified.
-	MFAParams(authPrefMFARequirement types.RequireMFAType) AccessMFAParams
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
@@ -269,10 +215,10 @@ type accessChecker struct {
 	// AccessChecker methods. Methods which require AllowedResourceIDs (relevant
 	// to search-based access requests) will be implemented by
 	// accessChecker.
-	RoleSet
+	roleSet RoleSet
 
 	// PredicateAccessChecker is embedded to allow access checking via access policy resources.
-	*predicate.PredicateAccessChecker
+	predicateChecker *predicate.PredicateAccessChecker
 }
 
 // NewAccessChecker returns a new AccessChecker which can be used to check
@@ -297,10 +243,10 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) 
 	}
 
 	return &accessChecker{
-		info:                   info,
-		localCluster:           localCluster,
-		RoleSet:                roleSet,
-		PredicateAccessChecker: predicate.NewPredicateAccessChecker(policies),
+		info:             info,
+		localCluster:     localCluster,
+		roleSet:          roleSet,
+		predicateChecker: predicate.NewPredicateAccessChecker(policies),
 	}, nil
 }
 
@@ -310,7 +256,7 @@ func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet 
 	return &accessChecker{
 		info:         info,
 		localCluster: localCluster,
-		RoleSet:      roleSet,
+		roleSet:      roleSet,
 	}
 }
 
@@ -328,6 +274,152 @@ func blendAccessDecision(a, b predicate.AccessDecision) error {
 	return trace.AccessDenied("access denied")
 }
 
+// CanImpersonateSomeone returns true if this checker has any impersonation rules
+func (a *accessChecker) CanImpersonateSomeone() bool {
+	return a.roleSet.CanImpersonateSomeone()
+}
+
+// CertificateExtensions returns the list of extensions for each role in the RoleSet
+func (a *accessChecker) CertificateExtensions() []*types.CertExtension {
+	return a.roleSet.CertificateExtensions()
+}
+
+// CertificateFormat returns the most permissive certificate format in a
+// RoleSet.
+func (a *accessChecker) CertificateFormat() string {
+	return a.roleSet.CertificateFormat()
+}
+
+// CheckAWSRoleARNs returns a list of AWS role ARNs this role set is allowed to assume.
+func (a *accessChecker) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error) {
+	return a.roleSet.CheckAWSRoleARNs(ttl, overrideTTL)
+}
+
+// CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
+// checked first then allow rules. Access to a cluster is determined by
+// namespaces, labels, and logins.
+func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
+	return a.roleSet.CheckAccessToRemoteCluster(rc)
+}
+
+// CheckDatabaseNamesAndUsers checks if the role has any allowed database
+// names or users.
+func (a *accessChecker) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
+	return a.roleSet.CheckDatabaseNamesAndUsers(ttl, overrideTTL)
+}
+
+// CheckImpersonate returns nil if this role set can impersonate
+// a user and their roles, returns AccessDenied otherwise
+// CheckImpersonate checks whether current user is allowed to impersonate
+// users and roles
+func (a *accessChecker) CheckImpersonate(currentUser, impersonateUser types.User, impersonateRoles []types.Role) error {
+	return a.roleSet.CheckImpersonate(currentUser, impersonateUser, impersonateRoles)
+}
+
+// CheckImpersonateRoles validates that the current user can perform role-only impersonation
+// of the given roles. Role-only impersonation requires an allow rule with
+// roles but no users (and no user-less deny rules). All requested roles must
+// be allowed for the check to succeed.
+func (a *accessChecker) CheckImpersonateRoles(currentUser types.User, impersonateRoles []types.Role) error {
+	return a.roleSet.CheckImpersonateRoles(currentUser, impersonateRoles)
+}
+
+// CheckKubeGroupsAndUsers check if role can login into kubernetes
+// and returns two lists of allowed groups and users
+func (a *accessChecker) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
+	return a.roleSet.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
+}
+
+// CheckLoginDuration checks if role set can login up to given duration and
+// returns a combined list of allowed logins.
+func (a *accessChecker) CheckLoginDuration(ttl time.Duration) ([]string, error) {
+	return a.roleSet.CheckLoginDuration(ttl)
+}
+
+// DesktopClipboard returns true if the role set has enabled shared
+// clipboard for desktop sessions. Clipboard sharing is disabled if
+// one or more of the roles in the set has disabled it.
+func (a *accessChecker) DesktopClipboard() bool {
+	return a.roleSet.DesktopClipboard()
+}
+
+// DesktopDirectorySharing returns true if the role set has directory sharing
+// enabled. This setting is enabled if one or more of the roles in the set has
+// enabled it.
+func (a *accessChecker) DesktopDirectorySharing() bool {
+	return a.roleSet.DesktopDirectorySharing()
+}
+
+// EnhancedRecordingSet returns a set of events that will be recorded
+// for enhanced session recording.
+func (a *accessChecker) EnhancedRecordingSet() map[string]bool {
+	return a.roleSet.EnhancedRecordingSet()
+}
+
+// ExtractConditionForIdentifier returns a restrictive filter expression
+// for list queries based on the rules' `where` conditions.
+func (a *accessChecker) ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error)
+
+// GetAllLogins returns all valid unix logins for the RoleSet.
+func (a *accessChecker) GetAllLogins() []string {
+	return a.roleSet.GetAllLogins()
+}
+
+// GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
+func (a *accessChecker) GetAllowedPreviewAsRoles() []string {
+	return a.roleSet.GetAllowedPreviewAsRoles()
+}
+
+// GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
+func (a *accessChecker) GetAllowedSearchAsRoles() []string {
+	return a.roleSet.GetAllowedSearchAsRoles()
+}
+
+// HasRole checks if the checker includes the role
+func (a *accessChecker) HasRole(role string) bool {
+	return a.roleSet.HasRole(role)
+}
+
+// HostUsers returns host user information matching a server or nil if
+// a role disallows host user creation
+func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
+	return a.roleSet.HostUsers(s)
+}
+
+// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
+// to a user who should be submitting access reviews.  Because not all rolesets
+// are derived from statically assigned roles, this may return false positives.
+func (a *accessChecker) MaybeCanReviewRequests() bool {
+	return a.roleSet.MaybeCanReviewRequests()
+}
+
+// PrivateKeyPolicy returns the enforced private key policy for this role set.
+func (a *accessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
+	return a.roleSet.PrivateKeyPolicy(defaultPolicy)
+}
+
+// RecordDesktopSession returns true if the role set has enabled desktop
+// session recording. Recording is considered enabled if at least one
+// role in the set has enabled it.
+func (a *accessChecker) RecordDesktopSession() bool {
+	return a.roleSet.RecordDesktopSession()
+}
+
+// RoleNames returns a list of role names
+func (a *accessChecker) RoleNames() []string {
+	return a.roleSet.RoleNames()
+}
+
+// Roles returns the list underlying roles this AccessChecker is based on.
+func (a *accessChecker) Roles() []types.Role {
+	return a.roleSet.Roles()
+}
+
+// SessionPolicySets returns the list of SessionPolicySets for all roles.
+func (a *accessChecker) SessionPolicySets() []*types.SessionTrackerPolicySet {
+	return a.roleSet.SessionPolicySets()
+}
+
 // AccessPolicyNames returns the list of underlying policy names this AccessChecker is based on.
 func (a *accessChecker) AccessPolicyNames() []string {
 	return a.info.AccessPolicies
@@ -335,7 +427,7 @@ func (a *accessChecker) AccessPolicyNames() []string {
 
 // AccessPolicies returns the list of underlying policies this AccessChecker is based on.
 func (a *accessChecker) AccessPolicies() []types.AccessPolicy {
-	return a.PredicateAccessChecker.Policies
+	return a.predicateChecker.Policies
 }
 
 // Traits returns the list of underlying traits this AccessChecker is based on.
@@ -387,7 +479,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 		return trace.Wrap(err)
 	}
 
-	decision, err := a.RoleSet.checkAccess(r, mfa, matchers...)
+	decision, err := a.roleSet.checkAccess(r, mfa, matchers...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -399,7 +491,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
-	hasStandardAccess, err := a.RoleSet.checkAccessToRule(ctx, namespace, resource, verb, silent)
+	hasStandardAccess, err := a.roleSet.checkAccessToRule(ctx, namespace, resource, verb, silent)
 	if !trace.IsAccessDenied(err) {
 		return trace.Wrap(err)
 	}
@@ -409,7 +501,7 @@ func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, res
 		return trace.Wrap(err)
 	}
 
-	hasPredicateAccess, err := a.PredicateAccessChecker.CheckAccessToResource(&predicate.Resource{
+	hasPredicateAccess, err := a.predicateChecker.CheckAccessToResource(&predicate.Resource{
 		Kind:    r.GetKind(),
 		SubKind: r.GetSubKind(),
 		Version: r.GetVersion(),
@@ -435,7 +527,7 @@ func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, res
 // GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
 // for resource X appear"?). Most callers should use CheckAccessToRule instead.
 func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
-	hasStandardAccess, err := a.RoleSet.guessIfAccessIsPossible(ctx, namespace, resource, verb, silent)
+	hasStandardAccess, err := a.roleSet.guessIfAccessIsPossible(ctx, namespace, resource, verb, silent)
 	if !trace.IsAccessDenied(err) {
 		return trace.Wrap(err)
 	}
@@ -453,11 +545,11 @@ func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, ses
 	evaluator := NewSessionAccessEvaluator(session.GetHostPolicySets(), session.GetSessionKind(), session.GetHostUser())
 	standardDecision := evaluator.CanJoin(SessionAccessContext{
 		Username: a.info.Name,
-		Roles:    a.RoleSet,
+		Roles:    a.roleSet,
 		Mode:     mode,
 	})
 
-	predicateDecision, err := a.PredicateAccessChecker.CheckSessionJoinAccess(&predicate.Session{
+	predicateDecision, err := a.predicateChecker.CheckSessionJoinAccess(&predicate.Session{
 		Owner:        sessionOwner,
 		Participants: participants,
 	}, &predicate.JoinSession{
@@ -480,12 +572,12 @@ func (a *accessChecker) CheckLoginAccessToNode(r types.Server, login string, mfa
 		return trace.Wrap(err)
 	}
 
-	hasStandardAccess, err := a.RoleSet.checkAccess(r, mfa)
+	hasStandardAccess, err := a.roleSet.checkAccess(r, mfa)
 	if !trace.IsAccessDenied(err) {
 		return trace.Wrap(err)
 	}
 
-	hasPredicateAccess, err := a.PredicateAccessChecker.CheckLoginAccessToNode(&predicate.Node{
+	hasPredicateAccess, err := a.predicateChecker.CheckLoginAccessToNode(&predicate.Node{
 		Hostname: r.GetHostname(),
 		Address:  r.GetAddr(),
 		Labels:   r.GetAllLabels(),
@@ -527,23 +619,6 @@ func (a *accessChecker) OptionSSHSessionRecordingMode() types.SSHSessionRecordin
 func (a *accessChecker) OptionSSHAllowAgentForwarding() types.SSHAllowAgentForwarding {
 	return *RoleOption[*types.SSHAllowAgentForwarding](a)
 }
-
-- getoptions
-- pinsourceip
-- mfaparams
-- adjustsessionttl
-- maxconnections
-- maxsessions
-- adjustclientidletimeout
-- adjustdisconnectexpiredcert
-- getloginsforttl
-- lockingmode
-- sessionrecordingmode
-- canforwardagents
-- canportforward
-- permitx11forwarding
-- cancopyfiles
-- checkagentforward
 
 func (a *accessChecker) OptionSSHAllowPortForwarding() types.SSHAllowPortForwarding {
 	return *RoleOption[*types.SSHAllowPortForwarding](a)
