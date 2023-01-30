@@ -61,35 +61,10 @@ func (s *SAMLIdPServiceProviderV1) SetEntityDescriptor(entityDescriptor string) 
 	s.Spec.EntityDescriptor = entityDescriptor
 }
 
-// Origin returns the origin value of the resource.
-func (s *SAMLIdPServiceProviderV1) Origin() string {
-	return s.Metadata.Origin()
-}
-
-// SetOrigin sets the origin value of the resource.
-func (s *SAMLIdPServiceProviderV1) SetOrigin(origin string) {
-	s.Metadata.SetOrigin(origin)
-}
-
 // String returns the SAML IdP service provider string representation.
 func (s *SAMLIdPServiceProviderV1) String() string {
 	return fmt.Sprintf("SAMLIdPServiceProviderV1(Name=%v)",
 		s.GetName())
-}
-
-// GetStaticLabels returns the service provider static labels.
-func (s *SAMLIdPServiceProviderV1) GetStaticLabels() map[string]string {
-	return s.Metadata.Labels
-}
-
-// SetStaticLabels sets the SAML IdP service provider static labels.
-func (s *SAMLIdPServiceProviderV1) SetStaticLabels(sl map[string]string) {
-	s.Metadata.Labels = sl
-}
-
-// GetAllLabels returns all labels from the service provider.
-func (s *SAMLIdPServiceProviderV1) GetAllLabels() map[string]string {
-	return s.Metadata.Labels
 }
 
 // MatchSearch goes through select field values and tries to
