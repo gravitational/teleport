@@ -104,15 +104,16 @@ Teleport needs AWS IAM permissions to be able to:
 - Modify ElastiCache and MemoryDB user passwords for Teleport-managed users.
 - Save user passwords in AWS Secrets Manager for Teleport-managed users.
 
+Before you can generate IAM permissions, you must provide the Teleport Database
+Service access to AWS credentials.
+
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
+
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
 ## Step 4/6. Start the Database Service
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
 The Database Service will discover and register all ElastiCache and MemoryDB
 for Redis clusters according to the configuration.
