@@ -16,9 +16,8 @@ if ! command -v "$MAKE" >/dev/null; then
 fi
 
 if ! command -v "$PYTHON" >/dev/null; then
-  echo "Warning: Unable to find \"$PYTHON\" on path, unable to calculate the SHA for the build."
-  echo "         webassets will be rebuilt for every build until a valid Python 3 executable is available."
-  PYTHON=""
+  echo "Unable to find \"$PYTHON\" on path."
+  exit 1
 fi
 
 if [ "$#" -lt 4 ]; then
@@ -33,11 +32,7 @@ shift 3
 SRC_DIRECTORIES=("$@")
 
 function calculate_sha() {
-  if [ -z "$PYTHON" ]; then
-    echo ""
-  else
-    "$PYTHON" "$ROOT_PATH/build.assets/shacalc.py" "${SRC_DIRECTORIES[@]}"
-  fi
+  "$PYTHON" "$ROOT_PATH/build.assets/shacalc.py" "${SRC_DIRECTORIES[@]}"
 }
 
 CURRENT_SHA="$(calculate_sha)"
@@ -59,11 +54,7 @@ if [ "$BUILD" = "true" ]; then \
   # Recalculate the current SHA and record into the LAST_SHA_FILE. The make target is expected to have
   # created any necessary directories here. The recalculation is necessary as yarn.lock may have been
   # updated by the build process.
-  UPDATED_SHA="$(calculate_sha)"
-
-  if [ -n "$UPDATED_SHA" ]; then
-    echo "$UPDATED_SHA" > "$LAST_SHA_FILE"
-  fi
+  calculate_sha > "$LAST_SHA_FILE"
   echo "$TYPE webassets successfully updated."
 else
   echo "$TYPE webassets up to date."
