@@ -941,9 +941,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			continue
 		}
 
-		if err := actx.Checker.CheckAccess(ks, state, roleMatchers...); err != nil {
+		switch err := actx.Checker.CheckAccess(ks, state, roleMatchers...); {
+		case errors.Is(err, services.ErrTrustedDeviceRequired):
+			return trace.Wrap(err)
+		case err != nil:
 			return trace.AccessDenied(notFoundMessage)
 		}
+
 		// If the user has active Access requests we need to validate that they allow
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
@@ -1652,8 +1656,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 
 	// We only have a direct host to provide when using local creds.
 	// Otherwise, use kube-teleport-proxy-alpn.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
-	// TODO(smallinsky) UPDATE IN 11.0. use KubeTeleportProxyALPNPrefix instead.
-	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
+	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	if sess.creds != nil {
 		req.URL.Host = sess.creds.getTargetAddr()
 	}

@@ -44,7 +44,11 @@ import {
   // TextIcon,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
-import { DatabaseLocation, getDatabaseProtocol } from '../resources';
+import {
+  DatabaseLocation,
+  getDatabaseProtocol,
+  getDefaultDatabasePort,
+} from '../resources';
 
 import { useCreateDatabase, State } from './useCreateDatabase';
 
@@ -70,9 +74,7 @@ export function CreateDatabaseView({
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
   const [labels, setLabels] = useState<AgentLabel[]>([]);
-
-  // TODO(lisa): default ports depend on type of database.
-  const [dbPort, setDbPort] = useState('5432');
+  const [dbPort, setDbPort] = useState(getDefaultDatabasePort(dbEngine));
 
   // TODO(lisa): refactor using ryan's example (reusable).
   const [awsAccountId, setAwsAccountId] = useState('');

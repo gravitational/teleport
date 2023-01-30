@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
-import React, { useState, Suspense } from 'react';
-import { Text, Box, ButtonSecondary } from 'design';
+import React, { Suspense, useState } from 'react';
+import { Box, ButtonSecondary, Text } from 'design';
 import * as Icons from 'design/Icon';
-import Validation, { Validator, useRule } from 'shared/components/Validation';
+import Validation, { useRule, Validator } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
 import {
-  useJoinToken,
   clearCachedJoinTokenResult,
+  useJoinToken,
 } from 'teleport/Discover/Shared/JoinTokenContext';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+
 import { CommandWithTimer } from 'teleport/Discover/Shared/CommandWithTimer';
 import { AgentLabel } from 'teleport/services/agents';
 import cfg from 'teleport/config';
@@ -32,17 +33,18 @@ import { Database } from 'teleport/services/databases';
 
 import {
   ActionButtons,
+  DiscoverLabel,
   Header,
   HeaderSubtitle,
+  LabelsCreater,
+  Mark,
   ResourceKind,
   TextIcon,
-  LabelsCreater,
-  DiscoverLabel,
-  Mark,
 } from '../../Shared';
 
-import type { AgentStepProps } from '../../types';
 import type { Poll } from 'teleport/Discover/Shared/CommandWithTimer';
+
+import type { AgentStepProps } from '../../types';
 
 export default function Container(
   props: AgentStepProps & { runJoinTokenPromise?: boolean }
