@@ -48,31 +48,6 @@ func (g *UserGroupV1) String() string {
 		g.GetName(), g.GetAllLabels())
 }
 
-// Origin returns the origin value of the resource.
-func (g *UserGroupV1) Origin() string {
-	return g.Metadata.Origin()
-}
-
-// SetOrigin sets the origin value of the resource.
-func (g *UserGroupV1) SetOrigin(origin string) {
-	g.Metadata.SetOrigin(origin)
-}
-
-// GetStaticLabels returns the group static labels.
-func (g *UserGroupV1) GetStaticLabels() map[string]string {
-	return g.Metadata.Labels
-}
-
-// SetStaticLabels sets the usergroup static labels.
-func (g *UserGroupV1) SetStaticLabels(sl map[string]string) {
-	g.Metadata.Labels = sl
-}
-
-// GetAllLabels returns all labels from the user group.
-func (g *UserGroupV1) GetAllLabels() map[string]string {
-	return g.Metadata.Labels
-}
-
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (g *UserGroupV1) MatchSearch(values []string) bool {
