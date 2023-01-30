@@ -3620,7 +3620,7 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 
 // getIsDashboard returns a bool indicating if the cluster is a
 // dashboard cluster.
-// Dashboards are clusters running on cloud infrastructure but aren't
+// Dashboards are clusters running on cloud infrastructure that aren't
 // Teleport Cloud users
 func getIsDashboard(features proto.Features) bool {
 	return !features.GetCloud() && features.GetRecoveryCodes()
