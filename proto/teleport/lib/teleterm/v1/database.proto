@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2021 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,26 @@ syntax = "proto3";
 
 package teleterm.v1;
 
-import "prehog/v1alpha/connect.proto";
+import "teleport/lib/teleterm/v1/label.proto";
 
 option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
 
-message ReportUsageEventRequest {
-  string auth_cluster_id = 1;
-  prehog.v1alpha.SubmitConnectEventRequest prehog_req = 2;
+// Database describes a database
+message Database {
+  // uri is the cluster resource URI
+  string uri = 1;
+  // name is the name of the database
+  string name = 2;
+  // desc is the database description
+  string desc = 3;
+  // protocol is the protocol used by the database
+  string protocol = 4;
+  // type is the database type, self-hosted or cloud-hosted.
+  string type = 5;
+  // hostname is this database hostname
+  string hostname = 6;
+  // addr is this database ip address
+  string addr = 7;
+  // labels is a list of labels for this database
+  repeated Label labels = 8;
 }

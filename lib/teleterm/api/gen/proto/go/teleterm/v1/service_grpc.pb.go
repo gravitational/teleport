@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: teleterm/v1/service.proto
+// source: teleport/lib/teleterm/v1/service.proto
 
 package v1
 
@@ -1435,5 +1435,5 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "teleterm/v1/service.proto",
+	Metadata: "teleport/lib/teleterm/v1/service.proto",
 }

@@ -24,15 +24,17 @@ main() {
     --path=api/proto/teleport/devicetrust/ \
     --path=api/proto/teleport/loginrule/ \
     --path=api/proto/teleport/proxy/ \
-    --path=proto/teleport/lib/multiplexer/
-  buf generate --template=buf-go.gen.yaml lib/teleterm/api/proto
+    --path=proto/teleport/lib/multiplexer/ \
+    --path=proto/teleport/lib/teleterm/
 
   # Generate connect-go protos.
-  buf generate --template=buf-connect-go.gen.yaml lib/prehog/proto
+  buf generate --template=buf-connect-go.gen.yaml \
+    --path=proto/teleport/lib/prehog/
 
   # Generate JS protos.
-	buf generate --template=buf-js.gen.yaml lib/prehog/proto
-	buf generate --template=buf-js.gen.yaml lib/teleterm/api/proto
+	buf generate --template=buf-js.gen.yaml \
+    --path=proto/teleport/lib/prehog/ \
+    --path=proto/teleport/lib/teleterm/
 
   cp -r github.com/gravitational/teleport/* .
 }

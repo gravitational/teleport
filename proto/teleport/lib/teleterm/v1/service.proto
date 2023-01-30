@@ -16,15 +16,15 @@ syntax = "proto3";
 
 package teleterm.v1;
 
-import "teleterm/v1/access_request.proto";
-import "teleterm/v1/app.proto";
-import "teleterm/v1/auth_settings.proto";
-import "teleterm/v1/cluster.proto";
-import "teleterm/v1/database.proto";
-import "teleterm/v1/gateway.proto";
-import "teleterm/v1/kube.proto";
-import "teleterm/v1/server.proto";
-import "teleterm/v1/usage_events.proto";
+import "teleport/lib/teleterm/v1/access_request.proto";
+import "teleport/lib/teleterm/v1/app.proto";
+import "teleport/lib/teleterm/v1/auth_settings.proto";
+import "teleport/lib/teleterm/v1/cluster.proto";
+import "teleport/lib/teleterm/v1/database.proto";
+import "teleport/lib/teleterm/v1/gateway.proto";
+import "teleport/lib/teleterm/v1/kube.proto";
+import "teleport/lib/teleterm/v1/server.proto";
+import "teleport/lib/teleterm/v1/usage_events.proto";
 
 option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
 

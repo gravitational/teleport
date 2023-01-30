@@ -12,6 +12,9 @@ lint:
     # "legacy" lib protos.
     - teleport/lib/multiplexer/test/ping.proto
     - teleport/lib/web/envelope.proto
+    # TODO: Take care of these.
+    - teleport/lib/teleterm
+    - teleport/lib/prehog
 breaking:
   use:
     - FILE

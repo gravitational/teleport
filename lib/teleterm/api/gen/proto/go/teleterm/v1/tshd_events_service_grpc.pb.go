@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: teleterm/v1/tshd_events_service.proto
+// source: teleport/lib/teleterm/v1/tshd_events_service.proto
 
 package v1
 
@@ -147,5 +147,5 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleterm/v1/tshd_events_service.proto",
+	Metadata: "teleport/lib/teleterm/v1/tshd_events_service.proto",
 }

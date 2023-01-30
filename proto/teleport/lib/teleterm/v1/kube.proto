@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleterm.v1;
 
-import "teleterm/v1/label.proto";
+import "teleport/lib/teleterm/v1/label.proto";
 
 option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
 
