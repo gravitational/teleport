@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "11.2.2-dev-tross-ls.1"
+	Version = "11.2.2-dev-tross-ls.2"
 )
 
 // Gitref variable is automatically set to the output of git-describe
