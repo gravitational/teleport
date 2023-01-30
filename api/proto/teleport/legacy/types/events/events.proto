@@ -2275,6 +2275,8 @@ message AWSRequestMetadata {
   string AWSService = 2 [(gogoproto.jsontag) = "aws_service,omitempty"];
   // AWSHost is the requested host of the AWS service.
   string AWSHost = 3 [(gogoproto.jsontag) = "aws_host,omitempty"];
+  // AWSAssumedRole is the assumed role that signed this request.
+  string AWSAssumedRole = 4 [(gogoproto.jsontag) = "aws_assumed_role,omitempty"];
 }
 
 // DatabaseMetadata contains common database information.
