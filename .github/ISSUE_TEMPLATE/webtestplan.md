@@ -676,6 +676,10 @@ Add the following to enable read access to trusted clusters
      databases view.
       - [ ] Verify that a login modal was shown.
       - [ ] Verify that after logging in, the database list is shown.
+   - Log in, set up two db connections. Wait for the cert to expire. Attempt to connect to the first
+     proxy, then without logging in proceed to connect to the second proxy.
+      - [ ] Verify that an error notification was shown related to another login attempt being in
+        progress.
 - Access Requests
    - **Creating Access Requests (Role Based)**
       - To setup a test environment, follow the steps laid out in `Created Access Requests (Role
@@ -733,3 +737,6 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that the password from the login form is not saved in the renderer log.
 - [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
   works properly after that.
+- [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
+  Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
+  the app was able to reopen the tabs without any errors.
