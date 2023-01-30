@@ -1137,6 +1137,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
 	c.LoadAllCAs = cp.LoadAllCAs
+	c.PrivateKeyPolicy = cp.PrivateKeyPolicy
 	c.AuthenticatorAttachment, err = parseMFAMode(cp.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -1178,6 +1179,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.AuthConnector = c.AuthConnector
 	cp.MFAMode = c.AuthenticatorAttachment.String()
 	cp.LoadAllCAs = c.LoadAllCAs
+	cp.PrivateKeyPolicy = c.PrivateKeyPolicy
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -3533,11 +3535,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Set private key policy from ping response if not already set.
-	if tc.PrivateKeyPolicy == "" {
-		tc.PrivateKeyPolicy = pr.Auth.PrivateKeyPolicy
-	}
-
 	key, err := tc.SSHLogin(ctx, sshLoginFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3624,7 +3621,7 @@ type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*auth.SSHLoginRespons
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
 func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFunc) (*Key, error) {
-	priv, err := tc.GetNewLoginKey(ctx, tc.PrivateKeyPolicy)
+	priv, err := tc.GetNewLoginKey(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3637,7 +3634,8 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
 
 			// Set the private key policy to the expected value and re-login.
-			priv, err = tc.GetNewLoginKey(ctx, privateKeyPolicy)
+			tc.PrivateKeyPolicy = privateKeyPolicy
+			priv, err = tc.GetNewLoginKey(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3682,39 +3680,23 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 }
 
 // GetNewLoginKey gets a new private key for login.
-func (tc *TeleportClient) GetNewLoginKey(ctx context.Context, keyPolicy keys.PrivateKeyPolicy) (*keys.PrivateKey, error) {
-	key, err := tc.LocalAgent().GetCoreKey()
-	if err == nil {
-		// If we find an existing key with a non-zero key polic and it meets
-		// the given keyPolicy requirement, then we should use the existing key.
-		if coreKeyPolicy := keys.GetPrivateKeyPolicy(key.PrivateKey); coreKeyPolicy != keys.PrivateKeyPolicyNone {
-			if err := keyPolicy.VerifyPolicy(coreKeyPolicy); err == nil {
-				return key.PrivateKey, nil
-			}
-		}
-	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	switch keyPolicy {
-	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.PrivateKey, err error) {
+	switch tc.PrivateKeyPolicy {
+	case keys.PrivateKeyPolicyHardwareKey:
 		log.Debugf("Attempting to login with YubiKey private key.")
-
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(keyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return priv, nil
+		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
+	case keys.PrivateKeyPolicyHardwareKeyTouch:
+		log.Debugf("Attempting to login with YubiKey private key with touch required.")
+		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(true)
 	default:
 		log.Debugf("Attempting to login with a new RSA private key.")
-
-		// Generate a new standard key.
-		priv, err := native.GeneratePrivateKey()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return priv, nil
+		priv, err = native.GeneratePrivateKey()
 	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return priv, nil
 }
 
 // new SSHLogin generates a new SSHLogin using the given login key.
@@ -4239,6 +4221,11 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 // authentication settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
+
+	// Update the private key policy from auth settings if it is stricter than the saved setting.
+	if authSettings.PrivateKeyPolicy != "" && authSettings.PrivateKeyPolicy.VerifyPolicy(tc.PrivateKeyPolicy) != nil {
+		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
+	}
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
