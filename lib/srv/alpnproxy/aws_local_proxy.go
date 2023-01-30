@@ -55,7 +55,7 @@ func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 
 // HandleRequest handles a request from the AWS client.
 //
-// Normally, the requets are signed with the local-proxy-generated credentials.
+// Normally, the requests are signed with the local-proxy-generated credentials.
 // We verify the signatures of these requests using the local-proxy-generated
 // credentials then forward them to the proxy. The app agent will re-sign these
 // requests with real credentials before sending them to AWS.
