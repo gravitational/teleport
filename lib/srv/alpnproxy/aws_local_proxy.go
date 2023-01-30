@@ -115,7 +115,7 @@ func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Re
 	//
 	// Note that currently this is only supported in HTTPS proxy mode where the
 	// Host is a valid AWS endpoint.
-	if awsapiutils.IsAWSEndpoint(req.URL.Host) {
+	if awsapiutils.IsAWSEndpoint(req.Host) {
 		if assumedRole, found := m.assumedRoles.Load(sigV4.KeyID); found {
 			return m.handleRequestByAssumedRole(rw, req, assumedRole)
 		}
