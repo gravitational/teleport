@@ -67,7 +67,11 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := Match(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, identity))
+	servers, err := Match(
+		ctx,
+		accessPoint,
+		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,17 +123,17 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 // appServerMatcher returns a Matcher function used to find which AppServer can
 // handle the application requests.
-func appServerMatcher(proxyClient reversetunnel.Tunnel, identity *tlsca.Identity) Matcher {
+func appServerMatcher(proxyClient reversetunnel.Tunnel, publicAddr string, clusterName string) Matcher {
 	// Match healthy and PublicAddr servers. Having a list of only healthy
 	// servers helps the transport fail before the request is forwarded to a
 	// server (in cases where there are no healthy servers). This process might
 	// take an additional time to execute, but since it is cached, only a few
 	// requests need to perform it.
 	return MatchAll(
-		MatchPublicAddr(identity.RouteToApp.PublicAddr),
+		MatchPublicAddr(publicAddr),
 		// NOTE: Try to leave this matcher as the last one to dial only the
 		// application servers that match the requested application.
-		MatchHealthy(proxyClient, identity),
+		MatchHealthy(proxyClient, clusterName),
 	)
 }
 

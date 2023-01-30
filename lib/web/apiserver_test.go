@@ -4452,9 +4452,9 @@ func TestCreateAppSessionPreflightConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		PreflightConnection: func(_ context.Context, identity *tlsca.Identity) error {
+		PreflightConnection: func(_ context.Context, publicAddr string, _ string) error {
 			// Can only serve "validApp".
-			if identity.RouteToApp.PublicAddr == validApp.GetPublicAddr() {
+			if publicAddr == validApp.GetPublicAddr() {
 				return nil
 			}
 
