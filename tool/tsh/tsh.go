@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
@@ -1935,47 +1936,63 @@ func (l nodeListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func listNodesAllClusters(cf *CLIConf) error {
-	// Fetch database listings for profiles in parallel. Set an arbitrary limit
-	// just in case.
-	group, groupCtx := errgroup.WithContext(cf.Context)
-	group.SetLimit(4)
+type cluster struct {
+	name    string
+	proxy   *client.ProxyClient
+	req     *proto.ListResourcesRequest
+	profile *client.ProfileStatus
+}
 
-	// mu guards access to listings
-	var mu sync.Mutex
-	var listings nodeListings
+func getClusterClients(ctx context.Context, cf *CLIConf) ([]*cluster, error) {
+	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	ctx, span := tracer.Start(
+		ctx,
+		"getClusterClients",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(6)
+
+	// mu guards access to clusters
+	var (
+		mu       sync.Mutex
+		clusters []*cluster
+	)
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		group.Go(func() error {
-			proxy, err := tc.ConnectToProxy(groupCtx)
+			ctx, span := tracer.Start(
+				groupCtx,
+				"getClusterClients/GetClusterSites",
+				oteltrace.WithAttributes(attribute.String("cluster", tc.SiteName)),
+			)
+			defer span.End()
+
+			proxy, err := tc.ConnectToProxy(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			defer proxy.Close()
 
-			sites, err := proxy.GetSites(groupCtx)
+			sites, err := proxy.GetSites(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
+			localClusters := make([]*cluster, 0, len(sites))
 			for _, site := range sites {
-				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				localListings := make(nodeListings, 0, len(nodes))
-				for _, node := range nodes {
-					localListings = append(localListings, nodeListing{
-						Proxy:   profile.ProxyURL.Host,
-						Cluster: site.Name,
-						Node:    node,
-					})
-				}
-				mu.Lock()
-				listings = append(listings, localListings...)
-				mu.Unlock()
+				localClusters = append(localClusters, &cluster{
+					name:    site.Name,
+					proxy:   proxy,
+					req:     tc.DefaultResourceFilter(),
+					profile: profile,
+				})
 			}
+
+			mu.Lock()
+			clusters = append(clusters, localClusters...)
+			mu.Unlock()
 
 			return nil
 		})
@@ -1983,11 +2000,80 @@ func listNodesAllClusters(cf *CLIConf) error {
 		return nil
 	})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// wait for all clusters to be connected to
+	if err := group.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clusters, nil
+}
+
+func listNodesAllClusters(cf *CLIConf) error {
+	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	ctx, span := tracer.Start(
+		cf.Context,
+		"listNodesAllClusters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	clusters, err := getClusterClients(ctx, cf)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Fetch node listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(6)
+
+	var (
+		mu       sync.Mutex
+		listings nodeListings
+	)
+
+	for _, cluster := range clusters {
+		cluster := cluster
+		group.Go(func() error {
+			ctx, span := tracer.Start(
+				groupCtx,
+				"listNodesAllClusters/ListNodes",
+				oteltrace.WithAttributes(
+					attribute.String("cluster", cluster.name),
+				),
+			)
+			defer span.End()
+
+			nodes, err := cluster.proxy.FindNodesByFiltersForCluster(ctx, *cluster.req, cluster.name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			localListings := make(nodeListings, 0, len(nodes))
+			for _, node := range nodes {
+				localListings = append(localListings, nodeListing{
+					Proxy:   cluster.profile.ProxyURL.Host,
+					Cluster: cluster.name,
+					Node:    node,
+				})
+			}
+			mu.Lock()
+			listings = append(listings, localListings...)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	// wait for all nodes to be retrieved
 	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	for _, cluster := range clusters {
+		_ = cluster.proxy.Close()
 	}
 
 	sort.Sort(listings)

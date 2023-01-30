@@ -135,63 +135,58 @@ func (l databaseListings) Swap(i, j int) {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
-	// Fetch database listings for profiles in parallel. Set an arbitrary limit
-	// just in case.
-	group, groupCtx := errgroup.WithContext(cf.Context)
-	group.SetLimit(4)
-
-	// mu guards access to dbListings
-	var mu sync.Mutex
-	var dbListings databaseListings
-
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		group.Go(func() error {
-			proxy, err := tc.ConnectToProxy(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer proxy.Close()
-
-			sites, err := proxy.GetSites(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, site := range sites {
-				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				roleSet, err := fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
-				if err != nil {
-					log.Debugf("Failed to fetch user roles: %v.", err)
-				}
-
-				localDBListings := make(databaseListings, 0, len(databases))
-				for _, database := range databases {
-					localDBListings = append(localDBListings, databaseListing{
-						Proxy:    profile.ProxyURL.Host,
-						Cluster:  site.Name,
-						roleSet:  roleSet,
-						Database: database,
-					})
-				}
-				mu.Lock()
-				dbListings = append(dbListings, localDBListings...)
-				mu.Unlock()
-			}
-
-			return nil
-		})
-		return nil
-	})
+	clusters, err := getClusterClients(cf.Context, cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Fetch database listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(6)
+
+	// mu guards access to dbListings
+	var (
+		mu         sync.Mutex
+		dbListings databaseListings
+	)
+	for _, cluster := range clusters {
+		cluster := cluster
+		group.Go(func() error {
+			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(groupCtx, *cluster.req, cluster.name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			roleSet, err := fetchRoleSetForCluster(groupCtx, cluster.profile, cluster.proxy, cluster.name)
+			if err != nil {
+				log.Debugf("Failed to fetch user roles: %v.", err)
+			}
+
+			localDBListings := make(databaseListings, 0, len(databases))
+			for _, database := range databases {
+				localDBListings = append(localDBListings, databaseListing{
+					Proxy:    cluster.profile.ProxyURL.Host,
+					Cluster:  cluster.name,
+					roleSet:  roleSet,
+					Database: database,
+				})
+			}
+			mu.Lock()
+			dbListings = append(dbListings, localDBListings...)
+			mu.Unlock()
+
+			return nil
+
+		})
+		return nil
+	}
+
 	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	for _, cluster := range clusters {
+		_ = cluster.proxy.Close()
 	}
 
 	sort.Sort(dbListings)
