@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -111,8 +112,13 @@ func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Re
 
 	// Handle requests signed with real credentials of assumed roles by the AWS
 	// client. These credentials were captured in previous HandleResponse.
-	if assumedRole, found := m.assumedRoles.Load(sigV4.KeyID); found {
-		return m.handleRequestByAssumedRole(rw, req, assumedRole)
+	//
+	// Note that currently this is only supported in HTTPS proxy mode where the
+	// Host is a valid AWS endpoint.
+	if awsapiutils.IsAWSEndpoint(req.URL.Host) {
+		if assumedRole, found := m.assumedRoles.Load(sigV4.KeyID); found {
+			return m.handleRequestByAssumedRole(rw, req, assumedRole)
+		}
 	}
 
 	// Handle requests signed with the default local proxy credentials.

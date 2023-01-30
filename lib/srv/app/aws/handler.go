@@ -140,7 +140,7 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
 	// It's important that we resolve the endpoint before modifying the request headers,
 	// as they may be needed to resolve the endpoint correctly.
-	re, err := resolveEndpoint(req, awsutils.AuthorizationHeader)
+	re, err := resolveEndpoint(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -171,7 +171,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 // serveRequestByAssumedRole forwards the requests signed with real credentials
 // of an assumed role to AWS.
 func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
-	re, err := resolveEndpoint(req, common.TeleportAWSAssumedRoleAuthorization)
+	re, err := resolveEndpointByXForwardedHost(req, common.TeleportAWSAssumedRoleAuthorization)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -234,6 +234,10 @@ func rewriteRequestByAssumedRole(ctx context.Context, r *http.Request, re *endpo
 	req, err := rewriteRequest(ctx, r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if r.Host != req.Host {
+		return nil, trace.BadParameter("resolved host %q does not match requested host %q", req.Host, r.Host)
 	}
 
 	// Remove the special header before sending the request to AWS.

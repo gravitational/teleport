@@ -40,10 +40,10 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	localProxyCred := credentials.NewStaticCredentials("local-proxy", "local-proxy-secret", "")
 	assumedRoleCred := credentials.NewStaticCredentials("assumed-role", "assumed-role-secret", "assumed-role-token")
 
-	stsRequestByLocalProxyCred := httptest.NewRequest(http.MethodPost, "http://localhost", nil)
+	stsRequestByLocalProxyCred := httptest.NewRequest(http.MethodPost, "http://sts.us-east-2.amazonaws.com", nil)
 	v4.NewSigner(localProxyCred).Sign(stsRequestByLocalProxyCred, nil, "sts", "us-west-1", time.Now())
 
-	requestByAssumedRole := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+	requestByAssumedRole := httptest.NewRequest(http.MethodGet, "http://s3.amazonaws.com", nil)
 	v4.NewSigner(assumedRoleCred).Sign(requestByAssumedRole, nil, "s3", "us-west-1", time.Now())
 
 	m := &AWSAccessMiddleware{

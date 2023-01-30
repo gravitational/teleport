@@ -51,13 +51,13 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-type makeRequest func(url string, provider client.ConfigProvider) error
+type makeRequest func(url string, provider client.ConfigProvider, awsHost string) error
 
-func s3Request(url string, provider client.ConfigProvider) error {
+func s3Request(url string, provider client.ConfigProvider, awsHost string) error {
 	return s3RequestWithTransport(url, provider, nil)
 }
-func s3RequestByAssumedRole(url string, provider client.ConfigProvider) error {
-	return s3RequestWithTransport(url, provider, &requestByAssumedRoleTransport{})
+func s3RequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
+	return s3RequestWithTransport(url, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
 }
 func s3RequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
 	s3Client := s3.New(provider, &aws.Config{
@@ -72,11 +72,11 @@ func s3RequestWithTransport(url string, provider client.ConfigProvider, transpor
 	return err
 }
 
-func dynamoRequest(url string, provider client.ConfigProvider) error {
+func dynamoRequest(url string, provider client.ConfigProvider, awsHost string) error {
 	return dynamoRequestWithTransport(url, provider, nil)
 }
-func dynamoRequestByAssumedRole(url string, provider client.ConfigProvider) error {
-	return dynamoRequestWithTransport(url, provider, &requestByAssumedRoleTransport{})
+func dynamoRequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
+	return dynamoRequestWithTransport(url, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
 }
 func dynamoRequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
 	dynamoClient := dynamodb.New(provider, &aws.Config{
@@ -94,10 +94,13 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 }
 
 type requestByAssumedRoleTransport struct {
+	xForwardedHost string
 }
 
 func (r requestByAssumedRoleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Simulate how a request by an assumed role is modified by "tsh".
+	req.Host = r.xForwardedHost
+	req.Header.Add("X-Forwarded-Host", r.xForwardedHost)
 	req.Header.Add(common.TeleportAWSAssumedRole, fakeAssumedRoleARN)
 	utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, common.TeleportAWSAssumedRoleAuthorization)
 	return http.DefaultTransport.RoundTrip(req)
@@ -132,6 +135,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		wantAuthCredKeyID   string
 		wantEventType       events.AuditEvent
 		wantAssumedRole     string
+		skipVerifySignature bool
 		errAssertionFns     []require.ErrorAssertionFunc
 	}{
 		{
@@ -190,19 +194,17 @@ func TestAWSSignerHandler(t *testing.T) {
 			name: "s3 access by assumed role",
 			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
-					AccessKeyID:     "assumedRoleKeyID",
-					SecretAccessKey: "assumedRoleKeySecret",
-				}}),
-				Region: aws.String("us-west-2"),
+				Credentials: staticAWSCredentialsForAssumedRole,
+				Region:      aws.String("us-west-2"),
 			})),
 			request:             s3RequestByAssumedRole,
 			wantHost:            "s3.us-west-2.amazonaws.com",
-			wantAuthCredKeyID:   "assumedRoleKeyID", // not using service's access key ID
+			wantAuthCredKeyID:   assumedRoleKeyID, // not using service's access key ID
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-2",
 			wantEventType:       &events.AppSessionRequest{},
 			wantAssumedRole:     fakeAssumedRoleARN, // verifies assumed role is recorded in audit
+			skipVerifySignature: true,               // not re-signing
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
@@ -263,19 +265,17 @@ func TestAWSSignerHandler(t *testing.T) {
 			name: "DynamoDB access by assumed role",
 			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
-					AccessKeyID:     "assumedRoleKeyID",
-					SecretAccessKey: "assumedRoleKeySecret",
-				}}),
-				Region: aws.String("us-east-1"),
+				Credentials: staticAWSCredentialsForAssumedRole,
+				Region:      aws.String("us-east-1"),
 			})),
 			request:             dynamoRequestByAssumedRole,
 			wantHost:            "dynamodb.us-east-1.amazonaws.com",
-			wantAuthCredKeyID:   "assumedRoleKeyID", // not using service's access key ID
+			wantAuthCredKeyID:   assumedRoleKeyID, // not using service's access key ID
 			wantAuthCredService: "dynamodb",
 			wantAuthCredRegion:  "us-east-1",
 			wantEventType:       &events.AppSessionDynamoDBRequest{},
 			wantAssumedRole:     fakeAssumedRoleARN, // verifies assumed role is recorded in audit
+			skipVerifySignature: true,               // not re-signing
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
@@ -297,16 +297,18 @@ func TestAWSSignerHandler(t *testing.T) {
 				assert.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
 
 				// check that the signature is valid.
-				err = awsutils.VerifyAWSSignature(r, staticAWSCredentials)
-				if !assert.NoError(t, err) {
-					http.Error(w, err.Error(), trace.ErrorToCode(err))
-					return
+				if !tc.skipVerifySignature {
+					err = awsutils.VerifyAWSSignature(r, staticAWSCredentials)
+					if !assert.NoError(t, err) {
+						http.Error(w, err.Error(), trace.ErrorToCode(err))
+						return
+					}
 				}
 				w.WriteHeader(http.StatusOK)
 			}
 			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock)
 
-			err := tc.request(suite.URL, tc.awsClientSession)
+			err := tc.request(suite.URL, tc.awsClientSession, tc.wantHost)
 			for _, assertFn := range tc.errAssertionFns {
 				assertFn(t, err)
 			}
@@ -392,6 +394,10 @@ func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Requ
 	require.NoError(t, err)
 	return r
 }
+
+const assumedRoleKeyID = "assumedRoleKeyID"
+
+var staticAWSCredentialsForAssumedRole = credentials.NewStaticCredentials(assumedRoleKeyID, "assumedRoleKeySecret", "")
 
 var staticAWSCredentials = credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 
