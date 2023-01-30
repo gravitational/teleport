@@ -424,7 +424,7 @@ func TestHostCertVerification(t *testing.T) {
 				lka.siteName = "example.com"
 				lka.loadAllCAs = false
 			}
-			err = lka.CheckHostKey(tt.inAddr, nil, tt.hostPublicKey)
+			err = lka.HostKeyCallback(tt.inAddr, nil, tt.hostPublicKey)
 			tt.assert(t, err)
 		})
 	}
@@ -475,7 +475,7 @@ func TestHostKeyVerification(t *testing.T) {
 		return fakeErr
 	}
 	var a net.TCPAddr
-	err = lka.CheckHostKey("luna", &a, pk)
+	err = lka.HostKeyCallback("luna", &a, pk)
 	require.Error(t, err)
 	require.Equal(t, "luna cannot be trusted", err.Error())
 	require.True(t, lka.UserRefusedHosts())
@@ -492,7 +492,7 @@ func TestHostKeyVerification(t *testing.T) {
 		return nil
 	}
 	require.False(t, lka.UserRefusedHosts())
-	err = lka.CheckHostKey("luna", &a, pk)
+	err = lka.HostKeyCallback("luna", &a, pk)
 	require.NoError(t, err)
 	require.True(t, userWasAsked)
 
@@ -500,7 +500,7 @@ func TestHostKeyVerification(t *testing.T) {
 	// just said "yes")
 	userWasAsked = false
 	require.False(t, lka.UserRefusedHosts())
-	err = lka.CheckHostKey("luna", &a, pk)
+	err = lka.HostKeyCallback("luna", &a, pk)
 	require.NoError(t, err)
 	require.False(t, userWasAsked)
 }

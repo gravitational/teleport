@@ -1103,7 +1103,7 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (auth.Client
 }
 
 func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
-	if proxy.teleportClient.SkipLocalAuth {
+	if proxy.teleportClient.TLS != nil {
 		return proxy.teleportClient.TLS.Clone(), nil
 	}
 	tlsKey, err := proxy.localAgent().GetCoreKey()
@@ -1206,7 +1206,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 
-	if proxy.teleportClient.SkipLocalAuth {
+	if proxy.teleportClient.TLS != nil {
 		return auth.NewClient(client.Config{
 			Context: ctx,
 			Dialer:  dialer,
@@ -1267,7 +1267,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 			return nil, trace.Wrap(err)
 		}
 		return clt, nil
-	case proxy.teleportClient.SkipLocalAuth:
+	case proxy.teleportClient.TLS != nil:
 		clt, err := client.NewTracingClient(ctx, client.Config{
 			Dialer:           dialer,
 			DialInBackground: true,
