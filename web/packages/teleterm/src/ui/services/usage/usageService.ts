@@ -23,6 +23,7 @@ import {
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
 import Logger from 'teleterm/logger';
+import { staticConfig } from 'teleterm/staticConfig';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 
 type PrehogEventReq = Omit<
@@ -179,7 +180,7 @@ export class UsageService {
       'usageReporting.enabled'
     ).value;
 
-    if (!isCollectingUsageMetricsEnabled) {
+    if (!staticConfig.prehogAddress || !isCollectingUsageMetricsEnabled) {
       return;
     }
 
