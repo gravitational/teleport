@@ -39,7 +39,7 @@ func NewUserGroupService(backend backend.Backend) *UserGroupService {
 }
 
 // ListUserGroups returns a paginated list of user group resources.
-func (g *UserGroupService) ListUserGroups(ctx context.Context, pageSize int, pageToken string) ([]types.UserGroup, string, error) {
+func (s *UserGroupService) ListUserGroups(ctx context.Context, pageSize int, pageToken string) ([]types.UserGroup, string, error) {
 	rangeStart := backend.Key(userGroupPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(rangeStart)
 
@@ -54,7 +54,7 @@ func (g *UserGroupService) ListUserGroups(ctx context.Context, pageSize int, pag
 	var out []types.UserGroup
 
 	// no filter provided get the range directly
-	result, err := g.GetRange(ctx, rangeStart, rangeEnd, limit)
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -79,8 +79,8 @@ func (g *UserGroupService) ListUserGroups(ctx context.Context, pageSize int, pag
 }
 
 // GetUserGroup returns the specified user group resource.
-func (g *UserGroupService) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
-	item, err := g.Get(ctx, backend.Key(userGroupPrefix, name))
+func (s *UserGroupService) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	item, err := s.Get(ctx, backend.Key(userGroupPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("group %q doesn't exist", name)
@@ -96,7 +96,7 @@ func (g *UserGroupService) GetUserGroup(ctx context.Context, name string) (types
 }
 
 // CreateUserGroup creates a new user group resource.
-func (g *UserGroupService) CreateUserGroup(ctx context.Context, group types.UserGroup) error {
+func (s *UserGroupService) CreateUserGroup(ctx context.Context, group types.UserGroup) error {
 	if err := group.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -110,7 +110,7 @@ func (g *UserGroupService) CreateUserGroup(ctx context.Context, group types.User
 		Expires: group.Expiry(),
 		ID:      group.GetResourceID(),
 	}
-	_, err = g.Create(ctx, item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -118,7 +118,7 @@ func (g *UserGroupService) CreateUserGroup(ctx context.Context, group types.User
 }
 
 // UpdateUserGroup updates an existing user group resource.
-func (g *UserGroupService) UpdateUserGroup(ctx context.Context, group types.UserGroup) error {
+func (s *UserGroupService) UpdateUserGroup(ctx context.Context, group types.UserGroup) error {
 	if err := group.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -132,7 +132,7 @@ func (g *UserGroupService) UpdateUserGroup(ctx context.Context, group types.User
 		Expires: group.Expiry(),
 		ID:      group.GetResourceID(),
 	}
-	_, err = g.Update(ctx, item)
+	_, err = s.Update(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
