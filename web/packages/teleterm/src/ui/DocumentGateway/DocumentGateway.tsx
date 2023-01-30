@@ -19,47 +19,31 @@ import React from 'react';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
-import useDocumentGateway from './useDocumentGateway';
-import { OfflineDocumentGateway } from './OfflineDocumentGateway';
-import { OnlineDocumentGateway } from './OnlineDocumentGateway';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+
+import { OfflineDocumentGateway } from './Offline/OfflineDocumentGateway';
+import { OnlineDocumentGateway } from './Online/OnlineDocumentGateway';
 
 type Props = {
   visible: boolean;
   doc: types.DocumentGateway;
 };
 
-export default function Container(props: Props) {
-  const { doc, visible } = props;
-  const state = useDocumentGateway(doc);
-  return (
-    <Document visible={visible}>
-      <DocumentGateway {...state} />
-    </Document>
-  );
-}
+export function DocumentGateway(props: Props) {
+  const ctx = useAppContext();
+  const gateway = ctx.clustersService.findGateway(props.doc.gatewayUri);
 
-export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway>;
-
-export function DocumentGateway(props: DocumentGatewayProps) {
-  if (!props.connected) {
+  if (!gateway) {
     return (
-      <OfflineDocumentGateway
-        connectAttempt={props.connectAttempt}
-        reconnect={props.reconnect}
-        defaultPort={props.defaultPort}
-      />
+      <Document visible={props.visible}>
+        <OfflineDocumentGateway doc={props.doc} />
+      </Document>
     );
   }
 
   return (
-    <OnlineDocumentGateway
-      disconnect={props.disconnect}
-      changeDbName={props.changeDbName}
-      changeDbNameAttempt={props.changeDbNameAttempt}
-      changePortAttempt={props.changePortAttempt}
-      gateway={props.gateway}
-      changePort={props.changePort}
-      runCliCommand={props.runCliCommand}
-    />
+    <Document visible={props.visible}>
+      <OnlineDocumentGateway doc={props.doc} gateway={gateway} />
+    </Document>
   );
 }

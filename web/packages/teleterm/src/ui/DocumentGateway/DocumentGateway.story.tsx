@@ -2,13 +2,20 @@ import React from 'react';
 
 import {
   makeEmptyAttempt,
-  makeProcessingAttempt,
   makeErrorAttempt,
+  makeProcessingAttempt,
 } from 'shared/hooks/useAsync';
 
 import { Gateway } from 'teleterm/services/tshd/types';
 
-import { DocumentGateway } from './DocumentGateway';
+import { OfflineDocumentContainer } from 'teleterm/ui/DocumentGateway/Offline/OfflineDocumentContainer';
+import { Status } from 'teleterm/ui/DocumentGateway/Offline/Status';
+import { ReconnectForm } from 'teleterm/ui/DocumentGateway/Offline/ReconnectForm';
+import { Header } from 'teleterm/ui/DocumentGateway/Online/Header';
+import { CLIInstructions } from 'teleterm/ui/DocumentGateway/Online/CLIInstructions';
+import { OnlineDocumentContainer } from 'teleterm/ui/DocumentGateway/Online/OnlineDocumentContainer';
+import { GUIInstructions } from 'teleterm/ui/DocumentGateway/Online/GUIInstructions';
+import { Errors } from 'teleterm/ui/DocumentGateway/Online/Errors';
 
 export default {
   title: 'Teleterm/DocumentGateway',
@@ -28,19 +35,19 @@ const gateway: Gateway = {
 
 export function Online() {
   return (
-    <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
-    />
+    <OnlineDocumentContainer>
+      <Header onClose={() => null} />
+
+      <CLIInstructions
+        gateway={gateway}
+        isProcessing={false}
+        onChangePort={() => null}
+        onChangeDbName={() => null}
+        onRunCommand={() => null}
+      />
+
+      <GUIInstructions gateway={gateway} />
+    </OnlineDocumentContainer>
   );
 }
 
@@ -61,99 +68,106 @@ export function OnlineWithLongValues() {
   };
 
   return (
-    <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
-    />
+    <OnlineDocumentContainer>
+      <Header onClose={() => null} />
+
+      <CLIInstructions
+        gateway={gateway}
+        isProcessing={false}
+        onChangePort={() => null}
+        onChangeDbName={() => null}
+        onRunCommand={() => null}
+      />
+
+      <GUIInstructions gateway={gateway} />
+    </OnlineDocumentContainer>
   );
 }
 
 export function OnlineWithFailedDbNameAttempt() {
   return (
-    <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeErrorAttempt<void>(
-        'Something went wrong with setting database name.'
-      )}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
-    />
+    <OnlineDocumentContainer>
+      <Header onClose={() => null} />
+
+      <CLIInstructions
+        gateway={gateway}
+        isProcessing={false}
+        onChangePort={() => null}
+        onChangeDbName={() => null}
+        onRunCommand={() => null}
+      />
+
+      <Errors
+        dbNameAttempt={makeErrorAttempt<void>(
+          'Something went wrong with setting database name.'
+        )}
+        portAttempt={makeEmptyAttempt()}
+      />
+
+      <GUIInstructions gateway={gateway} />
+    </OnlineDocumentContainer>
   );
 }
 
 export function OnlineWithFailedPortAttempt() {
   return (
-    <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeErrorAttempt<void>(
-        'Something went wrong with setting port.'
-      )}
-    />
+    <OnlineDocumentContainer>
+      <Header onClose={() => null} />
+
+      <CLIInstructions
+        gateway={gateway}
+        isProcessing={false}
+        onChangePort={() => null}
+        onChangeDbName={() => null}
+        onRunCommand={() => null}
+      />
+
+      <Errors
+        dbNameAttempt={makeEmptyAttempt()}
+        portAttempt={makeErrorAttempt<void>(
+          'Something went wrong with setting port.'
+        )}
+      />
+
+      <GUIInstructions gateway={gateway} />
+    </OnlineDocumentContainer>
   );
 }
 
 export function OnlineWithFailedDbNameAndPortAttempts() {
   return (
-    <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeErrorAttempt<void>(
-        'Something went wrong with setting database name.'
-      )}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeErrorAttempt<void>(
-        'Something went wrong with setting port.'
-      )}
-    />
+    <OnlineDocumentContainer>
+      <Header onClose={() => null} />
+
+      <CLIInstructions
+        gateway={gateway}
+        isProcessing={false}
+        onChangePort={() => null}
+        onChangeDbName={() => null}
+        onRunCommand={() => null}
+      />
+
+      <Errors
+        dbNameAttempt={makeErrorAttempt<void>(
+          'Something went wrong with setting database name.'
+        )}
+        portAttempt={makeErrorAttempt<void>(
+          'Something went wrong with setting port.'
+        )}
+      />
+
+      <GUIInstructions gateway={gateway} />
+    </OnlineDocumentContainer>
   );
 }
 
 export function Offline() {
+  const connectAttempt = makeEmptyAttempt<void>();
+
   return (
-    <DocumentGateway
-      gateway={undefined}
-      defaultPort="1337"
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={false}
-      reconnect={() => {}}
-      connectAttempt={makeEmptyAttempt()}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
-    />
+    <OfflineDocumentContainer>
+      <Status attempt={connectAttempt} />
+    </OfflineDocumentContainer>
   );
 }
 
@@ -163,36 +177,32 @@ export function OfflineWithFailedConnectAttempt() {
   );
 
   return (
-    <DocumentGateway
-      gateway={undefined}
-      defaultPort="62414"
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={false}
-      reconnect={() => {}}
-      connectAttempt={connectAttempt}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
-    />
+    <OfflineDocumentContainer>
+      <Status attempt={connectAttempt} />
+
+      <ReconnectForm
+        onSubmit={() => null}
+        port="62414"
+        showPortInput={true}
+        disabled={false}
+      />
+    </OfflineDocumentContainer>
   );
 }
 
 export function Processing() {
+  const connectAttempt = makeProcessingAttempt<void>();
+
   return (
-    <DocumentGateway
-      gateway={undefined}
-      defaultPort="1337"
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={false}
-      reconnect={() => {}}
-      connectAttempt={makeProcessingAttempt()}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
-    />
+    <OfflineDocumentContainer>
+      <Status attempt={connectAttempt} />
+
+      <ReconnectForm
+        onSubmit={() => null}
+        port=""
+        showPortInput={false}
+        disabled={true}
+      />
+    </OfflineDocumentContainer>
   );
 }
