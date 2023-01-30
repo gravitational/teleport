@@ -181,9 +181,12 @@ determines this from the `kubernetes_users` and `kubernetes_groups` fields in a
 user's roles.
 
 If a user has exactly one value in `kubernetes_users`, the Teleport Kubernetes
-Service impersonates that user. Otherwise, the Kubernetes Service denies the
-user access. In this case, the Teleport user must manually specify a Kubernetes
-user to impersonate.
+Service impersonates that user. If there are no values in `kubernetes_users`,
+the Kubernetes Service uses the user's Teleport username. 
+
+The Kubernetes Service will deny a request if a user has multiple
+`kubernetes_users` and has not specified one when authenticating to a cluster
+(i.e., using the `--as` flag described in the previous section).
 
 If the user has not specified a Kubernetes group to impersonate, the Kubernetes
 Service uses all values within `kubernetes_groups`.
@@ -196,11 +199,21 @@ server with the `developers` group and the `myuser` Kubernetes user.
 
 To enable the Kubernetes Service to forward user requests with impersonation
 headers, you must ensure that its service account has permissions to impersonate
-Kubernetes RBAC principals within your cluster. 
+Kubernetes RBAC principals within your cluster. The Kubernetes Service denies
+requests to impersonate any user or group that a user does not have access to.
 
 Below is a Kubernetes `ClusterRole` that grants the minimum set of permissions
 to enable impersonation, and a `ClusterRoleBinding` that grants these
 permissions to a service account.
+
+<Notice type="tip">
+
+There is usually no need to define these resources manually. The [manual
+methods](./register-clusters.mdx) and [automatic methods](./discovery.mdx) for
+registering Kubernetes clusters with Teleport include steps for setting up the
+Kubernetes RBAC resources that Teleport needs to allow access to clusters.
+
+</Notice>
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -243,17 +256,6 @@ subjects:
   namespace: default
 ```
 
-<Notice type="tip">
-
-The [manual methods](./register-clusters.mdx) and [automatic
-methods](./discovery.mdx) for registering Kubernetes clusters with Teleport
-include steps for setting up the Kubernetes RBAC resources that Teleport needs
-to allow access to clusters.
-
-There is usually no need to define these resources manually.
-
-</Notice>
-
 #### Specifying groups and users based on SAML and OIDC traits
 
 Teleport's roles map OIDC claims or SAML attributes using template variables.
@@ -285,6 +287,8 @@ metadata:
 version: v6
 spec:
   allow:
+    kubernetes_labels:
+      '*':'*'
     kubernetes_resources:
       - kind: pod
         namespace: "production"
@@ -317,8 +321,8 @@ the appropriate API server.
 ### Authorizing user requests
 
 When the Teleport Kubernetes Service receives a request, it evaluates two fields
-within the user's roles. If these fields do not allow the user to perform the
-request, the Kubernetes Service returns an error to the user:
+within the user's roles. If one of these fields does not allow the user to
+perform the request, the Kubernetes Service returns an error to the user:
 
 #### `kubernetes_labels`
 
@@ -524,10 +528,24 @@ In other words, the Kubernetes Service has no way to know that Teleport had
 mapped the user to the `system:masters` group in order to grant access to only
 the `webapp` pod in the `default` namespace.
 
-<Notice type="warning">
-
 If you have namespace restrictions in your Teleport RBAC, you should
 make sure that the same namespace restrictions exist in the Kubernetes RBAC
-resources you map to your Teleport users.
+resources you map to your Teleport users. 
 
-</Notice>
+For example, you should rewrite the `kube-access-1` role to have the following
+permissions, restricting the user to pods in the `default` namespace:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-1
+version: v6
+spec:
+  allow:
+    kubernetes_groups:
+      - default-pod-viewer
+    kubernetes_resources:
+      - kind: pod
+        namespace: "default"
+        name: "*"
+```    # ...

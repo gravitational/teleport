@@ -380,6 +380,8 @@ metadata:
 version: v6
 spec:
   allow:
+    kubernetes_labels:
+      '*':'*'
     kubernetes_resources:
       - kind: pod
         namespace: "*"
@@ -392,7 +394,7 @@ spec:
   deny: {}
 ```
 
-##### Searching for pod resources
+##### Access Requests for pods
 
 Teleport users can request access to a Kubernetes pod by running the following
 command:
