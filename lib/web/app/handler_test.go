@@ -450,13 +450,7 @@ func TestPreflightConnection(t *testing.T) {
 			require.NoError(t, err)
 
 			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
-
 			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
-			certificate, err := tlsca.ParseCertificatePEM(appSession.GetTLSCert())
-			require.NoError(t, err)
-			identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
-			require.NoError(t, err)
-
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
 				appSession:  appSession,
@@ -495,7 +489,7 @@ func TestPreflightConnection(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = appHandler.PreflightConnection(ctx, identity)
+			err = appHandler.PreflightConnection(ctx, tc.publicAddr, clusterName)
 			tc.expectErr(t, err)
 			require.Equal(t, int64(tc.expectedTunnelCalls), fakeRemoteSite.DialCount())
 		})

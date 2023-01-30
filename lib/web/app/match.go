@@ -28,7 +28,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Getter returns a list of registered apps and the local cluster name.
@@ -100,9 +99,9 @@ func MatchName(name string) Matcher {
 // MatchHealthy tries to establish a connection with the server using the
 // `dialAppServer` function. The app server is matched if the function call
 // doesn't return any error.
-func MatchHealthy(proxyClient reversetunnel.Tunnel, identity *tlsca.Identity) Matcher {
+func MatchHealthy(proxyClient reversetunnel.Tunnel, clusterName string) Matcher {
 	return func(appServer types.AppServer) bool {
-		conn, err := dialAppServer(proxyClient, identity, appServer)
+		conn, err := dialAppServer(proxyClient, clusterName, appServer)
 		if err != nil {
 			return false
 		}
