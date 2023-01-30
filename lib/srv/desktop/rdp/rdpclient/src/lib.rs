@@ -20,7 +20,7 @@
 //! - Functions to be called from Go (any function prefixed with the `#[no_mangle]`
 //!   macro and a `pub unsafe extern "C"`).
 //! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
-//!   and whose name begins with `CGO`)
+//!   and whose name begins with `CGO`).
 //!
 //! Memory management at this interface can be tricky, given the long list of rules
 //! required by CGO (https://pkg.go.dev/cmd/cgo). We can simplify our job in this
