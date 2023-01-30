@@ -8,15 +8,31 @@ set -eo pipefail
 
 ROOT_PATH="$(realpath "$(dirname "$0")/..")"
 MAKE="${MAKE:-make}"
-PYTHON="${PYTHON:-python3}"
+SHASUMS=("shasum -a 512" "sha512sum" "sha256sum")
 
 if ! command -v "$MAKE" >/dev/null; then
   echo "Unable to find \"$MAKE\" on path."
   exit 1
 fi
 
-if ! command -v "$PYTHON" >/dev/null; then
-  echo "Unable to find \"$PYTHON\" on path."
+if [ -n "$SHASUM" ]; then
+  EXEC="$(echo "$SHASUM" | awk '{print $1}')"
+  if ! command -v "$EXEC" >/dev/null; then
+    echo "Unable to find custom SHA sum $SHASUM on path."
+    exit 1
+  fi
+else
+  for shasum in "${SHASUMS[@]}"; do
+    EXEC="$(echo "$shasum" | awk '{print $1}')"
+    if command -v "$EXEC" >/dev/null; then
+      SHASUM="$shasum"
+      break
+    fi
+  done
+fi
+
+if [ -z "$SHASUM" ]; then
+  echo "Unable to find a SHA sum executable."
   exit 1
 fi
 
@@ -31,8 +47,13 @@ BUILD_TARGET="$3"
 shift 3
 SRC_DIRECTORIES=("$@")
 
+for i in "${!SRC_DIRECTORIES[@]}"; do
+  SRC_DIRECTORIES[$i]="$ROOT_PATH/${SRC_DIRECTORIES[$i]}"
+done
+
 function calculate_sha() {
-  "$PYTHON" "$ROOT_PATH/build.assets/shacalc.py" "${SRC_DIRECTORIES[@]}"
+  #shellcheck disable=SC2086
+  find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" | grep -v 'node_modules' | LC_ALL=C sort | cpio -o 2>/dev/null | $SHASUM | cut -f1 -d' '
 }
 
 # Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
