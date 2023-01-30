@@ -48,7 +48,7 @@ shift 3
 SRC_DIRECTORIES=("$@")
 
 for i in "${!SRC_DIRECTORIES[@]}"; do
-  SRC_DIRECTORIES[$i]="$ROOT_PATH/${SRC_DIRECTORIES[$i]}"
+  SRC_DIRECTORIES[i]="$ROOT_PATH/${SRC_DIRECTORIES[i]}"
 done
 
 function calculate_sha() {
