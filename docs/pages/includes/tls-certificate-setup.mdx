@@ -17,9 +17,7 @@ deployments, use your own private key and certificate.
     used for notifications (you can use any domain):
 
     ```code
-    $ DOMAIN=tele.example.com
-    $ EMAIL=user@example.com
-    $ teleport configure --acme --acme-email=${EMAIL?} --cluster-name=${DOMAIN?} | \
+    $ teleport configure --acme --acme-email=<Var name="user@example.com" description="Your email address to register with Let's Encrypt for TLS certificates" /> --cluster-name=<Var name="tele.example.com" description="The domain name of your Teleport cluster" /> | \
     sudo tee /etc/teleport.yaml > /dev/null
     ```
 

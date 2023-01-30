@@ -697,9 +697,21 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"randomPort":  cf.LocalProxyPort == "",
 	}
 
-	template := awsHTTPSProxyTemplate
-	if cf.AWSEndpointURLMode {
+	var template *template.Template
+	switch {
+	case cf.Format == awsProxyFormatAthenaODBC:
+		if cf.AWSEndpointURLMode {
+			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
+		}
+
+		templateData["proxyHost"], templateData["proxyPort"], _ = net.SplitHostPort(awsApp.GetForwardProxyAddr())
+		templateData["proxyScheme"] = "http"
+		template = awsProxyAthenaODBCTemplate
+
+	case cf.AWSEndpointURLMode:
 		template = awsEndpointURLProxyTemplate
+	default:
+		template = awsHTTPSProxyTemplate
 	}
 
 	if err = template.Execute(os.Stdout, templateData); err != nil {
@@ -733,13 +745,38 @@ func onProxyCommandAzure(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]interface{}{
-		"envVars":    envVars,
-		"format":     cf.Format,
-		"randomPort": cf.LocalProxyPort == "",
+	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "", types.CloudAzure); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if err = azureHTTPSProxyTemplate.Execute(os.Stdout, templateData); err != nil {
+	<-cf.Context.Done()
+	return nil
+}
+
+// onProxyCommandGCloud creates local proxies for GCP apps.
+func onProxyCommandGCloud(cf *CLIConf) error {
+	gcpApp, err := pickActiveGCPApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = gcpApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := gcpApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close GCP app.")
+		}
+	}()
+
+	envVars, err := gcpApp.GetEnvVars()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "", types.CloudGCP); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -821,19 +858,36 @@ const (
 	envVarFormatUnix                 = "unix"
 	envVarFormatWindowsCommandPrompt = "command-prompt"
 	envVarFormatWindowsPowershell    = "powershell"
+
+	awsProxyFormatAthenaODBC = "athena-odbc"
 )
 
-var envVarFormats = []string{
-	envVarFormatUnix,
-	envVarFormatWindowsCommandPrompt,
-	envVarFormatWindowsPowershell,
-	envVarFormatText,
-}
+var (
+	envVarFormats = []string{
+		envVarFormatUnix,
+		envVarFormatWindowsCommandPrompt,
+		envVarFormatWindowsPowershell,
+		envVarFormatText,
+	}
+
+	awsProxyServiceFormats = []string{awsProxyFormatAthenaODBC}
+
+	awsProxyFormats = append(envVarFormats, awsProxyServiceFormats...)
+)
 
 func envVarFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"Optional format to print the commands for setting environment variables, one of: %s.",
+		"Optional format to print the commands for setting environment variables, one of: %s. Default is %s.",
 		strings.Join(envVarFormats, ", "),
+		envVarDefaultFormat(),
+	)
+}
+
+func awsProxyFormatFlagDescription() string {
+	return fmt.Sprintf(
+		"%s Or specify a service format, one of: %s",
+		envVarFormatFlagDescription(),
+		strings.Join(awsProxyServiceFormats, ", "),
 	)
 }
 
@@ -877,32 +931,13 @@ func requiresLocalProxyTunnel(protocol string) bool {
 	}
 }
 
-var awsTemplateFuncs = template.FuncMap{
+var cloudTemplateFuncs = template.FuncMap{
 	"envVarCommand": envVarCommand,
 }
-
-var azureTemplateFuncs = template.FuncMap{
-	"envVarCommand": envVarCommand,
-}
-
-// azureHTTPSProxyTemplate is the message that gets printed to a user when an
-// HTTPS proxy is started.
-var azureHTTPSProxyTemplate = template.Must(template.New("").Funcs(azureTemplateFuncs).Parse(
-	`Started Azure proxy on {{.envVars.HTTPS_PROXY}}.
-{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
-{{end}}
-Use the following credentials and HTTPS proxy setting to connect to the proxy:
-
-{{- $fmt := .format }}
-{{ range $key, $value := .envVars}}
-  {{envVarCommand $fmt $key $value}}
-{{- end}}
-
-`))
 
 // awsHTTPSProxyTemplate is the message that gets printed to a user when an
 // HTTPS proxy is started.
-var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
+var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
 	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
@@ -915,7 +950,7 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
 
 // awsEndpointURLProxyTemplate is the message that gets printed to a user when an
 // AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
+var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
 	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
@@ -923,4 +958,49 @@ In addition to the endpoint URL, use the following credentials to connect to the
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+`))
+
+// awsProxyAthenaODBCTemplate is the message that gets printed to a user when an
+// AWS proxy is used for Athena ODBC driver.
+var awsProxyAthenaODBCTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
+	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Set the following properties for the Athena ODBC data source:
+[Teleport AWS Athena Access]
+AuthenticationType = IAM Credentials
+UID = {{.envVars.AWS_ACCESS_KEY_ID}}
+PWD = {{.envVars.AWS_SECRET_ACCESS_KEY}}
+UseProxy = 1;
+ProxyScheme = {{.proxyScheme}};
+ProxyHost = {{.proxyHost}};
+ProxyPort = {{.proxyPort}};
+TrustedCerts = {{.envVars.AWS_CA_BUNDLE}}
+
+Here is a sample connection string using the above credentials and proxy settings:
+DRIVER=Simba Amazon Athena ODBC Connector;AwsRegion=us-east-1;S3OutputLocation=s3://example-bucket/athena/output/;Workgroup=example-workgroup;AuthenticationType=IAM Credentials;UID={{.envVars.AWS_ACCESS_KEY_ID}};PWD={{.envVars.AWS_SECRET_ACCESS_KEY}};UseProxy=1;ProxyScheme={{.proxyScheme}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};TrustedCerts={{.envVars.AWS_CA_BUNDLE}}
+`))
+
+func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
+	templateData := map[string]interface{}{
+		"envVars":    envVars,
+		"format":     format,
+		"randomPort": randomPort,
+		"cloudName":  cloudName,
+	}
+	err := cloudHTTPSProxyTemplate.Execute(os.Stdout, templateData)
+	return trace.Wrap(err)
+}
+
+// cloudHTTPSProxyTemplate is the message that gets printed to a user when a cloud HTTPS proxy is started.
+var cloudHTTPSProxyTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
+	`Started {{.cloudName}} proxy on {{.envVars.HTTPS_PROXY}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+{{- $fmt := .format }}
+{{ range $key, $value := .envVars}}
+  {{envVarCommand $fmt $key $value}}
+{{- end}}
 `))

@@ -174,11 +174,16 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	username := suite.me.Username
 	kubeGroups := []string{kube.TestImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV6{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -343,11 +348,16 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	username := suite.me.Username
 	kubeGroups := []string{kube.TestImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV6{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 		Deny: types.RoleConditions{
 			KubeGroups: kubeGroups,
@@ -394,10 +404,15 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 
 	username := suite.me.Username
 	kubeGroups := []string{kube.TestImpersonationGroup}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV6{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -490,10 +505,15 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// main cluster has a role and user called main-kube
 	username := suite.me.Username
 	mainKubeGroups := []string{kube.TestImpersonationGroup}
-	mainRole, err := types.NewRoleV3("main-kube", types.RoleSpecV6{
+	mainRole, err := types.NewRole("main-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -525,13 +545,18 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "aux-kube" to local role "main-kube"
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
-	auxRole, err := types.NewRoleV3("aux-kube", types.RoleSpecV6{
+	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 			// Note that main cluster can pass it's kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -741,10 +766,15 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// main cluster has a role and user called main-kube
 	username := suite.me.Username
 	mainKubeGroups := []string{kube.TestImpersonationGroup}
-	mainRole, err := types.NewRoleV3("main-kube", types.RoleSpecV6{
+	mainRole, err := types.NewRole("main-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -780,13 +810,18 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "aux-kube" to local role "main-kube"
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
-	auxRole, err := types.NewRoleV3("aux-kube", types.RoleSpecV6{
+	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 			// Note that main cluster can pass it's kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1015,11 +1050,16 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 
 	username := suite.me.Username
 	kubeGroups := []string{kube.TestImpersonationGroup}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV6{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Options: tc.options,
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1101,10 +1141,15 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 
 	username := suite.me.Username
 	kubeGroups := []string{kube.TestImpersonationGroup}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV6{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1411,15 +1456,20 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	participantUsername := suite.me.Username + "-participant"
 	kubeGroups := []string{kube.TestImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV6{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{hostUsername},
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
-	joinRole, err := types.NewRoleV3("participant", types.RoleSpecV6{
+	joinRole, err := types.NewRole("participant", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			JoinSessions: []*types.SessionJoinPolicy{{
 				Name:  "foo",

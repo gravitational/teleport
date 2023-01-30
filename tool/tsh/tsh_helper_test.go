@@ -95,16 +95,19 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	s.connector = mockConnector(t)
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
 		},
 		Options: types.RoleOptions{
 			ForwardAgent: true,
 		},
 	})
 	require.NoError(t, err)
-	kubeLoginRole, err := types.NewRoleV3("kube-login", types.RoleSpecV6{
+	kubeLoginRole, err := types.NewRole("kube-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			KubeGroups: []string{user.Username},
 			KubernetesLabels: types.Labels{
@@ -171,9 +174,12 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
 		},
 	})
 	require.NoError(t, err)

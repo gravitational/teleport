@@ -223,7 +223,7 @@
               "slug": "/access-controls/guides/locking/"
             },
             {
-              "title": "Passwordless (Preview)",
+              "title": "Passwordless",
               "slug": "/access-controls/guides/passwordless/"
             },
             {
@@ -788,96 +788,96 @@
           "slug": "/database-access/guides/",
           "entries": [
             {
-              "title": "AWS RDS & Aurora",
-              "slug": "/database-access/guides/rds/"
+               "title": "AWS DynamoDB",
+               "slug": "/database-access/guides/dynamodb/"
             },
             {
-              "title": "AWS Redshift",
-              "slug": "/database-access/guides/postgres-redshift/"
+               "title": "AWS ElastiCache & MemoryDB",
+               "slug": "/database-access/guides/redis-aws/"
             },
             {
-              "title": "AWS ElastiCache & MemoryDB",
-              "slug": "/database-access/guides/redis-aws/"
+               "title": "AWS Keyspaces (Apache Cassandra)",
+               "slug": "/database-access/guides/aws-cassandra-keyspaces/"
             },
             {
-              "title": "AWS DynamoDB",
-              "slug": "/database-access/guides/dynamodb/"
+               "title": "AWS RDS & Aurora",
+               "slug": "/database-access/guides/rds/"
             },
             {
-              "title": "AWS Keyspaces (Apache Cassandra)",
-              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
+               "title": "AWS Redshift",
+               "slug": "/database-access/guides/postgres-redshift/"
             },
             {
-              "title": "GCP Cloud SQL PostgreSQL",
-              "slug": "/database-access/guides/postgres-cloudsql/"
+               "title": "Azure Cache for Redis",
+               "slug": "/database-access/guides/azure-redis/"
             },
             {
-              "title": "GCP Cloud SQL MySQL",
-              "slug": "/database-access/guides/mysql-cloudsql/"
+               "title": "Azure PostgreSQL & MySQL",
+               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
-              "title": "Azure PostgreSQL & MySQL",
-              "slug": "/database-access/guides/azure-postgres-mysql/"
+               "title": "Azure SQL Server (Preview)",
+               "slug": "/database-access/guides/azure-sql-server-ad/"
             },
             {
-              "title": "Azure Cache for Redis",
-              "slug": "/database-access/guides/azure-redis/"
+               "title": "Dynamic Registration",
+               "slug": "/database-access/guides/dynamic-registration/"
             },
             {
-              "title": "Azure SQL Server (Preview)",
-              "slug": "/database-access/guides/azure-sql-server-ad/"
+               "title": "GCP Cloud SQL MySQL",
+               "slug": "/database-access/guides/mysql-cloudsql/"
             },
             {
-              "title": "MongoDB Atlas",
-              "slug": "/database-access/guides/mongodb-atlas/"
+               "title": "GCP Cloud SQL PostgreSQL",
+               "slug": "/database-access/guides/postgres-cloudsql/"
             },
             {
-              "title": "Self-Hosted Elasticsearch",
-              "slug": "/database-access/guides/elastic/"
+               "title": "High Availability",
+               "slug": "/database-access/guides/ha/"
             },
             {
-              "title": "Self-Hosted PostgreSQL",
-              "slug": "/database-access/guides/postgres-self-hosted/"
+               "title": "MongoDB Atlas",
+               "slug": "/database-access/guides/mongodb-atlas/"
             },
             {
-              "title": "Self-Hosted MySQL/MariaDB",
-              "slug": "/database-access/guides/mysql-self-hosted/"
+               "title": "SQL Server (Preview)",
+               "slug": "/database-access/guides/sql-server-ad/"
             },
             {
-              "title": "Self-Hosted MongoDB",
-              "slug": "/database-access/guides/mongodb-self-hosted/"
+               "title": "Self-Hosted Cassandra & ScyllaDB",
+               "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
-              "title": "Self-Hosted CockroachDB",
-              "slug": "/database-access/guides/cockroachdb-self-hosted/"
+               "title": "Self-Hosted CockroachDB",
+               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
             {
-              "title": "Self-Hosted Redis",
-              "slug": "/database-access/guides/redis/"
+               "title": "Self-Hosted Elasticsearch",
+               "slug": "/database-access/guides/elastic/"
             },
             {
-              "title": "Self-Hosted Redis Cluster",
-              "slug": "/database-access/guides/redis-cluster/"
+               "title": "Self-Hosted MongoDB",
+               "slug": "/database-access/guides/mongodb-self-hosted/"
             },
             {
-              "title": "SQL Server (Preview)",
-              "slug": "/database-access/guides/sql-server-ad/"
+               "title": "Self-Hosted MySQL/MariaDB",
+               "slug": "/database-access/guides/mysql-self-hosted/"
             },
             {
-              "title": "Snowflake (Preview)",
-              "slug": "/database-access/guides/snowflake/"
+               "title": "Self-Hosted PostgreSQL",
+               "slug": "/database-access/guides/postgres-self-hosted/"
             },
             {
-              "title": "Self-Hosted Cassandra & ScyllaDB",
-              "slug": "/database-access/guides/cassandra-self-hosted/"
+               "title": "Self-Hosted Redis",
+               "slug": "/database-access/guides/redis/"
             },
             {
-              "title": "Dynamic Registration",
-              "slug": "/database-access/guides/dynamic-registration/"
+               "title": "Self-Hosted Redis Cluster",
+               "slug": "/database-access/guides/redis-cluster/"
             },
             {
-              "title": "High Availability",
-              "slug": "/database-access/guides/ha/"
+               "title": "Snowflake (Preview)",
+               "slug": "/database-access/guides/snowflake/"
             }
           ]
         },
@@ -1002,6 +1002,14 @@
               "slug": "/machine-id/guides/github-actions/"
             },
             {
+              "title": "CircleCI",
+              "slug": "/machine-id/guides/circleci/"
+            },
+            {
+              "title": "GitHub Actions & Kubernetes",
+              "slug": "/machine-id/guides/github-actions-kubernetes/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1034,6 +1042,10 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/reference/github-actions/"
             }
           ]
         },
@@ -1237,7 +1249,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.1.4",
+      "version": "11.2.1",
       "major_version": "11",
       "sla": {
         "monthly_percentage": "99.5%",

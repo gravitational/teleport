@@ -89,8 +89,13 @@ type handler struct {
 	tokenCache *utils.FnCache
 }
 
-// NewAzureHandler creates a new instance of an http.Handler for Azure requests.
+// NewAzureHandler creates a new instance of a http.Handler for Azure requests.
 func NewAzureHandler(ctx context.Context, config HandlerConfig) (http.Handler, error) {
+	return newAzureHandler(ctx, config)
+}
+
+// newAzureHandler creates a new instance of a handler for Azure requests. Used by NewAzureHandler and in tests.
+func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -282,10 +287,28 @@ const getTokenTimeout = time.Second * 5
 func (s *handler) getToken(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 	key := cacheKey{managedIdentity, scope}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, getTokenTimeout)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	return utils.FnCacheGet(timeoutCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
-		return s.getAccessToken(ctx, managedIdentity, scope)
-	})
+	var tokenResult *azcore.AccessToken
+	var errorResult error
+
+	// call Clock.After() before FnCacheGet gets called in a different go-routine.
+	// this ensures there is no race condition in the timeout tests, as
+	// getAccessToken() ends up calling Clock.Advance() there
+	timeoutChan := s.Clock.After(getTokenTimeout)
+
+	go func() {
+		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
+			return s.getAccessToken(ctx, managedIdentity, scope)
+		})
+		cancel()
+	}()
+
+	select {
+	case <-timeoutChan:
+		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
+	case <-cancelCtx.Done():
+		return tokenResult, errorResult
+	}
 }

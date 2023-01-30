@@ -30,7 +30,7 @@ import (
 
 // AccessRequest is a request for temporarily granted roles
 type AccessRequest interface {
-	Resource
+	ResourceWithLabels
 	// GetUser gets the name of the requesting user
 	GetUser() string
 	// GetRoles gets the roles being requested by the user
@@ -412,6 +412,38 @@ func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
 }
 
+// GetStaticLabels returns the access request static labels.
+func (r *AccessRequestV3) GetStaticLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// SetStaticLabels sets the access request static labels.
+func (r *AccessRequestV3) SetStaticLabels(sl map[string]string) {
+	r.Metadata.Labels = sl
+}
+
+// GetAllLabels returns the access request static labels.
+func (r *AccessRequestV3) GetAllLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (r *AccessRequestV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+// Origin returns the origin value of the resource.
+func (r *AccessRequestV3) Origin() string {
+	return r.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (r *AccessRequestV3) SetOrigin(origin string) {
+	r.Metadata.SetOrigin(origin)
+}
+
 // String returns a text representation of this AccessRequest
 func (r *AccessRequestV3) String() string {
 	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
@@ -623,6 +655,14 @@ func (a AccessRequests) ToMap() map[string]AccessRequest {
 		m[accessRequest.GetName()] = accessRequest
 	}
 	return m
+}
+
+// AsResources returns these access requests as resources with labels.
+func (a AccessRequests) AsResources() (resources ResourcesWithLabels) {
+	for _, accessRequest := range a {
+		resources = append(resources, accessRequest)
+	}
+	return resources
 }
 
 // Len returns the slice length.

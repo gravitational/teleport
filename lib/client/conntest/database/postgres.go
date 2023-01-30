@@ -26,6 +26,8 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 const (
@@ -37,17 +39,17 @@ const (
 type PostgresPinger struct{}
 
 // Ping connects to the database and issues a basic select statement to validate the connection.
-func (p *PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
-	if err := ping.CheckAndSetDefaults(); err != nil {
+func (p *PostgresPinger) Ping(ctx context.Context, params PingParams) error {
+	if err := params.CheckAndSetDefaults(defaults.ProtocolPostgres); err != nil {
 		return trace.Wrap(err)
 	}
 
 	pgconnConfig, err := pgconn.ParseConfig(
 		fmt.Sprintf("postgres://%s@%s:%d/%s",
-			ping.Username,
-			ping.Host,
-			ping.Port,
-			ping.Database,
+			params.Username,
+			params.Host,
+			params.Port,
+			params.DatabaseName,
 		),
 	)
 	if err != nil {
@@ -77,14 +79,13 @@ func (p *PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
 	return nil
 }
 
-// IsConnectionRefusedError checks whether the error is of type invalid database user.
-// This can happen when the user doesn't exist.
+// IsConnectionRefusedError checks whether the error is of type connection refused.
 func (p *PostgresPinger) IsConnectionRefusedError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	return strings.Contains(err.Error(), "connection refused (SQLSTATE )")
+	return strings.Contains(err.Error(), "connection refused (SQLSTATE")
 }
 
 // IsInvalidDatabaseUserError checks whether the error is of type invalid database user.

@@ -67,6 +67,9 @@ func NewMemProfileStore() *MemProfileStore {
 
 // CurrentProfile returns the current profile.
 func (ms *MemProfileStore) CurrentProfile() (string, error) {
+	if ms.currentProfile == "" {
+		return "", trace.NotFound("current-profile is not set")
+	}
 	return ms.currentProfile, nil
 }
 
@@ -217,6 +220,9 @@ type ProfileStatus struct {
 	// AzureIdentities is a list of allowed Azure identities user can assume.
 	AzureIdentities []string
 
+	// GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
+	GCPServiceAccounts []string
+
 	// AllowedResourceIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
 	AllowedResourceIDs []types.ResourceID
@@ -355,6 +361,7 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		Apps:               apps,
 		AWSRolesARNs:       tlsID.AWSRoleARNs,
 		AzureIdentities:    tlsID.AzureIdentities,
+		GCPServiceAccounts: tlsID.GCPServiceAccounts,
 		IsVirtual:          opts.IsVirtual,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil

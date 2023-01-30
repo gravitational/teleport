@@ -121,7 +121,7 @@ func TestAddKey(t *testing.T) {
 	// get all agent keys from teleport agent and system agent
 	teleportAgentKeys, err := lka.ExtendedAgent.List()
 	require.NoError(t, err)
-	systemAgentKeys, err := lka.sshAgent.List()
+	systemAgentKeys, err := lka.systemAgent.List()
 	require.NoError(t, err)
 
 	// check that we've loaded a cert as well as a private key into the teleport agent
@@ -161,11 +161,13 @@ func TestAddKey(t *testing.T) {
 func TestLoadKey(t *testing.T) {
 	s := makeSuite(t)
 	keyAgent := s.newKeyAgent(t)
+	err := keyAgent.UnloadKeys()
+	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent
 	teleportAgentKeys, err := keyAgent.ExtendedAgent.List()
 	require.NoError(t, err)
-	systemAgentKeys, err := keyAgent.sshAgent.List()
+	systemAgentKeys, err := keyAgent.systemAgent.List()
 	require.NoError(t, err)
 
 	// Create 3 separate keys, with overlapping user and cluster names
@@ -205,7 +207,7 @@ func TestLoadKey(t *testing.T) {
 			teleportAgentKeys, err = keyAgent.ExtendedAgent.List()
 			require.NoError(t, err)
 			require.Len(t, teleportAgentKeys, expectTeleportAgentKeyCount)
-			systemAgentKeys, err = keyAgent.sshAgent.List()
+			systemAgentKeys, err = keyAgent.systemAgent.List()
 			require.NoError(t, err)
 			require.Len(t, systemAgentKeys, expectSystemAgentKeyCount)
 
@@ -232,7 +234,7 @@ func TestLoadKey(t *testing.T) {
 				userdata := []byte("hello, world")
 				teleportAgentSignature, err := keyAgent.ExtendedAgent.Sign(agentKey, userdata)
 				require.NoError(t, err)
-				systemAgentSignature, err := keyAgent.sshAgent.Sign(agentKey, userdata)
+				systemAgentSignature, err := keyAgent.systemAgent.Sign(agentKey, userdata)
 				require.NoError(t, err)
 
 				// verify data signed by both the teleport agent and system agent was signed correctly

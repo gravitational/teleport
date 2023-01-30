@@ -48,6 +48,7 @@ import (
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -213,6 +214,7 @@ type Server struct {
 
 	awsHandler   http.Handler
 	azureHandler http.Handler
+	gcpHandler   http.Handler
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
@@ -279,6 +281,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	gcpHandler, err := appgcp.NewGCPHandler(closeContext, appgcp.HandlerConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s := &Server{
 		c: c,
 		log: logrus.WithFields(logrus.Fields{
@@ -290,6 +297,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		connAuth:      make(map[net.Conn]error),
 		awsHandler:    awsHandler,
 		azureHandler:  azureHandler,
+		gcpHandler:    gcpHandler,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
@@ -812,7 +820,10 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return s.serveAWSWebConsole(w, r, &identity, app)
 
 	case app.IsAzureCloud():
-		return s.serveSession(w, r, &identity, app, s.withAzureForwarder)
+		return s.serveSession(w, r, &identity, app, s.withAzureHandler)
+
+	case app.IsGCP():
+		return s.serveSession(w, r, &identity, app, s.withGCPHandler)
 
 	default:
 		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
@@ -908,7 +919,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -930,10 +941,18 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 		})
 	}
 
-	mfaParams := authContext.MFAParams(ap.GetRequireMFAType())
+	// When accessing GCP API, check permissions to assume
+	// requested GCP service account as well.
+	if app.IsGCP() {
+		matchers = append(matchers, &services.GCPServiceAccountMatcher{
+			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
+		})
+	}
+
+	state := authContext.GetAccessState(authPref)
 	err = authContext.Checker.CheckAccess(
 		app,
-		mfaParams,
+		state,
 		matchers...)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)

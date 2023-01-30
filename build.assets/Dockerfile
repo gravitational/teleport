@@ -1,5 +1,7 @@
 # This Dockerfile makes the "build box": the container used to build official
 # releases of Teleport and its documentation.
+#
+# Check the README to learn how to safely introduce changes to Dockerfiles.
 
 # Use Ubuntu 18.04 as base to get an older glibc version.
 # Using a newer base image will build against a newer glibc, which creates a
@@ -7,7 +9,11 @@
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
 
-ARG RUST_VERSION
+# GRPC_NODE_PLUGIN_BINARY_TYPE has to be defined above the first FROM as it's
+# used in another FROM instruction. See the comment for grpc_node_plugin image
+# for more details.
+# Valid values are "prebuilt" and "compiled".
+ARG GRPC_NODE_PLUGIN_BINARY_TYPE
 
 ## LIBFIDO2 ###################################################################
 
@@ -68,7 +74,49 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
     make && \
     make install
 
+## GRPC_NODE_PLUGIN ###########################################################
+
+# grpc_node_plugin is built only on arm64.
+#
+# To generate JS protofiles, we need the grpc-tools npm package. Unfortunately,
+# it doesn't ship with a prebuilt grpc_node_plugin binary for Linux arm64. [1]
+#
+# We have to build it from source. Cloning all submodules takes a lot of time
+# and bandwith so we build the binary in a separate image.
+#
+# [1] https://github.com/grpc/grpc-node/issues/1405#issuecomment-1282201879
+
+FROM buildpack-deps:18.04 AS grpc_node_plugin
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends cmake
+COPY teleterm_linux_arm64.toolchain.cmake ./linux_arm64.toolchain.cmake
+RUN git clone --depth=1 --branch=grpc-tools@1.11.2 https://github.com/grpc/grpc-node.git && \
+    mv linux_arm64.toolchain.cmake grpc-node/packages/grpc-tools/. && \
+    cd grpc-node && \
+    git submodule update --init --recursive && \
+    cd packages/grpc-tools && \
+    cmake -DCMAKE_TOOLCHAIN_FILE=linux_arm64.toolchain.cmake . && \
+    cmake --build . --target clean && cmake --build . --target grpc_node_plugin -- -j 12 && \
+    mv grpc_node_plugin ../../../. && \
+    cd ../../.. && \
+    rm -rf grpc-node
+
 ## BUILDBOX ###################################################################
+#
+# Image layers are ordered according to how slow that layer takes to build and
+# how frequently it is updated. Slow or infrequently updated dependencies come
+# first, fast or frequently updated layers come last.
+#
+# If you are adding a slow to build and/or complex dependency, consider using a
+# multi-stage build for it.
+#
+# As a rule of thumb, it goes like this:
+#
+# 1. Slow, language-agnostic dependencies
+# 2. Base compilers for main languages
+# 3. Fast, language-agnostic dependencies
+# 4. Fast, language-dependent dependencies
+# 5. Multi-stage layer copies
 
 FROM ubuntu:18.04 AS buildbox
 
@@ -122,6 +170,8 @@ RUN apt-get -y update && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
+        # Used during tag builds to build the RPM package of Connect.
+        rpm \
         softhsm2 \
         sudo \
         tree \
@@ -142,15 +192,52 @@ RUN (curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --di
     gcloud components install cloud-firestore-emulator beta && \
     rm -rf /opt/google-cloud-sdk/.install/.backup
 
+# Install etcd.
+RUN curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+    cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
+    rm -rf etcd-v3.3.9-linux-${BUILDARCH}
+
+# Add the CI user.
 ARG UID
 ARG GID
-RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
-     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+RUN groupadd ci --gid=$GID -o && \
+    useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+    mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport
 
-# Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
+# Install Rust.
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+# Cross-compilation targets are only installed on amd64, as
+# this image doesn't contain gcc-multilib.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+# Switch back to root for the remaining instructions and keep it as the default
+# user.
+USER root
+
+# Install Node.js.
+ARG NODE_VERSION
+ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
+ENV NODE_PATH="/usr/local/lib/nodejs-linux"
+ENV PATH="$PATH:${NODE_PATH}/bin"
+RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
+    export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
+    mkdir -p ${NODE_PATH} && \
+    curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+    tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
+RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -163,20 +250,28 @@ ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
-# Install addlicense
-RUN go install github.com/google/addlicense@v1.0.0
+# Install PAM module and policies for testing.
+COPY pam/ /opt/pam_teleport/
+RUN make -C /opt/pam_teleport install
+ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
-# Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+# Install bats.
+RUN curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+    cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
+    rm -r bats-core-1.2.1
 
-# Install GCI
-RUN go install github.com/daixiang0/gci@v0.8.2
+# Install shellcheck.
+RUN scversion='v0.9.0' && \
+    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
+        tar -xJv && \
+    cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
+    shellcheck --version
 
 # Install helm.
-RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
-     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
-     rm -r helm-tarball*)
-
+RUN mkdir -p helm-tarball && \
+    curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
+    rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
 RUN helm plugin install https://github.com/quintush/helm-unittest && \
     mkdir -p /home/ci/.local/share/helm && \
@@ -190,17 +285,8 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     chown -R ci /home/ci/.local/share/helm && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
-# Install bats.
-RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
-     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
-     rm -r bats-core-1.2.1)
-
-# Install shellcheck.
-RUN scversion='v0.9.0' && \
-    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
-        tar -xJv && \
-    cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
-    shellcheck --version
+# Install JS gRPC tools.
+RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1)
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
@@ -219,55 +305,32 @@ RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} -
      make clean)
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
-# Install buf
+# Install addlicense.
+RUN go install github.com/google/addlicense@v1.0.0
+
+# Install GCI.
+RUN go install github.com/daixiang0/gci@v0.8.2
+
+# Install golangci-lint.
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+
+# Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.11.0" && \
+    VERSION="1.13.1" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
 
-ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
-
-# Install PAM module and policies for testing.
-COPY pam/ /opt/pam_teleport/
-RUN make -C /opt/pam_teleport install
-
-ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
-
-# Install Rust
-ARG RUST_VERSION
-ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=$RUST_VERSION
-
-RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
-    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
-
-# Install Rust using the ci user, as that is the user that
-# will run builds using the Rust toolchains we install here.
-# Cross-compilation targets are only installed on amd64, as
-# this image doesn't contain gcc-multilib.
-USER ci
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
-    rustup --version && \
-    cargo --version && \
-    rustc --version && \
-    rustup component add rustfmt clippy && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
-
-# Switch back to root for the remaining instructions and keep it as the default
-# user.
-USER root
-
+# Copy BPF libraries.
 COPY --from=libbpf /usr/include/bpf /usr/include/bpf
 COPY --from=libbpf /usr/lib64/ /usr/lib64/
 RUN cd /usr/local/lib && ldconfig
 
 # Copy libfido2 libraries.
-# Do this last to take better advantage of the multi-stage build.
+# Do this near the end to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
 COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
@@ -281,6 +344,20 @@ RUN cd /usr/local/lib && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
+
+FROM buildbox AS grpc_node_plugin_binary_prebuilt
+ONBUILD RUN (npm install --global grpc-tools@1.11.2)
+
+FROM buildbox AS grpc_node_plugin_binary_compiled
+COPY --from=grpc_node_plugin grpc_node_plugin ./grpc_node_plugin
+ONBUILD RUN npm install --global --ignore-scripts grpc-tools@1.11.2 && \
+    mv grpc_node_plugin $(npm root -g)/grpc-tools/bin/. && \
+    # grpc-tools needs protoc but we already install it a couple of steps above.
+    ln -s $(which protoc) $(npm root -g)/grpc-tools/bin/protoc
+
+# A "conditional" FROM like this breaks up the number of steps in the progress bar of the given
+# image, so let's use it at the end. This way the progress bar for buildbox stays mostly untouched.
+FROM grpc_node_plugin_binary_${GRPC_NODE_PLUGIN_BINARY_TYPE} as buildbox
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

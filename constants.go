@@ -575,6 +575,10 @@ const (
 	// Azure identities for local accounts.
 	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
 
+	// TraitInternalGCPServiceAccounts is the variable used to store allowed
+	// GCP service accounts for local accounts.
+	TraitInternalGCPServiceAccounts = "{{internal.gcp_service_accounts}}"
+
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
@@ -746,6 +750,11 @@ const (
 	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
 	// handle SFTP connections.
 	SFTPSubCommand = "sftp"
+
+	// WaitSubCommand is the sub-command Teleport uses to wait
+	// until a domain name stops resolving. Its main use is to ensure no
+	// auth instances are still running the previous major version.
+	WaitSubCommand = "wait"
 )
 
 const (

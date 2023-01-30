@@ -220,7 +220,7 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 	s.fwd.mu.Unlock()
 	// close active sessions
 	for _, sess := range sessions {
-		if sess.ctx.kubeCluster == name {
+		if sess.ctx.kubeClusterName == name {
 			// TODO(tigrato): check if we should send errors to each client
 			errs = append(errs, sess.Close())
 		}

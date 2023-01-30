@@ -1375,7 +1375,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRoleV3("role1", types.RoleSpecV6{
+	role, err := types.NewRole("role1", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},

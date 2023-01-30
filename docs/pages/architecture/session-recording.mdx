@@ -37,7 +37,7 @@ This results in 4 possible session recording configurations:
 - `proxy`: asynchronous recording performed on a Proxy Service instance
 
 This is a cluster-wide configuration option and applies to the entire
-Teleport cluster. It can be configured in by setting `session_recording`
+Teleport cluster. It can be configured by setting `session_recording`
 in the `auth_service` section of your `teleport.yaml`, or dynamically via
 the the `session_recording_config` resource. If you need to apply different
 recording configuration to different sets of resources, we recommend setting up
@@ -50,8 +50,8 @@ the Teleport service for this session type, since there is no Teleport software
 running on the "node" (desktop, database, or Kubernetes cluster).
 
 For this reason, Teleport Windows, Database, and Kubernetes Access treats `node`
-and `proxy` identically (perform synchronous recording) and `node-sync` and
-`proxy-sync` identically (perform asynchronous recording).
+and `proxy` identically (perform asynchronous recording) and `node-sync` and
+`proxy-sync` identically (perform synchronous recording).
 </Admonition>
 
 ### Record at Node
