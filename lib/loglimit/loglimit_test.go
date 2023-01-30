@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package errordedup
+package loglimit
 
 import (
 	"testing"
@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestErrorDeduplicator(t *testing.T) {
+func TestLogLimiter(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		desc              string
@@ -119,11 +119,11 @@ func TestErrorDeduplicator(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Create error deduplicator.
-			// We purposely do not call Run (running the deduplicator in a goroutine)
+			// We purposely do not call Run (running the log limiter in a goroutine)
 			// so that we can manually control which actions are performed.
 			logger, hook := logtest.NewNullLogger()
 			clock := clockwork.NewFakeClock()
-			errordedup, err := New(Config{
+			logLimiter, err := New(Config{
 				Entry:           logger.WithField("from", "errordedup"),
 				LogLevel:        log.InfoLevel,
 				ErrorSubstrings: tc.errorSubstrings,
@@ -131,30 +131,30 @@ func TestErrorDeduplicator(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// Send first batch of errors to deduplicator.
+			// Send first batch of errors to log limiter.
 			for _, err := range tc.errorsFirstBatch {
-				errordedup.deduplicate(err)
+				logLimiter.deduplicate(err)
 			}
 
 			// Make enough time pass and run cleanup
 			// (ensuring that a new window starts and prior windows are logged).
 			clock.Advance(2 * time.Minute)
-			errordedup.cleanup()
+			logLimiter.cleanup()
 
-			// Retrieved what was logged after the first batch.
+			// Retrieve what was logged after the first batch.
 			loggedFirstBatch := toErrorMessages(hook.AllEntries())
 			hook.Reset()
 
-			// Send second batch of errors to deduplicator.
+			// Send second batch of errors to log limiter.
 			for _, err := range tc.errorsSecondBatch {
-				errordedup.deduplicate(err)
+				logLimiter.deduplicate(err)
 			}
 
 			// Make enough time pass so that a new window starts and prior windows are logged.
 			clock.Advance(2 * time.Minute)
-			errordedup.cleanup()
+			logLimiter.cleanup()
 
-			// Retrieved what was logged after the second batch.
+			// Retrieve what was logged after the second batch.
 			loggedSecondBatch := toErrorMessages(hook.AllEntries())
 			hook.Reset()
 

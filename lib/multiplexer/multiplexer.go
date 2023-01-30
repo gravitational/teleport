@@ -40,8 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/errordedup"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/loglimit"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -98,7 +98,7 @@ func New(cfg Config) (*Mux, error) {
 	entry := log.WithFields(log.Fields{
 		trace.Component: teleport.Component("mx", cfg.ID),
 	})
-	errorDedup, err := errordedup.New(errordedup.Config{
+	logLimiter, err := loglimit.New(loglimit.Config{
 		Entry:           entry,
 		LogLevel:        log.WarnLevel,
 		DebugReport:     true,
@@ -123,7 +123,7 @@ func New(cfg Config) (*Mux, error) {
 		cancel:      cancel,
 		waitContext: waitContext,
 		waitCancel:  waitCancel,
-		errorDedup:  errorDedup,
+		logLimiter:  logLimiter,
 	}, nil
 }
 
@@ -139,12 +139,12 @@ type Mux struct {
 	cancel      context.CancelFunc
 	waitContext context.Context
 	waitCancel  context.CancelFunc
-	// errorDedup is a goroutine responsible for deduplicating multiplexer errors
+	// logLimiter is a goroutine responsible for deduplicating multiplexer errors
 	// (over a 1min window) that occur when detecting the types of new connections.
 	// This ensures that health checkers / malicious actors cannot overpower /
 	// pollute the logs with warnings when such connections are invalid or unknown
 	// to the multiplexer.
-	errorDedup *errordedup.ErrorDeduplicator
+	logLimiter *loglimit.LogLimiter
 }
 
 // SSH returns listener that receives SSH connections
@@ -205,7 +205,7 @@ func (m *Mux) Wait() {
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
 	defer m.waitCancel()
-	go m.errorDedup.Run(m.context)
+	go m.logLimiter.Run(m.context)
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
@@ -260,7 +260,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	connWrapper, err := m.detect(conn)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			m.errorDedup.Send(err)
+			m.logLimiter.Log(err)
 		}
 		conn.Close()
 		return

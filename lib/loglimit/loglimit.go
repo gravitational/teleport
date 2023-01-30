@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package errordedup
+package loglimit
 
 import (
 	"context"
@@ -27,17 +27,17 @@ import (
 )
 
 const (
-	// timeWindow is the time window over which errors are deduplicated.
+	// timeWindow is the time window over which log errors are deduplicated.
 	timeWindow = time.Minute
-	// timeWindowCleanupInterval is the interval between cleanups of
-	// time windows that have already ended.
+	// timeWindowCleanupInterval is the interval between cleanups of time
+	// windows that have already ended.
 	// Since the time window is set to 1 minute and the cleanup interval
 	// is set to 10 seconds, time windows can be in fact slightly larger
 	// than 1 minute (i.e., 1 minute and 10 seconds, in the worst case).
 	timeWindowCleanupInterval = 10 * time.Second
 )
 
-// Config contains the error deduplicator config.
+// Config contains the log limiter config.
 type Config struct {
 	// Entry is the logger entry.
 	Entry *log.Entry
@@ -51,18 +51,18 @@ type Config struct {
 	// errors that should be deduplicated.
 	ErrorSubstrings []string
 	// ChannelSize is the size of the channel used to send messages
-	// to the error deduplicator.
+	// to the log limiter.
 	ChannelSize int
 	// Clock is a clock to override in tests, set to real time clock
 	// by default.
 	Clock clockwork.Clock
 }
 
-// CheckAndSetDefaults verifies configuration and sets defaults
-func (c *Config) CheckAndSetDefaults() error {
+// checkAndSetDefaults verifies configuration and sets defaults
+func (c *Config) checkAndSetDefaults() error {
 	if c.Entry == nil {
 		c.Entry = log.WithFields(log.Fields{
-			trace.Component: "errordedup",
+			trace.Component: "loglimit",
 		})
 	}
 	if c.ErrorSubstrings == nil {
@@ -77,11 +77,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ErrorDeduplicator deduplicates errors over a certain time window.
-type ErrorDeduplicator struct {
+// LogLimiter deduplicates log errors over a certain time window.
+type LogLimiter struct {
 	Config
-	// errorCh is used to send errors to the deduplicator.
-	errorCh chan error
+	// errorCh is used to send errors to the log limiter.
+	errorCh chan string
 	// errorMap contains deduplicated errors reported over
 	// certain time windows.
 	errorMap map[string]*errorWindowInfo
@@ -100,39 +100,39 @@ type errorWindowInfo struct {
 	occurrences int
 }
 
-// New creates a new error deduplicator.
-func New(cfg Config) (*ErrorDeduplicator, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+// New creates a new log limiter.
+func New(cfg Config) (*LogLimiter, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &ErrorDeduplicator{
+	return &LogLimiter{
 		Config:   cfg,
-		errorCh:  make(chan error, cfg.ChannelSize),
+		errorCh:  make(chan string, cfg.ChannelSize),
 		errorMap: make(map[string]*errorWindowInfo, len(cfg.ErrorSubstrings)),
 	}, nil
 }
 
-// Send sends an error to the error deduplicator.
-func (e *ErrorDeduplicator) Send(err error) {
-	e.errorCh <- err
+// Log sends an error to the log limiter.
+func (e *LogLimiter) Log(err error) {
+	var errMsg string
+	if e.DebugReport {
+		errMsg = trace.DebugReport(err)
+	} else {
+		errMsg = err.Error()
+	}
+	e.errorCh <- errMsg
 }
 
-// Run runs the error deduplicator.
-func (e *ErrorDeduplicator) Run(ctx context.Context) {
+// Run runs the log limiter.
+func (e *LogLimiter) Run(ctx context.Context) {
 	t := e.Clock.NewTicker(timeWindowCleanupInterval)
 	defer t.Stop()
 
 	for {
 		select {
 		case err := <-e.errorCh:
-			var errMsg string
-			if e.DebugReport {
-				errMsg = trace.DebugReport(err)
-			} else {
-				errMsg = err.Error()
-			}
-			e.deduplicate(errMsg)
+			e.deduplicate(err)
 		case <-t.Chan():
 			e.cleanup()
 		case <-ctx.Done():
@@ -143,7 +143,7 @@ func (e *ErrorDeduplicator) Run(ctx context.Context) {
 
 // deduplicate logs errors if they should not be deduplicated.
 // Otherwise, it records error occurrences within a certain time window.
-func (e *ErrorDeduplicator) deduplicate(err string) {
+func (e *LogLimiter) deduplicate(err string) {
 	// Log the error right away if it should not be deduplicated.
 	deduplicate, errSubstring := e.shouldDeduplicate(err)
 	if !deduplicate {
@@ -172,7 +172,7 @@ func (e *ErrorDeduplicator) deduplicate(err string) {
 // cleanup removes time windows that have ended, logging the first error again
 // together with the number of occurrences (of errors that share the same error
 // substring) during the window.
-func (e *ErrorDeduplicator) cleanup() {
+func (e *LogLimiter) cleanup() {
 	for errSubstring, info := range e.errorMap {
 		if e.Clock.Now().After(info.timeWindowStart.Add(timeWindow)) {
 			if info.occurrences > 1 {
@@ -190,7 +190,7 @@ func (e *ErrorDeduplicator) cleanup() {
 
 // shouldDeduplicate returns true if the error should be deduplicated
 // (along with its error substring).
-func (e *ErrorDeduplicator) shouldDeduplicate(err string) (bool, string) {
+func (e *LogLimiter) shouldDeduplicate(err string) (bool, string) {
 	for _, errSubstring := range e.ErrorSubstrings {
 		if strings.Contains(err, errSubstring) {
 			return true, errSubstring
@@ -200,6 +200,6 @@ func (e *ErrorDeduplicator) shouldDeduplicate(err string) (bool, string) {
 }
 
 // log logs the error at the defined log level.
-func (e *ErrorDeduplicator) log(err string) {
+func (e *LogLimiter) log(err string) {
 	e.Entry.Logln(e.LogLevel, err)
 }
