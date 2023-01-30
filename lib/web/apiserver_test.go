@@ -1658,6 +1658,17 @@ func TestTerminalNameResolution(t *testing.T) {
 
 	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
 
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+	t.Cleanup(cancel)
+
+	// Wait for the node to be registered as the registration is asynchronous.
+	require.Eventuallyf(t, func() bool {
+		nodes, err := s.proxyClient.GetNodes(ctx, "default")
+		require.NoError(t, err)
+
+		return len(nodes) == 2 // one created by default and llama
+	}, 5*time.Second, 200*time.Millisecond, "failed to register node")
+
 	tests := []struct {
 		name           string
 		target         string
