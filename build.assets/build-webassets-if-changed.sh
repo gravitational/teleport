@@ -35,6 +35,8 @@ function calculate_sha() {
   "$PYTHON" "$ROOT_PATH/build.assets/shacalc.py" "${SRC_DIRECTORIES[@]}"
 }
 
+# Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
+# This excludes node_modules, as the package.json differences should handle this.
 CURRENT_SHA="$(calculate_sha)"
 
 BUILD=true
