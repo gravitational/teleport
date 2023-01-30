@@ -185,7 +185,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 	}()
 
 	// try to read, close, and replace the incoming request body.
-	body, err := libaws.GetAndReplaceReqBody(req)
+	body, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
