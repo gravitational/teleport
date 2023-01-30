@@ -125,18 +125,18 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	decodeTarget := new(interface{})
 	for {
 		err := decoder.Decode(decodeTarget)
-		if err == nil {
+		switch {
+		case err == nil:
 			readAnyXML = true
-		} else if errors.Is(err, io.EOF) {
+		case errors.Is(err, io.EOF):
 			if !readAnyXML {
 				return trace.BadParameter("entity descriptor is not valid XML")
 			}
-			break
-		} else {
+			return nil
+		default:
 			return trace.Wrap(err)
 		}
 	}
-	return nil
 }
 
 // SAMLIdPServiceProviders is a list of SAML IdP service provider resources.
@@ -144,6 +144,7 @@ type SAMLIdPServiceProviders []SAMLIdPServiceProvider
 
 // AsResources returns these service providers as resources with labels.
 func (s SAMLIdPServiceProviders) AsResources() (resources ResourcesWithLabels) {
+	resources := make([]ResourceWithLabels, 0, len(s))
 	for _, sp := range s {
 		resources = append(resources, sp)
 	}

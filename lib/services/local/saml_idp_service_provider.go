@@ -89,10 +89,7 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 	}
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sp, nil
+	return sp, trace.Wrap(err)
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
