@@ -382,6 +382,210 @@ tests:
             containerPort: 3000
             protocol: TCP
 
+  - it: should expose tls port
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls
+            containerPort: 3080
+            protocol: TCP
+
+  - it: should expose tls port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls
+            containerPort: 3080
+            protocol: TCP
+
+  - it: should not expose proxy peering port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: proxypeering
+            containerPort: 3021
+            protocol: TCP
+
+  - it: should expose proxy peering port when enterprise is true
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      enterprise: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: proxypeering
+            containerPort: 3021
+            protocol: TCP
+
+  - it: should expose sshproxy port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshproxy
+            containerPort: 3023
+            protocol: TCP
+
+  - it: should not expose sshproxy port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshproxy
+            containerPort: 3023
+            protocol: TCP
+
+  - it: should expose sshtun port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshtun
+            containerPort: 3024
+            protocol: TCP
+
+  - it: should not expose sshtun port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshtun
+            containerPort: 3024
+            protocol: TCP
+
+  - it: should expose k8s port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: k8s
+            containerPort: 3026
+            protocol: TCP
+
+  - it: should not expose k8s port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: k8s
+            containerPort: 3026
+            protocol: TCP
+
+  - it: should expose mysql port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mysql
+            containerPort: 3036
+            protocol: TCP
+
+  - it: should not expose mysql port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mysql
+            containerPort: 3036
+            protocol: TCP
+
+  - it: should expose postgres port when separate postgres listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      separatePostgresListener: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: postgres
+            containerPort: 5432
+            protocol: TCP
+
+  - it: should not expose postgres port when proxyListenerMode is multiplex and separate postgres listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+      separatePostgresListener: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: postgres
+            containerPort: 5432
+            protocol: TCP
+
+  - it: should expose mongo port when separate mongo listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      separateMongoListener: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mongo
+            containerPort: 27017
+            protocol: TCP
+
+  - it: should not expose mongo port when when proxyListenerMode is multiplex and separate mongo listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+      separateMongoListener: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mongo
+            containerPort: 27017
+            protocol: TCP
+
   - it: should set postStart command if set in values
     template: proxy/deployment.yaml
     set:
