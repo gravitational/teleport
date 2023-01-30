@@ -92,5 +92,5 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 	if err := c.ctx.Err(); err != nil {
 		return 0, err
 	}
-	return c.Write(b)
+	return c.stream.Write(b)
 }
