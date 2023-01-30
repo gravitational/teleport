@@ -1103,13 +1103,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		return trace.Wrap(err)
 	}
 
-	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
-	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
-	if path == "" && cf.kubeConfigPath != "" {
-		path = cf.kubeConfigPath
-	} else if path == "" {
-		path = kubeconfig.PathFromEnv()
-	}
+	path = getKubeConfigPath(cf, path)
 
 	// If this is a profile specific kubeconfig, we only need
 	// to put the selected kube cluster into the kubeconfig.
@@ -1125,6 +1119,17 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 	}
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
+}
+
+func getKubeConfigPath(cf *CLIConf, path string) string {
+	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
+	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
+	if path == "" && cf.kubeConfigPath != "" {
+		path = cf.kubeConfigPath
+	} else if path == "" {
+		path = kubeconfig.PathFromEnv()
+	}
+	return path
 }
 
 // Required magic boilerplate to use the k8s encoder.
