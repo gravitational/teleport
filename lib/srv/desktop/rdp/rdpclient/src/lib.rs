@@ -78,7 +78,7 @@ use std::{mem, ptr, slice, time};
 
 #[no_mangle]
 pub extern "C" fn init() {
-    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
+    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
 #[derive(Clone)]
@@ -650,7 +650,7 @@ impl<S: Read + Write> RdpClient<S> {
             }
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
-                &format!("Invalid channel name {:?}", channel_name),
+                &format!("Invalid channel name {channel_name:?}"),
             ))),
         }
     }
@@ -1217,7 +1217,7 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
             }
             Err(e) => {
                 return ReadRdpOutputReturns {
-                    user_message: format!("RDP read failed: {:?}", e),
+                    user_message: format!("RDP read failed: {e:?}"),
                     disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                     err_code: CGOErrCode::ErrCodeFailure,
                 };
