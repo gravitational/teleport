@@ -1,4 +1,4 @@
-import { ITshdEventsServiceServer } from 'gen-proto-js/teleterm/v1/tshd_events_service_grpc_pb';
+import { ITshdEventsServiceServer } from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_grpc_pb';
 
 import { TshClient } from 'teleterm/services/tshd/types';
 import { PtyServiceClient } from 'teleterm/services/pty';

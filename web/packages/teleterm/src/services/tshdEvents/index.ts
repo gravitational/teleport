@@ -1,7 +1,7 @@
 import Emittery from 'emittery';
 import * as grpc from '@grpc/grpc-js';
-import * as api from 'gen-proto-js/teleterm/v1/tshd_events_service_pb';
-import * as apiService from 'gen-proto-js/teleterm/v1/tshd_events_service_grpc_pb';
+import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import * as apiService from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_grpc_pb';
 
 import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';

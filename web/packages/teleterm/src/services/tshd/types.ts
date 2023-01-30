@@ -2,18 +2,18 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
-import apiCluster from 'gen-proto-js/teleterm/v1/cluster_pb';
-import apiDb from 'gen-proto-js/teleterm/v1/database_pb';
-import apiGateway from 'gen-proto-js/teleterm/v1/gateway_pb';
-import apiServer from 'gen-proto-js/teleterm/v1/server_pb';
-import apiKube from 'gen-proto-js/teleterm/v1/kube_pb';
-import apiApp from 'gen-proto-js/teleterm/v1/app_pb';
+import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
+import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
+import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
+import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
+import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
 import apiService, {
   FileTransferDirection,
-} from 'gen-proto-js/teleterm/v1/service_pb';
-import apiAuthSettings from 'gen-proto-js/teleterm/v1/auth_settings_pb';
-import apiAccessRequest from 'gen-proto-js/teleterm/v1/access_request_pb';
-import apiUsageEvents from 'gen-proto-js/teleterm/v1/usage_events_pb';
+} from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
+import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
+import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
 import * as uri from 'teleterm/ui/uri';
 

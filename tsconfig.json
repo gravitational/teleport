@@ -52,7 +52,7 @@
         "e/web/teleterm/src/*"
       ],
       "gen-proto-js/*": [
-        "gen-proto-js/*"
+        "gen/proto/js/*"
       ]
     }
   },
