@@ -1,6 +1,6 @@
 # Changelog
 
-## 11.3.0
+## 11.3.1
 
 This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
 
