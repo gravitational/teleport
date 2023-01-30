@@ -1371,7 +1371,7 @@ func TestResizeTerminal(t *testing.T) {
 
 	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
-	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID))
+	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
 
@@ -2002,6 +2002,7 @@ func TestActiveSessions(t *testing.T) {
 		require.Equal(t, s.node.GetInfo().GetHostname(), session.ServerHostname)
 		require.Equal(t, s.srvID, session.ServerAddr)
 		require.Equal(t, s.server.ClusterName(), session.ClusterName)
+		require.ElementsMatch(t, []types.SessionParticipantMode{"peer"}, session.ParticipantModes)
 	}
 }
 
@@ -5826,6 +5827,14 @@ func TestCreateDatabase(t *testing.T) {
 
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
 
+	// Create an initial database to table test a duplicate creation
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+		Name:     "duplicatedb",
+		Protocol: "mysql",
+		URI:      "someuri:3306",
+	})
+	require.NoError(t, err)
+
 	for _, tt := range []struct {
 		name           string
 		req            createDatabaseRequest
@@ -5905,6 +5914,19 @@ func TestCreateDatabase(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "missing port in address")
+			},
+		},
+		{
+			name: "duplicatedb",
+			req: createDatabaseRequest{
+				Name:     "duplicatedb",
+				Protocol: "mysql",
+				URI:      "someuri:3306",
+			},
+			expectedStatus: http.StatusConflict,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+				require.Contains(t, err.Error(), `failed to create database ("duplicatedb" already exists), please use another name`)
 			},
 		},
 	} {
@@ -6072,6 +6094,10 @@ func withServer(target string) terminalOpt {
 
 func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
+}
+
+func withParticipantMode(m types.SessionParticipantMode) terminalOpt {
+	return func(t *TerminalRequest) { t.ParticipantMode = m }
 }
 
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {

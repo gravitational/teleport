@@ -114,7 +114,7 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 
 	req.Key.TLSCert = resp.Cert
 	req.Key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           req.OutputLocation,
 		Key:                  req.Key,
 		Format:               req.OutputFormat,
