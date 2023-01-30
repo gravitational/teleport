@@ -36,7 +36,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -281,17 +283,28 @@ func TestAWSSignerHandler(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockAWSHandler := func(writer http.ResponseWriter, request *http.Request) {
-				require.Equal(t, tc.wantHost, request.Host)
-				awsAuthHeader, err := awsutils.ParseSigV4(request.Header.Get(awsutils.AuthorizationHeader))
-				require.NoError(t, err)
-				require.Equal(t, tc.wantAuthCredRegion, awsAuthHeader.Region)
-				require.Equal(t, tc.wantAuthCredKeyID, awsAuthHeader.KeyID)
-				require.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
-			}
-
 			fakeClock := clockwork.NewFakeClock()
-			suite := createSuite(t, mockAWSHandler, tc.app, fakeClock)
+			mockAwsHandler := func(w http.ResponseWriter, r *http.Request) {
+				// check that we got what the test case expects first.
+				assert.Equal(t, tc.wantHost, r.Host)
+				awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
+				if !assert.NoError(t, err) {
+					http.Error(w, err.Error(), trace.ErrorToCode(err))
+					return
+				}
+				assert.Equal(t, tc.wantAuthCredRegion, awsAuthHeader.Region)
+				assert.Equal(t, tc.wantAuthCredKeyID, awsAuthHeader.KeyID)
+				assert.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
+
+				// check that the signature is valid.
+				err = awsutils.VerifyAWSSignature(r, staticAWSCredentials)
+				if !assert.NoError(t, err) {
+					http.Error(w, err.Error(), trace.ErrorToCode(err))
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			}
+			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock)
 
 			err := tc.request(suite.URL, tc.awsClientSession)
 			for _, assertFn := range tc.errAssertionFns {
@@ -380,8 +393,10 @@ func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Requ
 	return r
 }
 
-func staticAWSCredentials(client.ConfigProvider, time.Time, string, string, string) *credentials.Credentials {
-	return credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
+var staticAWSCredentials = credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
+
+func getStaticAWSCredentials(client.ConfigProvider, time.Time, string, string, string) *credentials.Credentials {
+	return staticAWSCredentials
 }
 
 type suite struct {
@@ -408,7 +423,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	})
 
 	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		GetSigningCredentials: staticAWSCredentials,
+		GetSigningCredentials: getStaticAWSCredentials,
 		Clock:                 clock,
 	})
 	require.NoError(t, err)

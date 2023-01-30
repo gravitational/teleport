@@ -130,12 +130,14 @@ func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log
 	}
 
 	go func() {
-		select {
-		case <-dyn.closeC:
-			return
-		case <-dyn.renewTicker.C:
-			if err := dyn.renewClientset(kubeCluster); err != nil {
-				log.WithError(err).Warnf("Unable to renew cluster %q credentials.", kubeCluster.GetName())
+		for {
+			select {
+			case <-dyn.closeC:
+				return
+			case <-dyn.renewTicker.C:
+				if err := dyn.renewClientset(kubeCluster); err != nil {
+					log.WithError(err).Warnf("Unable to renew cluster %q credentials.", kubeCluster.GetName())
+				}
 			}
 		}
 	}()

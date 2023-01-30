@@ -52,7 +52,8 @@ const (
 )
 
 // ReservedHeaders is a list of headers injected by Teleport.
-var ReservedHeaders = append([]string{teleport.AppJWTHeader,
+var ReservedHeaders = append([]string{
+	teleport.AppJWTHeader,
 	teleport.AppCFHeader,
 	XForwardedSSL,
 	TeleportAPIErrorHeader,
