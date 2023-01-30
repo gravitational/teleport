@@ -84,9 +84,14 @@ const (
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
 
-	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
-	// traffic intended for the Teleport proxy.
-	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
+	// ProtocolProxyGRPCInsecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy join service.
+	// Credentials are not verified since this is used for node joining.
+	ProtocolProxyGRPCInsecure Protocol = "teleport-proxy-grpc"
+
+	// ProtocolProxyGRPCSecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy service with mTLS authentication.
+	ProtocolProxyGRPCSecure Protocol = "teleport-proxy-grpc-mtls"
 
 	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
 	// MySQL server version.
@@ -117,7 +122,8 @@ var SupportedProtocols = append(
 		ProtocolAuth,
 		ProtocolTCP,
 		ProtocolProxySSHGRPC,
-		ProtocolProxyGRPC,
+		ProtocolProxyGRPCInsecure,
+		ProtocolProxyGRPCSecure,
 	}, DatabaseProtocols...)...,
 )
 

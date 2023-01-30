@@ -1490,6 +1490,10 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
+	// DEPRECATED DELETE IN 14.0
+	var warnOnDeprecatedKubeSNIPrinted bool
+	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1504,7 +1508,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 			env := getTshEnv()
@@ -1527,7 +1531,7 @@ func onLogin(cf *CLIConf) error {
 
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfigOnLogin(cf, tc, ""); err == nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err == nil {
 				return trace.Wrap(onStatus(cf))
 			}
 
@@ -1550,7 +1554,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1566,7 +1570,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -1649,7 +1653,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
+		if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3941,7 +3945,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfigOnLogin(cf, tc, ""); err != nil {
+	if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4282,13 +4286,84 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	return trace.NewAggregate(errors...)
 }
 
+type updateKubeConfigOpt struct {
+	warnOnDeprecatedSNI bool
+	// warnSNIPrinted is a pointer to bool forwarded from outside and set internally to
+	// prevent printing deprecated warning server times in a single tsh flow.
+	// Example usage:
+	//  var warnOnDeprecatedKubeSNIPrinted bool
+	//	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
+	// then sequence  call of updateKubeConfigOption like
+	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
+	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
+	// will print the warning message only once.
+	warnSNIPrinted *bool
+}
+
+type updateKubeConfigOnLoginOpt func(opt *updateKubeConfigOpt)
+
+func withWarnOnDeprecatedSNI(printed *bool) updateKubeConfigOnLoginOpt {
+	return func(opt *updateKubeConfigOpt) {
+		opt.warnOnDeprecatedSNI = true
+		opt.warnSNIPrinted = printed
+
+	}
+}
+
 // updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to
 // tsh login call and updates the default kubeconfig with its value,
 // otherwise does nothing.
-func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string) error {
+func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...updateKubeConfigOnLoginOpt) error {
+	var settings updateKubeConfigOpt
+	for _, opt := range opts {
+		opt(&settings)
+	}
+	defer func() {
+		// DEPRECATED DELETE IN 14.0
+		if !settings.warnOnDeprecatedSNI {
+			return
+		}
+		if settings.warnSNIPrinted == nil || *settings.warnSNIPrinted == true {
+			return
+		}
+		warnOnDeprecatedKubeConfigServerName(cf, tc)
+		*settings.warnSNIPrinted = true
+	}()
+
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
 	err := updateKubeConfig(cf, tc, "")
 	return trace.Wrap(err)
+}
+
+// DEPRECATED DELETE IN 14.0
+func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient) {
+	if !tc.TLSRoutingEnabled {
+		// The ServerName in KUBECONFIG is used only when the TLS Routing is enabled.
+		return
+	}
+	kubeConfigPath := getKubeConfigPath(cf, "")
+	value, err := kubeconfig.Load(kubeConfigPath)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return
+		}
+		log.Warnf("Failed to load KUBECONFIG file: %v", err)
+		return
+	}
+
+	var outdatedClusters []string
+	k8host, _ := tc.KubeProxyHostPort()
+	for name, cluster := range value.Clusters {
+		if cluster.TLSServerName == client.GetOldKubeTLSServerName(k8host) {
+			outdatedClusters = append(outdatedClusters, name)
+		}
+	}
+
+	if len(outdatedClusters) == 0 {
+		return
+	}
+	fmt.Printf("Deprecated tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
+	fmt.Printf("Please re-login and update your KUBECONFIG cluster configuration by running the 'tsh kube login' command.\n\n")
 }

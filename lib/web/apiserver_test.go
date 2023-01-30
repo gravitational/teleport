@@ -1223,7 +1223,7 @@ func TestNewTerminalHandler(t *testing.T) {
 
 func TestResizeTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 	sid := session.NewID()
 
 	errs := make(chan error, 2)
@@ -1532,6 +1532,75 @@ func TestTerminalRouting(t *testing.T) {
 			require.NoError(t, waitForOutput(stream, tt.output))
 		})
 	}
+}
+
+func TestTerminalNameResolution(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo")
+
+	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+	t.Cleanup(cancel)
+
+	// Wait for the node to be registered as the registration is asynchronous.
+	require.Eventuallyf(t, func() bool {
+		nodes, err := s.proxyClient.GetNodes(ctx, "default")
+		require.NoError(t, err)
+
+		return len(nodes) == 2 // one created by default and llama
+	}, 5*time.Second, 200*time.Millisecond, "failed to register node")
+
+	tests := []struct {
+		name           string
+		target         string
+		serverID       string
+		serverHostname string
+		port           int
+	}{
+		{
+			name:           "registered node by name",
+			target:         "llama",
+			serverID:       llama.ID(),
+			serverHostname: "llama",
+		},
+		{
+			name:           "registered node by address",
+			target:         llama.Addr(),
+			serverID:       llama.ID(),
+			serverHostname: llama.Addr(),
+		},
+		{
+			name:           "direct dial",
+			target:         "root@example.com",
+			serverID:       "root@example.com",
+			serverHostname: "root@example.com",
+		},
+		{
+			name:           "direct dial with port",
+			target:         "root@example.com:1234",
+			serverID:       "root@example.com",
+			serverHostname: "root@example.com",
+			port:           1234,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ws, resp, err := s.makeTerminal(t, pack, withServer(tt.target))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			require.Equal(t, tt.serverID, resp.ServerID)
+			require.Equal(t, tt.serverHostname, resp.ServerHostname)
+			require.Equal(t, tt.port, resp.ServerHostPort)
+		})
+	}
+
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
