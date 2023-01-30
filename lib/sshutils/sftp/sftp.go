@@ -428,11 +428,22 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 // assertStreamsType checks if reader or writer implements correct interface to utilize concurrent SFTP streams.
 func assertStreamsType(reader io.Reader, writer io.Writer) error {
 	_, okReader := reader.(io.WriterTo)
+
+	if okReader {
+		_, okStat := reader.(interface{ Stat() (os.FileInfo, error) })
+		if !okStat {
+			return trace.Errorf("sftp read stream must implement Sync() method")
+		}
+
+		return nil
+	}
+
 	_, okWriter := writer.(io.ReaderFrom)
 
 	if !okWriter && !okReader {
 		return trace.Errorf("reader and writer are not implementing concurrent interfaces %T %T", reader, writer)
 	}
+
 	return nil
 }
 
@@ -441,25 +452,26 @@ func prepareStreams(ctx context.Context, srcFile fs.File, dstFile io.WriteCloser
 	var reader io.Reader = srcFile
 	var writer io.Writer = dstFile
 
-	canceler := &cancelReaderWriter{
-		ctx: ctx,
-	}
-
 	if _, ok := reader.(*sftp.File); ok {
 		if progressBar != nil {
-			writer = io.MultiWriter(dstFile, canceler, progressBar)
+			writer = io.MultiWriter(dstFile, progressBar)
 		} else {
-			writer = io.MultiWriter(dstFile, canceler)
+			writer = dstFile
+		}
+
+		writer = &cancelWriter{
+			ctx:    ctx,
+			stream: writer,
 		}
 	} else {
-		streams := make([]io.Reader, 0, 2)
-		streams = append(streams, canceler)
+		streams := make([]io.Reader, 0, 1)
 
 		if progressBar != nil {
 			streams = append(streams, progressBar)
 		}
 
 		reader = &fileStreamReader{
+			ctx:     ctx,
 			streams: streams,
 			file:    srcFile,
 		}

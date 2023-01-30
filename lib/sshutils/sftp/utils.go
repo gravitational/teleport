@@ -49,23 +49,28 @@ func (wt *fileWrapper) Stat() (os.FileInfo, error) {
 
 // fileStreamReader is a thin wrapper around fs.File with additional streams.
 type fileStreamReader struct {
+	ctx     context.Context
 	streams []io.Reader
 	file    fs.File
 }
 
 // Stat returns file stats.
-func (a *fileStreamReader) Stat() (os.FileInfo, error) {
-	return a.file.Stat()
+func (r *fileStreamReader) Stat() (os.FileInfo, error) {
+	return r.file.Stat()
 }
 
 // Read reads the data from a file and passes the read data to all readers.
 // All errors from stream are returned except io.EOF.
-func (a *fileStreamReader) Read(b []byte) (int, error) {
-	n, err := a.file.Read(b)
+func (r *fileStreamReader) Read(b []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	n, err := r.file.Read(b)
 	// Create a copy as not whole buffer can be filled.
 	readBuff := b[:n]
 
-	for _, stream := range a.streams {
+	for _, stream := range r.streams {
 		if _, innerError := stream.Read(readBuff); innerError != nil {
 			// Ignore EOF
 			if err != io.EOF {
@@ -77,21 +82,15 @@ func (a *fileStreamReader) Read(b []byte) (int, error) {
 	return n, err
 }
 
-// cancelReaderWriter implements io.ReadWriter interface with context cancellation.
-type cancelReaderWriter struct {
-	ctx context.Context
+// cancelWriter implements io.Writer interface with context cancellation.
+type cancelWriter struct {
+	ctx    context.Context
+	stream io.Writer
 }
 
-func (c *cancelReaderWriter) Read(_ []byte) (int, error) {
+func (c *cancelWriter) Write(b []byte) (int, error) {
 	if err := c.ctx.Err(); err != nil {
 		return 0, err
 	}
-	return 0, nil
-}
-
-func (c *cancelReaderWriter) Write(b []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return len(b), nil
+	return c.Write(b)
 }
