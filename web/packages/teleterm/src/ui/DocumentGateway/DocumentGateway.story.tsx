@@ -12,10 +12,12 @@ import { OfflineDocumentContainer } from 'teleterm/ui/DocumentGateway/Offline/Of
 import { Status } from 'teleterm/ui/DocumentGateway/Offline/Status';
 import { ReconnectForm } from 'teleterm/ui/DocumentGateway/Offline/ReconnectForm';
 import { Header } from 'teleterm/ui/DocumentGateway/Online/Header';
-import { CLIInstructions } from 'teleterm/ui/DocumentGateway/Online/CLIInstructions';
 import { OnlineDocumentContainer } from 'teleterm/ui/DocumentGateway/Online/OnlineDocumentContainer';
 import { GUIInstructions } from 'teleterm/ui/DocumentGateway/Online/GUIInstructions';
 import { Errors } from 'teleterm/ui/DocumentGateway/Online/Errors';
+import { DatabaseForm } from 'teleterm/ui/DocumentGateway/Online/DatabaseForm';
+import { CliCommand } from 'teleterm/ui/DocumentGateway/CliCommand';
+import { CLIInstructions } from 'teleterm/ui/DocumentGateway/Online/CLIInstructions';
 
 export default {
   title: 'Teleterm/DocumentGateway',
@@ -38,13 +40,20 @@ export function Online() {
     <OnlineDocumentContainer>
       <Header onClose={() => null} />
 
-      <CLIInstructions
-        gateway={gateway}
-        isProcessing={false}
-        onChangePort={() => null}
-        onChangeDbName={() => null}
-        onRunCommand={() => null}
-      />
+      <CLIInstructions>
+        <DatabaseForm
+          dbName={gateway.targetSubresourceName}
+          port={gateway.localPort}
+          onDbNameChange={() => null}
+          onPortChange={() => null}
+        />
+
+        <CliCommand
+          cliCommand={gateway.cliCommand}
+          isLoading={false}
+          onRun={() => null}
+        />
+      </CLIInstructions>
 
       <GUIInstructions gateway={gateway} />
     </OnlineDocumentContainer>
@@ -71,13 +80,20 @@ export function OnlineWithLongValues() {
     <OnlineDocumentContainer>
       <Header onClose={() => null} />
 
-      <CLIInstructions
-        gateway={gateway}
-        isProcessing={false}
-        onChangePort={() => null}
-        onChangeDbName={() => null}
-        onRunCommand={() => null}
-      />
+      <CLIInstructions>
+        <DatabaseForm
+          dbName={gateway.targetSubresourceName}
+          port={gateway.localPort}
+          onDbNameChange={() => null}
+          onPortChange={() => null}
+        />
+
+        <CliCommand
+          cliCommand={gateway.cliCommand}
+          isLoading={false}
+          onRun={() => null}
+        />
+      </CLIInstructions>
 
       <GUIInstructions gateway={gateway} />
     </OnlineDocumentContainer>
@@ -89,20 +105,27 @@ export function OnlineWithFailedDbNameAttempt() {
     <OnlineDocumentContainer>
       <Header onClose={() => null} />
 
-      <CLIInstructions
-        gateway={gateway}
-        isProcessing={false}
-        onChangePort={() => null}
-        onChangeDbName={() => null}
-        onRunCommand={() => null}
-      />
+      <CLIInstructions>
+        <DatabaseForm
+          dbName={gateway.targetSubresourceName}
+          port={gateway.localPort}
+          onDbNameChange={() => null}
+          onPortChange={() => null}
+        />
 
-      <Errors
-        dbNameAttempt={makeErrorAttempt<void>(
-          'Something went wrong with setting database name.'
-        )}
-        portAttempt={makeEmptyAttempt()}
-      />
+        <CliCommand
+          cliCommand={gateway.cliCommand}
+          isLoading={false}
+          onRun={() => null}
+        />
+
+        <Errors
+          dbNameAttempt={makeErrorAttempt<void>(
+            'Something went wrong with setting database name.'
+          )}
+          portAttempt={makeEmptyAttempt()}
+        />
+      </CLIInstructions>
 
       <GUIInstructions gateway={gateway} />
     </OnlineDocumentContainer>
@@ -114,20 +137,27 @@ export function OnlineWithFailedPortAttempt() {
     <OnlineDocumentContainer>
       <Header onClose={() => null} />
 
-      <CLIInstructions
-        gateway={gateway}
-        isProcessing={false}
-        onChangePort={() => null}
-        onChangeDbName={() => null}
-        onRunCommand={() => null}
-      />
+      <CLIInstructions>
+        <DatabaseForm
+          dbName={gateway.targetSubresourceName}
+          port={gateway.localPort}
+          onDbNameChange={() => null}
+          onPortChange={() => null}
+        />
 
-      <Errors
-        dbNameAttempt={makeEmptyAttempt()}
-        portAttempt={makeErrorAttempt<void>(
-          'Something went wrong with setting port.'
-        )}
-      />
+        <CliCommand
+          cliCommand={gateway.cliCommand}
+          isLoading={false}
+          onRun={() => null}
+        />
+
+        <Errors
+          dbNameAttempt={makeEmptyAttempt()}
+          portAttempt={makeErrorAttempt<void>(
+            'Something went wrong with setting port.'
+          )}
+        />
+      </CLIInstructions>
 
       <GUIInstructions gateway={gateway} />
     </OnlineDocumentContainer>
@@ -139,22 +169,29 @@ export function OnlineWithFailedDbNameAndPortAttempts() {
     <OnlineDocumentContainer>
       <Header onClose={() => null} />
 
-      <CLIInstructions
-        gateway={gateway}
-        isProcessing={false}
-        onChangePort={() => null}
-        onChangeDbName={() => null}
-        onRunCommand={() => null}
-      />
+      <CLIInstructions>
+        <DatabaseForm
+          dbName={gateway.targetSubresourceName}
+          port={gateway.localPort}
+          onDbNameChange={() => null}
+          onPortChange={() => null}
+        />
 
-      <Errors
-        dbNameAttempt={makeErrorAttempt<void>(
-          'Something went wrong with setting database name.'
-        )}
-        portAttempt={makeErrorAttempt<void>(
-          'Something went wrong with setting port.'
-        )}
-      />
+        <CliCommand
+          cliCommand={gateway.cliCommand}
+          isLoading={false}
+          onRun={() => null}
+        />
+
+        <Errors
+          dbNameAttempt={makeErrorAttempt<void>(
+            'Something went wrong with setting database name.'
+          )}
+          portAttempt={makeErrorAttempt<void>(
+            'Something went wrong with setting port.'
+          )}
+        />
+      </CLIInstructions>
 
       <GUIInstructions gateway={gateway} />
     </OnlineDocumentContainer>
