@@ -42,10 +42,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
+)
+
+const (
+	teleportOSSPackageName = "teleport"
+	teleportEntPackageName = "teleport-ent"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -364,6 +370,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
 		}
 	}
+
+	packageName := teleportOSSPackageName
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		packageName = teleportEntPackageName
+	}
+
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]interface{}{
@@ -377,6 +389,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		// file has been completely converted over.
 		"caPinsOld":                  strings.Join(caPins, " "),
 		"caPins":                     strings.Join(caPins, ","),
+		"packageName":                packageName,
 		"version":                    version,
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
 		"appName":                    settings.appName,

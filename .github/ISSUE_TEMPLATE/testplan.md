@@ -631,8 +631,7 @@ These tests should be carried out sequentially. `tsh` tests should be carried ou
 
 Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
 
-- [ ] Database Acces: `tsh proxy db`
-- [ ] Application Access: `tsh login app && tsh proxy app`
+- [ ] Database Access: `tsh proxy db --tunnel`
 
 ## Moderated session
 
@@ -744,7 +743,9 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
 - [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
-  - [ ] Can interact with AWS using `tsh aws` commands.
+  - [ ] Can interact with AWS using `tsh` commands.
+    - [ ] `tsh aws`
+    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
 - [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh app login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
