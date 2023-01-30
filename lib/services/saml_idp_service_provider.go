@@ -25,18 +25,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// SAMLIdPServiceProviderGetter defines interface for fetching SAML IdP service providers.
-type SAMLIdPServiceProviderGetter interface {
+// SAMLIdPServiceProvider defines an interface for managing SAML IdP service providers.
+type SAMLIdPServiceProviders interface {
 	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
-}
-
-// SAMLIdPServiceProvider defines an interface for managing SAML IdP service providers.
-type SAMLIdPServiceProviders interface {
-	// SAMLIdPServiceProviderGetter provides methods for fetching SAML IdP service providers.
-	SAMLIdPServiceProviderGetter
 	// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 	CreateSAMLIdPServiceProvider(context.Context, types.SAMLIdPServiceProvider) error
 	// UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.

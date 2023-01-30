@@ -144,7 +144,7 @@ type SAMLIdPServiceProviders []SAMLIdPServiceProvider
 
 // AsResources returns these service providers as resources with labels.
 func (s SAMLIdPServiceProviders) AsResources() (resources ResourcesWithLabels) {
-	resources := make([]ResourceWithLabels, 0, len(s))
+	resources = make([]ResourceWithLabels, 0, len(s))
 	for _, sp := range s {
 		resources = append(resources, sp)
 	}
