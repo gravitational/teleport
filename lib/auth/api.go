@@ -73,6 +73,12 @@ type Announcer interface {
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
+
+	// UpsertDiscoveredServer registers a DiscoveredServer.
+	UpsertDiscoveredServer(context.Context, types.DiscoveredServer) (*types.KeepAlive, error)
+
+	// DeleteDiscoveredServer deletes a DiscoveredServer.
+	DeleteDiscoveredServer(context.Context, string) error
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)

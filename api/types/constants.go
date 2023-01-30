@@ -306,6 +306,9 @@ const (
 	// KindLoginRule is a login rule resource.
 	KindLoginRule = "login_rule"
 
+	// KindDisciveredServer is a discovered server resource.
+	KindDiscoveredServer = "discovered_server"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 

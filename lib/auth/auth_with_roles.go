@@ -1282,7 +1282,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindDiscoveredServer:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1375,6 +1375,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, state)
+	case types.DiscoveredServer:
+		return r.CheckAccess(rr, state)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
@@ -1463,7 +1465,7 @@ func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindDiscoveredServer:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -3966,6 +3968,22 @@ func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteDatabaseService(ctx, name)
+}
+
+// UpsertDigscoveredServer creates or updates a new DiscoveredServer resource.
+func (a *ServerWithRoles) UpsertDiscoveredServer(ctx context.Context, service types.DiscoveredServer) (*types.KeepAlive, error) {
+	if err := a.action(service.GetNamespace(), types.KindDiscoveredServer, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertDiscoveredServer(ctx, service)
+}
+
+// DeleteDiscoveredServer removes a specific DiscoveredServer resource.
+func (a *ServerWithRoles) DeleteDiscoveredServer(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDiscoveredServer, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteDiscoveredServer(ctx, name)
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking

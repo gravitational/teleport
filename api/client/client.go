@@ -2507,6 +2507,25 @@ func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// UpsertDiscoveredServer creates or updates existing DiscoveredServer resource.
+func (c *Client) UpsertDiscoveredServer(ctx context.Context, service types.DiscoveredServer) (*types.KeepAlive, error) {
+	serverV1, ok := service.(*types.DiscoveredServerV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported DiscoveredServer type %T", serverV1)
+	}
+	keepAlive, err := c.grpc.UpsertDiscoveredServer(ctx, &proto.UpsertDiscoveredServerRequest{
+		Server: serverV1,
+	}, c.callOpts...)
+
+	return keepAlive, trail.FromGRPC(err)
+}
+
+// DeleteDiscoveredServer deletes a specific DiscoveredServer resource.
+func (c *Client) DeleteDiscoveredServer(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDiscoveredServer(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{}, c.callOpts...)

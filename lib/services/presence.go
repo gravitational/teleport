@@ -240,6 +240,12 @@ type Presence interface {
 
 	// UpsertDatabaseService updates an existing DatabaseService resource.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
+
+	// UpsertDiscoveredServer updates an existing DiscoveredServer resource.
+	UpsertDiscoveredServer(context.Context, types.DiscoveredServer) (*types.KeepAlive, error)
+
+	// DeleteDiscoveredServer deletes an existing DiscoveredServer resource.
+	DeleteDiscoveredServer(context.Context, string) error
 }
 
 // PresenceInternal extends the Presence interface with auth-specific internal methods.

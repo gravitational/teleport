@@ -1612,6 +1612,44 @@ func (s *PresenceService) UpsertDatabaseService(ctx context.Context, service typ
 	}, nil
 }
 
+// UpsertDiscoveredServer creates or updates (by name) a DiscoveredServer resource.
+func (s *PresenceService) UpsertDiscoveredServer(ctx context.Context, server types.DiscoveredServer) (*types.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalDiscoveredServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(discoveredServerPrefix, server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	}
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_DATABASE,
+		LeaseID:   lease.ID,
+		Namespace: apidefaults.Namespace,
+		Name:      server.GetName(),
+		HostID:    server.GetName(),
+		Expires:   server.Expiry(),
+	}, nil
+}
+
+// DeleteDiscoveredServer deletes the specified discovered server
+func (s *PresenceService) DeleteDiscoveredServer(ctx context.Context, name string) error {
+	key := backend.Key(discoveredServerPrefix, name)
+	return s.Delete(ctx, key)
+}
+
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -1834,4 +1872,5 @@ const (
 	kubeServicesPrefix           = "kubeServices"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
 	loginTimePrefix              = "hostuser_interaction_time"
+	discoveredServerPrefix       = "discoveredServer"
 )

@@ -932,6 +932,12 @@ message DatabaseCertResponse {
   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
 }
 
+// UpsertDiscoveredServerRequest is a request to register a discovered server.
+message UpsertDiscoveredServerRequest {
+  // Server is the discovered server to register.
+  types.DiscoveredServerV1 Server = 1 [(gogoproto.jsontag) = "server"];
+}
+
 // SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
 message SnowflakeJWTRequest {
   string AccountName = 1 [(gogoproto.jsontag) = "account_name"];
@@ -1631,6 +1637,8 @@ message PaginatedResource {
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
     // DatabaseService represents a DatabaseService resource.
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // DiscoveredServer represents a DiscoveredServer resource.
+    types.DiscoveredServerV1 DiscoveredServer = 10 [(gogoproto.jsontag) = "discovered_server,omitempty"];
   }
 }
 
@@ -2256,6 +2264,11 @@ service AuthService {
   // If there's an error deleting the resources, there's no guarantee of a rollback.
   // A subset of resources might be deleted while others still exist.
   rpc DeleteAllDatabaseServices(DeleteAllDatabaseServicesRequest) returns (google.protobuf.Empty);
+
+  // UpsertDiscoveredServer registers a new DiscoveredServer.
+  rpc UpsertDiscoveredServer(UpsertDiscoveredServerRequest) returns (types.KeepAlive);
+  // DeleteDiscoveredServer removes the specified DiscoveredServer.
+  rpc DeleteDiscoveredServer(types.ResourceRequest) returns (google.protobuf.Empty);
 
   // SignDatabaseCSR generates client certificate used by proxy to
   // authenticate with a remote database service.

@@ -1244,6 +1244,32 @@ func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *proto.Del
 	return &emptypb.Empty{}, nil
 }
 
+// UpsertDiscoveredServer registers a new discovered DiscoveredServer.
+func (g *GRPCServer) UpsertDiscoveredServer(ctx context.Context, req *proto.UpsertDiscoveredServerRequest) (*types.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keepAlive, err := auth.UpsertDiscoveredServer(ctx, req.Server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteDiscoveredServer removes the specified DiscoveredServer.
+func (g *GRPCServer) DeleteDiscoveredServer(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.DeleteDiscoveredServer(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
@@ -4056,6 +4082,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindDiscoveredServer:
+			server, ok := resource.(*types.DiscoveredServerV1)
+			if !ok {
+				return nil, trace.BadParameter("discovered server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DiscoveredServer{DiscoveredServer: server}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}

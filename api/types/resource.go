@@ -243,6 +243,19 @@ func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
 	return servers, nil
 }
 
+// AsDiscoveredServer converts each resource into type DiscoveredServer.
+func (r ResourcesWithLabels) AsDiscoveredServer() ([]DiscoveredServer, error) {
+	servers := make([]DiscoveredServer, len(r))
+	for i, resource := range r {
+		server, ok := resource.(DiscoveredServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DiscoveredServer, got: %T", resource)
+		}
+		servers[i] = server
+	}
+	return servers, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version

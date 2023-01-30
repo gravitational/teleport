@@ -4618,6 +4618,40 @@ message DatabaseResourceMatcher {
   ];
 }
 
+// DiscoveredServerV1 is the representation of a DiscoveredServer.
+message DiscoveredServerV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  DiscoveredServerSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DiscoveredServerSpecV1 is the DiscoveredServer Spec.
+message DiscoveredServerSpecV1 {
+  // ResourceMatchers is the configured match for DiscoveredServer resources.
+  repeated DiscoveredServerResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  string AccountID = 3 [(gogoproto.jsontag) = "account_id"];
+
+  // Labels is an optional label selector.
+  map<string, string> Labels = 4 [(gogoproto.jsontag) = "labels"];
+}
+
+// DiscoveredServerMatcher is a set of properties that is used to match on resources.
+message DiscoveredServerResourceMatcher {
+  wrappers.LabelValues Labels = 1 [
+    (gogoproto.jsontag) = "labels",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
 // in sorting alerts for display.
 enum AlertSeverity {
