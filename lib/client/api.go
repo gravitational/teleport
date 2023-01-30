@@ -1001,13 +1001,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.HostKeyCallback = tc.localAgent.CheckHostKey
 	}
 
-	// If we haven't already set the private key policy, load it into the client based on the private key.
-	if tc.PrivateKeyPolicy == "" {
-		if key, err := tc.LocalAgent().GetCoreKey(); err == nil {
-			tc.PrivateKeyPolicy = keys.GetPrivateKeyPolicy(key.PrivateKey)
-		}
-	}
-
 	return tc, nil
 }
 
@@ -3032,9 +3025,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// set the key policy from the key we just got from logging in.
-	tc.PrivateKeyPolicy = keys.GetPrivateKeyPolicy(key.PrivateKey)
 
 	// Use proxy identity if set in key response.
 	if key.Username != "" {

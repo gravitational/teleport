@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -283,27 +282,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
 			tc.AuthenticatorAttachment = test.authenticatorAttachment
-			require.Empty(t, tc.PrivateKeyPolicy,
-				"key policy should be empty before initial login")
 
 			clock.Advance(30 * time.Second)
-			key, err := tc.Login(ctx)
+			_, err = tc.Login(ctx)
 			require.NoError(t, err)
-			require.NotNil(t, key, "no client key returned from login")
-			require.NotNil(t, key.PrivateKey, "client key has no private key")
-			require.Equal(t, keys.PrivateKeyPolicyNone, keys.GetPrivateKeyPolicy(key.PrivateKey))
-			require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
-				"key policy should be set after client login")
-			require.NoError(t, tc.LocalAgent().AddKey(key))
-			require.Empty(t, cfg.PrivateKeyPolicy,
-				"client should not modify the config key policy it was given.")
-
-			tc, err = client.NewClient(cfg)
-			require.NoError(t, err)
-			require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
-				"key policy should be derived during client creation using existing login key")
-			// logout so test cases don't share the login key we added.
-			require.NoError(t, tc.LogoutAll())
 		})
 	}
 }

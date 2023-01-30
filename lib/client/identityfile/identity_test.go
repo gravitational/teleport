@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -374,9 +375,10 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	retrievedProfile, err := clientStore.GetProfile(currentProfile)
 	require.NoError(t, err)
 	require.Equal(t, &profile.Profile{
-		WebProxyAddr: key.ProxyHost + ":3080",
-		SiteName:     key.ClusterName,
-		Username:     key.Username,
+		WebProxyAddr:     key.ProxyHost + ":3080",
+		SiteName:         key.ClusterName,
+		Username:         key.Username,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}, retrievedProfile)
 
 	retrievedKey, err := clientStore.GetKey(key.KeyIndex, client.WithAllCerts...)
