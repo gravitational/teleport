@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
@@ -239,6 +240,37 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				})
 			}
 
+		})
+	})
+
+	t.Run("resource matchers", func(t *testing.T) {
+		t.Run("empty", func(t *testing.T) {
+			flags := DatabaseSampleFlags{}
+			databases := generateAndParseConfig(t, flags)
+			require.Len(t, databases.ResourceMatchers, 0)
+		})
+
+		t.Run("multiple labels", func(t *testing.T) {
+			flags := DatabaseSampleFlags{
+				ResourcesRawLabels: []string{
+					"env=dev",
+					"env=prod,name=my-name",
+				},
+			}
+			databases := generateAndParseConfig(t, flags)
+			require.Equal(t, []ResourceMatcher{
+				{
+					Labels: types.Labels{
+						"env": apiutils.Strings{"dev"},
+					},
+				},
+				{
+					Labels: types.Labels{
+						"name": apiutils.Strings{"my-name"},
+						"env":  apiutils.Strings{"prod"},
+					},
+				},
+			}, databases.ResourceMatchers)
 		})
 	})
 }

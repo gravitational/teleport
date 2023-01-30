@@ -55,11 +55,16 @@ teleport:
   {{- end }}
 db_service:
   enabled: "yes"
-  # Matchers for database resources created with "tctl create" command.
-  # For more information: https://goteleport.com/docs/database-access/guides/dynamic-registration/
+  # Matchers for database resources created with "tctl create" command or by the discovery service.
+  # For more information about dynamic registration: https://goteleport.com/docs/database-access/guides/dynamic-registration/
   resources:
+  {{- range $index, $resourceLabel := .ResourcesLabels }}
   - labels:
-      "*": "*"
+	{{- range $name, $value := $resourceLabel }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+
   {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
   # Matchers for registering AWS-hosted databases.
   aws:
@@ -416,6 +421,10 @@ proxy_service:
 
 // DatabaseSampleFlags specifies configuration parameters for a database agent.
 type DatabaseSampleFlags struct {
+	// ResourcesRawLabels is the "raw" list of labels for dynamic "resources".
+	ResourcesRawLabels []string
+	// ResourcesLabels is the list of labels for dynamic "resources".
+	ResourcesLabels []map[string]string
 	// StaticDatabaseName static database name provided by the user.
 	StaticDatabaseName string
 	// StaticDatabaseProtocol static databse protocol provided by the user.
@@ -549,6 +558,15 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
+	}
+
+	// Labels for "resources" section.
+	for i := range f.ResourcesRawLabels {
+		labels, err := client.ParseLabelSpec(f.ResourcesRawLabels[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		f.ResourcesLabels = append(f.ResourcesLabels, labels)
 	}
 
 	return nil
