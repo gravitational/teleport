@@ -679,6 +679,10 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-app-cf-header",
 						},
 						{
+							Name:  common.TeleportAPIErrorHeader,
+							Value: "rewritten-x-teleport-api-error",
+						},
+						{
 							Name:  forward.XForwardedFor,
 							Value: "rewritten-x-forwarded-for-header",
 						},
@@ -816,6 +820,10 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 						{
 							Name:  teleport.AppCFHeader,
 							Value: "rewritten-app-cf-header",
+						},
+						{
+							Name:  common.TeleportAPIErrorHeader,
+							Value: "rewritten-x-teleport-api-error",
 						},
 						{
 							Name:  forward.XForwardedFor,
