@@ -28,19 +28,19 @@ import (
 
 const groupMaxPageSize = 200
 
-// GroupService manages groups in the Backend.
-type GroupService struct {
+// UserGroupService manages user groups in the Backend.
+type UserGroupService struct {
 	backend.Backend
 }
 
-// NewGroupService creates a new GroupService.
-func NewGroupService(backend backend.Backend) *GroupService {
-	return &GroupService{Backend: backend}
+// NewUserGroupService creates a new UserGroupService.
+func NewUserGroupService(backend backend.Backend) *UserGroupService {
+	return &UserGroupService{Backend: backend}
 }
 
-// ListGroups returns a paginated list of group resources.
-func (g *GroupService) ListGroups(ctx context.Context, pageSize int, pageToken string) ([]types.Group, string, error) {
-	rangeStart := backend.Key(groupPrefix, pageToken)
+// ListUserGroups returns a paginated list of user group resources.
+func (g *UserGroupService) ListUserGroups(ctx context.Context, pageSize int, pageToken string) ([]types.UserGroup, string, error) {
+	rangeStart := backend.Key(userGroupPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	// Adjust page size, so it can't be too large.
@@ -51,7 +51,7 @@ func (g *GroupService) ListGroups(ctx context.Context, pageSize int, pageToken s
 	// Increment pageSize to allow for the extra item represented by nextKey.
 	// We skip this item in the results below.
 	limit := pageSize + 1
-	var out []types.Group
+	var out []types.UserGroup
 
 	// no filter provided get the range directly
 	result, err := g.GetRange(ctx, rangeStart, rangeEnd, limit)
@@ -59,9 +59,9 @@ func (g *GroupService) ListGroups(ctx context.Context, pageSize int, pageToken s
 		return nil, "", trace.Wrap(err)
 	}
 
-	out = make([]types.Group, 0, len(result.Items))
+	out = make([]types.UserGroup, 0, len(result.Items))
 	for _, item := range result.Items {
-		group, err := services.UnmarshalGroup(item.Value)
+		group, err := services.UnmarshalUserGroup(item.Value)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -78,16 +78,16 @@ func (g *GroupService) ListGroups(ctx context.Context, pageSize int, pageToken s
 	return out, nextKey, nil
 }
 
-// GetGroup returns the specified group resource.
-func (g *GroupService) GetGroup(ctx context.Context, name string) (types.Group, error) {
-	item, err := g.Get(ctx, backend.Key(groupPrefix, name))
+// GetUserGroup returns the specified user group resource.
+func (g *UserGroupService) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	item, err := g.Get(ctx, backend.Key(userGroupPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("group %q doesn't exist", name)
 		}
 		return nil, trace.Wrap(err)
 	}
-	group, err := services.UnmarshalGroup(item.Value,
+	group, err := services.UnmarshalUserGroup(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,17 +95,17 @@ func (g *GroupService) GetGroup(ctx context.Context, name string) (types.Group, 
 	return group, nil
 }
 
-// CreateGroup creates a new group resource.
-func (g *GroupService) CreateGroup(ctx context.Context, group types.Group) error {
+// CreateUserGroup creates a new user group resource.
+func (g *UserGroupService) CreateUserGroup(ctx context.Context, group types.UserGroup) error {
 	if err := group.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.MarshalGroup(group)
+	value, err := services.MarshalUserGroup(group)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(groupPrefix, group.GetName()),
+		Key:     backend.Key(userGroupPrefix, group.GetName()),
 		Value:   value,
 		Expires: group.Expiry(),
 		ID:      group.GetResourceID(),
@@ -117,17 +117,17 @@ func (g *GroupService) CreateGroup(ctx context.Context, group types.Group) error
 	return nil
 }
 
-// UpdateGroup updates an existing group resource.
-func (g *GroupService) UpdateGroup(ctx context.Context, group types.Group) error {
+// UpdateUserGroup updates an existing user group resource.
+func (g *UserGroupService) UpdateUserGroup(ctx context.Context, group types.UserGroup) error {
 	if err := group.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.MarshalGroup(group)
+	value, err := services.MarshalUserGroup(group)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(groupPrefix, group.GetName()),
+		Key:     backend.Key(userGroupPrefix, group.GetName()),
 		Value:   value,
 		Expires: group.Expiry(),
 		ID:      group.GetResourceID(),
@@ -139,9 +139,9 @@ func (g *GroupService) UpdateGroup(ctx context.Context, group types.Group) error
 	return nil
 }
 
-// DeleteGroup removes the specified group resource.
-func (s *GroupService) DeleteGroup(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(groupPrefix, name))
+// DeleteUserGroup removes the specified user group resource.
+func (s *UserGroupService) DeleteUserGroup(ctx context.Context, name string) error {
+	err := s.Delete(ctx, backend.Key(userGroupPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("group %q doesn't exist", name)
@@ -151,9 +151,9 @@ func (s *GroupService) DeleteGroup(ctx context.Context, name string) error {
 	return nil
 }
 
-// DeleteAllGroups removes all group resources.
-func (s *GroupService) DeleteAllGroups(ctx context.Context) error {
-	startKey := backend.Key(groupPrefix)
+// DeleteAllUserGroups removes all user group resources.
+func (s *UserGroupService) DeleteAllUserGroups(ctx context.Context) error {
+	startKey := backend.Key(userGroupPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -162,5 +162,5 @@ func (s *GroupService) DeleteAllGroups(ctx context.Context) error {
 }
 
 const (
-	groupPrefix = "group"
+	userGroupPrefix = "user_group"
 )

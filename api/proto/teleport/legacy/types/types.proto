@@ -4916,12 +4916,12 @@ message KubernetesResourceSpecV1 {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
-// GroupV1 is a representation of an externally sourced group.
-message GroupV1 {
+// UserGroupV1 is a representation of an externally sourced user group.
+message UserGroupV1 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
 
-  // Header is the resource header for the group.
+  // Header is the resource header for the user group.
   ResourceHeader Header = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "",

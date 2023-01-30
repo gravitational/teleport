@@ -25,38 +25,38 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestGroupUnmarshal verifies a group resource can be unmarshaled.
-func TestGroupUnmarshal(t *testing.T) {
-	expected, err := types.NewGroup(
+// TestUserGroupUnmarshal verifies a group resource can be unmarshaled.
+func TestUserGroupUnmarshal(t *testing.T) {
+	expected, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "test-group",
 		},
 	)
 	require.NoError(t, err)
-	data, err := utils.ToJSON([]byte(groupYAML))
+	data, err := utils.ToJSON([]byte(userGroupYAML))
 	require.NoError(t, err)
-	actual, err := UnmarshalGroup(data)
+	actual, err := UnmarshalUserGroup(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
-// TestGroupMarshal verifies a marshaled group resource can be unmarshaled back.
-func TestGroupMarshal(t *testing.T) {
-	expected, err := types.NewGroup(
+// TestUserGroupMarshal verifies a marshaled group resource can be unmarshaled back.
+func TestUserGroupMarshal(t *testing.T) {
+	expected, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "test-group",
 		},
 	)
 	require.NoError(t, err)
-	data, err := MarshalGroup(expected)
+	data, err := MarshalUserGroup(expected)
 	require.NoError(t, err)
-	actual, err := UnmarshalGroup(data)
+	actual, err := UnmarshalUserGroup(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
-var groupYAML = `---
-kind: group
+var userGroupYAML = `---
+kind: user_group
 version: v1
 metadata:
   name: test-group

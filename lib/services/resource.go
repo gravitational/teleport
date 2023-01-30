@@ -183,8 +183,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindLoginRule, nil
 	case types.KindSAMLIdPServiceProvider, types.KindSAMLIdPServiceProvider + "s", "saml_sp", "saml_sps":
 		return types.KindSAMLIdPServiceProvider, nil
-	case types.KindGroup, types.KindGroup + "s":
-		return types.KindGroup, nil
+	case types.KindUserGroup, types.KindUserGroup + "s", "usergroup", "usergroups":
+		return types.KindUserGroup, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

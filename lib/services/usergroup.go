@@ -25,30 +25,24 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// GroupGetter defines interface for fetching groups.
-type GroupGetter interface {
-	// ListGroups returns a paginated list of all group resources.
-	ListGroups(context.Context, int, string) ([]types.Group, string, error)
-	// GetGroup returns the specified group resources.
-	GetGroup(ctx context.Context, name string) (types.Group, error)
+// UserGroups defines an interface for managing UserGroups.
+type UserGroups interface {
+	// ListUserGroups returns a paginated list of all user group resources.
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+	// CreateUserGroup creates a new user group resource.
+	CreateUserGroup(context.Context, types.UserGroup) error
+	// UpdateUserGroup updates an existing user group resource.
+	UpdateUserGroup(context.Context, types.UserGroup) error
+	// DeleteUserGroup removes the specified user group resource.
+	DeleteUserGroup(ctx context.Context, name string) error
+	// DeleteAllUserGroups removes all user groups.
+	DeleteAllUserGroups(context.Context) error
 }
 
-// Groups defines an interface for managing Groups.
-type Groups interface {
-	// GroupGetter provides methods for fetching groups.
-	GroupGetter
-	// CreateGroup creates a new group resource.
-	CreateGroup(context.Context, types.Group) error
-	// UpdateGroup updates an existing group resource.
-	UpdateGroup(context.Context, types.Group) error
-	// DeleteGroup removes the specified group resource.
-	DeleteGroup(ctx context.Context, name string) error
-	// DeleteAllGroups removes all groups.
-	DeleteAllGroups(context.Context) error
-}
-
-// MarshalGroup marshals the group resource to JSON.
-func MarshalGroup(group types.Group, opts ...MarshalOption) ([]byte, error) {
+// MarshalUserGroup marshals the user group resource to JSON.
+func MarshalUserGroup(group types.UserGroup, opts ...MarshalOption) ([]byte, error) {
 	if err := group.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -59,7 +53,7 @@ func MarshalGroup(group types.Group, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch g := group.(type) {
-	case *types.GroupV1:
+	case *types.UserGroupV1:
 		if !cfg.PreserveResourceID {
 			copy := *g
 			copy.SetResourceID(0)
@@ -67,12 +61,12 @@ func MarshalGroup(group types.Group, opts ...MarshalOption) ([]byte, error) {
 		}
 		return utils.FastMarshal(g)
 	default:
-		return nil, trace.BadParameter("unsupported group resource %T", g)
+		return nil, trace.BadParameter("unsupported user group resource %T", g)
 	}
 }
 
-// UnmarshalGroup unmarshals group resource from JSON.
-func UnmarshalGroup(data []byte, opts ...MarshalOption) (types.Group, error) {
+// UnmarshalUserGroup unmarshals user group resource from JSON.
+func UnmarshalUserGroup(data []byte, opts ...MarshalOption) (types.UserGroup, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing group data")
 	}
@@ -86,7 +80,7 @@ func UnmarshalGroup(data []byte, opts ...MarshalOption) (types.Group, error) {
 	}
 	switch h.Version {
 	case types.V1:
-		var g types.GroupV1
+		var g types.UserGroupV1
 		if err := utils.FastUnmarshal(data, &g); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -101,5 +95,5 @@ func UnmarshalGroup(data []byte, opts ...MarshalOption) (types.Group, error) {
 		}
 		return &g, nil
 	}
-	return nil, trace.BadParameter("unsupported group resource version %q", h.Version)
+	return nil, trace.BadParameter("unsupported user group resource version %q", h.Version)
 }

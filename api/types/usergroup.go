@@ -24,14 +24,14 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// Group specifies an externally sourced group.
-type Group interface {
+// UserGroup specifies an externally sourced group.
+type UserGroup interface {
 	ResourceWithLabels
 }
 
-// NewGroup returns a new Group.
-func NewGroup(metadata Metadata) (Group, error) {
-	g := &GroupV1{
+// NewUserGroup returns a new UserGroup.
+func NewUserGroup(metadata Metadata) (UserGroup, error) {
+	g := &UserGroupV1{
 		ResourceHeader: ResourceHeader{
 			Metadata: metadata,
 		},
@@ -42,52 +42,52 @@ func NewGroup(metadata Metadata) (Group, error) {
 	return g, nil
 }
 
-// String returns the group string representation.
-func (g *GroupV1) String() string {
-	return fmt.Sprintf("GroupV1(Name=%v, Labels=%v)",
+// String returns the user group string representation.
+func (g *UserGroupV1) String() string {
+	return fmt.Sprintf("UserGroupV1(Name=%v, Labels=%v)",
 		g.GetName(), g.GetAllLabels())
 }
 
 // Origin returns the origin value of the resource.
-func (g *GroupV1) Origin() string {
+func (g *UserGroupV1) Origin() string {
 	return g.Metadata.Origin()
 }
 
 // SetOrigin sets the origin value of the resource.
-func (g *GroupV1) SetOrigin(origin string) {
+func (g *UserGroupV1) SetOrigin(origin string) {
 	g.Metadata.SetOrigin(origin)
 }
 
 // GetStaticLabels returns the group static labels.
-func (g *GroupV1) GetStaticLabels() map[string]string {
+func (g *UserGroupV1) GetStaticLabels() map[string]string {
 	return g.Metadata.Labels
 }
 
-// SetStaticLabels sets the group static labels.
-func (g *GroupV1) SetStaticLabels(sl map[string]string) {
+// SetStaticLabels sets the usergroup static labels.
+func (g *UserGroupV1) SetStaticLabels(sl map[string]string) {
 	g.Metadata.Labels = sl
 }
 
-// GetAllLabels returns all labels from the group.
-func (g *GroupV1) GetAllLabels() map[string]string {
+// GetAllLabels returns all labels from the user group.
+func (g *UserGroupV1) GetAllLabels() map[string]string {
 	return g.Metadata.Labels
 }
 
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
-func (g *GroupV1) MatchSearch(values []string) bool {
+func (g *UserGroupV1) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(g.GetAllLabels()), g.GetName())
 	return MatchSearch(fieldVals, values, nil)
 }
 
 // setStaticFields sets static resource header and metadata fields.
-func (g *GroupV1) setStaticFields() {
-	g.Kind = KindGroup
+func (g *UserGroupV1) setStaticFields() {
+	g.Kind = KindUserGroup
 	g.Version = V1
 }
 
 // CheckAndSetDefaults checks and sets default values
-func (g *GroupV1) CheckAndSetDefaults() error {
+func (g *UserGroupV1) CheckAndSetDefaults() error {
 	g.setStaticFields()
 	if err := g.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -96,11 +96,11 @@ func (g *GroupV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Groups is a list of Group resources.
-type Groups []Group
+// UserGroups is a list of UserGroup resources.
+type UserGroups []UserGroup
 
 // AsResources returns these groups as resources with labels.
-func (g Groups) AsResources() (resources ResourcesWithLabels) {
+func (g UserGroups) AsResources() (resources ResourcesWithLabels) {
 	for _, group := range g {
 		resources = append(resources, group)
 	}
@@ -108,10 +108,10 @@ func (g Groups) AsResources() (resources ResourcesWithLabels) {
 }
 
 // Len returns the slice length.
-func (g Groups) Len() int { return len(g) }
+func (g UserGroups) Len() int { return len(g) }
 
-// Less compares groups by name.
-func (g Groups) Less(i, j int) bool { return g[i].GetName() < g[j].GetName() }
+// Less compares user groups by name.
+func (g UserGroups) Less(i, j int) bool { return g[i].GetName() < g[j].GetName() }
 
-// Swap swaps two groups.
-func (g Groups) Swap(i, j int) { g[i], g[j] = g[j], g[i] }
+// Swap swaps two user groups.
+func (g UserGroups) Swap(i, j int) { g[i], g[j] = g[j], g[i] }

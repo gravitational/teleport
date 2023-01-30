@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
-// TestGroupCRUD tests backend operations with group resources.
-func TestGroupCRUD(t *testing.T) {
+// TestUserGroupCRUD tests backend operations with user group resources.
+func TestUserGroupCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	backend, err := memory.New(memory.Config{
@@ -40,48 +40,48 @@ func TestGroupCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewGroupService(backend)
+	service := NewUserGroupService(backend)
 
-	// Create a couple groups.
-	g1, err := types.NewGroup(
+	// Create a couple user groups.
+	g1, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "g1",
 		},
 	)
 	require.NoError(t, err)
-	g2, err := types.NewGroup(
+	g2, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "g2",
 		},
 	)
 	require.NoError(t, err)
 
-	// Initially we expect no groups.
-	out, nextToken, err := service.ListGroups(ctx, 200, "")
+	// Initially we expect no user groups.
+	out, nextToken, err := service.ListUserGroups(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
 
-	// Create both groups.
-	err = service.CreateGroup(ctx, g1)
+	// Create both user groups.
+	err = service.CreateUserGroup(ctx, g1)
 	require.NoError(t, err)
-	err = service.CreateGroup(ctx, g2)
+	err = service.CreateUserGroup(ctx, g2)
 	require.NoError(t, err)
 
-	// Fetch all groups.
-	out, nextToken, err = service.ListGroups(ctx, 200, "")
+	// Fetch all user groups.
+	out, nextToken, err = service.ListUserGroups(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	require.Empty(t, cmp.Diff([]types.Group{g1, g2}, out,
+	require.Empty(t, cmp.Diff([]types.UserGroup{g1, g2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
-	// Fetch a paginated list of groups.
-	paginatedOut := make([]types.Group, 0, 2)
+	// Fetch a paginated list of user groups.
+	paginatedOut := make([]types.UserGroup, 0, 2)
 	numPages := 0
 	for {
 		numPages++
-		out, nextToken, err = service.ListGroups(ctx, 1, nextToken)
+		out, nextToken, err = service.ListUserGroups(ctx, 1, nextToken)
 		require.NoError(t, err)
 
 		paginatedOut = append(paginatedOut, out...)
@@ -91,53 +91,53 @@ func TestGroupCRUD(t *testing.T) {
 	}
 
 	require.Equal(t, 2, numPages)
-	require.Empty(t, cmp.Diff([]types.Group{g1, g2}, paginatedOut,
+	require.Empty(t, cmp.Diff([]types.UserGroup{g1, g2}, paginatedOut,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
-	// Fetch a specific group.
-	sp, err := service.GetGroup(ctx, g2.GetName())
+	// Fetch a specific user group.
+	sp, err := service.GetUserGroup(ctx, g2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(g2, sp,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
-	// Try to fetch a group that doesn't exist.
-	_, err = service.GetGroup(ctx, "doesnotexist")
+	// Try to fetch a user group that doesn't exist.
+	_, err = service.GetUserGroup(ctx, "doesnotexist")
 	require.IsType(t, trace.NotFound(""), err)
 
-	// Try to create the same group.
-	err = service.CreateGroup(ctx, g1)
+	// Try to create the same user group.
+	err = service.CreateUserGroup(ctx, g1)
 	require.IsType(t, trace.AlreadyExists(""), err)
 
-	// Update a group.
+	// Update a user group.
 	g1.SetOrigin(types.OriginCloud)
-	err = service.UpdateGroup(ctx, g1)
+	err = service.UpdateUserGroup(ctx, g1)
 	require.NoError(t, err)
-	sp, err = service.GetGroup(ctx, g1.GetName())
+	sp, err = service.GetUserGroup(ctx, g1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(g1, sp,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
-	// Delete a group.
-	err = service.DeleteGroup(ctx, g1.GetName())
+	// Delete a user group.
+	err = service.DeleteUserGroup(ctx, g1.GetName())
 	require.NoError(t, err)
-	out, nextToken, err = service.ListGroups(ctx, 200, "")
+	out, nextToken, err = service.ListUserGroups(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	require.Empty(t, cmp.Diff([]types.Group{g2}, out,
+	require.Empty(t, cmp.Diff([]types.UserGroup{g2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
-	// Try to delete a group that doesn't exist.
-	err = service.DeleteGroup(ctx, "doesnotexist")
+	// Try to delete a user group that doesn't exist.
+	err = service.DeleteUserGroup(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
 
-	// Delete all groups.
-	err = service.DeleteAllGroups(ctx)
+	// Delete all user groups.
+	err = service.DeleteAllUserGroups(ctx)
 	require.NoError(t, err)
-	out, nextToken, err = service.ListGroups(ctx, 200, "")
+	out, nextToken, err = service.ListUserGroups(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
