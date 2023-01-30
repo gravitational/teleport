@@ -174,7 +174,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
 		err := h.preflightAppConnection(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
 		if err != nil {
-			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try requesting again. If the issue persists, verify if the Application Services are connected to Teleport.")
+			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
 		}
 	}
 
