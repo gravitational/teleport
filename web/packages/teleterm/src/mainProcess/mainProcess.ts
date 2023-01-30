@@ -71,7 +71,7 @@ export default class MainProcess {
     ]);
     // sending usage events on tshd shutdown has 10 seconds timeout
     const timeout = wait(10_000).then(() =>
-      this.logger.error('Child process(es) did not exit within 10 seconds'),
+      this.logger.error('Child process(es) did not exit within 10 seconds')
     );
     return Promise.race([processesExit, timeout]);
   }

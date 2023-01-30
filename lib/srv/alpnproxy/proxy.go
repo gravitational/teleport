@@ -565,7 +565,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 14.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
 		return true
 	}
