@@ -81,7 +81,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -107,7 +106,7 @@ var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(met
 
 // preflightAppConnectionFunc defines a function used to preflight application
 // connections.
-type preflightAppConnectionFunc func(context.Context, *tlsca.Identity) error
+type preflightAppConnectionFunc func(ctx context.Context, publicAddr string, clusterName string) error
 
 // Handler is HTTP web proxy handler
 type Handler struct {

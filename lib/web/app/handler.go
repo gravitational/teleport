@@ -260,8 +260,8 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // PreflightConnection establishes a connection to a AppServer that can handle
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
-func (h *Handler) PreflightConnection(ctx context.Context, identity *tlsca.Identity) error {
-	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
+func (h *Handler) PreflightConnection(ctx context.Context, publicAddr string, clusterName string) error {
+	clusterClient, err := h.c.ProxyClient.GetSite(clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -273,7 +273,7 @@ func (h *Handler) PreflightConnection(ctx context.Context, identity *tlsca.Ident
 	// At least one AppServer needs to be present to serve the requests. Using
 	// MatchOne can reduce the amount of work required by the app matcher by not
 	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, identity))
+	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, publicAddr, clusterName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
