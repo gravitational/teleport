@@ -118,8 +118,8 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 type SAMLIdPServiceProviders []SAMLIdPServiceProvider
 
 // AsResources returns these service providers as resources with labels.
-func (s SAMLIdPServiceProviders) AsResources() (resources ResourcesWithLabels) {
-	resources = make([]ResourceWithLabels, 0, len(s))
+func (s SAMLIdPServiceProviders) AsResources() (ResourcesWithLabels) {
+	resources := make([]ResourceWithLabels, 0, len(s))
 	for _, sp := range s {
 		resources = append(resources, sp)
 	}
