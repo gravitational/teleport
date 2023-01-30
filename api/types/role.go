@@ -112,6 +112,10 @@ type Role interface {
 	// SetAccessReviewConditions sets allow/deny conditions for access review.
 	SetAccessReviewConditions(RoleConditionType, AccessReviewConditions)
 
+	// GetDatabaseServiceLabels gets the DatabaseService labels this role
+	// is allowed or denied access to.
+	GetDatabaseServiceLabels(RoleConditionType) Labels
+
 	// GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
 	GetDatabaseLabels(RoleConditionType) Labels
 	// SetDatabaseLabels sets the map of db labels this role is allowed or denied access to.
@@ -491,6 +495,14 @@ func (r *RoleV5) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
 	} else {
 		r.Spec.Deny.KubernetesLabels = labels.Clone()
 	}
+}
+
+// GetDatabaseServiceLabels gets the DatabaseService labels this role is allowed or denied access to.
+func (r *RoleV5) GetDatabaseServiceLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return Labels{Wildcard: []string{Wildcard}}
+	}
+	return Labels{}
 }
 
 // GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
