@@ -14,6 +14,7 @@
         "databaseResources",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
+        "teleportConfig",
         "existingDataVolume",
         "podSecurityPolicy",
         "labels",
@@ -243,6 +244,11 @@
             "type": "boolean",
             "default": false
         },
+        "teleportConfig": {
+            "$id": "#/properties/teleportConfig",
+            "type": "object",
+            "default": {}
+        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",
@@ -414,6 +420,16 @@
             "$id": "#/properties/affinity",
             "type": "object",
             "default": {}
+        },
+        "dnsConfig": {
+            "$id": "#/properties/dnsConfig",
+            "type": "object",
+            "default": {}
+        },
+        "dnsPolicy": {
+            "$id": "#/properties/dnsPolicy",
+            "type": "string",
+            "default": ""
         },
         "extraLabels": {
             "$id": "#/properties/extraLabels",

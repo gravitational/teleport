@@ -69,6 +69,21 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
     make install
 
 ## BUILDBOX ###################################################################
+#
+# Image layers are ordered according to how slow that layer takes to build and
+# how frequently it is updated. Slow or infrequently updated dependencies come
+# first, fast or frequently updated layers come last.
+#
+# If you are adding a slow to build and/or complex dependency, consider using a
+# multi-stage build for it.
+#
+# As a rule of thumb, it goes like this:
+#
+# 1. Slow, language-agnostic dependencies
+# 2. Base compilers for main languages
+# 3. Fast, language-agnostic dependencies
+# 4. Fast, language-dependent dependencies
+# 5. Multi-stage layer copies
 
 FROM ubuntu:18.04 AS buildbox
 
@@ -87,8 +102,12 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
-RUN apt-get update -y --fix-missing && \
+RUN apt-get -y update && \
+    apt-get -y install software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
@@ -139,15 +158,40 @@ RUN (curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --di
     gcloud components install cloud-firestore-emulator beta && \
     rm -rf /opt/google-cloud-sdk/.install/.backup
 
+# Install etcd.
+RUN curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
+     rm -rf etcd-v3.3.9-linux-${BUILDARCH}
+
+# Add the CI user.
 ARG UID
 ARG GID
-RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
-     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+RUN groupadd ci --gid=$GID -o && \
+    useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+    mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport
 
-# Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
+# Install Rust.
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+# Cross-compilation targets are only installed on amd64, as
+# this image doesn't contain gcc-multilib.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+# Switch back to root for the remaining instructions and keep it as the default
+# user.
+USER root
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -160,14 +204,15 @@ ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
-# Install addlicense
-RUN go install github.com/google/addlicense@v1.0.0
+# Install PAM module and policies for testing.
+COPY pam/ /opt/pam_teleport/
+RUN make -C /opt/pam_teleport install
+ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
-# Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
-
-# Install GCI
-RUN go install github.com/daixiang0/gci@v0.8.2
+# Install bats.
+RUN curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+    cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
+    rm -r bats-core-1.2.1
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
@@ -178,11 +223,6 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
     chown -R ci /home/ci/.local/share/helm && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
-
-# Install bats.
-RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
-     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
-     rm -r bats-core-1.2.1)
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
@@ -199,6 +239,16 @@ RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} -
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      make install && \
      make clean)
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
+
+# Install addlicense.
+RUN go install github.com/google/addlicense@v1.0.0
+
+# Install GCI.
+RUN go install github.com/daixiang0/gci@v0.8.2
+
+# Install golangci-lint.
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
@@ -208,40 +258,7 @@ RUN BIN="/usr/local/bin" && \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
 
-ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
-
-# Install PAM module and policies for testing.
-COPY pam/ /opt/pam_teleport/
-RUN make -C /opt/pam_teleport install
-
-ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
-
-# Install Rust
-ARG RUST_VERSION
-ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=$RUST_VERSION
-
-RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
-    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
-
-# Install Rust using the ci user, as that is the user that
-# will run builds using the Rust toolchains we install here.
-# Cross-compilation targets are only installed on amd64, as
-# this image doesn't contain gcc-multilib.
-USER ci
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
-    rustup --version && \
-    cargo --version && \
-    rustc --version && \
-    rustup component add rustfmt clippy && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
-
-# Switch back to root for the remaining instructions and keep it as the default
-# user.
-USER root
-
+# Copy BPF libraries.
 COPY --from=libbpf /usr/include/bpf /usr/include/bpf
 COPY --from=libbpf /usr/lib64/ /usr/lib64/
 RUN cd /usr/local/lib && ldconfig
