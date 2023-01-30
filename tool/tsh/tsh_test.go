@@ -852,7 +852,7 @@ func TestMakeClient(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
 	require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
-		"private key policy should be configured from the identity core key")
+		"private key policy should be configured from the identity file temp profile")
 }
 
 // accessApprover allows watching and updating access requests

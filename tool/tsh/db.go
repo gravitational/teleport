@@ -723,16 +723,16 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	routeToDatabase, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if routeToDatabase.Protocol == defaults.ProtocolDynamoDB {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, routeToDatabase))
-	}
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
 	}
 	if err := maybeDatabaseLogin(cf, tc, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
