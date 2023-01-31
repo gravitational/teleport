@@ -761,6 +761,8 @@ const (
 	TeleportConfigVersionV2 string = "v2"
 	// TeleportConfigVersionV3 is the teleport proxy configuration v3 version.
 	TeleportConfigVersionV3 string = "v3"
+	// TeleportConfigVersionV3 is the teleport proxy configuration v4 version.
+	TeleportConfigVersionV4 string = "v4"
 )
 
 // TeleportConfigVersions is an exported slice of the allowed versions in the config file,
@@ -769,6 +771,7 @@ var TeleportConfigVersions = []string{
 	TeleportConfigVersionV1,
 	TeleportConfigVersionV2,
 	TeleportConfigVersionV3,
+	TeleportConfigVersionV4,
 }
 
 func ValidateConfigVersion(version string) error {

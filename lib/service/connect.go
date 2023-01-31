@@ -117,7 +117,8 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			process.log.Error("Can not join the cluster as node, the token expired or not found. Regenerate the token and try again.")
 		case connectErr != nil:
 			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
-			if process.Config.Version == defaults.TeleportConfigVersionV3 && process.Config.ProxyServer.IsEmpty() {
+			if (process.Config.Version == defaults.TeleportConfigVersionV3 || process.Config.Version == defaults.TeleportConfigVersionV4) &&
+				process.Config.ProxyServer.IsEmpty() {
 				process.log.Errorf("Check to see if the config has auth_server pointing to a Teleport Proxy. If it does, use proxy_server instead of auth_server.")
 			}
 		}
@@ -1128,7 +1129,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		return tunnelClient, nil
 
 	// for config v3, either tunnel to the given proxy server or directly connect to the given auth server
-	case defaults.TeleportConfigVersionV3:
+	case defaults.TeleportConfigVersionV3, defaults.TeleportConfigVersionV4:
 		proxyServer := process.Config.ProxyServer
 		if !proxyServer.IsEmpty() {
 			logger := process.log.WithField("proxy-server", proxyServer.String())

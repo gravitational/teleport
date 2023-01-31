@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -221,7 +222,9 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if flags.Version == defaults.TeleportConfigVersionV3 {
+	if flags.Version == defaults.TeleportConfigVersionV3 ||
+		flags.Version == defaults.TeleportConfigVersionV4 {
+
 		if flags.AuthServer != "" && flags.ProxyAddress != "" {
 			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
 		} else if flags.AuthServer != "" {
@@ -459,7 +462,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if err := checkAndSetDefaultsForAWSMatchers(conf.Discovery.AWSMatchers); err != nil {
+	if err := checkAndSetDefaultsForAWSMatchers(conf.Version, conf.Discovery.AWSMatchers); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := checkAndSetDefaultsForAzureMatchers(conf.Discovery.AzureMatchers); err != nil {
@@ -485,7 +488,7 @@ func awsRegions() []string {
 
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
-func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
+func checkAndSetDefaultsForAWSMatchers(version string, matcherInput []AWSMatcher) error {
 	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
@@ -525,7 +528,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				InstallTeleport: "",
 				SSHDConfig:      defaults.SSHDConfigPath,
 			}
-			installParams, err = matcher.InstallParams.Parse()
+			installParams, err = matcher.InstallParams.Parse(version)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -544,7 +547,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				matcher.InstallParams.SSHDConfig = defaults.SSHDConfigPath
 			}
 
-			installParams, err = matcher.InstallParams.Parse()
+			installParams, err = matcher.InstallParams.Parse(version)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1544,7 +1547,19 @@ type InstallParams struct {
 	SSHDConfig string `yaml:"sshd_config,omitempty"`
 }
 
-func (ip *InstallParams) Parse() (services.InstallerParams, error) {
+func ConfigVersionGTE(minVersion, version string) (bool, error) {
+	ver, err := strconv.Atoi(version[1:])
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	minVer, err := strconv.Atoi(minVersion[1:])
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return ver >= minVer, nil
+}
+
+func (ip *InstallParams) Parse(version string) (services.InstallerParams, error) {
 	install := services.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
@@ -1553,11 +1568,18 @@ func (ip *InstallParams) Parse() (services.InstallerParams, error) {
 		SSHDConfig:      ip.SSHDConfig,
 	}
 
+	isV4OrGreater, err := ConfigVersionGTE(defaults.TeleportConfigVersionV4, version)
+	if err != nil {
+		return services.InstallerParams{}, trace.Wrap(err)
+	}
+	if isV4OrGreater {
+		install.InstallTeleport = false
+	}
+
 	if ip.InstallTeleport == "" {
 		return install, nil
 	}
 
-	var err error
 	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
 	if err != nil {
 		return services.InstallerParams{}, trace.Wrap(err)

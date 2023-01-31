@@ -490,7 +490,7 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
 		}
 
 	// From v3 onwards, either auth_server or proxy_server should be set
-	case defaults.TeleportConfigVersionV3:
+	case defaults.TeleportConfigVersionV3, defaults.TeleportConfigVersionV4:
 		if len(fc.AuthServers) > 0 {
 			return trace.BadParameter("config v3 has replaced auth_servers with either auth_server or proxy_server")
 		}
@@ -1178,7 +1178,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	for _, matcher := range fc.Discovery.AWSMatchers {
-		installParams, err := matcher.InstallParams.Parse()
+		installParams, err := matcher.InstallParams.Parse(fc.Version)
 		if err != nil {
 			return trace.Wrap(err)
 		}
