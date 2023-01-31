@@ -269,7 +269,9 @@ func (t *TLSServer) Close() error {
 	if t.watcher != nil {
 		t.watcher.Close()
 	}
+	t.mu.Lock()
 	listClose := t.listener.Close()
+	t.mu.Unlock()
 	return trace.NewAggregate(append(errs, listClose)...)
 }
 
