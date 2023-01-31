@@ -1612,7 +1612,7 @@ func (s *PresenceService) UpsertDatabaseService(ctx context.Context, service typ
 	}, nil
 }
 
-// UpsertDiscoveredServer creates or updates (by name) a DiscoveredServer resource.
+// UpsertDiscoveredServer creates or updates isntance and account id a DiscoveredServer resource.
 func (s *PresenceService) UpsertDiscoveredServer(ctx context.Context, server types.DiscoveredServer) (*types.KeepAlive, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -1622,7 +1622,7 @@ func (s *PresenceService) UpsertDiscoveredServer(ctx context.Context, server typ
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(discoveredServerPrefix, server.GetName()),
+		Key:     backend.Key(discoveredServerPrefix, server.GetInstanceID(), server.GetAccountID()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
@@ -1644,7 +1644,27 @@ func (s *PresenceService) UpsertDiscoveredServer(ctx context.Context, server typ
 	}, nil
 }
 
-// DeleteDiscoveredServer deletes the specified discovered server
+// GetDiscoveredServer gets a DiscoveredServer resource.
+func (s *PresenceService) GetDiscoveredServer(ctx context.Context, instanceID, accountID string) (*types.DiscoveredServerV1, error) {
+	if instanceID == "" {
+		return nil, trace.BadParameter("missing parameter instanceID")
+	}
+	if accountID == "" {
+		return nil, trace.BadParameter("missing parameter accountID")
+	}
+	item, err := s.Get(ctx, backend.Key(discoveredServerPrefix, instanceID, accountID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	server, err := services.UnmarshalDiscoveredServer(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+	return server.(*types.DiscoveredServerV1), err
+}
+
+// DeleteDiscoveredServer deletes the specified discovered server.
 func (s *PresenceService) DeleteDiscoveredServer(ctx context.Context, name string) error {
 	key := backend.Key(discoveredServerPrefix, name)
 	return s.Delete(ctx, key)

@@ -4652,6 +4652,18 @@ message DiscoveredServerResourceMatcher {
   ];
 }
 
+// UpsertDiscoveredServerRequest is a request to register a discovered server.
+message UpsertDiscoveredServerRequest {
+  // Server is the discovered server to register.
+  DiscoveredServerV1 Server = 1 [(gogoproto.jsontag) = "server"];
+}
+
+// GetDiscoveredserverRequest is a request to retrieve a discovered server.
+message GetDiscoveredServerRequest {
+  string InstanceID = 1 [(gogoproto.jsontag) = "instance_id"];
+  string AccountID = 2 [(gogoproto.jsontag) = "account_id"];
+}
+
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
 // in sorting alerts for display.
 enum AlertSeverity {

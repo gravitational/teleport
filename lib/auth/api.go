@@ -77,6 +77,9 @@ type Announcer interface {
 	// UpsertDiscoveredServer registers a DiscoveredServer.
 	UpsertDiscoveredServer(context.Context, types.DiscoveredServer) (*types.KeepAlive, error)
 
+	// GetDiscoveredServer gets a DiscoveredServer.
+	GetDiscoveredServer(context.Context, string, string) (*types.DiscoveredServerV1, error)
+
 	// DeleteDiscoveredServer deletes a DiscoveredServer.
 	DeleteDiscoveredServer(context.Context, string) error
 }

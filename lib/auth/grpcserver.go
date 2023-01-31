@@ -1245,7 +1245,7 @@ func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *proto.Del
 }
 
 // UpsertDiscoveredServer registers a new discovered DiscoveredServer.
-func (g *GRPCServer) UpsertDiscoveredServer(ctx context.Context, req *proto.UpsertDiscoveredServerRequest) (*types.KeepAlive, error) {
+func (g *GRPCServer) UpsertDiscoveredServer(ctx context.Context, req *types.UpsertDiscoveredServerRequest) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1255,6 +1255,15 @@ func (g *GRPCServer) UpsertDiscoveredServer(ctx context.Context, req *proto.Upse
 		return nil, trace.Wrap(err)
 	}
 	return keepAlive, nil
+}
+
+// GetDiscoveredServer retrieves a discovered server resource.
+func (g GRPCServer) GetDiscoveredServer(ctx context.Context, req *types.GetDiscoveredServerRequest) (*types.DiscoveredServerV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.GetDiscoveredServer(ctx, req.InstanceID, req.AccountID)
 }
 
 // DeleteDiscoveredServer removes the specified DiscoveredServer.

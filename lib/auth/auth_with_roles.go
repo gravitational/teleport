@@ -3970,12 +3970,20 @@ func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string
 	return a.authServer.DeleteDatabaseService(ctx, name)
 }
 
-// UpsertDigscoveredServer creates or updates a new DiscoveredServer resource.
+// UpsertDiscoveredServer creates or updates a new DiscoveredServer resource.
 func (a *ServerWithRoles) UpsertDiscoveredServer(ctx context.Context, service types.DiscoveredServer) (*types.KeepAlive, error) {
 	if err := a.action(service.GetNamespace(), types.KindDiscoveredServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.UpsertDiscoveredServer(ctx, service)
+}
+
+// GetDiscoveredServer gets a DiscoveredServer resource.
+func (a *ServerWithRoles) GetDiscoveredServer(ctx context.Context, instanceID, accountID string) (*types.DiscoveredServerV1, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDiscoveredServer, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetDiscoveredServer(ctx, instanceID, accountID)
 }
 
 // DeleteDiscoveredServer removes a specific DiscoveredServer resource.

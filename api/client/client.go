@@ -2513,11 +2513,23 @@ func (c *Client) UpsertDiscoveredServer(ctx context.Context, service types.Disco
 	if !ok {
 		return nil, trace.BadParameter("unsupported DiscoveredServer type %T", serverV1)
 	}
-	keepAlive, err := c.grpc.UpsertDiscoveredServer(ctx, &proto.UpsertDiscoveredServerRequest{
+	keepAlive, err := c.grpc.UpsertDiscoveredServer(ctx, &types.UpsertDiscoveredServerRequest{
 		Server: serverV1,
 	}, c.callOpts...)
 
 	return keepAlive, trail.FromGRPC(err)
+}
+
+// GetDiscoveredServer gets a discovered server resource.
+func (c *Client) GetDiscoveredServer(ctx context.Context, instanceID, accountID string) (*types.DiscoveredServerV1, error) {
+	resp, err := c.grpc.GetDiscoveredServer(ctx, &types.GetDiscoveredServerRequest{
+		InstanceID: instanceID,
+		AccountID:  accountID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
 
 // DeleteDiscoveredServer deletes a specific DiscoveredServer resource.

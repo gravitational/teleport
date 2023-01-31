@@ -363,7 +363,61 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		Region:       instances.Region,
 		AccountID:    instances.AccountID,
 	}
-	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
+	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.recordDiscoveredInstances(instances))
+}
+
+func (s *Server) recordDiscoveredInstances(instances *server.EC2Instances) error {
+	ec2Client, err := s.Clients.GetAWSEC2Client(instances.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	instanceIDs := []*string{}
+	for _, instance := range instances.Instances {
+		instanceIDs = append(instanceIDs, instance.InstanceId)
+	}
+	output, err := ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{
+		InstanceIds: instanceIDs,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(output.Reservations) == 0 || len(output.Reservations[0].Instances) == 0 {
+		return trace.AccessDenied("failed to get instance state")
+	}
+
+	for _, reservation := range output.Reservations {
+		for _, instance := range reservation.Instances {
+			if instance.InstanceId == nil {
+				return trace.AccessDenied("failed to get instance state")
+			}
+			if err := s.recordDiscoveredInstance(instances.AccountID, instance); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Server) recordDiscoveredInstance(accountID string, instance *ec2.Instance) error {
+	labels := map[string]string{}
+	for _, tag := range instance.Tags {
+		labels[*tag.Key] = *tag.Value
+	}
+	discoveredServer := types.DiscoveredServerSpecV1{
+		InstanceID: *instance.InstanceId,
+		AccountID:  accountID,
+		Labels:     labels,
+	}
+	// Create discoveredServer resource
+	_, err := s.AccessPoint.UpsertDiscoveredServer(s.ctx, &types.DiscoveredServerV1{
+		Spec: discoveredServer,
+	})
+	return trace.Wrap(err)
 }
 
 func (s *Server) handleEC2Discovery() {

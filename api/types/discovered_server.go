@@ -30,6 +30,15 @@ type DiscoveredServer interface {
 	// GetNamespace returns the resource namespace.
 	GetNamespace() string
 
+	// GetInstanceID returns the instance id of the server.
+	GetInstanceID() string
+
+	// GetAccountID returns the account id of the server.
+	GetAccountID() string
+
+	// GetDiscoveredLabels returns the labels of the discovered server.
+	GetDiscoveredLabels() map[string]string
+
 	// GetResourceMatchers returns the resource matchers of the DiscoveredServer.
 	GetResourceMatchers() []*DiscoveredServerResourceMatcher
 }
@@ -68,6 +77,21 @@ func (s *DiscoveredServerV1) GetResourceMatchers() []*DiscoveredServerResourceMa
 // GetNamespace returns the resource namespace.
 func (s *DiscoveredServerV1) GetNamespace() string {
 	return s.Metadata.Namespace
+}
+
+// GetInstanceID returns the instance ID.
+func (s *DiscoveredServerV1) GetInstanceID() string {
+	return s.Spec.InstanceID
+}
+
+// GetAccountID returns the resource namespace.
+func (s *DiscoveredServerV1) GetAccountID() string {
+	return s.Spec.AccountID
+}
+
+// GetDiscoveredLabels returns the labels of the discovered server.
+func (s *DiscoveredServerV1) GetDiscoveredLabels() map[string]string {
+	return s.Spec.Labels
 }
 
 // GetAllLabels returns combined static and dynamic labels.

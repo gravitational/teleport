@@ -932,12 +932,6 @@ message DatabaseCertResponse {
   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
 }
 
-// UpsertDiscoveredServerRequest is a request to register a discovered server.
-message UpsertDiscoveredServerRequest {
-  // Server is the discovered server to register.
-  types.DiscoveredServerV1 Server = 1 [(gogoproto.jsontag) = "server"];
-}
-
 // SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
 message SnowflakeJWTRequest {
   string AccountName = 1 [(gogoproto.jsontag) = "account_name"];
@@ -2266,7 +2260,9 @@ service AuthService {
   rpc DeleteAllDatabaseServices(DeleteAllDatabaseServicesRequest) returns (google.protobuf.Empty);
 
   // UpsertDiscoveredServer registers a new DiscoveredServer.
-  rpc UpsertDiscoveredServer(UpsertDiscoveredServerRequest) returns (types.KeepAlive);
+  rpc UpsertDiscoveredServer(types.UpsertDiscoveredServerRequest) returns (types.KeepAlive);
+  // GetDiscoveredServer returns a DiscoveredServer.
+  rpc GetDiscoveredServer(types.GetDiscoveredServerRequest) returns (types.DiscoveredServerV1);
   // DeleteDiscoveredServer removes the specified DiscoveredServer.
   rpc DeleteDiscoveredServer(types.ResourceRequest) returns (google.protobuf.Empty);
 
