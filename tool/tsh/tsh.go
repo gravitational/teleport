@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -1731,10 +1732,16 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
-	// so can be excluded here.
+	// so can be excluded here, except when Hardware Key Touch is required
+	// which skips on-status alerts.
+	alertSeverityMax := types.AlertSeverity_MEDIUM
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		alertSeverityMax = types.AlertSeverity_HIGH
+	}
+
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
+	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -3246,7 +3253,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
-			if !trace.IsNotFound(err) {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 				return nil, trace.Wrap(err)
 			}
 			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
@@ -3588,9 +3595,13 @@ func onStatus(cf *CLIConf) error {
 		return nil
 	}
 
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
-		log.WithError(err).Warn("Failed to display cluster alerts.")
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
+	} else {
+		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+			log.WithError(err).Warn("Failed to display cluster alerts.")
+		}
 	}
 
 	return nil
