@@ -25,7 +25,6 @@ ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
-ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
@@ -362,7 +361,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: $(ASSETS_BUILDDIR)/webassets
+full: ensure-webassets
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -373,9 +372,7 @@ endif
 .PHONY:full-ent
 full-ent: ensure-webassets-e
 ifneq ("$(OS)", "windows")
-	@if [ -f e/Makefile ]; then \
-	rm $(ASSETS_BUILDDIR)/webassets; \
-	$(MAKE) -C e full; fi
+	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
 endif
 
 #
@@ -924,20 +921,6 @@ update-tag:
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
-
-# build/webassets directory contains the web assets (UI) which get
-# embedded in the teleport binary
-$(ASSETS_BUILDDIR)/webassets: ensure-webassets $(ASSETS_BUILDDIR)
-ifneq ("$(OS)", "windows")
-	@echo "---> Copying OSS web assets."; \
-	rm -rf $(ASSETS_BUILDDIR)/webassets; \
-	mkdir $(ASSETS_BUILDDIR)/webassets; \
-	cd webassets/teleport/ ; cp -r . ../../$@
-endif
-
-$(ASSETS_BUILDDIR):
-	mkdir -p $@
-
 
 .PHONY: test-package
 test-package: remove-temp-files
