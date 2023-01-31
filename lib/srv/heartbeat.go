@@ -621,8 +621,8 @@ func (h *Heartbeat) announce() error {
 }
 
 func (h *Heartbeat) filterEC2Labels(server types.Server) (types.Server, error) {
-	instanceID := server.GetMetadata().Labels["teleport.dev/instance-id"]
-	accountID := server.GetMetadata().Labels["teleport.dev/account-id"]
+	instanceID := server.GetMetadata().Labels[types.AWSInstanceIDLabel]
+	accountID := server.GetMetadata().Labels[types.AWSAccountIDLabel]
 	if instanceID == "" && accountID == "" {
 		return server, nil
 	}

@@ -348,6 +348,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	allInstances := instances.Instances
 	s.filterExistingEC2Nodes(instances)
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
@@ -366,6 +367,8 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
+	// Restore full list of instances now new ones have been processed
+	instances.Instances = allInstances
 	return trace.Wrap(s.recordDiscoveredInstances(instances))
 }
 
