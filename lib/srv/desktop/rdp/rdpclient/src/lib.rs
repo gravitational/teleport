@@ -81,7 +81,7 @@ pub fn test() {}
 
 #[no_mangle]
 pub extern "C" fn init() {
-    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
+    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
 #[derive(Clone)]
@@ -657,7 +657,7 @@ impl<S: Read + Write> RdpClient<S> {
             }
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
-                &format!("Invalid channel name {:?}", channel_name),
+                &format!("Invalid channel name {channel_name:?}"),
             ))),
         }
     }
@@ -784,7 +784,7 @@ impl TryFrom<BitmapEvent> for CGOPNG {
 
         let mut encoded = Vec::with_capacity(8192);
         encode_png(&mut encoded, w, h, e.decompress()?).map_err(|err| {
-            Self::Error::TryError(format!("failed to encode bitmap to png: {:?}", err))
+            Self::Error::TryError(format!("failed to encode bitmap to png: {err:?}"))
         })?;
 
         res.data_ptr = encoded.as_mut_ptr();
@@ -1270,7 +1270,7 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
             }
             Err(e) => {
                 return ReadRdpOutputReturns {
-                    user_message: format!("RDP read failed: {:?}", e),
+                    user_message: format!("RDP read failed: {e:?}"),
                     disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                     err_code: CGOErrCode::ErrCodeFailure,
                 };
