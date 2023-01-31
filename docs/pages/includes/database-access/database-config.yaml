@@ -11,7 +11,7 @@ db_service:
   # "cloud": database resources created by the discovery service
   resources:
   - labels:
-      "": "*"
+      "*": "*"
 
   # Matchers for registering AWS-hosted databases.
   aws:
