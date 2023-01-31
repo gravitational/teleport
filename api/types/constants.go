@@ -309,6 +309,9 @@ const (
 	// KindDisciveredServer is a discovered server resource.
 	KindDiscoveredServer = "discovered_server"
 
+	// MetaNameDiscoveredServer is the metadata name for discovered servers
+	MetaNameDiscoveredServer = "discovered-server"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 

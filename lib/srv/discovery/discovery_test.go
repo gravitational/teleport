@@ -403,6 +403,19 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			server.Wait()
+
+			// Check that discovered servers are recorded
+			require.Eventually(t, func() bool {
+				for _, instance := range tc.foundEC2Instances {
+					_, err := tlsServer.AuthServer.AuthServer.GetDiscoveredServer(context.Background(),
+						*instance.InstanceId, "owner")
+					if err != nil {
+						return false
+					}
+				}
+				return true
+			}, time.Second*5, time.Second)
+
 		})
 	}
 }

@@ -417,9 +417,13 @@ func (s *Server) recordDiscoveredInstance(accountID string, instance *ec2.Instan
 		Labels:     labels,
 	}
 	// Create discoveredServer resource
-	_, err := s.AccessPoint.UpsertDiscoveredServer(s.ctx, &types.DiscoveredServerV1{
-		Spec: discoveredServer,
-	})
+	server, err := types.NewDiscoveredServerV1(types.Metadata{
+		Name: types.MetaNameDiscoveredServer,
+	}, discoveredServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.AccessPoint.UpsertDiscoveredServer(s.ctx, server)
 	return trace.Wrap(err)
 }
 
