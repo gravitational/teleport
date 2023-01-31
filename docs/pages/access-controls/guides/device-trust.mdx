@@ -4,11 +4,11 @@ description: Learn how to use and enforce trusted devices with Teleport
 ---
 
 <Admonition type="warning" title="Preview">
-  Device Trust is currently in Preview mode.
+Device Trust is currently in Preview mode.
 </Admonition>
 
 <ScopedBlock scope="oss">
-  Device Trust requires a commercial edition of Teleport.
+Device Trust requires Teleport Enterprise.
 </ScopedBlock>
 
 Device Trust allows Teleport admins to enforce the use of trusted devices.
@@ -30,17 +30,17 @@ Teleport versions.
 ## Concepts
 
 Device Trust uses the Secure Enclave in macOS devices to store a device private
-key. That key is used to solve device challenges, issued by the Teleport Auth
-Server, thus proving the identity of the trusted device.
+key. That key is used to solve device challenges issued by the Teleport Auth
+Server, proving the identity of the trusted device.
 
 Device management is divided into two separate phases: inventory management and
 device enrollment.
 
-__Inventory management__ is performed by a device admin. In this step, devices
+**Inventory management** is performed by a device admin. In this step, devices
 are registered or removed from Teleport. For example, this happens when the IT
 department of your company acquires new devices, or retires devices from use.
 
-__Device enrollment__ is performed either by a device admin or by the end-user,
+**Device enrollment** is performed either by a device admin or by the end-user,
 at your discretion. This is the step that creates the Secure Enclave private key
 in the device and register its public key counterpart with the Teleport Auth
 Server. Enrollment has to run in the actual device that you want to enroll. For
@@ -49,9 +49,9 @@ IT prepares a new device for a user. Enrollment only needs to happen once per
 user/device combination.
 
 <Admonition type="tip" title="Enrollment">
-  Device enrollment is key in correctly identifying a device throughout its
-  lifetime. The more trusted the enrollment operator, the better are the ongoing
-  guarantees that the device itself is trustworthy.
+Device enrollment is key in correctly identifying a device throughout its
+lifetime. The more trusted the enrollment operator, the better the ongoing
+guarantees that the device itself is trustworthy.
 </Admonition>
 
 The tie between the device inventory and enrollment is a device enrollment
@@ -99,16 +99,16 @@ spec:
 
 ```code
 $ tctl create -f device-admin.yaml
-# role 'device-admin' has been created
+role 'device-admin' has been created
 ```
 
 <Admonition type="tip" title="Editor Role">
-  For clusters created using Teleport v12 or newer, the builtin role `editor`
-  has the necessary permissions to manage devices.
-  For production setups a separate role is still recommended.
+For clusters created using Teleport v12 or newer, the builtin role `editor` has
+the necessary permissions to manage devices. For production setups a separate
+role is still recommended.
 </Admonition>
 
-Note that, in addition to the usual CRUD verbs (create, read, list, update and
+Note that in addition to the usual CRUD verbs (create, read, list, update and
 delete), we have also included `create_enroll_token` and `enroll`. The
 `create_enroll_token` verb is necessary to execute the `tctl devices enroll`
 command; `enroll` is necessary to execute `tsh device enroll`. Both are
@@ -130,7 +130,8 @@ version: v2
 
 ```code
 $ tctl edit users/codingllama
-# user "codingllama" has been updated
+user "codingllama" has been updated
+
 $ tsh logout; tsh login --proxy=example.com --user=codingllama ## fetch new certificates
 ```
 
@@ -141,25 +142,24 @@ the `$serial` below with your macOS device serial number (visible under Apple ->
 ```code
 $ serial="$(ioreg -c IOPlatformExpertDevice -d 2 | grep -i IOPlatformSerialNumber | awk -F'"' '{print $4}')"
 $ tctl devices add --os=macos --asset-tag="$serial"
-# Device C00AA3BBBB6C/macOS added to the inventory
+Device C00AA3BBBB6C/macOS added to the inventory
 ```
 
 View registered devices:
 
 ```code
 $ tctl devices ls
-# Asset Tag    OS    Enroll Status Device ID
-# ------------ ----- ------------- ------------------------------------
-# C00AA3BBBB6C macOS not enrolled  d40f2ee4-856d-4aef-b784-c4371e39c036
+Asset Tag    OS    Enroll Status Device ID
+------------ ----- ------------- ------------------------------------
+C00AA3BBBB6C macOS not enrolled  d40f2ee4-856d-4aef-b784-c4371e39c036
 ```
 
 A registered device is a device that Teleport knows about. Once a registered
 device is enrolled, it becomes a trusted device.
 
 <Admonition type="tip" title="Removing Devices">
-  A device that is no longer in use may be removed using
-  `tctl devices rm --device-id=<ID>` or
-  `tctl devices rm --asset-tag=<SERIAL_NUMBER>`.
+A device that is no longer in use may be removed using `tctl devices rm
+--device-id=<ID>` or `tctl devices rm --asset-tag=<SERIAL_NUMBER>`.
 </Admonition>
 
 ## Step 2/2. Enroll a trusted device
@@ -173,24 +173,23 @@ the serial number of the device we want to enroll.
 
 ```code
 $ tctl devices enroll --asset-tag="C00AA3BBBB6C"
-# Run the command below on device "C00AA3BBBB6C" to enroll it:
-# tsh device enroll --token=MQi9gkOfyvdyNyN2moJZz9cqx/GyILR5uNu4NE9dxO8
+Run the command below on device "C00AA3BBBB6C" to enroll it:
+tsh device enroll --token=MQi9gkOfyvdyNyN2moJZz9cqx/GyILR5uNu4NE9dxO8
 ```
 
-To perform the enrollment ceremony, using device specified above, type the
+To perform the enrollment ceremony, using the device specified above, type the
 command printed by `tctl devices enroll`:
 
 ```code
 $ tsh device enroll --token=MQi9gkOfyvdyNyN2moJZz9cqx/GyILR5uNu4NE9dxO8
-# Device "C00AA3BBBB6C"/macOS enrolled
+Device "C00AA3BBBB6C"/macOS enrolled
 
 $ tsh logout; tsh login --proxy=example.com --user=codingllama # fetch new certificates
 ```
 
 <Admonition type="warning" title="macOS">
-  macOS enrollments are tied to the current user in the device.
-  If the same device is handed to a new user, they will need to perform
-  enrollment again.
+macOS enrollments are tied to the current user in the device. If the same device
+is handed to a new user, they will need to perform enrollment again.
 </Admonition>
 
 The device above is now a trusted device.
@@ -213,9 +212,9 @@ Enterprise clusters run in `optional` mode by default. Changing the mode to
 accesses.
 
 <Admonition type="warning" title="Web UI">
-  The Web UI is not capable of trusted device access during the device trust
-  preview. Only `tsh` and Teleport Connect are able to fulfill device mode
-  `required`.
+The Web UI is not capable of trusted device access during the device trust
+preview. Only `tsh` and Teleport Connect are able to fulfill device mode
+`required`.
 </Admonition>
 
 To enable device mode `required` update your configuration as follows:
@@ -258,7 +257,7 @@ To enable device mode `required` update your configuration as follows:
 
     ```code
     $ tctl create -f cap.yaml
-    # cluster auth preference has been updated
+    cluster auth preference has been updated
     ```
   </TabItem>
 </Tabs>
@@ -286,24 +285,24 @@ Update the configuration:
 
 ```code
 $ tctl create -f cap.yaml
-# cluster auth preference has been updated
+cluster auth preference has been updated
 ```
 </ScopedBlock>
 
 SSH, Database and Kubernetes access without a trusted device is now forbidden.
 For example, SSH access without a trusted device fails with the following error:
 
-```
+```code
 $ tsh ssh zarquon
-# ERROR: ssh: rejected: administratively prohibited (unauthorized device)
+ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 ```
 
 <Admonition type="tip" title="Trusted Clusters">
-  It is possible to use [trusted
-  clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
-  device mode `required`. A leaf cluster in mode `required` will enforce access
-  to all of its resources, without imposing the same restrictions to the root
-  cluster.
+It is possible to use [trusted
+clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
+device mode `required`. A leaf cluster in mode `required` will enforce access to
+all of its resources, without imposing the same restrictions to the root
+cluster.
 </Admonition>
 
 ## Troubleshooting
