@@ -6,7 +6,7 @@
 
 set -eo pipefail
 
-ROOT_PATH="$(realpath "$(dirname "$0")/..")"
+ROOT_PATH="$(cd "$(dirname "$0")/.." && pwd -P)"
 MAKE="${MAKE:-make}"
 SHASUMS=("shasum -a 512" "sha512sum" "sha256sum")
 
