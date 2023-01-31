@@ -150,6 +150,13 @@ all: version
 	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
+#
+# make binaries builds all binaries defined in the BINARIES environment variable
+#
+.PHONY: binaries
+binaries:
+	$(MAKE) $(BINARIES)
+
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
 # several problems:
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
@@ -581,6 +588,13 @@ sloccount:
 .PHONY: remove-temp-files
 remove-temp-files:
 	find . -name flymake_* -delete
+
+#
+# print-go-version outputs Go version as a semver without "go" prefix
+#
+.PHONY: print-go-version
+print-go-version:
+	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
 
 # Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker

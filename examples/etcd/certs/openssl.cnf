@@ -59,9 +59,10 @@ commonName                 = Common Name (FQDN)
 [ req_attributes ]
 
 [ v3_ca ]
-basicConstraints       = CA:true
+basicConstraints       = critical,CA:true
 keyUsage               = keyCertSign,cRLSign
 subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always,issuer:always
 
 [ etcd_client ]
 basicConstraints       = CA:FALSE

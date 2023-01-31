@@ -27,11 +27,15 @@ PROTOC_VER ?= 3.6.1
 PROTOC_PLATFORM := linux-x86_64
 GOGO_PROTO_TAG ?= v1.3.2
 
-BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
-BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
-BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
-BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
-BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(RUNTIME)
+BUILDBOX_BASE_NAME ?= quay.io/gravitational/teleport-buildbox
+BUILDBOX_VERSION ?= $(RUNTIME)
+
+BUILDBOX=$(BUILDBOX_BASE_NAME):$(BUILDBOX_VERSION)
+BUILDBOX_FIPS=$(BUILDBOX_BASE_NAME)-fips:$(BUILDBOX_VERSION)
+BUILDBOX_CENTOS6=$(BUILDBOX_BASE_NAME)-centos6:$(BUILDBOX_VERSION)
+BUILDBOX_CENTOS7=$(BUILDBOX_BASE_NAME)-centos7:$(BUILDBOX_VERSION)
+BUILDBOX_ARM=$(BUILDBOX_BASE_NAME)-arm:$(BUILDBOX_VERSION)
+BUILDBOX_ARM_FIPS=$(BUILDBOX_BASE_NAME)-arm-fips:$(BUILDBOX_VERSION)
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -45,8 +49,11 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Drone
+# conditionally force the use of UID/GID 1000:1000 if we're running in Drone or Github Actions (in which case CI env var will be set)
 ifeq ("$(DRONE)","true")
+CI := true
+endif
+ifeq ("$(CI)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
@@ -146,6 +153,19 @@ buildbox-centos6:
 
 # CentOS 6 FIPS builds were removed in Teleport 7.0
 # https://github.com/gravitational/teleport/issues/7207
+
+#
+# Builds a Docker buildbox for CentOS 7 builds
+#
+.PHONY:buildbox-centos7
+buildbox-centos7:
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
+	docker build \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg GOLANG_VERSION=$(RUNTIME) \
+		--cache-from $(BUILDBOX_CENTOS7) \
+		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds
