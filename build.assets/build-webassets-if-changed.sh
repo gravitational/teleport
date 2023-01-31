@@ -52,7 +52,7 @@ for i in "${!SRC_DIRECTORIES[@]}"; do
 done
 
 function calculate_sha() {
-  #shellcheck disable=SC2086
+  #shellcheck disable=SC2005,SC2086
   echo "$(find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" -not \( -type d -name node_modules -prune \) -print0 | LC_ALL=C sort -z | cpio -0 -o 2>/dev/null | $SHASUM | tr -d " -")"
 }
 
