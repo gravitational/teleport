@@ -90,7 +90,7 @@ type entryInfo struct {
 // entry reported within a certain time window.
 type windowInfo struct {
 	// entryInfo contains information about the first log entry
-	// reported for this window such that logInfo.time represents
+	// reported for this window such that entryInfo.time represents
 	// the beginning of this time window.
 	entryInfo
 	// occurrences are the occurrences of logs entries (that share
