@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -2504,6 +2505,10 @@ func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// decompress the response body to be able to parse it.
+		if err := decompressInplace(memoryRW); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		status, err = f.handleDeleteCollectionReq(req, &sess.authContext, memoryRW, w)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2712,5 +2717,28 @@ func errorToKubeStatusReason(err error) metav1.StatusReason {
 		return metav1.StatusReasonTimeout
 	default:
 		return metav1.StatusReasonUnknown
+	}
+}
+
+// decompressInplace decompresses the response into the same buffer it was
+// written to.
+// If the response is not compressed, it does nothing.
+func decompressInplace(memoryRW *responsewriters.MemoryResponseWriter) error {
+	switch memoryRW.Header().Get(contentEncodingHeader) {
+	case contentEncodingGZIP:
+		_, decompressor, err := getResponseCompressorDecompressor(memoryRW.Header())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newBuf := bytes.NewBuffer(nil)
+		_, err = io.Copy(newBuf, memoryRW.Buffer())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		memoryRW.Buffer().Reset()
+		err = decompressor(memoryRW.Buffer(), newBuf)
+		return trace.Wrap(err)
+	default:
+		return nil
 	}
 }
