@@ -2425,6 +2425,35 @@ $ tctl devices add --os=macos --asset-tag=C00AA3BBBB6C --enroll
 # tsh device enroll --token=KKO1nmJ+VsGk+w1MqtAM8v428LoENHw/1ZcrSqitjzs
 ```
 
+### tctl devices enroll
+
+Create an enrollment token for a device.
+
+```code
+$ tctl devices enroll [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+#### Examples
+
+```code
+$ tctl devices enroll --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+# Run the command below on device "d40f2ee4-856d-4aef-b784-c4371e39c036" to enroll it:
+# tsh device enroll --token=gN/p5TJwZcyROT6zWYarmK0U5EXqkyZeTsgroaRWDu0
+
+$ tctl devices enroll --asset-tag=C00AA3BBBB6C
+# Run the command below on device "C00AA3BBBB6C" to enroll it:
+# tsh device enroll --token=9XJdnX67xNASU9uwR1DPJTXbxZpv8gnDobhSUAoZ4QI
+```
+
 ### tctl devices ls
 
 List registered devices.
@@ -2472,35 +2501,6 @@ $ tctl devices rm --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
 
 $ tctl devices rm --asset-tag=C00AA3BBBB6C
 # Device "C00AA3BBBB6C" removed
-```
-
-### tctl devices enroll
-
-Create an enrollment token for a device.
-
-```code
-$ tctl devices enroll [--device-id=ID] [--asset-tag=ASSET_TAG]
-```
-
-#### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--device-id` | none | string | Teleport device identifier |
-| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
-
-One of `--device-id` or `--asset-tag` must be present.
-
-#### Examples
-
-```code
-$ tctl devices enroll --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
-# Run the command below on device "d40f2ee4-856d-4aef-b784-c4371e39c036" to enroll it:
-# tsh device enroll --token=gN/p5TJwZcyROT6zWYarmK0U5EXqkyZeTsgroaRWDu0
-
-$ tctl devices enroll --asset-tag=C00AA3BBBB6C
-# Run the command below on device "C00AA3BBBB6C" to enroll it:
-# tsh device enroll --token=9XJdnX67xNASU9uwR1DPJTXbxZpv8gnDobhSUAoZ4QI
 ```
 
 ### tctl top
