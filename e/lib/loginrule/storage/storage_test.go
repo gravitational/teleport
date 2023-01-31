@@ -95,7 +95,7 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 					},
 				},
 			},
-			errorContains: "already exists",
+			errorContains: `login rule "map_rule" already exists`,
 			noUpsertError: true,
 		},
 		{
@@ -249,6 +249,10 @@ func TestGetLoginRule(t *testing.T) {
 			name:          "no_metadata",
 			errorContains: "unable to unmarshal login rule metadata from storage",
 		},
+		{
+			name:          "nonexistant",
+			errorContains: `login rule "nonexistant" is not found`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rule, err := p.s.GetLoginRule(ctx, tc.name)
@@ -399,6 +403,7 @@ func TestDeleteLoginRule(t *testing.T) {
 			require.NoError(t, err, "unexpected error from DeleteLoginRule")
 		} else {
 			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+			require.ErrorContains(t, err, fmt.Sprintf("login rule %q is not found", ruleName))
 		}
 	}
 

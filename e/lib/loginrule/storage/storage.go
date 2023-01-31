@@ -47,6 +47,9 @@ func (s *S) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 	}
 
 	_, err = s.backend().Create(ctx, *item)
+	if trace.IsAlreadyExists(err) {
+		return nil, trace.AlreadyExists("login rule %q already exists", rule.Metadata.Name)
+	}
 	return rule, trace.Wrap(err)
 }
 
@@ -68,7 +71,10 @@ func (s *S) UpsertLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 // GetLoginRule returns a login rule from the backend by name.
 func (s *S) GetLoginRule(ctx context.Context, name string) (*loginrulepb.LoginRule, error) {
 	item, err := s.backend().Get(ctx, loginRuleKey(name))
-	if err != nil {
+	switch {
+	case trace.IsNotFound(err):
+		return nil, trace.NotFound("login rule %q is not found", name)
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
@@ -153,6 +159,9 @@ func (s *S) ListLoginRules(ctx context.Context, requestedPageSize int, pageToken
 // NotFound error if item does not exist.
 func (s *S) DeleteLoginRule(ctx context.Context, name string) error {
 	err := s.backend().Delete(ctx, loginRuleKey(name))
+	if trace.IsNotFound(err) {
+		return trace.NotFound("login rule %q is not found", name)
+	}
 	return trace.Wrap(err)
 }
 
