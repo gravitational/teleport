@@ -53,8 +53,7 @@ done
 
 function calculate_sha() {
   #shellcheck disable=SC2086
-  find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" -not \( -type d -name node_modules -prune \) -print0 | LC_ALL=C sort -z | cpio -0 -o 2>/dev/null | $SHASUM | cut -f1 -d' '
-  return 0
+  echo "$(find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" -not \( -type d -name node_modules -prune \) -print0 | LC_ALL=C sort -z | cpio -0 -o 2>/dev/null | $SHASUM | tr -d " -")"
 }
 
 # Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
@@ -78,6 +77,7 @@ if [ "$BUILD" = "true" ]; then \
   # Recalculate the current SHA and record into the LAST_SHA_FILE. The make target is expected to have
   # created any necessary directories here. The recalculation is necessary as yarn.lock may have been
   # updated by the build process.
+  mkdir -p "$(dirname "$LAST_SHA_FILE")"
   calculate_sha > "$LAST_SHA_FILE"
   echo "$TYPE webassets successfully updated."
 else
