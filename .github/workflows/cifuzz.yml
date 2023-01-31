@@ -18,6 +18,7 @@ on:
 
 jobs:
   fuzzing:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     name: Fuzzing
     runs-on: ubuntu-22.04-32core
     permissions:

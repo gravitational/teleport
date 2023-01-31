@@ -9,12 +9,15 @@
         "podSecurityPolicy",
         "labels",
         "chartMode",
+        "validateConfigOnDeploy",
         "highAvailability",
+        "podMonitor",
         "tls",
         "image",
         "enterpriseImage",
         "log",
         "affinity",
+        "nodeSelector",
         "annotations",
         "extraVolumes",
         "extraVolumeMounts",
@@ -29,6 +32,42 @@
             "$id": "#/properties/clusterName",
             "type": "string",
             "default": ""
+        },
+        "auth": {
+            "$id": "#/properties/auth",
+            "type": "object"
+        },
+        "proxy": {
+            "$id": "#/properties/proxy",
+            "type": "object"
+        },
+        "createProxyToken": {
+            "$id": "#/properties/createProxyToken",
+            "type": "boolean",
+            "default": true
+        },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
         },
         "authentication": {
             "$id": "#/properties/authentication",
@@ -267,9 +306,14 @@
                 "standalone",
                 "aws",
                 "gcp",
-                "custom"
+                "scratch"
             ],
             "default": "standalone"
+        },
+        "validateConfigOnDeploy": {
+            "$id": "#/properties/validateConfigOnDeploy",
+            "type": "boolean",
+            "default": true
         },
         "standalone": {
             "$id": "#/properties/standalone",
@@ -619,6 +663,11 @@
             "type": "object",
             "default": {}
         },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
+            "type": "object",
+            "default": {}
+        },
         "annotations": {
             "$id": "#/properties/annotations",
             "type": "object",
@@ -789,6 +838,11 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "terminationGracePeriodSeconds": {
+            "$id": "#/properties/terminationGracePeriodSeconds",
+            "type": "integer",
+            "default": 60
         }
     }
 }

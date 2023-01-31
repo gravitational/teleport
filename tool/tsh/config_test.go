@@ -37,7 +37,6 @@ Host *.test-cluster localhost
     UserKnownHostsFile "/tmp/know_host"
     IdentityFile "/tmp/alice"
     CertificateFile "/tmp/localhost-cert.pub"
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
     HostKeyAlgorithms rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
 
 # Flags for all test-cluster hosts except the proxy

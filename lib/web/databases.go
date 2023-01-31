@@ -114,16 +114,29 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
+	database.SetOrigin(types.OriginDynamic)
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := clt.CreateDatabase(r.Context(), database); err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("failed to create database (%q already exists), please use another name", req.Name)
+		}
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */), nil
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDatabase(database, dbUsers, dbNames), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.

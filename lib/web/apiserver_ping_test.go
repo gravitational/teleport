@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestPing(t *testing.T) {
@@ -41,6 +42,7 @@ func TestPing(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		buildType  string // defaults to modules.BuildOSS
 		spec       *types.AuthPreferenceSpecV2
 		assertResp func(cap types.AuthPreference, resp *webclient.PingResponse)
 	}{
@@ -87,9 +89,50 @@ func TestPing(t *testing.T) {
 				assert.Equal(t, constants.PasswordlessConnector, resp.Auth.Local.Name, "Auth.Local.Name")
 			},
 		},
+		{
+			name:      "OK device trust mode=off",
+			buildType: modules.BuildOSS,
+			spec: &types.AuthPreferenceSpecV2{
+				// Configuration is unimportant, what counts here is that the build
+				// is OSS.
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+			},
+			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+				assert.True(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+			},
+		},
+		{
+			name:      "OK device trust mode=optional",
+			buildType: modules.BuildEnterprise,
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+				DeviceTrust: &types.DeviceTrust{
+					Mode: constants.DeviceTrustModeOptional,
+				},
+			},
+			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+				assert.False(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			buildType := test.buildType
+			if buildType == "" {
+				buildType = modules.BuildOSS
+			}
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: buildType,
+			})
+
 			cap, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
 			require.NoError(t, authServer.SetAuthPreference(ctx, cap))

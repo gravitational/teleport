@@ -111,6 +111,7 @@ func TestStart(t *testing.T) {
 				Addr:       test.addr,
 				HomeDir:    homeDir,
 				CertsDir:   certsDir,
+				PrehogAddr: "https://prehog:9999",
 				ListeningC: listeningC,
 			}
 

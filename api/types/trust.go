@@ -33,15 +33,21 @@ const (
 	UserCA CertAuthType = "user"
 	// DatabaseCA is a certificate authority used in database access.
 	DatabaseCA CertAuthType = "db"
+	// OpenSSHCA is a certificate authority used when connecting to agentless nodes.
+	OpenSSHCA CertAuthType = "openssh"
 	// JWTSigner identifies type of certificate authority as JWT signer. In this
 	// case JWT is not a certificate authority because it does not issue
 	// certificates but rather is an authority that signs tokens, however it behaves
 	// much like a CA in terms of rotation and storage.
 	JWTSigner CertAuthType = "jwt"
+	// CertAuthTypeAll is a special type that represents all CertAuthTypes.
+	// DEPRECATED, DELETE IN 13.0.0. For more information see:
+	// https://github.com/gravitational/teleport/issues/17493
+	CertAuthTypeAll CertAuthType = "all"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {

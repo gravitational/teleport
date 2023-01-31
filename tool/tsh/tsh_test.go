@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -61,6 +60,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
@@ -313,7 +313,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRoleV3("populist", types.RoleSpecV5{
+	populist, err := types.NewRole("populist", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -326,7 +326,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV5{})
+	dictator, err := types.NewRole("dictator", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -461,9 +461,9 @@ func TestLoginIdentityOut(t *testing.T) {
 		requiresTLSRouting bool
 	}{
 		{
-			name: "write indentity out",
+			name: "write identity out",
 			validationFunc: func(t *testing.T, identityPath string) {
-				_, err := client.KeyFromIdentityFile(identityPath)
+				_, err := identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
 				require.NoError(t, err)
 			},
 		},
@@ -851,6 +851,8 @@ func TestMakeClient(t *testing.T) {
 	agentKeys, err := tc.LocalAgent().ExtendedAgent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
+	require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
+		"private key policy should be configured from the identity file temp profile")
 }
 
 // accessApprover allows watching and updating access requests
@@ -916,16 +918,18 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{user.Username},
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
 
-	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV5{
+	perSessionMFARole, err := types.NewRole("mfa-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{user.Username},
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 		Options: types.RoleOptions{RequireSessionMFA: true},
 	})
@@ -1286,7 +1290,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	requester, err := types.NewRole("requester", types.RoleSpecV5{
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				SearchAsRoles: []string{"node-access"},
@@ -1295,7 +1299,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV5{
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{
 				"access": {"true"},
@@ -1525,7 +1529,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	requester, err := types.NewRoleV3("requester", types.RoleSpecV5{
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"access"},
@@ -1657,66 +1661,6 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
 	}
 	require.FailNow(t, "Timeout creating trusted cluster")
-}
-
-func TestIdentityRead(t *testing.T) {
-	t.Parallel()
-
-	// 3 different types of identities
-	ids := []string{
-		"cert-key.pem", // cert + key concatenated togther, cert first
-		"key-cert.pem", // cert + key concatenated togther, key first
-		"key",          // two separate files: key and key-cert.pub
-	}
-	for _, id := range ids {
-		// test reading:
-		k, err := client.KeyFromIdentityFile(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
-		require.NoError(t, err)
-		require.NotNil(t, k)
-
-		cb, err := k.HostKeyCallback(false)
-		require.NoError(t, err)
-		require.Nil(t, cb)
-
-		// test creating an auth method from the key:
-		am, err := k.AsAuthMethod()
-		require.NoError(t, err)
-		require.NotNil(t, am)
-	}
-	k, err := client.KeyFromIdentityFile("../../fixtures/certs/identities/lonekey")
-	require.Nil(t, k)
-	require.Error(t, err)
-
-	// lets read an indentity which includes a CA cert
-	k, err = client.KeyFromIdentityFile("../../fixtures/certs/identities/key-cert-ca.pem")
-	require.NoError(t, err)
-	require.NotNil(t, k)
-
-	cb, err := k.HostKeyCallback(true)
-	require.NoError(t, err)
-	require.NotNil(t, cb)
-
-	// prepare the cluster CA separately
-	certBytes, err := os.ReadFile("../../fixtures/certs/identities/ca.pem")
-	require.NoError(t, err)
-
-	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
-	require.NoError(t, err)
-
-	var a net.Addr
-	// host auth callback must succeed
-	require.NoError(t, cb(hosts[0], a, cert))
-
-	// load an identity which include TLS certificates
-	k, err = client.KeyFromIdentityFile("../../fixtures/certs/identities/tls.pem")
-	require.NoError(t, err)
-	require.NotNil(t, k)
-	require.NotNil(t, k.TLSCert)
-
-	// generate a TLS client config
-	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
-	require.NoError(t, err)
-	require.NotNil(t, conf)
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -2856,9 +2800,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role1", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2882,9 +2826,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2909,9 +2853,9 @@ func TestSerializeDatabases(t *testing.T) {
       ]
      }`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -2930,9 +2874,9 @@ func TestSerializeDatabases(t *testing.T) {
 			dbUsersData: `,
     "users": {}`,
 			roles: services.RoleSet{
-				&types.RoleV5{
+				&types.RoleV6{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV5{
+					Spec: types.RoleSpecV6{
 						Allow: types.RoleConditions{
 							Namespaces:     []string{apidefaults.Namespace},
 							DatabaseLabels: types.Labels{"*": []string{"*"}},
@@ -3520,9 +3464,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	roleDevStage := &types.RoleV5{
+	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
@@ -3534,9 +3478,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			},
 		},
 	}
-	roleDevProd := &types.RoleV5{
+	roleDevProd := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},

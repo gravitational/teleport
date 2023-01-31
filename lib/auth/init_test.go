@@ -710,6 +710,25 @@ spec:
   type: jwt
 sub_kind: jwt
 version: v2`
+	openSSHCAYAML = `kind: cert_authority
+metadata:
+  id: 1630513579536527000
+  name: me.localhost
+spec:
+  active_keys:
+    ssh:
+    - private_key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBeHpRdWtjUlhCR09nRDUrS3B1MGRrdVpXVjVsc294Wlp1cFRhRHdFcmYvQ1prOWFqCjRaZzJoeTBoUHl5SXRBRytIN08xRVYwZ0taWVRDWWs4REtiaFQ4ZWl3QldDNUhKaGtpYW9ZRStSUXpQTHd3STcKcElmb0t4ejR2WG5MRnNvWHVVY2hLTmhYdk1RZU9pVVJ3OVQ3L0RSREE0dDdsazlPY01jWE9ySHV3L2JxTTA0VApmTmhVeXhHVmhyTC90aFpQNDE4b04xZjZKQzZMU3grZThIM01iSEQralVGMjBVbU8wVUFLUHUwRXVQS3hkS2loCm1tbVZDZ3FaRWhBWjhrcklVYlV5R0tUemZjQyt4VFNrUEN3UE1qejg1aTJQVVBYS3hmVE00cW54QVh5VzRCSzYKeXo1Znk5UTgyalVESi9VS0JvSU92N1hUU2JhNUpDUHdiUUx4cHdJREFRQUJBb0lCQUJydU53MkYyYTNDT2pWaQpnRUFvOWtLUjJVSm1mNFZjMUN5aFN3bVVRdWs5QWNZMjBsa0JWdjNYWUJOR1ZnVGY1M0FwdjJUbGpoK1JKbW0zCm4rS2wvUGZvS1Z5R2kvZU9ieHB2RjN4TnhYbXNXdk8yTFpJRXZhSjJmRHBCYU85Znl1MUZiSG8xSlVkanpDSlkKT0pxZEJLUUgvTGRSK0JkT0NYQzl1YW81dStuS0RxZTZvaE1FZm5VUUpmeGd4QzNwMHhzRGkvNGovYWhCV3cvaApoZk02TUloaUlmZEhWNlN1MWlPQWlNbXNtcDBWSkd4OVR5SG9UZFdKWHkxYjRTNDh5L21rNjdNeThzUDJ0SXRHCksvdGxaaDFteDYwbCtscnZkTDZFVW9CVDVScXdCZDBCN0g3c1V0UkZjVVVkMVZBNXpMYVowYnhkbHVpL1dEMlcKaHVtOHJpRUNnWUVBN0hPZlN3OVRKQzIxSHFwb2kvUHRKOGZ5QjVMRXJaQTBmY21vd2VtMG55dTRyMVkxN2FSTwp6bU5qYmZtYWRrOU95RnJNaS9Ydm5pbW1wcnNmK3Z1dEVkeEJEK3JYMGJPZk52ZEl5NHNMNEFaN2JZSkdUVEk0ClVFREdPRVF2UkpUQmxhQ3hvMGVEcGVSbTZqamhjYjdmcHV6K3ZCaVB2ZFBHbExxU0JuaTczSDBDZ1lFQTE2dzYKazhzUDlCK251MFFkSVdRano0MU9wTzJlb2FKenhndFVRTnkyV0VuRi9ydk51K21ra1BtL0lWbWZvdzFOYXAwNApGL29FeHpUSWw2WkFCcUdjWUtHVDRNSjRlVS9QT2RsbWZtSE5DcThHTGs4TlRBaC9UdVFuZ0VKTDB2UE9Ta0wzCjMrWHg2N010MDhVUXNmRjlDQU8yS3BuQzhOOEw5NmhjOXp6ZTgvTUNnWUEwakptNVQ4V1ZnOGI5OHJkYmF6R28KcHFvbWZyclJLL3hPZkZQU0RNT0VvRzNpSWRISVo3elA1NHpBY3ptZDA1Qlp2THc2MnNTUExRaUpnNHJlOTdJRwpCeUk2akdHOGpDUDFUazNTVnF1ajlTelhNSjI1S0ZFVm5OK3d2NDZWdWsydm1GQUNUckYyVytWM1puN01EYlNjCjM0elpkc2Z6VXk2Ti9Vell2VnBhN1FLQmdRQ3NOZC9JSnpxajZhcmJBdlpudFRoTEFFQXR2WGNQQlZLQWJvZG0KQzFhbWhMSE9SMU50bXBCSEdzU2M4cDFmYXIzSVJhV0dyNktsRmVhZUFLZmJJNnhrRkdDcDlWNlJMMEwrcERNTQo4emJ3TXZVeWdQalRIMjNZSnFITDdpUHhXNi82NkNKWTY1a1NaVTVRYkdoNlRhTlNoUFF1YS95V3JPTTNhMzVnCkJJRGFOUUtCZ0dBSE5EOWVjcGpySElxUFgzekZUYm1uZjZORWl1SmN0aHpPN0hLZzI0Slh3V0FoRWJBaXpUYjQKRnY1VmY0d2dKc2xGSjFmNDdhVjJxSU5ncWJ5ajBMSlNjYksyOGlXVmIwZmxSbnJEZnd0amxaS2lneWRDTlZubApteUNBS2IyOTlZL1d0Y3NobjUxa29DdWtzSVA1VzJwZjk5M2pLbEw0OWNPN0l6N3VKbTEzCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+      public_key: c3NoLXJzYSBBQUFBQjNOemFDMXljMkVBQUFBREFRQUJBQUFCQVFESE5DNlJ4RmNFWTZBUG40cW03UjJTNWxaWG1XeWpGbG02bE5vUEFTdC84Sm1UMXFQaG1EYUhMU0UvTElpMEFiNGZzN1VSWFNBcGxoTUppVHdNcHVGUHg2TEFGWUxrY21HU0pxaGdUNUZETTh2REFqdWtoK2dySFBpOWVjc1d5aGU1UnlFbzJGZTh4QjQ2SlJIRDFQdjhORU1EaTN1V1QwNXd4eGM2c2U3RDl1b3pUaE44MkZUTEVaV0dzdisyRmsvalh5ZzNWL29rTG90TEg1N3dmY3hzY1A2TlFYYlJTWTdSUUFvKzdRUzQ4ckYwcUtHYWFaVUtDcGtTRUJueVNzaFJ0VElZcFBOOXdMN0ZOS1E4TEE4eVBQem1MWTlROWNyRjlNemlxZkVCZkpiZ0VyckxQbC9MMUR6YU5RTW45UW9HZ2c2L3RkTkp0cmtrSS9CdEF2R24K
+  additional_trusted_keys: {}
+  checking_keys:
+  - c3NoLXJzYSBBQUFBQjNOemFDMXljMkVBQUFBREFRQUJBQUFCQVFESE5DNlJ4RmNFWTZBUG40cW03UjJTNWxaWG1XeWpGbG02bE5vUEFTdC84Sm1UMXFQaG1EYUhMU0UvTElpMEFiNGZzN1VSWFNBcGxoTUppVHdNcHVGUHg2TEFGWUxrY21HU0pxaGdUNUZETTh2REFqdWtoK2dySFBpOWVjc1d5aGU1UnlFbzJGZTh4QjQ2SlJIRDFQdjhORU1EaTN1V1QwNXd4eGM2c2U3RDl1b3pUaE44MkZUTEVaV0dzdisyRmsvalh5ZzNWL29rTG90TEg1N3dmY3hzY1A2TlFYYlJTWTdSUUFvKzdRUzQ4ckYwcUtHYWFaVUtDcGtTRUJueVNzaFJ0VElZcFBOOXdMN0ZOS1E4TEE4eVBQem1MWTlROWNyRjlNemlxZkVCZkpiZ0VyckxQbC9MMUR6YU5RTW45UW9HZ2c2L3RkTkp0cmtrSS9CdEF2R24K
+  cluster_name: me.localhost
+  signing_alg: 3
+  signing_keys:
+  - LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBeHpRdWtjUlhCR09nRDUrS3B1MGRrdVpXVjVsc294Wlp1cFRhRHdFcmYvQ1prOWFqCjRaZzJoeTBoUHl5SXRBRytIN08xRVYwZ0taWVRDWWs4REtiaFQ4ZWl3QldDNUhKaGtpYW9ZRStSUXpQTHd3STcKcElmb0t4ejR2WG5MRnNvWHVVY2hLTmhYdk1RZU9pVVJ3OVQ3L0RSREE0dDdsazlPY01jWE9ySHV3L2JxTTA0VApmTmhVeXhHVmhyTC90aFpQNDE4b04xZjZKQzZMU3grZThIM01iSEQralVGMjBVbU8wVUFLUHUwRXVQS3hkS2loCm1tbVZDZ3FaRWhBWjhrcklVYlV5R0tUemZjQyt4VFNrUEN3UE1qejg1aTJQVVBYS3hmVE00cW54QVh5VzRCSzYKeXo1Znk5UTgyalVESi9VS0JvSU92N1hUU2JhNUpDUHdiUUx4cHdJREFRQUJBb0lCQUJydU53MkYyYTNDT2pWaQpnRUFvOWtLUjJVSm1mNFZjMUN5aFN3bVVRdWs5QWNZMjBsa0JWdjNYWUJOR1ZnVGY1M0FwdjJUbGpoK1JKbW0zCm4rS2wvUGZvS1Z5R2kvZU9ieHB2RjN4TnhYbXNXdk8yTFpJRXZhSjJmRHBCYU85Znl1MUZiSG8xSlVkanpDSlkKT0pxZEJLUUgvTGRSK0JkT0NYQzl1YW81dStuS0RxZTZvaE1FZm5VUUpmeGd4QzNwMHhzRGkvNGovYWhCV3cvaApoZk02TUloaUlmZEhWNlN1MWlPQWlNbXNtcDBWSkd4OVR5SG9UZFdKWHkxYjRTNDh5L21rNjdNeThzUDJ0SXRHCksvdGxaaDFteDYwbCtscnZkTDZFVW9CVDVScXdCZDBCN0g3c1V0UkZjVVVkMVZBNXpMYVowYnhkbHVpL1dEMlcKaHVtOHJpRUNnWUVBN0hPZlN3OVRKQzIxSHFwb2kvUHRKOGZ5QjVMRXJaQTBmY21vd2VtMG55dTRyMVkxN2FSTwp6bU5qYmZtYWRrOU95RnJNaS9Ydm5pbW1wcnNmK3Z1dEVkeEJEK3JYMGJPZk52ZEl5NHNMNEFaN2JZSkdUVEk0ClVFREdPRVF2UkpUQmxhQ3hvMGVEcGVSbTZqamhjYjdmcHV6K3ZCaVB2ZFBHbExxU0JuaTczSDBDZ1lFQTE2dzYKazhzUDlCK251MFFkSVdRano0MU9wTzJlb2FKenhndFVRTnkyV0VuRi9ydk51K21ra1BtL0lWbWZvdzFOYXAwNApGL29FeHpUSWw2WkFCcUdjWUtHVDRNSjRlVS9QT2RsbWZtSE5DcThHTGs4TlRBaC9UdVFuZ0VKTDB2UE9Ta0wzCjMrWHg2N010MDhVUXNmRjlDQU8yS3BuQzhOOEw5NmhjOXp6ZTgvTUNnWUEwakptNVQ4V1ZnOGI5OHJkYmF6R28KcHFvbWZyclJLL3hPZkZQU0RNT0VvRzNpSWRISVo3elA1NHpBY3ptZDA1Qlp2THc2MnNTUExRaUpnNHJlOTdJRwpCeUk2akdHOGpDUDFUazNTVnF1ajlTelhNSjI1S0ZFVm5OK3d2NDZWdWsydm1GQUNUckYyVytWM1puN01EYlNjCjM0elpkc2Z6VXk2Ti9Vell2VnBhN1FLQmdRQ3NOZC9JSnpxajZhcmJBdlpudFRoTEFFQXR2WGNQQlZLQWJvZG0KQzFhbWhMSE9SMU50bXBCSEdzU2M4cDFmYXIzSVJhV0dyNktsRmVhZUFLZmJJNnhrRkdDcDlWNlJMMEwrcERNTQo4emJ3TXZVeWdQalRIMjNZSnFITDdpUHhXNi82NkNKWTY1a1NaVTVRYkdoNlRhTlNoUFF1YS95V3JPTTNhMzVnCkJJRGFOUUtCZ0dBSE5EOWVjcGpySElxUFgzekZUYm1uZjZORWl1SmN0aHpPN0hLZzI0Slh3V0FoRWJBaXpUYjQKRnY1VmY0d2dKc2xGSjFmNDdhVjJxSU5ncWJ5ajBMSlNjYksyOGlXVmIwZmxSbnJEZnd0amxaS2lneWRDTlZubApteUNBS2IyOTlZL1d0Y3NobjUxa29DdWtzSVA1VzJwZjk5M2pLbEw0OWNPN0l6N3VKbTEzCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+  type: openssh
+sub_kind: openssh
+version: v2`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -719,6 +738,7 @@ func TestInit_bootstrap(t *testing.T) {
 	userCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
 	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	dbCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	osshCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
 
 	invalidHostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	invalidHostCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
@@ -728,6 +748,8 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
 	invalidDBCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
 	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
+	invalidOSSHCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
+	invalidOSSHCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 
 	tests := []struct {
 		name         string
@@ -738,35 +760,84 @@ func TestInit_bootstrap(t *testing.T) {
 			// Issue https://github.com/gravitational/teleport/issues/7853.
 			name: "OK bootstrap CAs",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.NoError,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					invalidHostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap User CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					invalidUserCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap JWT CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					invalidJWTCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Database CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), invalidDBCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					invalidDBCA.Clone(),
+					osshCA.Clone(),
+				)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "NOK bootstrap OpenSSH CA missing keys",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					invalidOSSHCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},

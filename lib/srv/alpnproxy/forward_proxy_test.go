@@ -155,3 +155,93 @@ func createForwardProxyWithConfig(t *testing.T, config ForwardProxyConfig) *Forw
 	}()
 	return forwardProxy
 }
+
+func TestMatchGCPRequests(t *testing.T) {
+	mkReq := func(url string) *http.Request {
+		request, err := http.NewRequest("GET", url, nil)
+		require.NoError(t, err)
+		return request
+	}
+
+	tests := []struct {
+		name string
+		req  *http.Request
+		want bool
+	}{
+		{
+			name: "non gcp, no port",
+			req:  mkReq("https://localhost/foo/bar"),
+			want: false,
+		},
+		{
+			name: "non gcp, port",
+			req:  mkReq("https://localhost:8080/foo/bar"),
+			want: false,
+		},
+		{
+			name: "non gcp, port, http",
+			req:  mkReq("http://localhost:1234/foo/bar"),
+			want: false,
+		},
+		{
+			name: "non gcp, port, no schema",
+			req:  mkReq("localhost:1234/foo/bar"),
+			want: false,
+		},
+
+		{
+			name: "gcp, no port",
+			req:  mkReq("https://compute.googleapis.com/foo/bar"),
+			want: true,
+		},
+		{
+			name: "gcp, port",
+			req:  mkReq("https://compute.googleapis.com:8080/foo/bar"),
+			want: true,
+		},
+		{
+			name: "gcp, port, http",
+			req:  mkReq("http://compute.googleapis.com:1234/foo/bar"),
+			want: true,
+		},
+
+		// NOTE: we only want to match XXX.googleapis.com.
+		{
+			name: "top level gcp, no port",
+			req:  mkReq("https://googleapis.com/foo/bar"),
+			want: false,
+		},
+		{
+			name: "top level gcp, port",
+			req:  mkReq("https://googleapis.com:8080/foo/bar"),
+			want: false,
+		},
+		{
+			name: "top level gcp, port, http",
+			req:  mkReq("http://googleapis.com:1234/foo/bar"),
+			want: false,
+		},
+
+		{
+			name: "fake gcp, no port",
+			req:  mkReq("https://compute.googleapis.com.fake.com/foo/bar"),
+			want: false,
+		},
+		{
+			name: "fake gcp, port",
+			req:  mkReq("https://compute.googleapis.com.fake.com:8080/foo/bar"),
+			want: false,
+		},
+		{
+			name: "fake gcp, port, http",
+			req:  mkReq("http://compute.googleapis.com.fake.com:1234/foo/bar"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, MatchGCPRequests(tt.req))
+		})
+	}
+}

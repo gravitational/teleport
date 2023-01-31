@@ -420,7 +420,7 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 }
 
 func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

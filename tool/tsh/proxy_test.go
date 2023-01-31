@@ -616,8 +616,6 @@ func TestEnvVarCommand(t *testing.T) {
 
 // TestList verifies "tsh ls" functionality
 func TestList(t *testing.T) {
-	t.Parallel()
-
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() {
@@ -630,6 +628,9 @@ func TestList(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+		}),
 	)
 	rootNodeAddress, err := s.root.NodeSSHAddr()
 	require.NoError(t, err)

@@ -6,65 +6,65 @@ is updated when new AMI versions are released.
 ### OSS
 
 ```
-# eu-north-1 v11.1.4 OSS: ami-0ed545af0be3f845d
-# ap-south-1 v11.1.4 OSS: ami-0a921ccbe6fb6ca7e
-# eu-west-1 v11.1.4 OSS: ami-0c174709a9656889b
-# eu-west-2 v11.1.4 OSS: ami-0ec54efcc61d8a3f9
-# eu-west-3 v11.1.4 OSS: ami-0977c39246ea00c46
-# ap-northeast-1 v11.1.4 OSS: ami-00777cf62e0501717
-# ap-northeast-2 v11.1.4 OSS: ami-0232235ceda60ca19
-# ap-northeast-3 v11.1.4 OSS: ami-0ef637e720b8b2414
-# sa-east-1 v11.1.4 OSS: ami-0ca54da031b122ed3
-# ca-central-1 v11.1.4 OSS: ami-0d519c1297a9fe1aa
-# ap-southeast-1 v11.1.4 OSS: ami-0ca4d4e51571ec9e6
-# ap-southeast-2 v11.1.4 OSS: ami-0cbd3ec1b8c54a45c
-# eu-central-1 v11.1.4 OSS: ami-085dcab623b43f2c4
-# us-east-1 v11.1.4 OSS: ami-0cd8bc8667f6a9b74
-# us-east-2 v11.1.4 OSS: ami-070ab9b8524cf489c
-# us-west-1 v11.1.4 OSS: ami-079ac82819875f779
-# us-west-2 v11.1.4 OSS: ami-035785c39f4ff3a0a
+# eu-north-1 v11.3.1 OSS: ami-05bab52db756df2b5
+# ap-south-1 v11.3.1 OSS: ami-053a44a56c0c7efcf
+# eu-west-1 v11.3.1 OSS: ami-0a7eafc04ec1f4fba
+# eu-west-2 v11.3.1 OSS: ami-0d0897d9f3687e18b
+# eu-west-3 v11.3.1 OSS: ami-086cc8d062528bf30
+# ap-northeast-1 v11.3.1 OSS: ami-02baf881b9ab0fc9d
+# ap-northeast-2 v11.3.1 OSS: ami-08138feec3b4afeb4
+# ap-northeast-3 v11.3.1 OSS: ami-0ee112d3ed6dd5536
+# sa-east-1 v11.3.1 OSS: ami-0bf6fc04e62ce4272
+# ca-central-1 v11.3.1 OSS: ami-0c9fa898fd3124dd6
+# ap-southeast-1 v11.3.1 OSS: ami-07e8cd230f38159d0
+# ap-southeast-2 v11.3.1 OSS: ami-0ee79a008f4c199be
+# eu-central-1 v11.3.1 OSS: ami-06d5d55c367d1c211
+# us-east-1 v11.3.1 OSS: ami-029d27476c7121301
+# us-east-2 v11.3.1 OSS: ami-09e1a9eba41c279bb
+# us-west-1 v11.3.1 OSS: ami-01f77b1dba3f0be01
+# us-west-2 v11.3.1 OSS: ami-0d1aadf6af5397bc8
 ```
 
 ### Enterprise
 
 ```
-# eu-north-1 v11.1.4 Enterprise: ami-089fd7e4525d8cbad
-# ap-south-1 v11.1.4 Enterprise: ami-0ca8a925316c6f5c8
-# eu-west-1 v11.1.4 Enterprise: ami-02a41bdc6c740c830
-# eu-west-2 v11.1.4 Enterprise: ami-02d80484571f770f6
-# eu-west-3 v11.1.4 Enterprise: ami-003b4329a6fbe5d6f
-# ap-northeast-1 v11.1.4 Enterprise: ami-08bf75df705ed65db
-# ap-northeast-2 v11.1.4 Enterprise: ami-0a37a406a3c1eb252
-# ap-northeast-3 v11.1.4 Enterprise: ami-09b9fc464e362f87c
-# sa-east-1 v11.1.4 Enterprise: ami-023af9b72419b90fd
-# ca-central-1 v11.1.4 Enterprise: ami-055f868a84c5736d9
-# ap-southeast-1 v11.1.4 Enterprise: ami-0fca33e38f4ac7ae7
-# ap-southeast-2 v11.1.4 Enterprise: ami-0aeafc0f11312bb43
-# eu-central-1 v11.1.4 Enterprise: ami-0b4d9502005714b6b
-# us-east-1 v11.1.4 Enterprise: ami-02c69b1774e4312af
-# us-east-2 v11.1.4 Enterprise: ami-09969654cd0ba34d1
-# us-west-1 v11.1.4 Enterprise: ami-03afa01ff5b0f726a
-# us-west-2 v11.1.4 Enterprise: ami-0b99dee872ac682fe
+# eu-north-1 v11.3.1 Enterprise: ami-06eaa169d39c4b7a8
+# ap-south-1 v11.3.1 Enterprise: ami-0cc15f432c98c46de
+# eu-west-1 v11.3.1 Enterprise: ami-0e61c7e61a32ef10e
+# eu-west-2 v11.3.1 Enterprise: ami-0d5f4d3695108acc2
+# eu-west-3 v11.3.1 Enterprise: ami-01c73dfc8d1c09953
+# ap-northeast-1 v11.3.1 Enterprise: ami-07a40a429ebaf26ec
+# ap-northeast-2 v11.3.1 Enterprise: ami-0e6284e419a35cedf
+# ap-northeast-3 v11.3.1 Enterprise: ami-072c275ae333b7ea5
+# sa-east-1 v11.3.1 Enterprise: ami-0443f87ec9ef48e82
+# ca-central-1 v11.3.1 Enterprise: ami-05421174d3cfba6e8
+# ap-southeast-1 v11.3.1 Enterprise: ami-0c3a3210e1e929563
+# ap-southeast-2 v11.3.1 Enterprise: ami-012c3afc2abf76f3c
+# eu-central-1 v11.3.1 Enterprise: ami-0ba070cd9b6bbf861
+# us-east-1 v11.3.1 Enterprise: ami-0f09ddbf8c18f2ee2
+# us-east-2 v11.3.1 Enterprise: ami-0c87c929807078543
+# us-west-1 v11.3.1 Enterprise: ami-0569ee8ee9ee15c6b
+# us-west-2 v11.3.1 Enterprise: ami-04c10e21f4cc48af0
 ```
 
 ### Enterprise FIPS
 
 ```
-# eu-north-1 v11.1.4 Enterprise FIPS: ami-01e39ee04b064f4ce
-# ap-south-1 v11.1.4 Enterprise FIPS: ami-035e91d0f8ad1910d
-# eu-west-1 v11.1.4 Enterprise FIPS: ami-01d2b066fefea1d22
-# eu-west-2 v11.1.4 Enterprise FIPS: ami-0ae2b91b073d375ce
-# eu-west-3 v11.1.4 Enterprise FIPS: ami-0f4e0d0cb11207167
-# ap-northeast-1 v11.1.4 Enterprise FIPS: ami-0bc0c20467518f7a7
-# ap-northeast-2 v11.1.4 Enterprise FIPS: ami-07624b3b8e91f5699
-# ap-northeast-3 v11.1.4 Enterprise FIPS: ami-09b9523d7b0361421
-# sa-east-1 v11.1.4 Enterprise FIPS: ami-0acc773aa43c5b707
-# ca-central-1 v11.1.4 Enterprise FIPS: ami-07f44b0cdfb47df43
-# ap-southeast-1 v11.1.4 Enterprise FIPS: ami-04d92e893f78cb8f5
-# ap-southeast-2 v11.1.4 Enterprise FIPS: ami-093c9dc662ad31768
-# eu-central-1 v11.1.4 Enterprise FIPS: ami-0d3f0e0dfa8c4df32
-# us-east-1 v11.1.4 Enterprise FIPS: ami-07f3716e939b43354
-# us-east-2 v11.1.4 Enterprise FIPS: ami-04bbe4a9b0cf85486
-# us-west-1 v11.1.4 Enterprise FIPS: ami-0199b912df46da2dd
-# us-west-2 v11.1.4 Enterprise FIPS: ami-0c8b06f1d24f646a1
+# eu-north-1 v11.3.1 Enterprise FIPS: ami-015ac38f98bcbac19
+# ap-south-1 v11.3.1 Enterprise FIPS: ami-0b7408fd83c1fc6c8
+# eu-west-1 v11.3.1 Enterprise FIPS: ami-02eab2843ece42680
+# eu-west-2 v11.3.1 Enterprise FIPS: ami-0294166e25adb66c2
+# eu-west-3 v11.3.1 Enterprise FIPS: ami-01dc5307b700cc5d6
+# ap-northeast-1 v11.3.1 Enterprise FIPS: ami-0baf17a12aa3840ec
+# ap-northeast-2 v11.3.1 Enterprise FIPS: ami-018f26c73bfc3b53a
+# ap-northeast-3 v11.3.1 Enterprise FIPS: ami-026222f82a520fbd4
+# sa-east-1 v11.3.1 Enterprise FIPS: ami-094343e8e5be536de
+# ca-central-1 v11.3.1 Enterprise FIPS: ami-00a924b88b7b597e3
+# ap-southeast-1 v11.3.1 Enterprise FIPS: ami-00e14b5cb1d2d56e8
+# ap-southeast-2 v11.3.1 Enterprise FIPS: ami-0d39c3f294edad3a9
+# eu-central-1 v11.3.1 Enterprise FIPS: ami-04262a0c004c002b9
+# us-east-1 v11.3.1 Enterprise FIPS: ami-0632d6a1c72e7f2ff
+# us-east-2 v11.3.1 Enterprise FIPS: ami-05625745631e55c12
+# us-west-1 v11.3.1 Enterprise FIPS: ami-03072cd764b93dca7
+# us-west-2 v11.3.1 Enterprise FIPS: ami-0d9b5bdd69f9fc36e
 ```

@@ -249,11 +249,11 @@ func (e *Engine) processPacket(packet *protocol.Packet) error {
 // authorizeConnection does authorization check for Cassandra connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := e.sessionCtx.GetAccessState(authPref)
 
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		e.sessionCtx.Database.GetProtocol(),
@@ -262,7 +262,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	)
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
-		mfaParams,
+		state,
 		dbRoleMatchers...,
 	)
 	if err != nil {
