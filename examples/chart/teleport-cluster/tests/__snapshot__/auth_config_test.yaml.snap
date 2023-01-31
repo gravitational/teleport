@@ -1,3 +1,17 @@
+adds a proxy token by default:
+  1: |
+    |
+      kind: token
+      version: v2
+      metadata:
+        name: RELEASE-NAME-proxy
+        expires: "2050-01-01T00:00:00Z"
+      spec:
+        roles: [Proxy]
+        join_method: kubernetes
+        kubernetes:
+          allow:
+            - service_account: "NAMESPACE:RELEASE-NAME-proxy"
 matches snapshot for acme-off.yaml:
   1: |
     |-
