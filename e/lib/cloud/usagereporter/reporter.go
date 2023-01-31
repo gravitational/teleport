@@ -164,13 +164,13 @@ func (r *UsageReporter) checkClusterAlert(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if b.Trial && len(alerts) == 0 {
+	if b.Trial && b.UpsellAlert && len(alerts) == 0 {
 		if err := r.tryCreateBuyTeleportAlert(ctx); err != nil {
 			r.Log.WithError(err).Error("Failed to try/create cluster alert for trial.")
 		}
 	}
 
-	if !b.Trial && len(alerts) != 0 {
+	if (!b.Trial || !b.UpsellAlert) && len(alerts) != 0 {
 		if err := r.tryRemoveBuyTeleportAlert(ctx); err != nil {
 			r.Log.WithError(err).Error("Failed to try/remove cluster alert for trial.")
 		}

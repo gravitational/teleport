@@ -164,6 +164,7 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 	trialBillingInfo := &cloudapi.GetBillingInformationResponse{
 		Trial:        true,
 		SelfEnrolled: true,
+		UpsellAlert:  true,
 	}
 
 	for _, test := range []struct {
@@ -200,7 +201,7 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 			shouldCreateAlert: false,
 			setupMocks: func(m *reporterMocks) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
-					return &cloudapi.GetBillingInformationResponse{Trial: true, SelfEnrolled: false}, nil
+					return &cloudapi.GetBillingInformationResponse{Trial: true, SelfEnrolled: false, UpsellAlert: true}, nil
 				}
 
 				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
@@ -224,10 +225,44 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 			shouldCreateAlert: false,
 			setupMocks: func(m *reporterMocks) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
-					return &cloudapi.GetBillingInformationResponse{Trial: false, SelfEnrolled: true}, nil
+					return &cloudapi.GetBillingInformationResponse{Trial: false, SelfEnrolled: true, UpsellAlert: true}, nil
 				}
 				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
 					return nil, trace.NotFound("not-found")
+				}
+
+				m.apiGetters.MockedSearchEvents = func() ([]apievents.AuditEvent, string, error) {
+					return []apievents.AuditEvent{
+						&apievents.SessionStart{},
+					}, "", nil
+				}
+
+				m.apiGetters.MockedUpsertClusterAlert = func(ctx context.Context, alert types.ClusterAlert) error {
+					ch <- alert
+					return nil
+				}
+			},
+		},
+		{
+			name:              "does not create alert for upsell alert false",
+			shouldCreateAlert: false,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return &cloudapi.GetBillingInformationResponse{Trial: true, SelfEnrolled: true, UpsellAlert: false}, nil
+				}
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return nil, trace.NotFound("not-found")
+				}
+
+				m.apiGetters.MockedSearchEvents = func() ([]apievents.AuditEvent, string, error) {
+					return []apievents.AuditEvent{
+						&apievents.SessionStart{},
+					}, "", nil
+				}
+
+				m.apiGetters.MockedUpsertClusterAlert = func(ctx context.Context, alert types.ClusterAlert) error {
+					ch <- alert
+					return nil
 				}
 			},
 		},
@@ -250,6 +285,17 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 						},
 					}, nil
 				}
+
+				m.apiGetters.MockedSearchEvents = func() ([]apievents.AuditEvent, string, error) {
+					return []apievents.AuditEvent{
+						&apievents.SessionStart{},
+					}, "", nil
+				}
+
+				m.apiGetters.MockedUpsertClusterAlert = func(ctx context.Context, alert types.ClusterAlert) error {
+					ch <- alert
+					return nil
+				}
 			},
 		},
 		{
@@ -266,6 +312,11 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 
 				m.apiGetters.MockedSearchEvents = func() ([]apievents.AuditEvent, string, error) {
 					return []apievents.AuditEvent{}, "", nil
+				}
+
+				m.apiGetters.MockedUpsertClusterAlert = func(ctx context.Context, alert types.ClusterAlert) error {
+					ch <- alert
+					return nil
 				}
 			},
 		},
@@ -284,9 +335,12 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 				insertedAlert = a
 			default:
 			}
+
 			if test.shouldCreateAlert {
 				require.NotNil(t, insertedAlert)
 				require.Equal(t, buyTeleportAlertName, insertedAlert.Metadata.Name)
+			} else {
+				require.Equal(t, "", insertedAlert.Metadata.Name)
 			}
 		})
 	}
@@ -297,6 +351,7 @@ func TestCheckClusterAlertTryRemoveBuyTeleportAlert(t *testing.T) {
 	trialBillingInfo := &cloudapi.GetBillingInformationResponse{
 		Trial:        true,
 		SelfEnrolled: true,
+		UpsellAlert:  true,
 	}
 
 	for _, test := range []struct {
@@ -305,11 +360,11 @@ func TestCheckClusterAlertTryRemoveBuyTeleportAlert(t *testing.T) {
 		setupMocks        func(*reporterMocks)
 	}{
 		{
-			name:              "removes alert if criteria is met",
+			name:              "removes existing alert if trial is false",
 			shouldRemoveAlert: true,
 			setupMocks: func(m *reporterMocks) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
-					return &cloudapi.GetBillingInformationResponse{Trial: false, SelfEnrolled: true}, nil
+					return &cloudapi.GetBillingInformationResponse{Trial: false, SelfEnrolled: true, UpsellAlert: true}, nil
 				}
 
 				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
@@ -331,11 +386,37 @@ func TestCheckClusterAlertTryRemoveBuyTeleportAlert(t *testing.T) {
 			},
 		},
 		{
-			name:              "does not remove if not self-enrolled",
+			name:              "removes existing alert if upsell alert is false",
+			shouldRemoveAlert: true,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return &cloudapi.GetBillingInformationResponse{Trial: true, SelfEnrolled: true, UpsellAlert: false}, nil
+				}
+
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return []types.ClusterAlert{
+						{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: buyTeleportAlertName,
+								},
+							},
+						},
+					}, nil
+				}
+
+				m.apiGetters.MockedDeleteClusterAlert = func(ctx context.Context, alertID string) error {
+					ch <- alertID
+					return nil
+				}
+			},
+		},
+		{
+			name:              "does not remove existing alert if based on self enrolled",
 			shouldRemoveAlert: false,
 			setupMocks: func(m *reporterMocks) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
-					return &cloudapi.GetBillingInformationResponse{Trial: false, SelfEnrolled: false}, nil
+					return &cloudapi.GetBillingInformationResponse{Trial: true, SelfEnrolled: false, UpsellAlert: true}, nil
 				}
 
 				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
@@ -357,7 +438,7 @@ func TestCheckClusterAlertTryRemoveBuyTeleportAlert(t *testing.T) {
 			},
 		},
 		{
-			name:              "does not remove if trial account",
+			name:              "does not remove if upsell alert, trial and self enrolled are true",
 			shouldRemoveAlert: false,
 			setupMocks: func(m *reporterMocks) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
