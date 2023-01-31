@@ -760,7 +760,7 @@ fi
 
 # select correct URL/installation method based on distro
 if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-    URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+    URL="https://get.gravitational.com/{{.packageName}}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
 
     # check that needed tools are installed
     check_exists_fatal curl tar
