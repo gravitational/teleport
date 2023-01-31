@@ -99,10 +99,8 @@ func New(cfg Config) (*Mux, error) {
 		trace.Component: teleport.Component("mx", cfg.ID),
 	})
 	logLimiter, err := loglimit.New(loglimit.Config{
-		Entry:           entry,
-		LogLevel:        log.WarnLevel,
-		DebugReport:     true,
-		ErrorSubstrings: errorSubstrings,
+		Entry:         entry,
+		LogSubstrings: errorSubstrings,
 		// ChannelSize is set to 0 (creating an unbuffered channel),
 		// since the channel is only written to when the goroutine
 		// responsible for a new connection is about to conclude its
@@ -260,7 +258,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	connWrapper, err := m.detect(conn)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			m.logLimiter.Log(err)
+			m.logLimiter.Log(log.WarnLevel, trace.DebugReport(err))
 		}
 		conn.Close()
 		return

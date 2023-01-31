@@ -28,112 +28,116 @@ import (
 func TestLogLimiter(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		desc              string
-		errorSubstrings   []string
-		errorsFirstBatch  []string
-		errorsSecondBatch []string
-		errorsAssert      func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string)
+		desc             string
+		logSubstrings    []string
+		logsFirstBatch   []string
+		logsSecondsBatch []string
+		logsAssert       func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string)
 	}{
 		{
-			desc: "errors that do not match error substrings are logged",
-			errorSubstrings: []string{
+			desc: "logs that do not match log substrings are logged",
+			logSubstrings: []string{
 				"A",
 			},
-			errorsFirstBatch: []string{
-				"B error 1",
-				"B error 2",
-				"C error 1",
+			logsFirstBatch: []string{
+				"B log 1",
+				"B log 2",
+				"C log 1",
 			},
-			errorsSecondBatch: []string{},
-			errorsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
+			logsSecondsBatch: []string{},
+			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
 				require.Len(t, loggedFirstBatch, 3)
 				require.Len(t, loggedSecondBatch, 0)
 
-				require.Equal(t, loggedFirstBatch[0], "B error 1")
-				require.Equal(t, loggedFirstBatch[1], "B error 2")
-				require.Equal(t, loggedFirstBatch[2], "C error 1")
+				require.Equal(t, loggedFirstBatch[0], "B log 1")
+				require.Equal(t, loggedFirstBatch[1], "B log 2")
+				require.Equal(t, loggedFirstBatch[2], "C log 1")
 			},
 		},
 		{
-			desc: "errors that match error substrings are deduplicated",
-			errorSubstrings: []string{
+			desc: "logs that match log substrings are deduplicated",
+			logSubstrings: []string{
 				"A",
 				"B",
 			},
-			errorsFirstBatch: []string{
-				"A error 1",
-				"B error 1",
-				"B error 2",
-				"B error 3",
-				"C error 1",
+			logsFirstBatch: []string{
+				"A log 1",
+				"B log 1",
+				"B log 2",
+				"B log 3",
+				"C log 1",
 			},
-			errorsSecondBatch: []string{},
-			errorsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
+			logsSecondsBatch: []string{},
+			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
 				require.Len(t, loggedFirstBatch, 4)
 				require.Len(t, loggedSecondBatch, 0)
 
-				require.Equal(t, loggedFirstBatch[0], "A error 1")
-				require.Equal(t, loggedFirstBatch[1], "B error 1")
-				require.Equal(t, loggedFirstBatch[2], "C error 1")
-				// "A error 1" does not get logged again as the number of occurrences is just 1
-				require.Equal(t, loggedFirstBatch[3], "B error 1 (errors containing \"B\" were seen 3 times in the past minute)")
+				require.Equal(t, loggedFirstBatch[0], "A log 1")
+				require.Equal(t, loggedFirstBatch[1], "B log 1")
+				require.Equal(t, loggedFirstBatch[2], "C log 1")
+				// "A log 1" does not get logged again as the number of occurrences is just 1
+				require.Equal(t, loggedFirstBatch[3], "B log 1 (logs containing \"B\" were seen 3 times in the past minute)")
 			},
 		},
 		{
-			desc: "errors are deduplicated over time windows",
-			errorSubstrings: []string{
+			desc: "logs are deduplicated over time windows",
+			logSubstrings: []string{
 				"A",
 				"B",
 			},
-			errorsFirstBatch: []string{
-				"A error 1",
-				"B error 1",
-				"B error 2",
-				"B error 3",
-				"C error 1",
+			logsFirstBatch: []string{
+				"A log 1",
+				"B log 1",
+				"B log 2",
+				"B log 3",
+				"C log 1",
 			},
-			errorsSecondBatch: []string{
-				"A error 1",
-				"A error 2",
-				"C error 1",
-				"A error 3",
-				"A error 4",
+			logsSecondsBatch: []string{
+				"A log 1",
+				"A log 2",
+				"C log 1",
+				"A log 3",
+				"A log 4",
 			},
-			errorsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
+			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
 				require.Len(t, loggedFirstBatch, 4)
 				require.Len(t, loggedSecondBatch, 3)
 
-				require.Equal(t, loggedFirstBatch[0], "A error 1")
-				require.Equal(t, loggedFirstBatch[1], "B error 1")
-				require.Equal(t, loggedFirstBatch[2], "C error 1")
-				// "A error 1" does not get logged again as the number of occurrences is just 1
-				require.Equal(t, loggedFirstBatch[3], "B error 1 (errors containing \"B\" were seen 3 times in the past minute)")
+				require.Equal(t, loggedFirstBatch[0], "A log 1")
+				require.Equal(t, loggedFirstBatch[1], "B log 1")
+				require.Equal(t, loggedFirstBatch[2], "C log 1")
+				// "A log 1" does not get logged again as the number of occurrences is just 1
+				require.Equal(t, loggedFirstBatch[3], "B log 1 (logs containing \"B\" were seen 3 times in the past minute)")
 
-				require.Equal(t, loggedSecondBatch[0], "A error 1")
-				require.Equal(t, loggedSecondBatch[1], "C error 1")
-				require.Equal(t, loggedSecondBatch[2], "A error 1 (errors containing \"A\" were seen 4 times in the past minute)")
+				require.Equal(t, loggedSecondBatch[0], "A log 1")
+				require.Equal(t, loggedSecondBatch[1], "C log 1")
+				require.Equal(t, loggedSecondBatch[2], "A log 1 (logs containing \"A\" were seen 4 times in the past minute)")
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			// Create error deduplicator.
+			// Create log limiter.
 			// We purposely do not call Run (running the log limiter in a goroutine)
 			// so that we can manually control which actions are performed.
 			logger, hook := logtest.NewNullLogger()
+			entry := logger.WithField("from", "loglimit")
 			clock := clockwork.NewFakeClock()
 			logLimiter, err := New(Config{
-				Entry:           logger.WithField("from", "errordedup"),
-				LogLevel:        log.InfoLevel,
-				ErrorSubstrings: tc.errorSubstrings,
-				Clock:           clock,
+				LogSubstrings: tc.logSubstrings,
+				Clock:         clock,
 			})
 			require.NoError(t, err)
 
-			// Send first batch of errors to log limiter.
-			for _, err := range tc.errorsFirstBatch {
-				logLimiter.deduplicate(err)
+			// Send first batch of logs to log limiter.
+			for _, message := range tc.logsFirstBatch {
+				logLimiter.deduplicate(entryInfo{
+					entry:   entry,
+					level:   log.InfoLevel,
+					message: message,
+					time:    clock.Now(),
+				})
 			}
 
 			// Make enough time pass and run cleanup
@@ -142,12 +146,17 @@ func TestLogLimiter(t *testing.T) {
 			logLimiter.cleanup()
 
 			// Retrieve what was logged after the first batch.
-			loggedFirstBatch := toErrorMessages(hook.AllEntries())
+			loggedFirstBatch := toLogMessages(hook.AllEntries())
 			hook.Reset()
 
-			// Send second batch of errors to log limiter.
-			for _, err := range tc.errorsSecondBatch {
-				logLimiter.deduplicate(err)
+			// Send second batch of logs to log limiter.
+			for _, message := range tc.logsSecondsBatch {
+				logLimiter.deduplicate(entryInfo{
+					entry:   entry,
+					level:   log.InfoLevel,
+					message: message,
+					time:    clock.Now(),
+				})
 			}
 
 			// Make enough time pass so that a new window starts and prior windows are logged.
@@ -155,17 +164,17 @@ func TestLogLimiter(t *testing.T) {
 			logLimiter.cleanup()
 
 			// Retrieve what was logged after the second batch.
-			loggedSecondBatch := toErrorMessages(hook.AllEntries())
+			loggedSecondBatch := toLogMessages(hook.AllEntries())
 			hook.Reset()
 
 			// Run assert on what was logged.
-			tc.errorsAssert(t, loggedFirstBatch, loggedSecondBatch)
+			tc.logsAssert(t, loggedFirstBatch, loggedSecondBatch)
 		})
 	}
 }
 
-// toErrorMessages retries the error messages from log entries.
-func toErrorMessages(entries []*log.Entry) []string {
+// toLogMessages retrieves the log messages from log entries.
+func toLogMessages(entries []*log.Entry) []string {
 	result := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		result = append(result, entry.Message)
