@@ -1267,7 +1267,7 @@ func TestResizeTerminal(t *testing.T) {
 
 	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
-	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID))
+	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
 
@@ -1897,6 +1897,7 @@ func TestActiveSessions(t *testing.T) {
 		require.Equal(t, s.node.GetInfo().GetHostname(), session.ServerHostname)
 		require.Equal(t, s.srvID, session.ServerAddr)
 		require.Equal(t, s.server.ClusterName(), session.ClusterName)
+		require.ElementsMatch(t, []types.SessionParticipantMode{"peer"}, session.ParticipantModes)
 	}
 }
 
@@ -6132,6 +6133,10 @@ func withServer(target string) terminalOpt {
 
 func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
+}
+
+func withParticipantMode(m types.SessionParticipantMode) terminalOpt {
+	return func(t *TerminalRequest) { t.ParticipantMode = m }
 }
 
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {
