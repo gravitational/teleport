@@ -117,13 +117,13 @@ demonstrated in the following section.
 Make sure your user has the `device-admin` role:
 
 ```code
-$ tctl edit users/codingllama
+$ tctl edit users/alice
 ```
 
 ```diff
 kind: user
 metadata:
-  name: codingllama
+  name: alice
   # unrelated fields omitted.
 spec:
   roles:
@@ -135,7 +135,7 @@ version: v2
 Relogin to fetch updated certificates:
 
 ```code
-$ tsh logout; tsh login --proxy=example.com --user=codingllama
+$ tsh logout; tsh login --proxy=example.com --user=alice
 ```
 
 Having the necessary permissions, let's add a device to the inventory. Replace
@@ -187,7 +187,7 @@ command printed by `tctl devices enroll`:
 $ tsh device enroll --token=MQi9gkOfyvdyNyN2moJZz9cqx/GyILR5uNu4NE9dxO8
 Device "C00AA3BBBB6C"/macOS enrolled
 
-$ tsh logout; tsh login --proxy=example.com --user=codingllama # fetch new certificates
+$ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificates
 ```
 
 <Admonition type="warning" title="macOS">
@@ -296,7 +296,7 @@ SSH, Database and Kubernetes access without a trusted device is now forbidden.
 For example, SSH access without a trusted device fails with the following error:
 
 ```code
-$ tsh ssh zarquon
+$ tsh ssh server1
 ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 ```
 
