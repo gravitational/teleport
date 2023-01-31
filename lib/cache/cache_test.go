@@ -2250,7 +2250,7 @@ func TestDatabaseServices(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = p.presenceS.UpsertDatabaseService(ctx, service)
+	_, err = p.databaseServices.UpsertDatabaseService(ctx, service)
 	require.NoError(t, err)
 
 	// Check that the DatabaseService is now in the backend.
@@ -2286,7 +2286,7 @@ func TestDatabaseServices(t *testing.T) {
 
 	// Update the DatabaseService and upsert it into the backend again.
 	service.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.presenceS.UpsertDatabaseService(context.Background(), service)
+	_, err = p.databaseServices.UpsertDatabaseService(context.Background(), service)
 	require.NoError(t, err)
 
 	// Check that the DatabaseService is in the backend and only one exists (so an
