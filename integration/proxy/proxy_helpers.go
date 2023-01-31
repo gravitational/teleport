@@ -512,7 +512,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 
 func makeNodeConfig(nodeName, proxyAddr string) *service.Config {
 	nodeConfig := service.MakeDefaultConfig()
-	nodeConfig.Version = defaults.TeleportConfigVersionV3
+	nodeConfig.Version = defaults.TeleportConfigVersionV4
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")
 	nodeConfig.ProxyServer = *utils.MustParseAddr(proxyAddr)
