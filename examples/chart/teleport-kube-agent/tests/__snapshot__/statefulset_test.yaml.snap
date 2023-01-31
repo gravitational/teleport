@@ -230,6 +230,23 @@ sets StatefulSet labels when specified:
             requests:
               storage: 128Mi
           storageClassName: aws-gp2
+sets by default a container security context:
+  1: |
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 9807
+  2: |
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 9807
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
     containers:
