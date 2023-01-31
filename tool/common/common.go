@@ -111,6 +111,7 @@ func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writ
 	// get any "on login" alerts
 	alertCtx, cancelAlertCtx := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
 	defer cancelAlertCtx()
+
 	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
 		Labels:   labels,
 		Severity: minSeverity,

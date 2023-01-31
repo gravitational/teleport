@@ -27,8 +27,11 @@ import type {
   PrimaryAuthType,
   PrivateKeyPolicy,
 } from 'shared/services';
+
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
+
+import type { ParticipantMode } from 'teleport/services/session';
 
 const cfg = {
   isEnterprise: false,
@@ -346,8 +349,15 @@ const cfg = {
     });
   },
 
-  getSshSessionRoute({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.routes.consoleSession, { clusterId, sid });
+  getSshSessionRoute({ clusterId, sid }: UrlParams, mode?: ParticipantMode) {
+    const basePath = generatePath(cfg.routes.consoleSession, {
+      clusterId,
+      sid,
+    });
+    if (mode) {
+      return `${basePath}?mode=${mode}`;
+    }
+    return basePath;
   },
 
   getPasswordTokenUrl(tokenId?: string) {
@@ -574,6 +584,7 @@ export interface UrlSshParams {
   login?: string;
   serverId?: string;
   sid?: string;
+  mode?: ParticipantMode;
   clusterId: string;
 }
 
