@@ -54,6 +54,7 @@ done
 function calculate_sha() {
   #shellcheck disable=SC2086
   find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" -not \( -type d -name node_modules -prune \) -print0 | LC_ALL=C sort -z | cpio -0 -o 2>/dev/null | $SHASUM | cut -f1 -d' '
+  return 0
 }
 
 # Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
