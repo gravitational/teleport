@@ -1115,8 +1115,8 @@ $ tsh device enroll --token=TOKEN
 #### Examples
 
 ```code
-$ tsh device enroll --token=f3oJYqWfO6XG1ZCIF+faz8HIpDye54LsRFObftGKVVU
-# Device "C00AA3BBBB6C"/macOS enrolled
+$ tsh device enroll --token=(=devicetrust.enroll_token=)
+# Device "(=devicetrust.asset_tag=)"/macOS enrolled
 ```
 
 ### tsh environment variables
@@ -2416,13 +2416,13 @@ $ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
 #### Examples
 
 ```code
-$ tctl devices add --os=macos --asset-tag=C00AA3BBBB6C
-# Device C00AA3BBBB6C/macOS added to the inventory
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=)
+# Device (=devicetrust.asset_tag=)/macOS added to the inventory
 
-$ tctl devices add --os=macos --asset-tag=C00AA3BBBB6C --enroll
-# Device C00AA3BBBB6C/macOS added to the inventory
-# Run the command below on device "C00AA3BBBB6C" to enroll it:
-# tsh device enroll --token=KKO1nmJ+VsGk+w1MqtAM8v428LoENHw/1ZcrSqitjzs
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=) --enroll
+# Device (=devicetrust.asset_tag=)/macOS added to the inventory
+# Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+# tsh device enroll --token=(=devicetrust.enroll_token=)
 ```
 
 ### tctl devices enroll
@@ -2447,11 +2447,11 @@ One of `--device-id` or `--asset-tag` must be present.
 ```code
 $ tctl devices enroll --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
 # Run the command below on device "d40f2ee4-856d-4aef-b784-c4371e39c036" to enroll it:
-# tsh device enroll --token=gN/p5TJwZcyROT6zWYarmK0U5EXqkyZeTsgroaRWDu0
+# tsh device enroll --token=(=devicetrust.enroll_token=)
 
-$ tctl devices enroll --asset-tag=C00AA3BBBB6C
-# Run the command below on device "C00AA3BBBB6C" to enroll it:
-# tsh device enroll --token=9XJdnX67xNASU9uwR1DPJTXbxZpv8gnDobhSUAoZ4QI
+$ tctl devices enroll --asset-tag=(=devicetrust.asset_tag=)
+# Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+# tsh device enroll --token=(=devicetrust.enroll_token=)
 ```
 
 ### tctl devices ls
@@ -2470,7 +2470,7 @@ $ tctl devices ls
 #
 # Asset Tag    OS    Enroll Status Device ID
 # ------------ ----- ------------- ------------------------------------
-# C00AA3BBBB6C macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+# (=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
 ```
 
 ### tctl devices rm
@@ -2499,8 +2499,8 @@ One of `--device-id` or `--asset-tag` must be present.
 $ tctl devices rm --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
 # Device "ac3590ec-87d4-4519-8e9e-2f35af0a9f85" removed
 
-$ tctl devices rm --asset-tag=C00AA3BBBB6C
-# Device "C00AA3BBBB6C" removed
+$ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
+# Device "(=devicetrust.asset_tag=)" removed
 ```
 
 ### tctl top

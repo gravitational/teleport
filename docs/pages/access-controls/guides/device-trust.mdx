@@ -145,7 +145,7 @@ the `$SERIAL` below with your macOS device serial number (visible under Apple ->
 ```code
 $ SERIAL="$(ioreg -c IOPlatformExpertDevice -d 2 | grep -i IOPlatformSerialNumber | awk -F'"' '{print $4}')"
 $ tctl devices add --os=macos --asset-tag="$SERIAL"
-Device C00AA3BBBB6C/macOS added to the inventory
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
 ```
 
 View registered devices:
@@ -154,7 +154,7 @@ View registered devices:
 $ tctl devices ls
 Asset Tag    OS    Enroll Status Device ID
 ------------ ----- ------------- ------------------------------------
-C00AA3BBBB6C macOS not enrolled  d40f2ee4-856d-4aef-b784-c4371e39c036
+(=devicetrust.asset_tag=) macOS not enrolled  d40f2ee4-856d-4aef-b784-c4371e39c036
 ```
 
 A registered device is a device that Teleport knows about. Once a registered
@@ -178,17 +178,17 @@ To create an enrollment token run the following command, where `--asset-tag` is
 the serial number of the device we want to enroll.
 
 ```code
-$ tctl devices enroll --asset-tag="C00AA3BBBB6C"
-Run the command below on device "C00AA3BBBB6C" to enroll it:
-tsh device enroll --token=MQi9gkOfyvdyNyN2moJZz9cqx/GyILR5uNu4NE9dxO8
+$ tctl devices enroll --asset-tag="(=devicetrust.asset_tag=)"
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
 ```
 
 To perform the enrollment ceremony, using the device specified above, type the
 command printed by `tctl devices enroll`:
 
 ```code
-$ tsh device enroll --token=MQi9gkOfyvdyNyN2moJZz9cqx/GyILR5uNu4NE9dxO8
-Device "C00AA3BBBB6C"/macOS enrolled
+$ tsh device enroll --token=(=devicetrust.enroll_token=)
+Device "(=devicetrust.asset_tag=)"/macOS enrolled
 
 $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificates
 ```
