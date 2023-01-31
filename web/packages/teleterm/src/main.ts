@@ -24,6 +24,7 @@ if (app.requestSingleInstanceLock()) {
 }
 
 function initializeApp(): void {
+  let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
   const appStateFileStorage = createFileStorage({
@@ -72,10 +73,30 @@ function initializeApp(): void {
     }
   );
 
-  app.on('will-quit', () => {
+  app.on('will-quit', async event => {
+    event.preventDefault();
+
     appStateFileStorage.putAllSync();
     globalShortcut.unregisterAll();
-    mainProcess.dispose();
+    try {
+      await mainProcess.dispose();
+    } catch (e) {
+      logger.error('Failed to gracefully dispose of main process', e);
+    } finally {
+      app.exit();
+    }
+  });
+
+  app.on('quit', () => {
+    if (devRelaunchScheduled) {
+      const [bin, ...args] = process.argv;
+      const child = spawn(bin, args, {
+        env: process.env,
+        detached: true,
+        stdio: 'inherit',
+      });
+      child.unref();
+    }
   });
 
   app.on('second-instance', () => {
@@ -86,14 +107,7 @@ function initializeApp(): void {
     if (mainProcess.settings.dev) {
       // allow restarts on F6
       globalShortcut.register('F6', () => {
-        mainProcess.dispose();
-        const [bin, ...args] = process.argv;
-        const child = spawn(bin, args, {
-          env: process.env,
-          detached: true,
-          stdio: 'inherit',
-        });
-        child.unref();
+        devRelaunchScheduled = true;
         app.quit();
       });
     }
