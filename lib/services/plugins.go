@@ -18,13 +18,26 @@ package services
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// Plugins is the plugin service
+type Plugins interface {
+	CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error
+	DeleteAllPlugins(ctx context.Context) error
+	DeletePlugin(ctx context.Context, name string) error
+	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
+	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
+	SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error
+	SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error
+}
 
 // MarshalPlugin marshals Plugin resource to JSON.
 func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
