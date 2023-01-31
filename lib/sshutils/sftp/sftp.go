@@ -25,6 +25,9 @@ import (
 	"io"
 	"io/fs"
 	"os"
+
+	// path.Join is intentionally used over filepath.Join because SFTP
+	// requires Linux-style path separators
 	"path"
 	"runtime"
 	"strings"
