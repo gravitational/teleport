@@ -193,6 +193,18 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 # user.
 USER root
 
+# Install Nodejs
+ARG NODE_VERSION
+ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
+ENV NODE_PATH="/usr/local/lib/nodejs-linux"
+ENV PATH="$PATH:${NODE_PATH}/bin"
+RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
+     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
+     mkdir -p ${NODE_PATH} && \
+     curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
+RUN corepack enable yarn
+
 # Install Go.
 ARG GOLANG_VERSION
 RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
@@ -252,7 +264,7 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.12.0" && \
+    VERSION="1.13.1" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
