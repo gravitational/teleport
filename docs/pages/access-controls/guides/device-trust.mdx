@@ -116,7 +116,11 @@ demonstrated in the following section.
 
 Make sure your user has the `device-admin` role:
 
-```yaml
+```code
+$ tctl edit users/codingllama
+```
+
+```diff
 kind: user
 metadata:
   name: codingllama
@@ -124,15 +128,14 @@ metadata:
 spec:
   roles:
   - access
-  - device-admin # add this line
++ - device-admin # add this line
 version: v2
 ```
 
-```code
-$ tctl edit users/codingllama
-user "codingllama" has been updated
+Relogin to fetch updated certificates:
 
-$ tsh logout; tsh login --proxy=example.com --user=codingllama ## fetch new certificates
+```code
+$ tsh logout; tsh login --proxy=example.com --user=codingllama
 ```
 
 Having the necessary permissions, let's add a device to the inventory. Replace
