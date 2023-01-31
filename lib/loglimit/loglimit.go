@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// timeWindow is the time window over which log errors are deduplicated.
+	// timeWindow is the time window over which logs are deduplicated.
 	timeWindow = time.Minute
 	// timeWindowCleanupInterval is the interval between cleanups of time
 	// windows that have already ended.
@@ -39,17 +39,9 @@ const (
 
 // Config contains the log limiter config.
 type Config struct {
-	// Entry is the logger entry.
-	Entry *log.Entry
-	// LogLevel is the log level at which errors will be logged.
-	// The default log level (0) is panic.
-	LogLevel log.Level
-	// DebugReport indicates whether a debug report should be generated
-	// for the errors reported.
-	DebugReport bool
-	// ErrorSubstrings contains a list of substrings belonging to the
-	// errors that should be deduplicated.
-	ErrorSubstrings []string
+	// LogSubstrings contains a list of substrings belonging to the
+	// logs that should be deduplicated.
+	LogSubstrings []string
 	// ChannelSize is the size of the channel used to send messages
 	// to the log limiter.
 	ChannelSize int
@@ -60,13 +52,8 @@ type Config struct {
 
 // checkAndSetDefaults verifies configuration and sets defaults
 func (c *Config) checkAndSetDefaults() error {
-	if c.Entry == nil {
-		c.Entry = log.WithFields(log.Fields{
-			trace.Component: "loglimit",
-		})
-	}
-	if c.ErrorSubstrings == nil {
-		return trace.BadParameter("missing parameter ErrorMessages")
+	if c.LogSubstrings == nil {
+		return trace.BadParameter("missing parameter LogSubstrings")
 	}
 	if c.ChannelSize < 0 {
 		return trace.BadParameter("ChannelSize must be at least 0")
@@ -77,26 +64,37 @@ func (c *Config) checkAndSetDefaults() error {
 	return nil
 }
 
-// LogLimiter deduplicates log errors over a certain time window.
+// LogLimiter deduplicates logs over a certain time window.
 type LogLimiter struct {
 	Config
-	// errorCh is used to send errors to the log limiter.
-	errorCh chan string
-	// errorMap contains deduplicated errors reported over
-	// certain time windows.
-	errorMap map[string]*errorWindowInfo
+	// entryCh is used to send log entries to the log limiter.
+	entryCh chan entryInfo
+	// windows is a mapping from log substring to an active
+	// time window.
+	windows map[string]*windowInfo
 }
 
-// errorWindowInfo contains the information necessary to deduplicate an error
-// reported within a certain time window.
-type errorWindowInfo struct {
-	// firstError is the first error reported within this window.
-	firstError string
-	// timeWindowStart is the beginning of the time window, i.e.,
-	// the time at which the error was first reported (for this window).
-	timeWindowStart time.Time
-	// occurrences are the occurrences of errors (that share the same
-	// error substring) within this window.
+// entryInfo contains information about a certain log entry.
+type entryInfo struct {
+	// entry is the logger entry.
+	entry *log.Entry
+	// level is the log level at which this log entry should be logged.
+	level log.Level
+	// message is the message message.
+	message string
+	// time is the at which the log reported.
+	time time.Time
+}
+
+// windowInfo contains the information necessary to deduplicate a log
+// entry reported within a certain time window.
+type windowInfo struct {
+	// entryInfo contains information about the first log entry
+	// reported for this window such that logInfo.time represents
+	// the beginning of this time window.
+	entryInfo
+	// occurrences are the occurrences of logs entries (that share
+	// the same log substring) within this window.
 	occurrences int
 }
 
@@ -107,99 +105,101 @@ func New(cfg Config) (*LogLimiter, error) {
 	}
 
 	return &LogLimiter{
-		Config:   cfg,
-		errorCh:  make(chan string, cfg.ChannelSize),
-		errorMap: make(map[string]*errorWindowInfo, len(cfg.ErrorSubstrings)),
+		Config:  cfg,
+		entryCh: make(chan entryInfo, cfg.ChannelSize),
+		windows: make(map[string]*windowInfo, len(cfg.LogSubstrings)),
 	}, nil
 }
 
-// Log sends an error to the log limiter.
-func (e *LogLimiter) Log(err error) {
-	var errMsg string
-	if e.DebugReport {
-		errMsg = trace.DebugReport(err)
-	} else {
-		errMsg = err.Error()
+// Log sends a log to the log limiter.
+func (l *LogLimiter) Log(entry *log.Entry, level log.Level, args ...any) {
+	l.entryCh <- entryInfo{
+		entry:   entry,
+		level:   level,
+		message: sprintln(args...),
+		time:    l.Clock.Now(),
 	}
-	e.errorCh <- errMsg
 }
 
 // Run runs the log limiter.
-func (e *LogLimiter) Run(ctx context.Context) {
-	t := e.Clock.NewTicker(timeWindowCleanupInterval)
+func (l *LogLimiter) Run(ctx context.Context) {
+	t := l.Clock.NewTicker(timeWindowCleanupInterval)
 	defer t.Stop()
 
 	for {
 		select {
-		case err := <-e.errorCh:
-			e.deduplicate(err)
+		case e := <-l.entryCh:
+			l.deduplicate(e)
 		case <-t.Chan():
-			e.cleanup()
+			l.cleanup()
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-// deduplicate logs errors if they should not be deduplicated.
-// Otherwise, it records error occurrences within a certain time window.
-func (e *LogLimiter) deduplicate(err string) {
-	// Log the error right away if it should not be deduplicated.
-	deduplicate, errSubstring := e.shouldDeduplicate(err)
+// deduplicate logs if they should not be deduplicated.
+// Otherwise, it records log occurrences within a certain time window.
+func (l *LogLimiter) deduplicate(e entryInfo) {
+	// Log right away if the log entry should not be deduplicated.
+	deduplicate, logSubstring := l.shouldDeduplicate(&e)
 	if !deduplicate {
-		e.log(err)
+		e.entry.Logln(e.level, e.message)
 		return
 	}
 
-	// If the error should be deduplicated, check if there's an active
+	// If the log should be deduplicated, check if there's an active
 	// window for it (i.e if it has been reported during the past minute).
-	info, ok := e.errorMap[errSubstring]
+	window, ok := l.windows[logSubstring]
 	if ok {
-		// If the error has already been logged, simply increase the
+		// If the log has already been logged, simply increase the
 		// number of occurrences.
-		info.occurrences++
+		window.occurrences++
 	} else {
-		// If this is the first occurrence, save the error and log it.
-		e.errorMap[errSubstring] = &errorWindowInfo{
-			firstError:      err,
-			timeWindowStart: e.Clock.Now(),
-			occurrences:     1,
+		// If this is the first occurrence, save the log entry and log it.
+		l.windows[logSubstring] = &windowInfo{
+			entryInfo:   e,
+			occurrences: 1,
 		}
-		e.log(err)
+		e.entry.Logln(e.level, e.message)
 	}
 }
 
-// cleanup removes time windows that have ended, logging the first error again
-// together with the number of occurrences (of errors that share the same error
-// substring) during the window.
-func (e *LogLimiter) cleanup() {
-	for errSubstring, info := range e.errorMap {
-		if e.Clock.Now().After(info.timeWindowStart.Add(timeWindow)) {
-			if info.occurrences > 1 {
-				e.log(fmt.Sprintf(
-					"%s (errors containing %q were seen %d times in the past minute)",
-					info.firstError,
-					errSubstring,
-					info.occurrences,
-				))
+// cleanup removes time windows that have ended, logging the first log message
+// again together with the number of occurrences (of logs that share the same
+// log substring) during the window.
+func (l *LogLimiter) cleanup() {
+	for logSubstring, e := range l.windows {
+		if l.Clock.Now().After(e.time.Add(timeWindow)) {
+			if e.occurrences > 1 {
+				e.entry.Logln(
+					e.level,
+					fmt.Sprintf(
+						"%s (logs containing %q were seen %d times in the past minute)",
+						e.message,
+						logSubstring,
+						e.occurrences,
+					),
+				)
 			}
-			delete(e.errorMap, errSubstring)
+			delete(l.windows, logSubstring)
 		}
 	}
 }
 
-// shouldDeduplicate returns true if the error should be deduplicated
-// (along with its error substring).
-func (e *LogLimiter) shouldDeduplicate(err string) (bool, string) {
-	for _, errSubstring := range e.ErrorSubstrings {
-		if strings.Contains(err, errSubstring) {
-			return true, errSubstring
+// shouldDeduplicate returns true if the log should be deduplicated.
+// In case true is returned, the log substring is also returned.
+func (l *LogLimiter) shouldDeduplicate(e *entryInfo) (bool, string) {
+	for _, logSubstring := range l.LogSubstrings {
+		if strings.Contains(e.message, logSubstring) {
+			return true, logSubstring
 		}
 	}
 	return false, ""
 }
 
-// log logs the error at the defined log level.
-func (e *LogLimiter) log(err string) {
-	e.Entry.Logln(e.LogLevel, err)
+// Copy from https://github.com/gravitational/logrus/blob/e8054db0174984d217379b503b3447021c54beef/entry.go#L436-L439
+func sprintln(args ...any) string {
+	msg := fmt.Sprintln(args...)
+	return msg[:len(msg)-1]
 }
