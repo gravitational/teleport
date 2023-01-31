@@ -17,7 +17,12 @@ limitations under the License.
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import * as Icons from 'design/Icon';
+
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { getOSSFeatures } from 'teleport/features';
+import TeleportContext from 'teleport/teleportContext';
+import { makeUserContext } from 'teleport/services/user';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { TopBar } from './TopBar';
 
@@ -26,38 +31,24 @@ export default {
 };
 
 export function Story() {
-  const props = {
-    ...defaultProps,
-  };
+  const ctx = new TeleportContext();
+
+  ctx.storeUser.state = makeUserContext({
+    cluster: {
+      name: 'test-cluster',
+      lastConnected: Date.now(),
+    },
+  });
+
   return (
     <Router history={createMemoryHistory()}>
-      <TopBar {...props} />
+      <TeleportContextProvider ctx={ctx}>
+        <FeaturesContextProvider value={getOSSFeatures()}>
+          <TopBar />
+        </FeaturesContextProvider>
+      </TeleportContextProvider>
     </Router>
   );
 }
-
-const defaultProps = {
-  clusterId: 'one',
-  hasClusterUrl: true,
-  popupItems: [
-    {
-      title: 'Help & Support',
-      exact: true,
-      Icon: Icons.ArrowDown,
-      getLink: () => 'test',
-    },
-    {
-      title: 'Account Settings',
-      exact: true,
-      Icon: Icons.ArrowDown,
-      getLink: () => 'test',
-    },
-  ],
-  username: 'mama',
-  title: 'Applications',
-  changeCluster: () => null,
-  loadClusters: () => Promise.resolve([]),
-  logout: () => null,
-};
 
 Story.storyName = 'TopBar';

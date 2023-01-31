@@ -221,6 +221,7 @@ export const Play = makeFontIcon('Play', 'icon-play');
 export const PowerSwitch = makeFontIcon('PowerSwitch', 'icon-power-switch');
 export const Profile = makeFontIcon('Profile', 'icon-profile');
 export const Question = makeFontIcon('Question', 'icon-question-circle');
+export const Refresh = makeFontIcon('Refresh', 'icon-redo2');
 export const Restore = makeFontIcon('Restore', 'icon-restore');
 export const Server = makeFontIcon('Server', 'icon-server');
 export const SettingsInputComposite = makeFontIcon(

@@ -46,7 +46,7 @@ pub fn from_unicode(s: Vec<u8>) -> RdpResult<String> {
 
 /// Converts a &str into a null-terminated UTF-8 encoded Vec<u8>
 pub fn to_utf8(s: &str) -> Vec<u8> {
-    format!("{}\x00", s).into_bytes()
+    format!("{s}\x00").into_bytes()
 }
 
 /// Takes a Rust string slice and calculates it's unicode size in bytes.

@@ -399,6 +399,13 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 }
 
 func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libevents.StreamWriter, error) {
+	// AuditWriter doesn't always respect the RecordOuptut field,
+	// so ensure the session isn't recorded by using a discard stream.
+	// See https://github.com/gravitational/teleport/issues/16773
+	if !record {
+		return &libevents.DiscardStream{}, nil
+	}
+
 	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
 		Component:    teleport.ComponentWindowsDesktop,
 		Namespace:    apidefaults.Namespace,
@@ -408,7 +415,7 @@ func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libeven
 		SessionID:    session.ID(sessionID),
 		Streamer:     s.streamer,
 		ServerID:     s.cfg.Heartbeat.HostUUID,
-		RecordOutput: record,
+		RecordOutput: true,
 	})
 }
 
@@ -873,6 +880,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
+		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MessageWriter: &monitorErrorSender{
 			log:     log,
 			tdpConn: tdpConn,

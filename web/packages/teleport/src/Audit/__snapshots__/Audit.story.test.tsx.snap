@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            165
+            167
           </strong>
            of
            
           <strong>
-            165
+            167
           </strong>
         </div>
         <button
@@ -436,6 +436,80 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Login Rule Deleted
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [nic] deleted a login rule [test_rule]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Login Rule Created
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [nic] created a login rule [test_rule]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"

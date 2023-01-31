@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -192,7 +194,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	user, role, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
 	require.NoError(t, err, "CreateUserAndRole")
 
-	userWithoutExtensions := &LocalUser{
+	userWithoutExtensions := LocalUser{
 		Username: user.GetName(),
 		Identity: tlsca.Identity{
 			Username:   user.GetName(),
@@ -200,7 +202,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			Principals: user.GetLogins(),
 		},
 	}
-	userWithExtensions := *userWithoutExtensions
+	userWithExtensions := userWithoutExtensions
 	userWithExtensions.Identity.DeviceExtensions = tlsca.DeviceExtensions{
 		DeviceID:     "deviceid1",
 		AssetTag:     "assettag1",
@@ -213,11 +215,12 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	})
 
 	tests := []struct {
-		name               string
-		deviceMode         string
-		disableDeviceAuthz bool
-		user               *LocalUser
-		wantErr            string
+		name                 string
+		deviceMode           string
+		disableDeviceAuthz   bool
+		user                 IdentityGetter
+		wantErr              string
+		wantCtxAuthnDisabled bool // defaults to disableDeviceAuthz
 	}{
 		{
 			name:       "user without extensions and mode=off",
@@ -239,7 +242,37 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 		{
 			name:       "user with extensions and mode=required",
 			deviceMode: constants.DeviceTrustModeRequired,
-			user:       &userWithExtensions,
+			user:       userWithExtensions,
+		},
+		{
+			name: "BuiltinRole: context always disabled",
+			user: BuiltinRole{
+				Role:        types.RoleProxy,
+				Username:    user.GetName(),
+				ClusterName: testServer.ClusterName,
+				Identity:    userWithoutExtensions.Identity,
+			},
+			wantCtxAuthnDisabled: true, // BuiltinRole ctx validation disabled by default
+		},
+		{
+			name:               "BuiltinRole: device authorization disabled",
+			disableDeviceAuthz: true,
+			user: BuiltinRole{
+				Role:        types.RoleProxy,
+				Username:    user.GetName(),
+				ClusterName: testServer.ClusterName,
+				Identity:    userWithoutExtensions.Identity,
+			},
+		},
+		{
+			name:               "RemoteBuiltinRole: device authorization disabled",
+			disableDeviceAuthz: true,
+			user: RemoteBuiltinRole{
+				Role:        types.RoleProxy,
+				Username:    user.GetName(),
+				ClusterName: testServer.ClusterName,
+				Identity:    userWithoutExtensions.Identity,
+			},
 		},
 	}
 	for _, test := range tests {
@@ -265,14 +298,152 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			require.NoError(t, err, "NewAuthorizer failed")
 
 			// Test!
-			userCtx := context.WithValue(ctx, ContextUser, *test.user)
-			_, gotErr := authorizer.Authorize(userCtx)
+			userCtx := context.WithValue(ctx, ContextUser, test.user)
+			authCtx, gotErr := authorizer.Authorize(userCtx)
 			if test.wantErr == "" {
 				assert.NoError(t, gotErr, "Authorize returned unexpected error")
 			} else {
 				assert.ErrorContains(t, gotErr, test.wantErr, "Authorize mismatch")
 				assert.True(t, trace.IsAccessDenied(gotErr), "Authorize returned err=%T, want trace.AccessDeniedError", gotErr)
 			}
+			if gotErr != nil {
+				return
+			}
+
+			// Verify that the auth.Context has the correct disableDeviceAuthorization
+			// value.
+			wantDisabled := test.disableDeviceAuthz || test.wantCtxAuthnDisabled
+			assert.Equal(
+				t, wantDisabled, authCtx.disableDeviceAuthorization,
+				"auth.Context.disableDeviceAuthorization not inherited from Authorizer")
 		})
 	}
+}
+
+func TestContext_GetAccessState(t *testing.T) {
+	localCtx := Context{
+		User:    &fakeCtxUser{}, // makes no difference in the outcomes.
+		Checker: &fakeCtxChecker{},
+		Identity: LocalUser{Identity: tlsca.Identity{
+			Username:   "llama",
+			Groups:     []string{"access", "editor", "llamas"},
+			Principals: []string{"llamas"},
+		}},
+	}
+
+	deviceExt := tlsca.DeviceExtensions{
+		DeviceID:     "deviceid1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	defaultSpec := &types.AuthPreferenceSpecV2{}
+
+	tests := []struct {
+		name          string
+		createAuthCtx func() *Context
+		authSpec      *types.AuthPreferenceSpecV2 // defaults to defaultSpec
+		want          services.AccessState
+	}{
+		{
+			name:          "local user",
+			createAuthCtx: func() *Context { return &localCtx },
+			want: services.AccessState{
+				EnableDeviceVerification: true, // default when acquired from auth.Context
+			},
+		},
+		{
+			name: "builtin role",
+			createAuthCtx: func() *Context {
+				ctx := localCtx
+				ctx.Identity = BuiltinRole{}
+				return &ctx
+			},
+			want: services.AccessState{
+				MFAVerified:              true, // builtin roles are always verified
+				EnableDeviceVerification: true, // default
+				DeviceVerified:           true, // builtin roles are always verified
+			},
+		},
+		{
+			name: "mfa: local user",
+			createAuthCtx: func() *Context {
+				ctx := localCtx
+				ctx.Checker = &fakeCtxChecker{state: services.AccessState{
+					MFARequired: services.MFARequiredAlways,
+				}}
+				localUser := ctx.Identity.(LocalUser)
+				localUser.Identity.MFAVerified = "my-device-UUID"
+				ctx.Identity = localUser
+				return &ctx
+			},
+			want: services.AccessState{
+				MFARequired:              services.MFARequiredAlways, // copied from AccessChecker
+				MFAVerified:              true,                       // copied from Identity
+				EnableDeviceVerification: true,
+			},
+		},
+		{
+			name: "device trust: local user",
+			createAuthCtx: func() *Context {
+				ctx := localCtx
+				localUser := ctx.Identity.(LocalUser)
+				localUser.Identity.DeviceExtensions = deviceExt
+				ctx.Identity = localUser
+				return &ctx
+			},
+			want: services.AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           true, // Identity extensions
+			},
+		},
+		{
+			name: "device authorization disabled",
+			createAuthCtx: func() *Context {
+				ctx := localCtx
+				localUser := ctx.Identity.(LocalUser)
+				localUser.Identity.DeviceExtensions = deviceExt
+				ctx.Identity = localUser
+				ctx.disableDeviceAuthorization = true
+				return &ctx
+			},
+			want: services.AccessState{
+				EnableDeviceVerification: false, // copied from Context
+				DeviceVerified:           true,  // Identity extensions
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			// Prepare AuthPreference.
+			spec := test.authSpec
+			if spec == nil {
+				spec = defaultSpec
+			}
+			authPref, err := types.NewAuthPreference(*spec)
+			require.NoError(t, err, "NewAuthPreference failed")
+
+			// Test!
+			got := test.createAuthCtx().GetAccessState(authPref)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("GetAccessState mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+// fakeCtxUser is used for auth.Context tests.
+type fakeCtxUser struct {
+	types.User
+}
+
+// fakeCtxChecker is used for auth.Context tests.
+type fakeCtxChecker struct {
+	services.AccessChecker
+	state services.AccessState
+}
+
+func (c *fakeCtxChecker) GetAccessState(_ types.AuthPreference) services.AccessState {
+	return c.state
 }

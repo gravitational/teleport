@@ -161,8 +161,6 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 		return nil, trace.Wrap(err)
 	}
 
-	c.clusterClient.PrivateKeyPolicy = pingResp.Auth.PrivateKeyPolicy
-
 	return pingResp, nil
 }
 
