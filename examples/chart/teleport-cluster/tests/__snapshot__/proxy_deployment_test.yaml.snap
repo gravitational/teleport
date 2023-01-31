@@ -88,7 +88,7 @@ should set nodeSelector when set in values:
         name: sshtun
         protocol: TCP
       - containerPort: 3026
-        name: k8s
+        name: kube
         protocol: TCP
       - containerPort: 3036
         name: mysql
@@ -181,7 +181,7 @@ should set resources when set in values:
         name: sshtun
         protocol: TCP
       - containerPort: 3026
-        name: k8s
+        name: kube
         protocol: TCP
       - containerPort: 3036
         name: mysql
@@ -263,7 +263,7 @@ should set securityContext when set in values:
         name: sshtun
         protocol: TCP
       - containerPort: 3026
-        name: k8s
+        name: kube
         protocol: TCP
       - containerPort: 3036
         name: mysql
