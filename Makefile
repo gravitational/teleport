@@ -98,7 +98,7 @@ endif
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
- 
+
 with_rdpclient := no
 RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
@@ -160,7 +160,7 @@ endif
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
-# PIV=yes and PIV=static enable static piv builds. This is used by the build 
+# PIV=yes and PIV=static enable static piv builds. This is used by the build
 # process to link a static library of libpcsclite for piv-go to connect to.
 #
 # PIV=dynamic enables dynamic piv builds. This can be used for local
@@ -222,8 +222,8 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 # Is this build targeting the same OS & architecture it is being compiled on, or
-# will it require cross-compilation? We need to know this (especially for ARM) so we 
-# can set the cross-compiler path (and possibly feature flags) correctly. 
+# will it require cross-compilation? We need to know this (especially for ARM) so we
+# can set the cross-compiler path (and possibly feature flags) correctly.
 IS_CROSS_BUILD = $(if $(filter-out $(ARCH), $(shell go env GOARCH)),yes)
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
@@ -238,7 +238,7 @@ CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 else ifeq ("$(ARCH)","arm64")
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced 
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced
 # featureset. Also, if we 're not guaranteed to be building natively on an arm64 system
 # then we'll need to configure the cross compiler.
 
@@ -445,9 +445,9 @@ build-archive:
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	
+
 #
-# make release-unix - Produces binary release tarballs for both OSS and 
+# make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
@@ -856,6 +856,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
+		-ignore 'web/**' \
 		-ignore 'ignoreme'
 
 .PHONY: lint-license
