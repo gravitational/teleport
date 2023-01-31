@@ -39,6 +39,7 @@ const colors = {
   light: '#FFFFFF',
 
   primary: {
+    darker: '#0C143D',
     main: '#1C254D',
     light: '#222C59',
     lighter: '#2C3A73',

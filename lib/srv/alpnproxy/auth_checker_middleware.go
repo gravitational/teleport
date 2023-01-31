@@ -63,3 +63,7 @@ func (m *AuthorizationCheckerMiddleware) HandleRequest(rw http.ResponseWriter, r
 
 	return false
 }
+
+func (m *AuthorizationCheckerMiddleware) HandleResponse(*http.Response) error {
+	return nil
+}

@@ -8270,7 +8270,8 @@ steps:
 - name: Tag and push image "teleport:v13-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8293,7 +8294,7 @@ steps:
 - name: Tag and push image "teleport:v13-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8316,7 +8317,8 @@ steps:
 - name: Tag and push image "teleport:v13-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8597,7 +8599,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8620,7 +8623,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8643,7 +8647,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8804,7 +8809,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8960,7 +8966,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -8983,7 +8990,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -9006,7 +9014,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -9306,7 +9315,8 @@ steps:
 - name: Tag and push image "teleport:v13-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -9334,7 +9344,7 @@ steps:
 - name: Tag and push image "teleport:v13-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -9362,7 +9372,8 @@ steps:
 - name: Tag and push image "teleport:v13-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -9471,7 +9482,8 @@ steps:
 - name: Tag and push image "teleport:v13-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9498,7 +9510,7 @@ steps:
 - name: Tag and push image "teleport:v13-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9525,7 +9537,8 @@ steps:
 - name: Tag and push image "teleport:v13-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9715,7 +9728,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -9743,7 +9757,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -9771,7 +9786,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -9881,7 +9897,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9909,7 +9926,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9936,7 +9954,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10072,7 +10091,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -10170,7 +10190,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10352,7 +10373,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -10380,7 +10402,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -10408,7 +10431,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -10518,7 +10542,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10546,7 +10571,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -10574,7 +10600,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -11095,7 +11122,8 @@ steps:
 - name: Tag and push image "teleport:v13-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -11131,7 +11159,7 @@ steps:
 - name: Tag and push image "teleport:v13-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -11167,7 +11195,8 @@ steps:
 - name: Tag and push image "teleport:v13-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -11284,7 +11313,8 @@ steps:
 - name: Tag and push image "teleport:v13-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -11312,7 +11342,7 @@ steps:
 - name: Tag and push image "teleport:v13-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -11340,7 +11370,8 @@ steps:
 - name: Tag and push image "teleport:v13-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -11441,7 +11472,8 @@ steps:
 - name: Tag and push image "teleport:v13-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -11468,7 +11500,7 @@ steps:
 - name: Tag and push image "teleport:v13-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -11495,7 +11527,8 @@ steps:
 - name: Tag and push image "teleport:v13-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -11829,7 +11862,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -11865,7 +11899,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -11901,7 +11936,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -12018,7 +12054,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -12046,7 +12083,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -12074,7 +12112,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -12176,7 +12215,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -12204,7 +12244,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -12231,7 +12272,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -12446,7 +12488,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -12551,7 +12594,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -12641,7 +12685,8 @@ steps:
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -12845,7 +12890,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -12881,7 +12927,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -12917,7 +12964,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -13034,7 +13082,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -13062,7 +13111,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -13090,7 +13140,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -13192,7 +13243,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -13220,7 +13272,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -13248,7 +13301,8 @@ steps:
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -13761,7 +13815,8 @@ steps:
 - name: Tag and push image "teleport:v12-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -13797,7 +13852,7 @@ steps:
 - name: Tag and push image "teleport:v12-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -13833,7 +13888,8 @@ steps:
 - name: Tag and push image "teleport:v12-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -13950,7 +14006,8 @@ steps:
 - name: Tag and push image "teleport:v12-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -13978,7 +14035,7 @@ steps:
 - name: Tag and push image "teleport:v12-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -14006,7 +14063,8 @@ steps:
 - name: Tag and push image "teleport:v12-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -14107,7 +14165,8 @@ steps:
 - name: Tag and push image "teleport:v12-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -14134,7 +14193,7 @@ steps:
 - name: Tag and push image "teleport:v12-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -14161,7 +14220,8 @@ steps:
 - name: Tag and push image "teleport:v12-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -14495,7 +14555,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -14531,7 +14592,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -14567,7 +14629,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -14684,7 +14747,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -14712,7 +14776,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -14740,7 +14805,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -14842,7 +14908,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -14870,7 +14937,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -14897,7 +14965,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -15112,7 +15181,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -15217,7 +15287,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -15307,7 +15378,8 @@ steps:
 - name: Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -15511,7 +15583,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -15547,7 +15620,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -15583,7 +15657,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -15700,7 +15775,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -15728,7 +15804,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -15756,7 +15833,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -15858,7 +15936,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -15886,7 +15965,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -15914,7 +15994,8 @@ steps:
 - name: Tag and push image "teleport-operator:v12-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -16427,7 +16508,8 @@ steps:
 - name: Tag and push image "teleport:v11-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -16463,7 +16545,7 @@ steps:
 - name: Tag and push image "teleport:v11-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -16499,7 +16581,8 @@ steps:
 - name: Tag and push image "teleport:v11-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -16616,7 +16699,8 @@ steps:
 - name: Tag and push image "teleport:v11-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -16644,7 +16728,7 @@ steps:
 - name: Tag and push image "teleport:v11-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -16672,7 +16756,8 @@ steps:
 - name: Tag and push image "teleport:v11-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
@@ -16773,7 +16858,8 @@ steps:
 - name: Tag and push image "teleport:v11-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -16800,7 +16886,7 @@ steps:
 - name: Tag and push image "teleport:v11-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -16827,7 +16913,8 @@ steps:
 - name: Tag and push image "teleport:v11-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -17161,7 +17248,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -17197,7 +17285,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -17233,7 +17322,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -17350,7 +17440,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -17378,7 +17469,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -17406,7 +17498,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -17508,7 +17601,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -17536,7 +17630,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -17563,7 +17658,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -17778,7 +17874,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -17883,7 +17980,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
@@ -17973,7 +18071,8 @@ steps:
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -18177,7 +18276,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -18213,7 +18313,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -18249,7 +18350,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -18366,7 +18468,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-amd64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -18394,7 +18497,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -18422,7 +18526,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/gravitational/teleport-operator:$(cat "/go/var/full-version")-arm64
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
@@ -18524,7 +18629,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -18552,7 +18658,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -18580,7 +18687,8 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -18817,6 +18925,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 07e009074925c70d220c660c6fef5ee1b113824e5fb4b8649972bdc2a8ac1e8e
+hmac: 3de17e0042d8a3bd10bf8eb6eda2831aeb24f3a8979df51fcee2213f7f2522e3
 
 ...

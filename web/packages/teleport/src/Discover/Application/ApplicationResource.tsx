@@ -37,6 +37,7 @@ export function ApplicationResource(props: ApplicationResourceProps) {
       {content}
 
       <ActionButtons
+        hideExit={true}
         onProceed={() => props.onProceed()}
         disableProceed={props.disabled}
       />

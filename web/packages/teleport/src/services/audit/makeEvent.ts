@@ -1261,6 +1261,16 @@ export const formatters: Formatters = {
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
     },
   },
+  [eventCodes.LOGIN_RULE_CREATE]: {
+    type: 'login_rule.create',
+    desc: 'Login Rule Created',
+    format: ({ user, name }) => `User [${user}] created a login rule [${name}]`,
+  },
+  [eventCodes.LOGIN_RULE_DELETE]: {
+    type: 'login_rule.delete',
+    desc: 'Login Rule Deleted',
+    format: ({ user, name }) => `User [${user}] deleted a login rule [${name}]`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
