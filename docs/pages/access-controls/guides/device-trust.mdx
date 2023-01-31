@@ -227,7 +227,7 @@ To enable device mode `required` update your configuration as follows:
   <TabItem label="Static Config">
     Auth Server `teleport.yaml` file:
 
-    ```yaml
+    ```diff
     auth_service:
       authentication:
         type: local
@@ -235,14 +235,14 @@ To enable device mode `required` update your configuration as follows:
         webauthn:
           rp_id: example.com
         device_trust:
-          mode: "required" # add this line
+    +     mode: "required" # add this line
     ```
   </TabItem>
   <TabItem label="Dynamic resources">
     Create a `cap.yaml` file or get the existing configuration using
     `tctl get cluster_auth_preference`:
 
-    ```yaml
+    ```diff
     kind: cluster_auth_preference
     version: v2
     metadata:
@@ -253,7 +253,7 @@ To enable device mode `required` update your configuration as follows:
       webauthn:
         rp_id: example.com
       device_trust:
-        mode: "required" # add this line
+    +   mode: "required" # add this line
     ```
 
     Update the configuration:
