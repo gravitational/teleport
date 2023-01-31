@@ -1266,6 +1266,10 @@
         "monthly_downtime": "3 hours 40 minutes"
       }
     },
+    "devicetrust": {
+      "asset_tag": "C00AA0AAAA0A",
+      "enroll_token": "AAAAAAAAAAAAAAAAAAAAAAAA-this-is-an-example"
+    },
     "docker": {
       "version": "20.10.7",
       "compose": {
