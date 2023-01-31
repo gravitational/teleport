@@ -40,6 +40,7 @@ export class WindowsManager {
       backgroundColor: theme.colors.primary.darker,
       minWidth: 400,
       minHeight: 300,
+      show: false,
       autoHideMenuBar: true,
       title: 'Teleport Connect Preview',
       webPreferences: {
@@ -57,6 +58,8 @@ export class WindowsManager {
     window.once('close', () => {
       this.saveWindowState(window);
     });
+
+    window.once('ready-to-show', window.show);
 
     if (this.settings.dev) {
       window.loadURL('https://localhost:8080');
