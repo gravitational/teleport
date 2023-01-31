@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 // Package sftp handles file transfers client-side via SFTP
+// path.Join is intentionally used over filepath.Join because SFTP
+// requires Linux-style path separators
 package sftp
 
 import (
@@ -25,9 +27,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-
-	// path.Join is intentionally used over filepath.Join because SFTP
-	// requires Linux-style path separators
 	"path"
 	"runtime"
 	"strings"
