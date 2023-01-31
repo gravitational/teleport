@@ -842,7 +842,6 @@ func TestJoinScriptEnterprise(t *testing.T) {
 	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
 		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport_${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-${TELEPORT_VERSION}",
 	})
@@ -854,7 +853,6 @@ func TestJoinScriptEnterprise(t *testing.T) {
 
 	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
-		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-ent_${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-ent-${TELEPORT_VERSION}",
