@@ -105,6 +105,10 @@ func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	return nil
 }
 
+func (m *mockEC2Client) DescribeInstances(input *ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
+	return m.output, nil
+}
+
 func genEC2Instances(n int) []*ec2.Instance {
 	var ec2Instances []*ec2.Instance
 	for i := 0; i < n; i++ {
