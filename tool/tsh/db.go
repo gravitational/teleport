@@ -268,16 +268,19 @@ func onDatabaseLogin(cf *CLIConf) error {
 
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", db, tc.SiteName)
-	// When generating certificate for MongoDB access, database username must
-	// be encoded into it. This is required to be able to tell which database
-	// user to authenticate the connection as.
-	if db.Protocol == defaults.ProtocolMongoDB && db.Username == "" {
-		return trace.BadParameter("please provide the database user name using --db-user flag")
-	}
-	if db.Protocol == defaults.ProtocolRedis && db.Username == "" {
-		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
-		// ref: https://redis.io/commands/auth
-		db.Username = defaults.DefaultRedisUsername
+	if db.Username == "" {
+		switch db.Protocol {
+		// When generating certificate for MongoDB access, database username must
+		// be encoded into it. This is required to be able to tell which database
+		// user to authenticate the connection as.
+		// Elasticsearch needs database username too.
+		case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch:
+			return trace.BadParameter("please provide the database user name using the --db-user flag")
+		case defaults.ProtocolRedis:
+			// Default to "default" in the same way as Redis does. We need the username to check access on our side.
+			// ref: https://redis.io/commands/auth
+			db.Username = defaults.DefaultRedisUsername
+		}
 	}
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
