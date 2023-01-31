@@ -595,7 +595,13 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 		}
 	}
 
-	key.TrustedCerts, err = client.TrustedCertsFromCACerts(proxyHost, ident.CACerts.TLS, ident.CACerts.SSH)
+	knownHosts, err := sshutils.UnmarshalKnownHosts(ident.CACerts.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Use all Trusted certs found in the identity file.
+	key.TrustedCerts, err = client.TrustedCertsFromCACerts(ident.CACerts.TLS, knownHosts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
