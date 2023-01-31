@@ -791,10 +791,10 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
 	if r.Spec.Options.IDP == nil {
-		// By default, don't allow users to access the IdP.
+		// By default, allow users to access the IdP.
 		r.Spec.Options.IDP = &IdPOptions{
 			SAML: &IdPSAMLOptions{
-				Enabled: NewBoolOption(false),
+				Enabled: NewBoolOption(true),
 			},
 		}
 	}
