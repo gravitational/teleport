@@ -81,6 +81,9 @@ type TerminalRequest struct {
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
+
+	// ParticipantMode is the mode that determines what you can do when you join an active session.
+	ParticipantMode types.SessionParticipantMode `json:"mode"`
 }
 
 // AuthProvider is a subset of the full Auth API.
@@ -121,6 +124,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		term:               cfg.Term,
 		router:             cfg.Router,
 		tracer:             cfg.tracer,
+		participantMode:    cfg.ParticipantMode,
 	}, nil
 }
 
@@ -151,6 +155,8 @@ type TerminalHandlerConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
+	// ParticipantMode is the mode that determines what you can do when you join an active session.
+	ParticipantMode types.SessionParticipantMode
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -254,6 +260,9 @@ type TerminalHandler struct {
 
 	// tracer creates spans
 	tracer oteltrace.Tracer
+
+	// participantMode is the mode that determines what you can do when you join an active session.
+	participantMode types.SessionParticipantMode
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -721,7 +730,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunInteractiveShell(ctx, types.SessionPeerMode, nil); err != nil {
+	if err = nc.RunInteractiveShell(ctx, t.participantMode, nil); err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
 		t.writeError(err, ws)
 		return
@@ -788,6 +797,10 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 			t.wsLock.Unlock()
 			if err != nil {
+				if errors.Is(err, websocket.ErrCloseSent) {
+					logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
+					return
+				}
 				logger.WithError(err).Error("Unable to send audit event to web client")
 				continue
 			}
@@ -906,7 +919,7 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 
 	ty, bytes, err := ws.ReadMessage()
 	if err != nil {
-		if err == io.EOF || websocket.IsCloseError(err, 1006) {
+		if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 			return 0, io.EOF
 		}
 
