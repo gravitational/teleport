@@ -266,8 +266,8 @@ rewritten:
 
 - `Teleport-Jwt-Assertion`
 - `Cf-Access-Token`
-- any `X-Teleport-*`
-- any `X-Forwarded-*`
+- Any header matching the pattern `X-Teleport-*`
+- Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
 In the example above, `X-Internal-Trait` header will be populated with the value
