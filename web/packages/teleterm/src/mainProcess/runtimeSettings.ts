@@ -5,6 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import Logger from 'teleterm/logger';
+import { staticConfig } from 'teleterm/staticConfig';
 
 import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
@@ -30,8 +31,6 @@ const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 // Allows running tsh in insecure mode (development)
 const isInsecure = dev || argv.includes('--insecure');
 
-const PREHOG_ADDR = 'https://reporting-staging.teleportinfra.dev'; // TODO(gzdunek): change to prod before going live
-
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
   const {
@@ -53,7 +52,7 @@ function getRuntimeSettings(): RuntimeSettings {
       // for tshd we have to specify the protocol as well.
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
-      `--prehog-addr=${PREHOG_ADDR}`,
+      `--prehog-addr=${staticConfig.prehogAddress}`,
     ],
   };
   const sharedProcess = {
