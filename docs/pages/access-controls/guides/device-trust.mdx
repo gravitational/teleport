@@ -139,12 +139,12 @@ $ tsh logout; tsh login --proxy=example.com --user=alice
 ```
 
 Having the necessary permissions, let's add a device to the inventory. Replace
-the `$serial` below with your macOS device serial number (visible under Apple ->
-"About This Mac" -> "Serial number").
+the `$SERIAL` below with your macOS device serial number (visible under Apple ->
+"About This Mac" -> "Serial number", or use the command below).
 
 ```code
-$ serial="$(ioreg -c IOPlatformExpertDevice -d 2 | grep -i IOPlatformSerialNumber | awk -F'"' '{print $4}')"
-$ tctl devices add --os=macos --asset-tag="$serial"
+$ SERIAL="$(ioreg -c IOPlatformExpertDevice -d 2 | grep -i IOPlatformSerialNumber | awk -F'"' '{print $4}')"
+$ tctl devices add --os=macos --asset-tag="$SERIAL"
 Device C00AA3BBBB6C/macOS added to the inventory
 ```
 
@@ -162,7 +162,7 @@ device is enrolled, it becomes a trusted device.
 
 <Admonition type="tip" title="Removing Devices">
 A device that is no longer in use may be removed using `tctl devices rm
---device-id=<ID>` or `tctl devices rm --asset-tag=<SERIAL_NUMBER>`.
+--device-id=<ID>` or `tctl devices rm --asset-tag=<SERIAL>`.
 </Admonition>
 
 ## Step 2/2. Enroll a trusted device
@@ -170,6 +170,9 @@ A device that is no longer in use may be removed using `tctl devices rm
 A registered device becomes a trusted device after it goes through the
 enrollment ceremony. Enrollment exchanges an enrollment token, created by a
 device admin, for the opportunity to enroll the corresponding device.
+
+macOS enrollments are tied to the current user in the device. If the same device
+is handed to a new user, they will need to perform enrollment again.
 
 To create an enrollment token run the following command, where `--asset-tag` is
 the serial number of the device we want to enroll.
@@ -189,11 +192,6 @@ Device "C00AA3BBBB6C"/macOS enrolled
 
 $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificates
 ```
-
-<Admonition type="warning" title="macOS">
-macOS enrollments are tied to the current user in the device. If the same device
-is handed to a new user, they will need to perform enrollment again.
-</Admonition>
 
 The device above is now a trusted device.
 
@@ -222,55 +220,26 @@ preview. Only `tsh` and Teleport Connect are able to fulfill device mode
 
 To enable device mode `required` update your configuration as follows:
 
-<ScopedBlock scope={["enterprise"]}>
 <Tabs>
-  <TabItem label="Static Config">
-    Auth Server `teleport.yaml` file:
+<TabItem label="Static Config">
+Edit the Auth Server's `teleport.yaml` file:
 
-    ```diff
-    auth_service:
-      authentication:
-        type: local
-        second_factor: "on"
-        webauthn:
-          rp_id: example.com
-        device_trust:
-    +     mode: "required" # add this line
-    ```
-  </TabItem>
-  <TabItem label="Dynamic resources">
-    Create a `cap.yaml` file or get the existing configuration using
-    `tctl get cluster_auth_preference`:
-
-    ```diff
-    kind: cluster_auth_preference
-    version: v2
-    metadata:
-      name: cluster-auth-preference
-    spec:
-      type: local
-      second_factor: "on"
-      webauthn:
-        rp_id: example.com
-      device_trust:
-    +   mode: "required" # add this line
-    ```
-
-    Update the configuration:
-
-    ```code
-    $ tctl create -f cap.yaml
-    cluster auth preference has been updated
-    ```
-  </TabItem>
-</Tabs>
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud"]}>
+```diff
+auth_service:
+  authentication:
+    type: local
+    second_factor: "on"
+    webauthn:
+      rp_id: example.com
+    device_trust:
++     mode: "required" # add this line
+```
+</TabItem>
+<TabItem label="Dynamic resources">
 Create a `cap.yaml` file or get the existing configuration using
 `tctl get cluster_auth_preference`:
 
-```yaml
+```diff
 kind: cluster_auth_preference
 version: v2
 metadata:
@@ -281,7 +250,7 @@ spec:
   webauthn:
     rp_id: example.com
   device_trust:
-    mode: "required"
++   mode: "required" # add this line
 ```
 
 Update the configuration:
@@ -290,7 +259,8 @@ Update the configuration:
 $ tctl create -f cap.yaml
 cluster auth preference has been updated
 ```
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 SSH, Database and Kubernetes access without a trusted device is now forbidden.
 For example, SSH access without a trusted device fails with the following error:
