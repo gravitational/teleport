@@ -489,7 +489,7 @@ func TestPreflightConnection(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = appHandler.PreflightConnection(ctx, tc.publicAddr, clusterName)
+			err = appHandler.HealthCheckAppServer(ctx, tc.publicAddr, clusterName)
 			tc.expectErr(t, err)
 			require.Equal(t, int64(tc.expectedTunnelCalls), fakeRemoteSite.DialCount())
 		})

@@ -168,7 +168,7 @@ type webSuiteConfig struct {
 
 	// Custom "PreflightConnection" function. Can be used to avoid dialing app
 	// services.
-	PreflightConnection preflightAppConnectionFunc
+	PreflightConnection healthCheckAppServerFunc
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
