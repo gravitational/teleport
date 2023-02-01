@@ -139,8 +139,8 @@ func (l *LogLimiter) Run(ctx context.Context) {
 	}
 }
 
-// deduplicate logs if they should not be deduplicated.
-// Otherwise, it records log occurrences within a certain time window.
+// deduplicate logs a log entry if it should not be deduplicated.
+// Otherwise, it records its occurrence within a certain time window.
 func (l *LogLimiter) deduplicate(e *entryInfo) {
 	// Log right away if the log entry should not be deduplicated.
 	deduplicate, logSubstring := l.shouldDeduplicate(e)
