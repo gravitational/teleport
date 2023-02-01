@@ -34,11 +34,19 @@ if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
 module.exports = {
   appId: 'gravitational.teleport.connect',
   asar: true,
-  asarUnpack: '**\\*.{node,dll}',
+  asarUnpack: '**/*.{node,dll}',
   afterSign: 'notarize.js',
-  files: ['build/app/dist'],
+  files: [
+    'build/app/dist',
+    '!**/node_modules/node-pty/build/Release/.forge-meta',
+    '!**/node_modules/node-pty/bin',
+  ],
   mac: {
-    target: 'dmg',
+    target: {
+      target: 'dmg',
+      arch: 'universal',
+    },
+    x64ArchFiles: 'Contents/MacOS/tsh.app/Contents/MacOS/tsh',
     category: 'public.app-category.developer-tools',
     type: 'distribution',
     hardenedRuntime: true,
