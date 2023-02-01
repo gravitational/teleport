@@ -1042,3 +1042,119 @@ func newAccessRequest(t *testing.T, name string) types.AccessRequest {
 	require.NoError(t, err)
 	return accessRequest
 }
+
+// TestSAMLIdPServiceProviderWatcher tests that SAML IdP service provider resource watcher properly receives
+// and dispatches updates to SAML IdP service provider resources.
+func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.SAMLIdPServiceProviders
+		types.Events
+	}
+
+	spService := local.NewSAMLIdPServiceProviderService(bk)
+	w, err := services.NewSAMLIdPServiceProviderWatcher(ctx, services.SAMLIdPServiceProviderWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				SAMLIdPServiceProviders: spService,
+				Events:                  local.NewEventsService(bk),
+			},
+		},
+		PageSize:                 1, // Set page size to 1 to exercise pagination logic.
+		SAMLIdPServiceProvidersC: make(chan types.SAMLIdPServiceProviders, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Initially there are no service providers so watcher should send an empty list.
+	select {
+	case changeset := <-w.SAMLIdPServiceProvidersC:
+		require.Len(t, changeset, 0)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a service provider.
+	sp1 := newSAMLIdPServiceProvider(t, uuid.NewString())
+	require.NoError(t, spService.CreateSAMLIdPServiceProvider(ctx, sp1))
+
+	// The first event is always the current list of service providers.
+	select {
+	case changeset := <-w.SAMLIdPServiceProvidersC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], sp1))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second service provider.
+	sp2 := newSAMLIdPServiceProvider(t, uuid.NewString())
+	require.NoError(t, spService.CreateSAMLIdPServiceProvider(ctx, sp2))
+
+	// Watcher should detect the service provider list change.
+	select {
+	case changeset := <-w.SAMLIdPServiceProvidersC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the second event.")
+	}
+
+	// Change the second service provider.
+	sp2.SetEntityDescriptor("<updated />")
+	require.NoError(t, spService.UpdateSAMLIdPServiceProvider(ctx, sp2))
+
+	// Watcher should detect the service provider list change.
+	select {
+	case changeset := <-w.SAMLIdPServiceProvidersC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the updated event.")
+	}
+
+	// Delete the first service provider.
+	require.NoError(t, spService.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName()))
+
+	// Watcher should detect the service provider list change.
+	select {
+	case changeset := <-w.SAMLIdPServiceProvidersC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], sp2))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+func newSAMLIdPServiceProvider(t *testing.T, name string) types.SAMLIdPServiceProvider {
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: name,
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: "<valid />",
+		},
+	)
+	require.NoError(t, err)
+	return sp
+}
