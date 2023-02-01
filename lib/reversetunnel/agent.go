@@ -288,7 +288,7 @@ func (a *agent) updateState(state AgentState) (AgentState, error) {
 }
 
 // Start starts an agent returning after successfully connecting and sending
-// the first heatbeat.
+// the first heartbeat.
 func (a *agent) Start(ctx context.Context) error {
 	a.log.Debugf("Starting agent %v", a.addr)
 

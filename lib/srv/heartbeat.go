@@ -133,14 +133,14 @@ const (
 	HeartbeatModeKube
 	// HeartbeatModeApp sets heartbeat to apps and will use keep alives.
 	HeartbeatModeApp
-	// HeartbeatModeDB sets heatbeat to db
+	// HeartbeatModeDB sets heartbeat to db
 	HeartbeatModeDB
-	// HeartbeatModeDatabaseService sets heatbeat mode to DatabaseService.
+	// HeartbeatModeDatabaseService sets heartbeat mode to DatabaseService.
 	HeartbeatModeDatabaseService
-	// HeartbeatModeWindowsDesktopService sets heatbeat mode to windows desktop
+	// HeartbeatModeWindowsDesktopService sets heartbeat mode to windows desktop
 	// service.
 	HeartbeatModeWindowsDesktopService
-	// HeartbeatModeWindowsDesktop sets heatbeat mode to windows desktop.
+	// HeartbeatModeWindowsDesktop sets heartbeat mode to windows desktop.
 	HeartbeatModeWindowsDesktop
 )
 
