@@ -4319,6 +4319,13 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	case types.SAMLIDPCA:
+		// SAML IDP CA only contains TLS certs.
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	default:
 		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}
