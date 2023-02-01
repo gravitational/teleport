@@ -545,6 +545,15 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
+	if c.Spec.IDP == nil {
+		// Enable the IdP by default.
+		c.Spec.IDP = &IdPOptions{
+			SAML: &IdPSAMLOptions{
+				Enabled: NewBoolOption(true),
+			},
+		}
+	}
+
 	return nil
 }
 
