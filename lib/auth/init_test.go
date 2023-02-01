@@ -494,14 +494,14 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
 
-	// If a default allow rule is not present, ensure it gets added.
-	t.Run("AddDefaultAllowRules", func(t *testing.T) {
+	// If a default allow condition is not present, ensure it gets added.
+	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		rules := access.GetRules(types.Allow)
+		editorRole := services.NewPresetEditorRole()
+		rules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
 		// ConnectionDiagnostic is part of the default allow rules
@@ -512,15 +512,17 @@ func TestPresets(t *testing.T) {
 			}
 			outdatedRules = append(outdatedRules, r)
 		}
-		access.SetRules(types.Allow, outdatedRules)
+		editorRole.SetRules(types.Allow, outdatedRules)
+		// Remove the new DatabaseServiceLabels default
+		editorRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
 
-		err := as.CreateRole(ctx, access)
+		err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		out, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
 		allowRules := out.GetRules(types.Allow)
@@ -532,6 +534,9 @@ func TestPresets(t *testing.T) {
 			}
 			return false
 		}, "missing default rule")
+
+		allowedDatabaseServiceLabels := out.GetDatabaseServiceLabels(types.Allow)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, allowedDatabaseServiceLabels, "missing default DatabaseServiceLabels")
 	})
 
 	// Don't set a default allow rule if the resource is present in the role.
@@ -541,8 +546,8 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		allowRules := access.GetRules(types.Allow)
+		editorRole := services.NewPresetEditorRole()
+		allowRules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role,
 		// setting a deny rule for a default allow rule
@@ -553,21 +558,25 @@ func TestPresets(t *testing.T) {
 			}
 			outdateAllowRules = append(outdateAllowRules, r)
 		}
-		access.SetRules(types.Allow, outdateAllowRules)
+		editorRole.SetRules(types.Allow, outdateAllowRules)
+		// Remove a default allow label as well.
+		editorRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		// Explicitly deny DatabaseServiceLabels
+		editorRole.SetDatabaseServiceLabels(types.Deny, types.Labels{types.Wildcard: []string{types.Wildcard}})
 
 		// Explicitly deny Create to ConnectionDiagnostic
-		denyRules := access.GetRules(types.Deny)
+		denyRules := editorRole.GetRules(types.Deny)
 		denyConnectionDiagnosticRule := types.NewRule(types.KindConnectionDiagnostic, []string{types.VerbCreate})
 		denyRules = append(denyRules, denyConnectionDiagnosticRule)
-		access.SetRules(types.Deny, denyRules)
+		editorRole.SetRules(types.Deny, denyRules)
 
-		err := as.CreateRole(ctx, access)
+		err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		out, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
 		allowRules = out.GetRules(types.Allow)
@@ -579,6 +588,11 @@ func TestPresets(t *testing.T) {
 			}
 			return true
 		}, "missing default rule")
+
+		allowedDatabaseServiceLabels := out.GetDatabaseServiceLabels(types.Allow)
+		require.Nil(t, allowedDatabaseServiceLabels, "does not set Allowed DatabaseService Labels")
+		deniedDatabaseServiceLabels := out.GetDatabaseServiceLabels(types.Deny)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {

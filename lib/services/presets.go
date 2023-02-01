@@ -51,7 +51,8 @@ func NewPresetEditorRole() types.Role {
 				},
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
+				Namespaces:            []string{apidefaults.Namespace},
+				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindRole, RW()),
@@ -196,9 +197,22 @@ func defaultAllowRules() map[string][]types.Rule {
 	}
 }
 
-// AddDefaultAllowRules adds default rules to a preset role.
-// Only rules whose resources are not already defined (either allowing or denying) are added.
-func AddDefaultAllowRules(role types.Role) (types.Role, error) {
+// defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
+// This is used to update the current cluster roles when deploying a new resource.
+// The following Labels are supported:
+// - DatabaseServiceLabels (db_service_labels)
+func defaultAllowLabels() map[string]types.RoleConditions {
+	return map[string]types.RoleConditions{
+		teleport.PresetEditorRoleName: {
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	}
+}
+
+// AddDefaultAllowConditions adds default allow Role Conditions to a preset role.
+// Only rules/labels whose resources are not already defined (either allowing or denying) are added.
+func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
+	// Resource Rules
 	defaultRules, ok := defaultAllowRules()[role.GetName()]
 	if !ok || len(defaultRules) == 0 {
 		return nil, trace.AlreadyExists("no change")
@@ -217,6 +231,15 @@ func AddDefaultAllowRules(role types.Role) (types.Role, error) {
 		rules = append(rules, defaultRule)
 		role.SetRules(types.Allow, rules)
 		changed = true
+	}
+
+	// Labels
+	defaultLabels, ok := defaultAllowLabels()[role.GetName()]
+	if ok {
+		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
+			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+			changed = true
+		}
 	}
 
 	if !changed {
