@@ -35,9 +35,17 @@ export type DatabasesResponse = {
   totalCount?: number;
 };
 
-export type UpdateDatabaseRequest = {
-  name: string;
-  caCert: string;
+export type UpdateDatabaseRequest = Omit<
+  Partial<CreateDatabaseRequest>,
+  'protocol'
+> & {
+  caCert?: string;
+  // updateCaCert is a flag to indicate that this request
+  // to update database is to only update the CA and validates
+  // the provided CA.
+  // When set to false, updates all other fields and
+  // skips updating and validating CA.
+  updateCaCert: boolean;
 };
 
 export type CreateDatabaseRequest = {

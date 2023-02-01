@@ -75,7 +75,10 @@ class DatabaseService {
     req: UpdateDatabaseRequest
   ): Promise<Database> {
     return api
-      .put(cfg.getDatabaseUrl(clusterId, req.name), { ca_cert: req.caCert })
+      .put(cfg.getDatabaseUrl(clusterId, req.name), {
+        ...req,
+        ca_cert: req.caCert,
+      })
       .then(makeDatabase);
   }
 
