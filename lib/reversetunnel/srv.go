@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -206,6 +207,8 @@ type Config struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -340,6 +343,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
+		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
 	)
 	if err != nil {
 		return nil, err

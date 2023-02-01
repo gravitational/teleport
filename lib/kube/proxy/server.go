@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,6 +57,8 @@ type TLSServerConfig struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// Log is the logger.
 	Log log.FieldLogger
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -135,6 +138,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 			TLSConfig:         cfg.TLS,
+			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 		},
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient

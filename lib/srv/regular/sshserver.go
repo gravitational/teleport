@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -222,6 +223,11 @@ type Server struct {
 	// sessionController is used to restrict new sessions
 	// based on locks and cluster preferences
 	sessionController *srv.SessionController
+
+	// ingressReporter reports new and active connections.
+	ingressReporter *ingress.Reporter
+	// ingressService the service name passed to the ingress reporter.
+	ingressService string
 }
 
 // TargetMetadata returns metadata about the server.
@@ -474,6 +480,15 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
 		s.router = router
+		return nil
+	}
+}
+
+// SetIngressReporter sets the reporter for reporting new and active connections.
+func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
+	return func(s *Server) error {
+		s.ingressReporter = r
+		s.ingressService = service
 		return nil
 	}
 }
@@ -837,6 +852,7 @@ func New(
 		sshutils.SetMACAlgorithms(s.macAlgorithms),
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
+		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
@@ -3436,6 +3437,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 	alpnRouter := setupALPNRouter(listeners, serverTLSConfig, cfg)
 
+	alpnAddr := ""
+	if listeners.alpn != nil {
+		alpnAddr = listeners.alpn.Addr().String()
+	}
+	ingressReporter, err := ingress.NewReporter(alpnAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
@@ -3485,6 +3495,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				CertAuthorityWatcher:          caWatcher,
 				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
+				IngressReporter:               ingressReporter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3629,6 +3640,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
+			ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
 		}
 		process.RegisterCriticalFunc("proxy.web", func() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "Web proxy service %s:%s is starting on %v.",
@@ -3721,6 +3733,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetAllowFileCopying(true),
 		regular.SetTracerProvider(process.TracingProvider),
 		regular.SetSessionController(sessionController),
+		regular.SetIngressReporter(ingress.SSH, ingressReporter),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3804,11 +3817,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			},
-			TLS:           tlsConfig,
-			LimiterConfig: cfg.Proxy.Limiter,
-			AccessPoint:   accessPoint,
-			OnHeartbeat:   process.onHeartbeat(component),
-			Log:           log,
+			TLS:             tlsConfig,
+			LimiterConfig:   cfg.Proxy.Limiter,
+			AccessPoint:     accessPoint,
+			OnHeartbeat:     process.onHeartbeat(component),
+			Log:             log,
+			IngressReporter: ingressReporter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3846,16 +3860,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		dbProxyServer, err := db.NewProxyServer(process.ExitContext(),
 			db.ProxyServerConfig{
-				AuthClient:  conn.Client,
-				AccessPoint: accessPoint,
-				Authorizer:  authorizer,
-				Tunnel:      tsrv,
-				TLSConfig:   tlsConfig,
-				Limiter:     connLimiter,
-				Emitter:     asyncEmitter,
-				Clock:       process.Clock,
-				ServerID:    cfg.HostUUID,
-				LockWatcher: lockWatcher,
+				AuthClient:      conn.Client,
+				AccessPoint:     accessPoint,
+				Authorizer:      authorizer,
+				Tunnel:          tsrv,
+				TLSConfig:       tlsConfig,
+				Limiter:         connLimiter,
+				Emitter:         asyncEmitter,
+				Clock:           process.Clock,
+				ServerID:        cfg.HostUUID,
+				LockWatcher:     lockWatcher,
+				IngressReporter: ingressReporter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
