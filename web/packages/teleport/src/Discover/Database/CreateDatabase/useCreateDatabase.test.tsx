@@ -257,7 +257,7 @@ describe('registering new databases, mainly error checking', () => {
     nextStep: jest.fn(x => x),
     resourceState: {},
     eventState: {
-      currEventName: DiscoverEvent.ConfigureRegisterDatabase,
+      currEventName: DiscoverEvent.DatabaseRegister,
       id: '1234',
       resource: DiscoverEventResource.DatabaseMysqlSelfHosted,
     },

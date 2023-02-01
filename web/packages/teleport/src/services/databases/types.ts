@@ -39,13 +39,10 @@ export type UpdateDatabaseRequest = Omit<
   Partial<CreateDatabaseRequest>,
   'protocol'
 > & {
-  caCert?: string;
-  // updateCaCert is a flag to indicate that this request
-  // to update database is to only update the CA and validates
-  // the provided CA.
-  // When set to false, updates all other fields and
-  // skips updating and validating CA.
-  updateCaCert: boolean;
+  // caCert can use the values null or undefined
+  // as a flag to mean updating the other updatable
+  // fields of a db.
+  caCert?: string | undefined | null;
 };
 
 export type CreateDatabaseRequest = {

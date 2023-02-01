@@ -117,25 +117,23 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
 type updateDatabaseRequest struct {
-	// UpdateCACert is a flag to indicate that this request
-	// to update database is to only update the CA and validates
-	// the provided CA.
-	// When set to false, updates all other fields and
-	// skips updating and validating CA.
-	UpdateCACert bool       `json:"updateCaCert,omitempty"`
-	CACert       string     `json:"ca_cert,omitempty"`
-	Labels       []ui.Label `json:"labels,omitempty"`
-	URI          string     `json:"uri,omitempty"`
-	AWSRDS       *awsRDS    `json:"awsRds,omitempty"`
+	// CACert when non-nil means that this request is to
+	// only update the CA and validates it.
+	// When nil, skips validating CACert and updates all other
+	// fields.
+	CACert *string    `json:"ca_cert,omitempty"`
+	Labels []ui.Label `json:"labels,omitempty"`
+	URI    string     `json:"uri,omitempty"`
+	AWSRDS *awsRDS    `json:"awsRds,omitempty"`
 }
 
 func (r *updateDatabaseRequest) checkAndSetDefaults() error {
-	if r.UpdateCACert {
-		if r.CACert == "" {
+	if r.CACert != nil {
+		if *r.CACert == "" {
 			return trace.BadParameter("missing CA certificate data")
 		}
 
-		if _, err := tlsutils.ParseCertificatePEM([]byte(r.CACert)); err != nil {
+		if _, err := tlsutils.ParseCertificatePEM([]byte(*r.CACert)); err != nil {
 			return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
 		}
 		return nil
@@ -184,8 +182,8 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	if req.UpdateCACert {
-		database.SetCA(req.CACert)
+	if req.CACert != nil {
+		database.SetCA(*req.CACert)
 	} else {
 		savedCA := database.GetCA()
 		savedLabels := database.GetStaticLabels()
