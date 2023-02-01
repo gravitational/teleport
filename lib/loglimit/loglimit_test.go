@@ -132,11 +132,12 @@ func TestLogLimiter(t *testing.T) {
 
 			// Send first batch of logs to log limiter.
 			for _, message := range tc.logsFirstBatch {
-				logLimiter.deduplicate(entryInfo{
-					entry:   entry,
-					level:   log.InfoLevel,
-					message: message,
-					time:    clock.Now(),
+				logLimiter.deduplicate(&entryInfo{
+					entry:       entry,
+					level:       log.InfoLevel,
+					message:     message,
+					time:        clock.Now(),
+					occurrences: 1,
 				})
 			}
 
@@ -151,11 +152,12 @@ func TestLogLimiter(t *testing.T) {
 
 			// Send second batch of logs to log limiter.
 			for _, message := range tc.logsSecondsBatch {
-				logLimiter.deduplicate(entryInfo{
-					entry:   entry,
-					level:   log.InfoLevel,
-					message: message,
-					time:    clock.Now(),
+				logLimiter.deduplicate(&entryInfo{
+					entry:       entry,
+					level:       log.InfoLevel,
+					message:     message,
+					time:        clock.Now(),
+					occurrences: 1,
 				})
 			}
 
