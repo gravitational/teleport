@@ -3,7 +3,7 @@
 ## Supported Versions
 
 The list of supported versions can be found
-[here](https://goteleport.com/teleport/download/).
+[here](https://goteleport.com/download/).
 
 ## Reporting a Vulnerability
 
