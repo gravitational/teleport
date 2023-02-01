@@ -25,10 +25,12 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -377,57 +379,118 @@ func onRequestSearch(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
+	// If KubeCluster not provided try to read it from kubeconfig.
+	if cf.KubernetesCluster == "" {
+		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
 	}
-	defer proxyClient.Close()
-
-	authClient := proxyClient.CurrentCluster()
-
-	req := proto.ListResourcesRequest{
-		ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
-		Labels:              tc.Labels,
-		PredicateExpression: cf.PredicateExpression,
-		SearchKeywords:      tc.SearchKeywords,
-		UseSearchAsRoles:    true,
+	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
+		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
 	}
-
-	results, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
-	if err != nil {
-		return trace.Wrap(err)
+	// if --all-namespaces flag was provided we search in every namespace.
+	// This means sending an empty namespace to the ListResources API.
+	if cf.kubeAllNamespaces {
+		cf.kubeNamespace = ""
 	}
 
 	var resources types.ResourcesWithLabels
-	for _, result := range results {
-		leafResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
+	var tableColumns []string
+	switch {
+	case slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind):
+		proxyGRPCClient, err := tc.NewKubeClient(cf.Context, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, leafResources...)
+		req := kubeproto.ListKubernetesResourcesRequest{
+			ResourceType:        cf.ResourceKind,
+			Labels:              tc.Labels,
+			PredicateExpression: cf.PredicateExpression,
+			SearchKeywords:      tc.SearchKeywords,
+			UseSearchAsRoles:    true,
+			KubernetesCluster:   cf.KubernetesCluster,
+			KubernetesNamespace: cf.kubeNamespace,
+			TeleportCluster:     tc.SiteName,
+		}
+
+		resources, err = client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
+	default:
+		// For all other resources, we need to connect to the auth server.
+		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient := proxyClient.CurrentCluster()
+
+		req := proto.ListResourcesRequest{
+			ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
+			Labels:              tc.Labels,
+			PredicateExpression: cf.PredicateExpression,
+			SearchKeywords:      tc.SearchKeywords,
+			UseSearchAsRoles:    true,
+		}
+
+		results, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, result := range results {
+			leafResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			resources = append(resources, leafResources...)
+		}
+		tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
 	}
 
 	var rows [][]string
 	var resourceIDs []string
 	for _, resource := range resources {
-		resourceID := types.ResourceIDToString(types.ResourceID{
-			ClusterName: proxyClient.ClusterName(),
-			Kind:        resource.GetKind(),
-			Name:        resource.GetName(),
-		})
-		resourceIDs = append(resourceIDs, resourceID)
-		hostName := ""
-		if r, ok := resource.(interface{ GetHostname() string }); ok {
-			hostName = r.GetHostname()
+		var row []string
+		switch r := resource.(type) {
+		case *types.KubernetesResourceV1:
+			resourceID := types.ResourceIDToString(types.ResourceID{
+				ClusterName:     tc.SiteName,
+				Kind:            resource.GetKind(),
+				Name:            cf.KubernetesCluster,
+				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
+			})
+			resourceIDs = append(resourceIDs, resourceID)
+
+			row = []string{
+				resource.GetName(),
+				r.Spec.Namespace,
+				sortedLabels(resource.GetAllLabels()),
+				resourceID,
+			}
+
+		default:
+			resourceID := types.ResourceIDToString(types.ResourceID{
+				ClusterName: tc.SiteName,
+				Kind:        resource.GetKind(),
+				Name:        resource.GetName(),
+			})
+			resourceIDs = append(resourceIDs, resourceID)
+			hostName := ""
+			if r, ok := resource.(interface{ GetHostname() string }); ok {
+				hostName = r.GetHostname()
+			}
+			row = []string{
+				resource.GetName(),
+				hostName,
+				sortedLabels(resource.GetAllLabels()),
+				resourceID,
+			}
 		}
-		rows = append(rows, []string{
-			resource.GetName(),
-			hostName,
-			sortedLabels(resource.GetAllLabels()),
-			resourceID,
-		})
+		rows = append(rows, row)
 	}
-	table := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Hostname", "Labels", "Resource ID"}, rows, "Labels")
+	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
 	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}

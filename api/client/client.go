@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -2805,6 +2806,56 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 
 		startKey = resp.NextKey
 		resources = append(resources, resp.Resources...)
+		if startKey == "" || len(resp.Resources) == 0 {
+			break
+		}
+
+	}
+
+	return resources, nil
+}
+
+// GetKubernetesResourcesWithFilters is a helper for getting a list of kubernetes resources with optional filtering. In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeServiceClient, req kubeproto.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
+	// Retrieve the complete list of resources in chunks.
+	var (
+		resources []types.ResourceWithLabels
+		startKey  string
+		chunkSize = int32(defaults.DefaultChunkSize)
+	)
+
+	for {
+		resp, err := clt.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
+			ResourceType:        req.ResourceType,
+			StartKey:            startKey,
+			Limit:               chunkSize,
+			Labels:              req.Labels,
+			SearchKeywords:      req.SearchKeywords,
+			PredicateExpression: req.PredicateExpression,
+			UseSearchAsRoles:    req.UseSearchAsRoles,
+			KubernetesCluster:   req.KubernetesCluster,
+			KubernetesNamespace: req.KubernetesNamespace,
+			TeleportCluster:     req.TeleportCluster,
+		})
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				chunkSize = chunkSize / 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if chunkSize == 0 {
+					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return nil, trail.FromGRPC(err)
+		}
+
+		startKey = resp.NextKey
+
+		resources = append(resources, types.KubeResources(resp.Resources).AsResources()...)
 		if startKey == "" || len(resp.Resources) == 0 {
 			break
 		}
