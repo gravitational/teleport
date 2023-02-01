@@ -88,10 +88,9 @@ type GetAppFQDNResponse struct {
 // application sessions.
 type CreateAppSessionRequest struct {
 	ResolveAppParams
-	// PreflightConnection when set the proxy preflights a connection to an
-	// AppServer, ensuring it can handle the request. If the preflight fails,
-	// the session is not created and it returns an error.
-	PreflightConnection bool `json:"preflight_connection"`
+	// HealthCheckAppServer when set the proxy will ensure there is a at least
+	// one AppServer capable of handling the application requests.
+	HealthCheckAppServer bool `json:"health_check_app_server"`
 }
 
 type CreateAppSessionResponse struct {
@@ -169,7 +168,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
 
 	// Ensuring proxy can handle the connection is an optional step.
-	if h.healthCheckAppServer != nil && req.PreflightConnection {
+	if h.healthCheckAppServer != nil && req.HealthCheckAppServer {
 		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
 		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
 		if err != nil {

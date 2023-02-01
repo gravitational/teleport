@@ -4553,7 +4553,7 @@ func TestCreateAppSessionPreflightConnection(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 			_, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
-				PreflightConnection: true,
+				HealthCheckAppServer: true,
 				ResolveAppParams: ResolveAppParams{
 					FQDNHint: tc.publicAddr,
 				},
