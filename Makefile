@@ -29,6 +29,7 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
+GIT ?= git
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
@@ -1032,14 +1033,14 @@ protos-up-to-date:
 # Unlike protos-up-to-date, this target runs locally.
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
-	@if ! build.assets/is-repo-clean.sh; then \
+	@if ! $(GIT) diff --quiet; then \
 		echo 'Please run make grpc.'; \
 		exit 1; \
 	fi
 
 .PHONY: must-start-clean/host
 must-start-clean/host:
-	@if ! build.assets/is-repo-clean.sh; then \
+	@if ! $(GIT) diff --quiet; then \
 		echo 'This must be run from a repo with no unstaged commits.'; \
 		exit 1; \
 	fi
