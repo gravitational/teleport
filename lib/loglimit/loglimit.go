@@ -68,13 +68,15 @@ func (c *Config) checkAndSetDefaults() error {
 type LogLimiter struct {
 	Config
 	// entryCh is used to send log entries to the log limiter.
-	entryCh chan entryInfo
+	entryCh chan *entryInfo
 	// windows is a mapping from log substring to an active
 	// time window.
-	windows map[string]*windowInfo
+	windows map[string]*entryInfo
 }
 
 // entryInfo contains information about a certain log entry.
+// This is information is used to deduplicate a log entry
+// reported within a certain time window.
 type entryInfo struct {
 	// entry is the logger entry.
 	entry *log.Entry
@@ -84,17 +86,8 @@ type entryInfo struct {
 	message string
 	// time is the at which the log reported.
 	time time.Time
-}
-
-// windowInfo contains the information necessary to deduplicate a log
-// entry reported within a certain time window.
-type windowInfo struct {
-	// entryInfo contains information about the first log entry
-	// reported for this window such that entryInfo.time represents
-	// the beginning of this time window.
-	entryInfo
 	// occurrences are the occurrences of logs entries (that share
-	// the same log substring) within this window.
+	// the same log substring) within a time window.
 	occurrences int
 }
 
@@ -106,18 +99,19 @@ func New(cfg Config) (*LogLimiter, error) {
 
 	return &LogLimiter{
 		Config:  cfg,
-		entryCh: make(chan entryInfo, cfg.ChannelSize),
-		windows: make(map[string]*windowInfo, len(cfg.LogSubstrings)),
+		entryCh: make(chan *entryInfo, cfg.ChannelSize),
+		windows: make(map[string]*entryInfo, len(cfg.LogSubstrings)),
 	}, nil
 }
 
 // Log sends a log to the log limiter.
 func (l *LogLimiter) Log(entry *log.Entry, level log.Level, args ...any) {
-	l.entryCh <- entryInfo{
-		entry:   entry,
-		level:   level,
-		message: sprintln(args...),
-		time:    l.Clock.Now(),
+	l.entryCh <- &entryInfo{
+		entry:       entry,
+		level:       level,
+		message:     fmt.Sprint(args...),
+		time:        l.Clock.Now(),
+		occurrences: 1,
 	}
 }
 
@@ -140,11 +134,11 @@ func (l *LogLimiter) Run(ctx context.Context) {
 
 // deduplicate logs if they should not be deduplicated.
 // Otherwise, it records log occurrences within a certain time window.
-func (l *LogLimiter) deduplicate(e entryInfo) {
+func (l *LogLimiter) deduplicate(e *entryInfo) {
 	// Log right away if the log entry should not be deduplicated.
-	deduplicate, logSubstring := l.shouldDeduplicate(&e)
+	deduplicate, logSubstring := l.shouldDeduplicate(e)
 	if !deduplicate {
-		e.entry.Logln(e.level, e.message)
+		e.entry.Log(e.level, e.message)
 		return
 	}
 
@@ -157,11 +151,8 @@ func (l *LogLimiter) deduplicate(e entryInfo) {
 		window.occurrences++
 	} else {
 		// If this is the first occurrence, save the log entry and log it.
-		l.windows[logSubstring] = &windowInfo{
-			entryInfo:   e,
-			occurrences: 1,
-		}
-		e.entry.Logln(e.level, e.message)
+		l.windows[logSubstring] = e
+		e.entry.Log(e.level, e.message)
 	}
 }
 
@@ -169,10 +160,11 @@ func (l *LogLimiter) deduplicate(e entryInfo) {
 // again together with the number of occurrences (of logs that share the same
 // log substring) during the window.
 func (l *LogLimiter) cleanup() {
+	now := l.Clock.Now()
 	for logSubstring, e := range l.windows {
-		if l.Clock.Now().After(e.time.Add(timeWindow)) {
+		if now.After(e.time.Add(timeWindow)) {
 			if e.occurrences > 1 {
-				e.entry.Logln(
+				e.entry.Log(
 					e.level,
 					fmt.Sprintf(
 						"%s (logs containing %q were seen %d times in the past minute)",
@@ -196,10 +188,4 @@ func (l *LogLimiter) shouldDeduplicate(e *entryInfo) (bool, string) {
 		}
 	}
 	return false, ""
-}
-
-// Copy from https://github.com/gravitational/logrus/blob/e8054db0174984d217379b503b3447021c54beef/entry.go#L436-L439
-func sprintln(args ...any) string {
-	msg := fmt.Sprintln(args...)
-	return msg[:len(msg)-1]
 }
