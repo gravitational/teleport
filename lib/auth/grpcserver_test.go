@@ -1012,9 +1012,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_SSH,
-					NodeName:  "node-a",
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
 				},
 				checkInitErr: require.NoError,
 				authHandler:  registered.webAuthHandler,
@@ -1066,9 +1068,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			desc: "k8s",
 			opts: generateUserSingleUseCertTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey:         pub,
-					Username:          user.GetName(),
-					Expires:           clock.Now().Add(teleport.UserSingleUseCertTTL),
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-a",
 				},
@@ -1099,8 +1103,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_Database,
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_Database,
 					RouteToDatabase: proto.RouteToDatabase{
 						ServiceName: "db-a",
 					},
@@ -1114,7 +1120,44 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
 					require.NoError(t, err)
-					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+					require.Equal(t, clock.Now().Add(teleport.UserSingleUseCertTTL), cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
+					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+				},
+			},
+		},
+		{
+			desc: "db with ttl limit disabled",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry should *not* be adjusted to single user cert TTL,
+					// since ttl limiting is disabled when requester is a local proxy tunnel.
+					// It *should* be adjusted to the user cert ttl though.
+					Expires: clock.Now().Add(1000 * time.Hour),
+					Usage:   proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+					},
+					RequesterName: proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
