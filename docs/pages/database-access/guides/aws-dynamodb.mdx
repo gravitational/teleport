@@ -107,8 +107,8 @@ Finally, click **Create Role**.
 
 ## Step 2/4. Configure the Teleport IAM role mapping
 
-The next step is to give your Teleport users permissions to assume IAM roles in
-your Teleport cluster.
+The next step is to give your Teleport users permissions to assume AWS IAM roles
+when accessing AWS resources through your Teleport cluster.
 
 You can do this by creating a Teleport role with the `db_users` field
 listing the IAM role ARN created in the previous step. Create a file called
