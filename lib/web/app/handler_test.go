@@ -398,7 +398,7 @@ func TestMatchApplicationServers(t *testing.T) {
 	require.Equal(t, expectedContent, content)
 }
 
-func TestPreflightConnection(t *testing.T) {
+func TestHealthCheckAppServer(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "test-cluster"
 
