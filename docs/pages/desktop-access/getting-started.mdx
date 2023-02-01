@@ -62,6 +62,20 @@ From the Windows system, download the [Teleport service installer](#LinkToCome) 
 and run it. When prompted, select the Teleport certificate file from the previous step.
 Once complete, reboot the system.
 
+<Admonition type="tip" title="Headless Installation">
+The Teleport service installer {/*Rename as needed*/} can be run in a shell
+environment with elevated privileges. You can use this to automate installation,
+uninstallation, and certificate updates. For example:
+
+```code
+$ teleport-windows-auth-setup-v12.0.0-amd64.exe install --cert=teleport.cer -r
+Teleport Authentication Package installed
+```
+
+Use the `--help` flag to learn more.
+
+</Admonition>
+
 ## Step 2/4. Install the Teleport Desktop Service
 
 On the Linux host where you will run the Desktop Service, install Teleport (if
@@ -70,25 +84,29 @@ service, you can skip this step):
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Enable the Desktop Service and list the Windows systems configured for
-access through Teleport in `/etc/teleport.yaml`.
+Create `/etc/teleport.yaml` and configure it for Desktop Access:
 
 ```yml
 version: v3
 teleport:
   nodename: example.teleport.com
   proxy_server: teleport-proxy.example.com:443
+windows_desktop_service:
+  enabled: yes
+  non_ad_hosts:
+    - 192.0.2.156
 auth_service:
   enabled: no
 proxy_service:
   enabled: no
 ssh_service:
   enabled: no
-windows_desktop_service:
-  enabled: yes
-  non_ad_hosts:
-    - 192.0.2.156
 ```
+
+Note that without Active Directory, Teleport cannot automatically discover your
+Desktops. Instead you must define the Windows systems configured for access through
+Teleport in your config file, or use Teleport's [API](../api/introduction.mdx)
+to build your own integration.
 
 <Details title="Add labels to hosts">
 You can attach labels to your Windows hosts by matching to their hostnames.
@@ -108,6 +126,12 @@ windows_desktop_service:
 +    - match: '.*\.us-east-2.compute.internal'
 +      labels:
 +        cloud: ec2
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+ssh_service:
+  enabled: no
 ```
 
 </Details>
