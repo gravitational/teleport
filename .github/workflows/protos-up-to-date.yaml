@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+
+  # These are required for the check to run on PRs.
   pull_request:
   merge_group:
 
