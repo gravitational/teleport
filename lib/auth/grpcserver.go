@@ -38,7 +38,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -650,6 +650,48 @@ func (g *GRPCServer) UpsertClusterAlert(ctx context.Context, req *proto.UpsertCl
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) CreateAlertAck(ctx context.Context, ack *types.AlertAcknowledgement) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.CreateAlertAck(ctx, *ack); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetAlertAcks(ctx context.Context, _ *proto.GetAlertAcksRequest) (*proto.GetAlertAcksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	acks, err := auth.GetAlertAcks(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GetAlertAcksResponse{
+		Acks: acks,
+	}, nil
+}
+
+func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *proto.ClearAlertAcksRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.ClearAlertAcks(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -792,6 +834,11 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessR
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := services.ValidateAccessRequestClusterNames(auth, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -2,6 +2,8 @@ import { useState } from 'react';
 
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
+import { staticConfig } from 'teleterm/staticConfig';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { ShareFeedbackFormValues } from './types';
@@ -12,10 +14,6 @@ export function useShareFeedback() {
   const ctx = useAppContext();
   ctx.workspacesService.useState();
   ctx.clustersService.useState();
-
-  const feedbackUrl = ctx.mainProcessClient.getRuntimeSettings().dev
-    ? 'https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod'
-    : 'https://usage.teleport.dev';
 
   const [isShareFeedbackOpened, setIsShareFeedbackOpened] = useState(false);
 
@@ -40,7 +38,7 @@ export function useShareFeedback() {
     formData.set('newsletter-opt-in', formValues.newsletterEnabled ? 'y' : 'n');
     formData.set('sales-opt-in', formValues.salesContactEnabled ? 'y' : 'n');
 
-    const response = await fetch(feedbackUrl, {
+    const response = await fetch(staticConfig.feedbackAddress, {
       method: 'POST',
       body: formData,
     });

@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -322,23 +324,35 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 
 // getMySQLOracleCommand returns arguments unique for mysql cmd shipped by Oracle. Common options between
 // Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
-func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return c.options.exe.Command(mysqlBin, args...)
+		return c.options.exe.Command(mysqlBin, args...), nil
 	}
 
 	// defaults-group-suffix must be first.
 	groupSuffix := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", c.tc.SiteName, c.db.ServiceName)}
 	args = append(groupSuffix, args...)
 
+	if runtime.GOOS == constants.WindowsOS {
+		// We save configuration to ~/.my.cnf, but on Windows that file is not read,
+		// see tables 4.1 and 4.2 on https://dev.mysql.com/doc/refman/8.0/en/option-files.html.
+		// We instruct mysql client to use use that file with --defaults-extra-file.
+		configPath, err := mysql.DefaultConfigPath()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		extraFile := []string{fmt.Sprintf("--defaults-extra-file=%v", configPath)}
+		args = append(extraFile, args...)
+	}
+
 	// override the ssl-mode from a config file is --insecure flag is provided to 'tsh db connect'.
 	if c.tc.InsecureSkipVerify {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return c.options.exe.Command(mysqlBin, args...)
+	return c.options.exe.Command(mysqlBin, args...), nil
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -354,7 +368,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// error as mysql and mariadb are missing. There is nothing else we can do here.
 	if !c.isMySQLBinAvailable() {
 		if c.options.tolerateMissingCLIClient {
-			return c.getMySQLOracleCommand(), nil
+			return c.getMySQLOracleCommand()
 		}
 
 		return nil, trace.NotFound("neither %q nor %q CLI clients were found, please make sure an appropriate CLI client is available in $PATH", mysqlBin, mariadbBin)
@@ -369,7 +383,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
-	return c.getMySQLOracleCommand(), nil
+	return c.getMySQLOracleCommand()
 }
 
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.

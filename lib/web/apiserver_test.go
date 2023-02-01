@@ -32,7 +32,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"image"
 	"io"
 	"net"
 	"net/http"
@@ -1230,7 +1229,7 @@ func TestNewTerminalHandler(t *testing.T) {
 
 func TestResizeTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 	sid := session.NewID()
 
 	errs := make(chan error, 2)
@@ -1268,7 +1267,7 @@ func TestResizeTerminal(t *testing.T) {
 
 	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
-	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID))
+	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
 
@@ -1548,6 +1547,75 @@ func TestTerminalRouting(t *testing.T) {
 	}
 }
 
+func TestTerminalNameResolution(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo")
+
+	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+	t.Cleanup(cancel)
+
+	// Wait for the node to be registered as the registration is asynchronous.
+	require.Eventuallyf(t, func() bool {
+		nodes, err := s.proxyClient.GetNodes(ctx, "default")
+		require.NoError(t, err)
+
+		return len(nodes) == 2 // one created by default and llama
+	}, 5*time.Second, 200*time.Millisecond, "failed to register node")
+
+	tests := []struct {
+		name           string
+		target         string
+		serverID       string
+		serverHostname string
+		port           int
+	}{
+		{
+			name:           "registered node by name",
+			target:         "llama",
+			serverID:       llama.ID(),
+			serverHostname: "llama",
+		},
+		{
+			name:           "registered node by address",
+			target:         llama.Addr(),
+			serverID:       llama.ID(),
+			serverHostname: llama.Addr(),
+		},
+		{
+			name:           "direct dial",
+			target:         "root@example.com",
+			serverID:       "root@example.com",
+			serverHostname: "root@example.com",
+		},
+		{
+			name:           "direct dial with port",
+			target:         "root@example.com:1234",
+			serverID:       "root@example.com",
+			serverHostname: "root@example.com",
+			port:           1234,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ws, resp, err := s.makeTerminal(t, pack, withServer(tt.target))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			require.Equal(t, tt.serverID, resp.ServerID)
+			require.Equal(t, tt.serverHostname, resp.ServerHostname)
+			require.Equal(t, tt.port, resp.ServerHostPort)
+		})
+	}
+
+}
+
 func TestTerminalRequireSessionMfa(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
@@ -1702,8 +1770,7 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
 
-	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	err = tdpConn.WriteMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
+	err = tdpConn.WriteMessage(tdp.Notification{Message: "test", Severity: tdp.SeverityWarning})
 	require.NoError(t, err)
 }
 
@@ -1777,7 +1844,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
-			require.IsType(t, tdp.PNG2Frame{}, msg)
+			require.IsType(t, tdp.Notification{}, msg)
 		})
 	}
 }
@@ -1899,6 +1966,7 @@ func TestActiveSessions(t *testing.T) {
 		require.Equal(t, s.node.GetInfo().GetHostname(), session.ServerHostname)
 		require.Equal(t, s.srvID, session.ServerAddr)
 		require.Equal(t, s.server.ClusterName(), session.ClusterName)
+		require.ElementsMatch(t, []types.SessionParticipantMode{"peer"}, session.ParticipantModes)
 	}
 }
 
@@ -5858,6 +5926,14 @@ func TestCreateDatabase(t *testing.T) {
 
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
 
+	// Create an initial database to table test a duplicate creation
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+		Name:     "duplicatedb",
+		Protocol: "mysql",
+		URI:      "someuri:3306",
+	})
+	require.NoError(t, err)
+
 	for _, tt := range []struct {
 		name           string
 		req            createDatabaseRequest
@@ -5946,6 +6022,19 @@ func TestCreateDatabase(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "missing port in address")
+			},
+		},
+		{
+			name: "duplicatedb",
+			req: createDatabaseRequest{
+				Name:     "duplicatedb",
+				Protocol: "mysql",
+				URI:      "someuri:3306",
+			},
+			expectedStatus: http.StatusConflict,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+				require.Contains(t, err.Error(), `failed to create database ("duplicatedb" already exists), please use another name`)
 			},
 		},
 	} {
@@ -6113,6 +6202,10 @@ func withServer(target string) terminalOpt {
 
 func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
+}
+
+func withParticipantMode(m types.SessionParticipantMode) terminalOpt {
+	return func(t *TerminalRequest) { t.ParticipantMode = m }
 }
 
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {
