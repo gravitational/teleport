@@ -76,6 +76,7 @@ export function useMutualTls({ ctx, props }: Props) {
         .updateDatabase(clusterId, {
           name: meta.db.name,
           caCert,
+          updateCaCert: true,
         })
         .then(() => props.nextStep())
         .catch((error: Error) => {
