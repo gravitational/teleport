@@ -35,7 +35,7 @@ func TestLogLimiter(t *testing.T) {
 		logsAssert       func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string)
 	}{
 		{
-			desc: "logs that do not match log substrings are logged",
+			desc: "logs that do not match log substrings are logged right away",
 			logSubstrings: []string{
 				"A",
 			},
@@ -46,12 +46,14 @@ func TestLogLimiter(t *testing.T) {
 			},
 			logsSecondsBatch: []string{},
 			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
-				require.Len(t, loggedFirstBatch, 3)
-				require.Len(t, loggedSecondBatch, 0)
-
-				require.Equal(t, loggedFirstBatch[0], "B log 1")
-				require.Equal(t, loggedFirstBatch[1], "B log 2")
-				require.Equal(t, loggedFirstBatch[2], "C log 1")
+				expectedLoggedFirstBatch := []string{
+					"B log 1",
+					"B log 2",
+					"C log 1",
+				}
+				expectedLoggedSecondBatch := []string{}
+				require.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
+				require.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
 		},
 		{
@@ -69,14 +71,15 @@ func TestLogLimiter(t *testing.T) {
 			},
 			logsSecondsBatch: []string{},
 			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
-				require.Len(t, loggedFirstBatch, 4)
-				require.Len(t, loggedSecondBatch, 0)
-
-				require.Equal(t, loggedFirstBatch[0], "A log 1")
-				require.Equal(t, loggedFirstBatch[1], "B log 1")
-				require.Equal(t, loggedFirstBatch[2], "C log 1")
-				// "A log 1" does not get logged again as the number of occurrences is just 1
-				require.Equal(t, loggedFirstBatch[3], "B log 1 (logs containing \"B\" were seen 3 times in the past minute)")
+				expectedLoggedFirstBatch := []string{
+					"A log 1",
+					"B log 1",
+					"C log 1",
+					"B log 1 (logs containing \"B\" were seen 3 times in the past minute)",
+				}
+				expectedLoggedSecondBatch := []string{}
+				require.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
+				require.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
 		},
 		{
@@ -100,18 +103,19 @@ func TestLogLimiter(t *testing.T) {
 				"A log 4",
 			},
 			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
-				require.Len(t, loggedFirstBatch, 4)
-				require.Len(t, loggedSecondBatch, 3)
-
-				require.Equal(t, loggedFirstBatch[0], "A log 1")
-				require.Equal(t, loggedFirstBatch[1], "B log 1")
-				require.Equal(t, loggedFirstBatch[2], "C log 1")
-				// "A log 1" does not get logged again as the number of occurrences is just 1
-				require.Equal(t, loggedFirstBatch[3], "B log 1 (logs containing \"B\" were seen 3 times in the past minute)")
-
-				require.Equal(t, loggedSecondBatch[0], "A log 1")
-				require.Equal(t, loggedSecondBatch[1], "C log 1")
-				require.Equal(t, loggedSecondBatch[2], "A log 1 (logs containing \"A\" were seen 4 times in the past minute)")
+				expectedLoggedFirstBatch := []string{
+					"A log 1",
+					"B log 1",
+					"C log 1",
+					"B log 1 (logs containing \"B\" were seen 3 times in the past minute)",
+				}
+				expectedLoggedSecondBatch := []string{
+					"A log 1",
+					"C log 2",
+					"A log 1 (logs containing \"A\" were seen 4 times in the past minute)",
+				}
+				require.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
+				require.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
 		},
 	}
