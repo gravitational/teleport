@@ -50,7 +50,7 @@ export const ServerResource: Resource = {
     {
       title: 'Set Up Access',
       component: SetupAccess,
-      eventName: DiscoverEvent.SetUpAccess,
+      eventName: DiscoverEvent.PrincipalsConfigure,
     },
     {
       title: 'Test Connection',

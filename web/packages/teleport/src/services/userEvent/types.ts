@@ -17,49 +17,22 @@ export enum CaptureEvent {
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
 }
 
-export type UserEvent = {
-  event: CaptureEvent;
-  alert?: string;
-};
-
-export type PreUserEvent = UserEvent & {
-  username: string;
-  mfaType?: string;
-  loginFlow?: string;
-};
-
 export enum DiscoverEvent {
-  Started = 'tp.ui.discover.started.click',
-  ResourceSelection = 'tp.ui.discover.resourceSelection.click',
-
-  // TODO(lisa): replace with actual event names as they get implemented:
-  DeployService = 'deploy_service',
-  ConfigureRegisterDatabase = 'register_database',
-  ConfigureDatabaseMTLS = 'mtls',
-  ConfigureDatabaseIAMPolicy = 'iam_policy',
-  SetUpAccess = 'setup_access',
-  TestConnection = 'test_connection',
-  Completed = 'completed',
-  InstallActiveDirectory = 'install_active_directory',
-  ConfigureActiveDirectory = 'configure_active_directory',
-  DiscoverResources = 'discover_desktops',
+  Started = 'tp.ui.discover.started',
+  ResourceSelection = 'tp.ui.discover.resourceSelection',
+  DeployService = 'tp.ui.discover.deployService',
+  DatabaseRegister = 'tp.ui.discover.database.register',
+  DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
+  DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
+  DesktopActiveDirectoryToolsInstall = 'tp.ui.discover.desktop.activeDirectory.tools.install',
+  DesktopActiveDirectoryConfigure = 'tp.ui.discover.desktop.activeDirectory.configure',
+  AutoDiscoveredResources = 'tp.ui.discover.autoDiscoveredResources',
+  PrincipalsConfigure = 'tp.ui.discover.principals.configure',
+  TestConnection = 'tp.ui.discover.testConnection',
+  Completed = 'tp.ui.discover.completed',
 }
 
-export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
-  event: DiscoverEvent;
-  eventData: DiscoverEventData;
-};
-
-export type DiscoverEventData = DiscoverEventStepStatus & {
-  id: string;
-  resource: DiscoverEventResource;
-};
-
-export type DiscoverEventStepStatus = {
-  stepStatus: DiscoverEventStatus;
-  stepStatusError?: string;
-};
-
+// DiscoverResource represents a resource type.
 export enum DiscoverEventResource {
   Server = 'DISCOVER_RESOURCE_SERVER',
   Kubernetes = 'DISCOVER_RESOURCE_KUBERNETES',
@@ -79,3 +52,33 @@ export enum DiscoverEventStatus {
   Error = 'DISCOVER_STATUS_ERROR',
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
 }
+
+export type UserEvent = {
+  event: CaptureEvent;
+  alert?: string;
+};
+
+export type PreUserEvent = UserEvent & {
+  username: string;
+  mfaType?: string;
+  loginFlow?: string;
+};
+
+export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
+  event: DiscoverEvent;
+  eventData: DiscoverEventData;
+};
+
+export type DiscoverEventData = DiscoverEventStepStatus & {
+  id: string;
+  resource: DiscoverEventResource;
+  // AutoDiscoverResourcesCount is the number of
+  // auto-discovered resources in the Auto Discovering resources screen.
+  // This value is only considered for the 'tp.ui.discover.autoDiscoveredResources'.
+  autoDiscoverResourcesCount?: number;
+};
+
+export type DiscoverEventStepStatus = {
+  stepStatus: DiscoverEventStatus;
+  stepStatusError?: string;
+};

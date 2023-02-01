@@ -52,7 +52,7 @@ export const DesktopResource: Resource = {
     {
       title: 'Install Active Directory',
       component: InstallActiveDirectory,
-      eventName: DiscoverEvent.InstallActiveDirectory,
+      eventName: DiscoverEvent.DesktopActiveDirectoryToolsInstall,
     },
     {
       title: 'Connect Teleport',
@@ -64,7 +64,8 @@ export const DesktopResource: Resource = {
     {
       title: 'Discover Desktops',
       component: DiscoverDesktops,
-      eventName: DiscoverEvent.DiscoverResources,
+      eventName: DiscoverEvent.AutoDiscoveredResources,
+      manuallyEmitSuccessEvent: true,
     },
     {
       title: 'Finished',

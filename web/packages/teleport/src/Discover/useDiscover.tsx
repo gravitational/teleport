@@ -37,6 +37,7 @@ import cfg from 'teleport/config';
 import { addIndexToViews, findViewAtIndex, Resource, View } from './flow';
 import { resourceKindToEventResource } from './Shared/ResourceKind';
 import { resources } from './resources';
+import { DATABASES } from './Database/resources';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
@@ -72,14 +73,20 @@ interface DiscoverContextState<T = any> {
   updateAgentMeta: (meta: AgentMeta) => void;
   views: View[];
   emitErrorEvent(errorStr: string): void;
-  emitEvent(status: DiscoverEventStepStatus, eventName?: DiscoverEvent): void;
+  emitEvent(status: DiscoverEventStepStatus, custom: CustomEventInput): void;
   eventState: EventState;
 }
 
 type EventState = {
   id: string;
   currEventName: DiscoverEvent;
+  manuallyEmitSuccessEvent: boolean;
   resource: DiscoverEventResource;
+};
+
+type CustomEventInput = {
+  eventName?: DiscoverEvent;
+  autoDiscoverResourcesCount?: number;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
@@ -94,7 +101,13 @@ export function DiscoverProvider<T = any>(
   const [selectedResourceKind, setSelectedResourceKind] =
     useState<ResourceKind>(getKindFromString(location?.state?.entity));
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-  const [resourceState, setResourceState] = useState<T>();
+  const [resourceState, setResourceState] = useState<T>(() => {
+    // Pre-select the most popular one, to send of a start emit event
+    // on direct rendering the database view (user comes from clicking "add database")
+    if (selectedResourceKind === ResourceKind.Database) {
+      return DATABASES[0] as unknown as T;
+    }
+  });
 
   const [eventState, setEventState] = useState<EventState>();
   const selectedResource = resources.find(r => r.kind === selectedResourceKind);
@@ -108,14 +121,15 @@ export function DiscoverProvider<T = any>(
   }, [selectedResource.views, resourceState]);
 
   const emitEvent = useCallback(
-    (status: DiscoverEventStepStatus, eventName?: DiscoverEvent) => {
+    (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
       const { id, currEventName, resource } = eventState;
 
       userEventService.captureDiscoverEvent({
-        event: eventName || currEventName,
+        event: custom?.eventName || currEventName,
         eventData: {
           id,
           resource,
+          autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           ...status,
         },
       });
@@ -199,7 +213,7 @@ export function DiscoverProvider<T = any>(
     // skipped event will be emitted, else success.
     if (!numToIncrement) {
       emitEvent({ stepStatus: DiscoverEventStatus.Skipped });
-    } else {
+    } else if (!eventState.manuallyEmitSuccessEvent) {
       emitEvent({ stepStatus: DiscoverEventStatus.Success });
     }
 
@@ -211,7 +225,7 @@ export function DiscoverProvider<T = any>(
         if (currView) {
           emitEvent(
             { stepStatus: DiscoverEventStatus.Skipped },
-            currView.eventName
+            { eventName: currView.eventName }
           );
         }
       }
@@ -244,7 +258,10 @@ export function DiscoverProvider<T = any>(
   //   - on user updating `selectedResourceKind` (eg: server to kube)
   //     or `resourceState` (eg. postgres to mongo) which just updates the `eventState`
   function updateEventState() {
-    const currEventName = findViewAtIndex(views, currentStep).eventName;
+    const { eventName, manuallyEmitSuccessEvent } = findViewAtIndex(
+      views,
+      currentStep
+    );
     const resource = resourceKindToEventResource(
       selectedResourceKind,
       resourceState
@@ -256,7 +273,12 @@ export function DiscoverProvider<T = any>(
       // random number.
       const id = crypto.randomUUID();
 
-      setEventState({ id, currEventName, resource });
+      setEventState({
+        id,
+        currEventName: eventName,
+        resource,
+        manuallyEmitSuccessEvent,
+      });
       userEventService.captureDiscoverEvent({
         event: DiscoverEvent.Started,
         eventData: {
@@ -271,7 +293,12 @@ export function DiscoverProvider<T = any>(
       return;
     }
 
-    setEventState({ ...eventState, currEventName, resource });
+    setEventState({
+      ...eventState,
+      currEventName: eventName,
+      resource,
+      manuallyEmitSuccessEvent,
+    });
   }
 
   const value: DiscoverContextState<T> = {

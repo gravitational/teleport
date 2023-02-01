@@ -37,6 +37,11 @@ export interface View {
   index?: number;
   views?: View[];
   eventName?: DiscoverEvent;
+  // manuallyEmitSuccessEvent is a flag that when true
+  // means success events will be sent by the children
+  // (current view component) instead of the default
+  // which is sent by the parent context.
+  manuallyEmitSuccessEvent?: boolean;
 }
 
 // computeViewChildrenSize calculates how many children a view has, without counting the first

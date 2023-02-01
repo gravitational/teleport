@@ -163,7 +163,10 @@ export function ConnectTeleport(props: State) {
                     onNext={() => {
                       props.emitEvent(
                         { stepStatus: DiscoverEventStatus.Success },
-                        DiscoverEvent.ConfigureActiveDirectory
+                        {
+                          eventName:
+                            DiscoverEvent.DesktopActiveDirectoryConfigure,
+                        }
                       );
                       setCurrentStep(StepKind.CopyOutput);
                     }}

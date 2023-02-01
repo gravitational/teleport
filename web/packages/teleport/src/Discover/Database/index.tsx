@@ -53,7 +53,7 @@ export const DatabaseResource: Resource<Database> = {
             {
               title: 'Register a Database',
               component: CreateDatabase,
-              eventName: DiscoverEvent.ConfigureRegisterDatabase,
+              eventName: DiscoverEvent.DatabaseRegister,
             },
             {
               title: 'Deploy Database Service',
@@ -63,7 +63,7 @@ export const DatabaseResource: Resource<Database> = {
             {
               title: 'Configure IAM Policy',
               component: IamPolicy,
-              eventName: DiscoverEvent.ConfigureDatabaseIAMPolicy,
+              eventName: DiscoverEvent.DatabaseConfigureIAMPolicy,
             },
           ];
 
@@ -74,7 +74,7 @@ export const DatabaseResource: Resource<Database> = {
             {
               title: 'Register a Database',
               component: CreateDatabase,
-              eventName: DiscoverEvent.ConfigureRegisterDatabase,
+              eventName: DiscoverEvent.DatabaseRegister,
             },
             {
               title: 'Deploy Database Service',
@@ -84,7 +84,7 @@ export const DatabaseResource: Resource<Database> = {
             {
               title: 'Configure mTLS',
               component: MutualTls,
-              eventName: DiscoverEvent.ConfigureDatabaseMTLS,
+              eventName: DiscoverEvent.DatabaseConfigureMTLS,
             },
           ];
 
@@ -104,7 +104,7 @@ export const DatabaseResource: Resource<Database> = {
       {
         title: 'Set Up Access',
         component: SetupAccess,
-        eventName: DiscoverEvent.SetUpAccess,
+        eventName: DiscoverEvent.PrincipalsConfigure,
       },
       {
         title: 'Test Connection',
