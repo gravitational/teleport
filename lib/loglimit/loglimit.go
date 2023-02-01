@@ -66,7 +66,8 @@ func (c *Config) checkAndSetDefaults() error {
 
 // LogLimiter deduplicates logs over a certain time window.
 type LogLimiter struct {
-	Config
+	// config is the log limiter config.
+	config Config
 	// entryCh is used to send log entries to the log limiter.
 	entryCh chan *entryInfo
 	// windows is a mapping from log substring to an active
@@ -94,15 +95,15 @@ type entryInfo struct {
 }
 
 // New creates a new log limiter.
-func New(cfg Config) (*LogLimiter, error) {
-	if err := cfg.checkAndSetDefaults(); err != nil {
+func New(config Config) (*LogLimiter, error) {
+	if err := config.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &LogLimiter{
-		Config:    cfg,
-		entryCh:   make(chan *entryInfo, cfg.ChannelSize),
-		windows:   make(map[string]*entryInfo, len(cfg.LogSubstrings)),
+		config:    config,
+		entryCh:   make(chan *entryInfo, config.ChannelSize),
+		windows:   make(map[string]*entryInfo, len(config.LogSubstrings)),
 		cleanupCh: make(chan chan struct{}),
 	}, nil
 }
@@ -113,14 +114,14 @@ func (l *LogLimiter) Log(entry *log.Entry, level log.Level, args ...any) {
 		entry:       entry,
 		level:       level,
 		message:     fmt.Sprint(args...),
-		time:        l.Clock.Now(),
+		time:        l.config.Clock.Now(),
 		occurrences: 1,
 	}
 }
 
 // Run runs the log limiter.
 func (l *LogLimiter) Run(ctx context.Context) {
-	t := l.Clock.NewTicker(timeWindowCleanupInterval)
+	t := l.config.Clock.NewTicker(timeWindowCleanupInterval)
 	defer t.Stop()
 
 	for {
@@ -166,7 +167,7 @@ func (l *LogLimiter) deduplicate(e *entryInfo) {
 // again together with the number of occurrences (of logs that share the same
 // log substring) during the window.
 func (l *LogLimiter) cleanup() {
-	now := l.Clock.Now()
+	now := l.config.Clock.Now()
 	for logSubstring, e := range l.windows {
 		if now.After(e.time.Add(timeWindow)) {
 			if e.occurrences > 1 {
@@ -188,7 +189,7 @@ func (l *LogLimiter) cleanup() {
 // shouldDeduplicate returns true if the log should be deduplicated.
 // In case true is returned, the log substring is also returned.
 func (l *LogLimiter) shouldDeduplicate(e *entryInfo) (bool, string) {
-	for _, logSubstring := range l.LogSubstrings {
+	for _, logSubstring := range l.config.LogSubstrings {
 		if strings.Contains(e.message, logSubstring) {
 			return true, logSubstring
 		}
