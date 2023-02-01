@@ -196,8 +196,6 @@ teleport:
   auth_token: (=presets.tokens.first=)
 db_service:
   enabled: "yes"
-  # Matchers for database resources created with "tctl create" command.
-  # For more information: https://goteleport.com/docs/database-access/guides/dynamic-registration/
   resources:
   - labels:
       "*": "*"
@@ -279,3 +277,9 @@ Type "help", "copyright", "credits" or "license" for more information.
 {'TableNames': *snip output*}
 >>> 
 ```
+
+## Next Steps
+
+- See [Dynamic Database Registration](./dynamic-registration.mdx) to learn how
+  to use resource labels to keep Teleport up to date with accessible databases in
+  your infrastructure.
