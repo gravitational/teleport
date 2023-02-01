@@ -300,6 +300,146 @@ export namespace UIRecoveryCodesPrintClickEvent {
     }
 }
 
+export class DiscoverMetadata extends jspb.Message { 
+    getId(): string;
+    setId(value: string): DiscoverMetadata;
+
+    getUserName(): string;
+    setUserName(value: string): DiscoverMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoverMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoverMetadata): DiscoverMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoverMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoverMetadata;
+    static deserializeBinaryFromReader(message: DiscoverMetadata, reader: jspb.BinaryReader): DiscoverMetadata;
+}
+
+export namespace DiscoverMetadata {
+    export type AsObject = {
+        id: string,
+        userName: string,
+    }
+}
+
+export class DiscoverResourceMetadata extends jspb.Message { 
+    getResource(): DiscoverResource;
+    setResource(value: DiscoverResource): DiscoverResourceMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoverResourceMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoverResourceMetadata): DiscoverResourceMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoverResourceMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoverResourceMetadata;
+    static deserializeBinaryFromReader(message: DiscoverResourceMetadata, reader: jspb.BinaryReader): DiscoverResourceMetadata;
+}
+
+export namespace DiscoverResourceMetadata {
+    export type AsObject = {
+        resource: DiscoverResource,
+    }
+}
+
+export class DiscoverStepStatus extends jspb.Message { 
+    getStatus(): DiscoverStatus;
+    setStatus(value: DiscoverStatus): DiscoverStepStatus;
+
+    getError(): string;
+    setError(value: string): DiscoverStepStatus;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoverStepStatus.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoverStepStatus): DiscoverStepStatus.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoverStepStatus, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoverStepStatus;
+    static deserializeBinaryFromReader(message: DiscoverStepStatus, reader: jspb.BinaryReader): DiscoverStepStatus;
+}
+
+export namespace DiscoverStepStatus {
+    export type AsObject = {
+        status: DiscoverStatus,
+        error: string,
+    }
+}
+
+export class UIDiscoverStartedEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverStartedEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverStartedEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverStartedEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverStartedEvent): UIDiscoverStartedEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverStartedEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverStartedEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverStartedEvent, reader: jspb.BinaryReader): UIDiscoverStartedEvent;
+}
+
+export namespace UIDiscoverStartedEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverResourceSelectionEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverResourceSelectionEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverResourceSelectionEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverResourceSelectionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverResourceSelectionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverResourceSelectionEvent): UIDiscoverResourceSelectionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverResourceSelectionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverResourceSelectionEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverResourceSelectionEvent, reader: jspb.BinaryReader): UIDiscoverResourceSelectionEvent;
+}
+
+export namespace UIDiscoverResourceSelectionEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -389,6 +529,18 @@ export class SubmitEventRequest extends jspb.Message {
     setUiRecoveryCodesPrintClick(value?: UIRecoveryCodesPrintClickEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverStartedEvent(): boolean;
+    clearUiDiscoverStartedEvent(): void;
+    getUiDiscoverStartedEvent(): UIDiscoverStartedEvent | undefined;
+    setUiDiscoverStartedEvent(value?: UIDiscoverStartedEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverResourceSelectionEvent(): boolean;
+    clearUiDiscoverResourceSelectionEvent(): void;
+    getUiDiscoverResourceSelectionEvent(): UIDiscoverResourceSelectionEvent | undefined;
+    setUiDiscoverResourceSelectionEvent(value?: UIDiscoverResourceSelectionEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -418,6 +570,8 @@ export namespace SubmitEventRequest {
         uiRecoveryCodesContinueClick?: UIRecoveryCodesContinueClickEvent.AsObject,
         uiRecoveryCodesCopyClick?: UIRecoveryCodesCopyClickEvent.AsObject,
         uiRecoveryCodesPrintClick?: UIRecoveryCodesPrintClickEvent.AsObject,
+        uiDiscoverStartedEvent?: UIDiscoverStartedEvent.AsObject,
+        uiDiscoverResourceSelectionEvent?: UIDiscoverResourceSelectionEvent.AsObject,
     }
 
     export enum EventCase {
@@ -448,6 +602,10 @@ export namespace SubmitEventRequest {
     UI_RECOVERY_CODES_COPY_CLICK = 15,
 
     UI_RECOVERY_CODES_PRINT_CLICK = 16,
+
+    UI_DISCOVER_STARTED_EVENT = 17,
+
+    UI_DISCOVER_RESOURCE_SELECTION_EVENT = 18,
 
     }
 
@@ -502,4 +660,26 @@ export class HelloTeleportResponse extends jspb.Message {
 export namespace HelloTeleportResponse {
     export type AsObject = {
     }
+}
+
+export enum DiscoverResource {
+    DISCOVER_RESOURCE_UNSPECIFIED = 0,
+    DISCOVER_RESOURCE_SERVER = 1,
+    DISCOVER_RESOURCE_KUBERNETES = 2,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED = 3,
+    DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED = 4,
+    DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED = 5,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_RDS = 6,
+    DISCOVER_RESOURCE_DATABASE_MYSQL_RDS = 7,
+    DISCOVER_RESOURCE_APPLICATION_HTTP = 8,
+    DISCOVER_RESOURCE_APPLICATION_TCP = 9,
+    DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10,
+}
+
+export enum DiscoverStatus {
+    DISCOVER_STATUS_UNSPECIFIED = 0,
+    DISCOVER_STATUS_SUCCESS = 1,
+    DISCOVER_STATUS_SKIPPED = 2,
+    DISCOVER_STATUS_ERROR = 3,
+    DISCOVER_STATUS_ABORTED = 4,
 }
