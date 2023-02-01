@@ -23,10 +23,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	prehogapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/prehog/v1alpha"
+	prehogclient "github.com/gravitational/teleport/gen/proto/go/teleport/lib/prehog/v1alpha/v1alphaconnect"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
-	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha/v1alphaconnect"
 	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
 )

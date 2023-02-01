@@ -23,9 +23,9 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
+	prehogapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/prehog/v1alpha"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/usagereporter"
