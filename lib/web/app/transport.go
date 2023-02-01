@@ -152,15 +152,17 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 
 	// Remove the application session cookie from the header. This is done by
 	// first wiping out the "Cookie" header then adding back all cookies
-	// except the application session cookie. This appears to be the safest way
+	// except the application session cookies. This appears to be the safest way
 	// to serialize cookies.
 	cookies := r.Cookies()
 	r.Header.Del("Cookie")
 	for _, cookie := range cookies {
-		if cookie.Name == CookieName || cookie.Name == AuthStateCookieName {
+		switch cookie.Name {
+		case CookieName, SubjectCookieName:
 			continue
+		default:
+			r.AddCookie(cookie)
 		}
-		r.AddCookie(cookie)
 	}
 
 	return nil

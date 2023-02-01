@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -599,6 +600,15 @@ func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
 	return devicepb.NewDeviceTrustServiceClient(c.conn)
 }
 
+// LoginRuleClient returns an unadorned Login Rule client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a login rule client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
+	return loginrulepb.NewLoginRuleServiceClient(c.conn)
+}
+
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{}, c.callOpts...)
@@ -1064,7 +1074,7 @@ func (c *Client) deleteAllKubernetesServersFallback(ctx context.Context) error {
 }
 
 // UpsertKubernetesServer is used by kubernetes services to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	server, ok := s.(*types.KubernetesServerV3)
 	if !ok {
@@ -1078,7 +1088,7 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 }
 
 // UpsertKubeService is used by kubernetes services to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 // DELETE IN 13.0.0
 func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	server, ok := s.(*types.ServerV2)
@@ -1092,7 +1102,7 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 }
 
 // UpsertKubeServiceV2 is used by kubernetes services to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 // DELETE IN 13.0.0
 func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	server, ok := s.(*types.ServerV2)
@@ -1257,11 +1267,12 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:      req.Username,
-		PublicAddr:    req.PublicAddr,
-		ClusterName:   req.ClusterName,
-		AWSRoleARN:    req.AWSRoleARN,
-		AzureIdentity: req.AzureIdentity,
+		Username:          req.Username,
+		PublicAddr:        req.PublicAddr,
+		ClusterName:       req.ClusterName,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1491,7 +1502,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	r, ok := role.(*types.RoleV5)
+	r, ok := role.(*types.RoleV6)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
@@ -2982,5 +2993,45 @@ func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
 	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
 
+	return trail.FromGRPC(err)
+}
+
+// GetLicense returns the license used to start the teleport enterprise auth server
+func (c *Client) GetLicense(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetLicense(ctx, &proto.GetLicenseRequest{})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return string(resp.License), nil
+}
+
+// ListReleases returns a list of teleport enterprise releases
+func (c *Client) ListReleases(ctx context.Context, req *proto.ListReleasesRequest) ([]*types.Release, error) {
+	resp, err := c.grpc.ListReleases(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.Releases, nil
+}
+
+// CreateAlertAck marks a cluster alert as acknowledged.
+func (c *Client) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
+	_, err := c.grpc.CreateAlertAck(ctx, &ack, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetAlertAcks gets active alert acknowledgements.
+func (c *Client) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
+	rsp, err := c.grpc.GetAlertAcks(ctx, &proto.GetAlertAcksRequest{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp.Acks, nil
+}
+
+// ClearAlertAcks clears alert acknowledgments.
+func (c *Client) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
+	_, err := c.grpc.ClearAlertAcks(ctx, &req, c.callOpts...)
 	return trail.FromGRPC(err)
 }

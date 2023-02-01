@@ -94,7 +94,7 @@ func convertPostgresError(err *pgconn.PgError) error {
 // convertMySQLError converts MySQL driver errors to trace errors.
 func convertMySQLError(err *mysql.MyError) error {
 	switch err.Code {
-	case mysql.ER_ACCESS_DENIED_ERROR:
+	case mysql.ER_ACCESS_DENIED_ERROR, mysql.ER_DBACCESS_DENIED_ERROR:
 		return trace.AccessDenied(err.Error())
 	}
 	return err // Return unmodified.
@@ -236,13 +236,4 @@ agent's service principal. See: https://goteleport.com/docs/database-access/guid
 	default:
 		return trace.Wrap(err)
 	}
-}
-
-// IsUnrecognizedAWSEngineNameError checks if the err is non-nil and came from using an engine filter that the
-// AWS region does not recognize.
-func IsUnrecognizedAWSEngineNameError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(strings.ToLower(err.Error()), "unrecognized engine name")
 }

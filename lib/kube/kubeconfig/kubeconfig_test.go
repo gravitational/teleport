@@ -182,6 +182,9 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	wantConfig := initialConfig.DeepCopy()
+	wantConfig.Contexts[wantConfig.CurrentContext].Extensions = map[string]runtime.Object{
+		selectedExtension: nil,
+	}
 	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
@@ -390,8 +393,8 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 	require.NoError(t, err)
 	_, leafCACertPEM, err := genUserKey("example.com")
 	require.NoError(t, err)
-	creds.TrustedCA[0].ClusterName = clusterName
-	creds.TrustedCA = append(creds.TrustedCA, auth.TrustedCerts{
+	creds.TrustedCerts[0].ClusterName = clusterName
+	creds.TrustedCerts = append(creds.TrustedCerts, auth.TrustedCerts{
 		ClusterName:     leafClusterName,
 		TLSCertificates: [][]byte{leafCACertPEM},
 	})
@@ -425,6 +428,7 @@ func TestRemove(t *testing.T) {
 		clusterAddr = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, initialConfig := setup(t)
+
 	creds, _, err := genUserKey("localhost")
 	require.NoError(t, err)
 
@@ -515,7 +519,7 @@ func genUserKey(hostname string) (*client.Key, []byte, error) {
 	return &client.Key{
 		PrivateKey: priv,
 		TLSCert:    tlsCert,
-		TrustedCA: []auth.TrustedCerts{{
+		TrustedCerts: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, caCert, nil

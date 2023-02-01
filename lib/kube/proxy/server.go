@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
@@ -212,6 +213,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Clock:                       t.Clock,
 		EnableExternalProxyProtocol: true,
 		ID:                          t.Component,
+		// Increases deadline until the agent receives the first byte to 10s.
+		// It's required to accommodate setups with high latency and where the time
+		// between the TCP being accepted and the time for the first byte is longer
+		// than the default value -  1s.
+		ReadDeadline: 10 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -263,8 +269,10 @@ func (t *TLSServer) Close() error {
 	if t.watcher != nil {
 		t.watcher.Close()
 	}
-
-	return trace.NewAggregate(errs...)
+	t.mu.Lock()
+	listClose := t.listener.Close()
+	t.mu.Unlock()
+	return trace.NewAggregate(append(errs, listClose)...)
 }
 
 // GetConfigForClient is getting called on every connection

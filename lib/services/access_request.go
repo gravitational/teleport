@@ -60,6 +60,43 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	return nil
 }
 
+// ClusterGetter provides access to the local cluster
+type ClusterGetter interface {
+	// GetClusterName returns the local cluster name
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+}
+
+// ValidateAccessRequestClusterNames checks that the clusters in the access request exist
+func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest) error {
+	localClusterName, err := cg.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var invalidClusters []string
+	for _, resourceID := range ar.GetRequestedResourceIDs() {
+		if resourceID.ClusterName == "" {
+			continue
+		}
+		if resourceID.ClusterName == localClusterName.GetClusterName() {
+			continue
+		}
+		_, err := cg.GetRemoteCluster(resourceID.ClusterName)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
+		}
+		if trace.IsNotFound(err) {
+			invalidClusters = append(invalidClusters, resourceID.ClusterName)
+		}
+	}
+	if len(invalidClusters) > 0 {
+		return trace.NotFound("access request contains invalid or unknown cluster names: %v",
+			strings.Join(invalidClusters, ", "))
+	}
+	return nil
+}
+
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
 	return NewAccessRequestWithResources(user, roles, []types.ResourceID{})
@@ -112,16 +149,21 @@ func (r *RequestIDs) IsEmpty() bool {
 	return len(r.AccessRequests) < 1
 }
 
-// DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
-type DynamicAccessCore interface {
-	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+// AccessRequestGetter defines the interface for fetching access request resources.
+type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// GetPluginData loads all plugin data matching the supplied filter.
 	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
+}
+
+// DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
+type DynamicAccessCore interface {
+	AccessRequestGetter
+	// CreateAccessRequest stores a new access request.
+	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+	// DeleteAccessRequest deletes an access request.
+	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// UpdatePluginData updates a per-resource PluginData entry.
 	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
@@ -1487,16 +1529,26 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := GetResourcesByResourceIDs(ctx, m.getter, resourceIDs)
+	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
-		var rolesForResource []types.Role
+		var (
+			rolesForResource []types.Role
+			resourceMatcher  *KubeResourcesMatcher
+		)
+		kubernetesResources, err := getKubeResourcesFromResourceIDs(resourceIDs, resource.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(kubernetesResources) > 0 {
+			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
+		}
 		for _, role := range allRoles {
-			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint)
+			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1506,6 +1558,20 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				continue
 			}
 			rolesForResource = append(rolesForResource, role)
+		}
+		// If any of the requested resources didn't match with the provided roles,
+		// we deny the request because the user is trying to request more access
+		// than what is allowed by its search_as_roles.
+		if resourceMatcher != nil && len(resourceMatcher.Unmatched()) > 0 {
+			resourcesStr, err := types.ResourceIDsToString(resourceIDs)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nil, trace.BadParameter(
+				`no roles configured in the "search_as_roles" for this user allow `+
+					`access to at least one requested resources. `+
+					`resources: %s roles: %v unmatched resources: %v`,
+				resourcesStr, roles, resourceMatcher.Unmatched())
 		}
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
@@ -1567,13 +1633,15 @@ func roleAllowsResource(
 	role types.Role,
 	resource types.ResourceWithLabels,
 	loginHint string,
+	extraMatchers ...RoleMatcher,
 ) (bool, error) {
 	roleSet := RoleSet{role}
 	var matchers []RoleMatcher
 	if len(loginHint) > 0 {
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
-	err := roleSet.checkAccess(resource, AccessMFAParams{Verified: true}, matchers...)
+	matchers = append(matchers, extraMatchers...)
+	err := roleSet.checkAccess(resource, AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.
@@ -1727,4 +1795,54 @@ func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hin
 	default:
 	}
 	return types.ResourcesWithLabels{resource}, nil
+}
+
+// resourceMatcherToMatcherSlice returns the resourceMatcher in a RoleMatcher slice
+// if the resourceMatcher is not nil, otherwise returns a nil slice.
+func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []RoleMatcher {
+	if resourceMatcher == nil {
+		return nil
+	}
+	return []RoleMatcher{resourceMatcher}
+}
+
+// getUnderlyingResourcesByResourceIDs gets the underlying resources the user
+// requested access. Except for resource Kinds present in types.KubernetesResourcesKinds,
+// the underlying resources are the same as requested. If the resource requested
+// is a Kubernetes resource, we return the underlying Kubernetes cluster.
+func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Context, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+	// When searching for Kube Resources, we change the resource Kind to the Kubernetes
+	// Cluster in order to load the roles that grant access to it and to verify
+	// if the access to it is allowed. We later verify if every Kubernetes Resource
+	// requested is fulfilled by at least one role.
+	searchableResourcesIDs := slices.Clone(resourceIDs)
+	for i := range searchableResourcesIDs {
+		if slices.Contains(types.KubernetesResourcesKinds, searchableResourcesIDs[i].Kind) {
+			searchableResourcesIDs[i].Kind = types.KindKubernetesCluster
+		}
+	}
+	// load the underlying resources.
+	resources, err := GetResourcesByResourceIDs(ctx, m.getter, searchableResourcesIDs)
+	return resources, trace.Wrap(err)
+}
+
+// getKubeResourcesFromResourceIDs returns the Kubernetes Resources requested for
+// the configured cluster.
+func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName string) ([]types.KubernetesResource, error) {
+	kubernetesResources := make([]types.KubernetesResource, 0, len(resourceIDs))
+
+	for _, resourceID := range resourceIDs {
+		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
+			splits := strings.Split(resourceID.SubResourceName, "/")
+			if len(splits) != 2 {
+				return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
+			}
+			kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+				Kind:      resourceID.Kind,
+				Namespace: splits[0],
+				Name:      splits[1],
+			})
+		}
+	}
+	return kubernetesResources, nil
 }

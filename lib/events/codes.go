@@ -188,6 +188,9 @@ const (
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
 	DynamoDBRequestCode = "TDY01I"
+	// DynamoDBRequestFailureCode is the db.session.dynamodb.request event failure code.
+	// This is indicates that the database agent http transport failed to round trip the request.
+	DynamoDBRequestFailureCode = "TDY01E"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -395,6 +398,11 @@ const (
 	DeviceEnrollCode = "TV005I"
 	// DeviceAuthenticateCode is the device authentication code.
 	DeviceAuthenticateCode = "TV006I"
+
+	// LoginRuleCreateCode is the login rule create code.
+	LoginRuleCreateCode = "TLR00I"
+	// LoginRuleDeleteCode is the login rule delete code.
+	LoginRuleDeleteCode = "TLR01I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

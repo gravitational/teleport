@@ -19,8 +19,11 @@ package services
 import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
 // ResourceMatcher matches cluster resources.
@@ -57,6 +60,10 @@ type InstallerParams struct {
 	// ScriptName is the name of the teleport script for the EC2
 	// instance to execute
 	ScriptName string
+	// InstallTeleport disables agentless discovery
+	InstallTeleport bool
+	// SSHDConfig provides the path to write sshd configuration changes
+	SSHDConfig string
 }
 
 // AWSMatcher matches AWS databases.
@@ -98,6 +105,40 @@ type GCPMatcher struct {
 	Tags types.Labels `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project IDs where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
+}
+
+// SimplifyAzureMatchers returns simplified Azure Matchers.
+// Selectors are deduplicated, wildcard in a selector reduces the selector
+// to just the wildcard, and defaults are applied.
+func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
+	result := make([]AzureMatcher, 0, len(matchers))
+	for _, m := range matchers {
+		subs := apiutils.Deduplicate(m.Subscriptions)
+		groups := apiutils.Deduplicate(m.ResourceGroups)
+		regions := apiutils.Deduplicate(m.Regions)
+		ts := apiutils.Deduplicate(m.Types)
+		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
+			subs = []string{types.Wildcard}
+		}
+		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
+			groups = []string{types.Wildcard}
+		}
+		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
+			regions = []string{types.Wildcard}
+		} else {
+			for i, region := range regions {
+				regions[i] = azureutils.NormalizeLocation(region)
+			}
+		}
+		result = append(result, AzureMatcher{
+			Subscriptions:  subs,
+			ResourceGroups: groups,
+			Regions:        regions,
+			Types:          ts,
+			ResourceTags:   m.ResourceTags,
+		})
+	}
+	return result
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
@@ -142,7 +183,10 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster, types.KindDatabaseService:
+	case types.KindNode,
+		types.KindDatabaseService,
+		types.KindKubernetesCluster, types.KindKubePod,
+		types.KindWindowsDesktop, types.KindWindowsDesktopService:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -249,7 +293,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)
 	}
-
 }
 
 // matchAndFilterKubeClustersLegacy is used by matchAndFilterKubeClusters to filter kube clusters that are stil living in old kube services
@@ -294,6 +337,10 @@ type MatchResourceFilter struct {
 }
 
 const (
+	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
+	AWSMatcherEC2 = "ec2"
+	// AWSMatcherEKS is the AWS matcher type for AWS Kubernetes.
+	AWSMatcherEKS = "eks"
 	// AWSMatcherRDS is the AWS matcher type for RDS databases.
 	AWSMatcherRDS = "rds"
 	// AWSMatcherRDSProxy is the AWS matcher type for RDS Proxy databases.
@@ -306,8 +353,26 @@ const (
 	AWSMatcherElastiCache = "elasticache"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
-	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
-	AWSMatcherEC2 = "ec2"
+)
+
+// SupportedAWSMatchers is list of AWS services currently supported by the
+// Teleport discovery service.
+var SupportedAWSMatchers = []string{
+	AWSMatcherEC2,
+	AWSMatcherEKS,
+	AWSMatcherRDS,
+	AWSMatcherRDSProxy,
+	AWSMatcherRedshift,
+	AWSMatcherRedshiftServerless,
+	AWSMatcherElastiCache,
+	AWSMatcherMemoryDB,
+}
+
+const (
+	// AzureMatcherVM is the Azure matcher type for Azure VMs.
+	AzureMatcherVM = "vm"
+	// AzureMatcherKubernetes is the Azure matcher type for Azure Kubernetes.
+	AzureMatcherKubernetes = "aks"
 	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
 	AzureMatcherMySQL = "mysql"
 	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
@@ -317,3 +382,25 @@ const (
 	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
 	AzureMatcherSQLServer = "sqlserver"
 )
+
+// SupportedAzureMatchers is list of Azure services currently supported by the
+// Teleport discovery service.
+var SupportedAzureMatchers = []string{
+	AzureMatcherVM,
+	AzureMatcherKubernetes,
+	AzureMatcherMySQL,
+	AzureMatcherPostgres,
+	AzureMatcherRedis,
+	AzureMatcherSQLServer,
+}
+
+const (
+	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
+	GCPMatcherKubernetes = "gke"
+)
+
+// SupportedGCPMatchers is list of GCP services currently supported by the
+// Teleport discovery service.
+var SupportedGCPMatchers = []string{
+	GCPMatcherKubernetes,
+}

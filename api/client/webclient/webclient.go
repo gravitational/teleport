@@ -103,7 +103,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	}
 	return &http.Client{
 		Transport: otelhttp.NewTransport(
-			proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
+			proxy.NewHTTPRoundTripper(&transport, nil),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
 		),
 		Timeout: cfg.Timeout,
@@ -391,6 +391,9 @@ type AuthenticationSettings struct {
 	Github *GithubSettings `json:"github,omitempty"`
 	// PrivateKeyPolicy contains the cluster-wide private key policy.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
+	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
+	// device authentication.
+	DeviceTrustDisabled bool `json:"device_trust_disabled,omitempty"`
 
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
 	// banner text that must be retrieved, displayed and acknowledged by

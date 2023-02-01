@@ -80,6 +80,28 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RedshiftDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("ElastiCacheAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			ElastiCacheDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"elasticache"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.ElastiCacheDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
+	t.Run("MemoryDBAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			MemoryDBDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"memorydb"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.MemoryDBDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("AWS discovery tags", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			RedshiftServerlessDiscoveryRegions: []string{"us-west-1", "us-west-2"},
@@ -118,6 +140,17 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.AzurePostgresDiscoveryRegions, databases.AzureMatchers[0].Regions)
 	})
 
+	t.Run("AzureSQLServerAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzureSQLServerDiscoveryRegions: []string{"eastus", "eastus2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"sqlserver"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzureSQLServerDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
 	t.Run("Azure discovery tags,subscriptions,resource_groups", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			AzureRedisDiscoveryRegions: []string{"eastus", "eastus2"},
@@ -144,6 +177,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 			StaticDatabaseURI:            "postgres://localhost:5432",
 			StaticDatabaseRawLabels:      `env=prod,arch=[5m2s:/bin/uname -m "p1 p2"]`,
 			DatabaseAWSRegion:            "us-west-1",
+			DatabaseAWSExternalID:        "1234567890",
 			DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
 			DatabaseADDomain:             "EXAMPLE.com",
 			DatabaseADSPN:                "MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433",
@@ -160,6 +194,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Equal(t, flags.StaticDatabaseURI, databases.Databases[0].URI)
 		require.Equal(t, map[string]string{"env": "prod"}, databases.Databases[0].StaticLabels)
 		require.Equal(t, flags.DatabaseAWSRegion, databases.Databases[0].AWS.Region)
+		require.Equal(t, flags.DatabaseAWSExternalID, databases.Databases[0].AWS.ExternalID)
 		require.Equal(t, flags.DatabaseAWSRedshiftClusterID, databases.Databases[0].AWS.Redshift.ClusterID)
 		require.Equal(t, flags.DatabaseADDomain, databases.Databases[0].AD.Domain)
 		require.Equal(t, flags.DatabaseADSPN, databases.Databases[0].AD.SPN)

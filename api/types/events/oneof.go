@@ -275,6 +275,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MFADeviceDelete{
 			MFADeviceDelete: e,
 		}
+	case *DeviceEvent:
+		out.Event = &OneOf_DeviceEvent{
+			DeviceEvent: e,
+		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
 			BillingCardCreate: e,
@@ -478,6 +482,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *InstanceJoin:
 		out.Event = &OneOf_InstanceJoin{
 			InstanceJoin: e,
+		}
+	case *LoginRuleCreate:
+		out.Event = &OneOf_LoginRuleCreate{
+			LoginRuleCreate: e,
+		}
+	case *LoginRuleDelete:
+		out.Event = &OneOf_LoginRuleDelete{
+			LoginRuleDelete: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

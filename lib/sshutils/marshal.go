@@ -18,8 +18,12 @@ package sshutils
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // MarshalAuthorizedKeysFormat returns the certificate authority public key exported as a single
@@ -37,23 +41,96 @@ func MarshalAuthorizedKeysFormat(clusterName string, keyBytes []byte) (string, e
 		"clustername": []string{clusterName},
 	}
 
-	return fmt.Sprintf("cert-authority %s %s", strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
+	return fmt.Sprintf("cert-authority %s %s\n", strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
 }
 
-// MarshalAuthorizedHostsFormat returns the certificate authority public key exported as a single line
-// that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
-// authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
+// KnownHost is a structural representation of a known hosts entry for a Teleport host.
+type KnownHost struct {
+	AuthorizedKey []byte
+	ProxyHost     string
+	Hostname      string
+	Comment       map[string][]string
+}
+
+// MarshalKnownHost returns the certificate authority public key exported as a single line
+// that can be placed in ~/.ssh/known_hosts. The format adheres to the man sshd (8)
+// known_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//	@cert-authority *.cluster-a,cluster-a ssh-rsa AAA... type=host
+//	@cert-authority proxy.example.com,cluster-a,*.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func MarshalAuthorizedHostsFormat(clusterName string, keyBytes []byte, logins []string) (string, error) {
-	comment := url.Values{
-		"type":   []string{"host"},
-		"logins": logins,
+func MarshalKnownHost(kh KnownHost) (string, error) {
+	if kh.Hostname == "" {
+		return "", trace.BadParameter("missing required argument clusterName")
 	}
 
-	return fmt.Sprintf("@cert-authority %s,*.%s %s %s",
-		clusterName, clusterName, strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
+	if len(kh.AuthorizedKey) == 0 {
+		return "", trace.BadParameter("missing required argument keyBytes")
+	}
+
+	comment := url.Values(kh.Comment)
+	if comment == nil {
+		comment = url.Values{}
+	}
+
+	if _, ok := comment["type"]; !ok {
+		comment["type"] = []string{"host"}
+	}
+
+	hosts := []string{kh.Hostname, "*." + kh.Hostname}
+	if kh.ProxyHost != "" {
+		hosts = append([]string{kh.ProxyHost}, hosts...)
+	}
+
+	return fmt.Sprintf("@cert-authority %s %s %s\n", strings.Join(hosts, ","), strings.TrimSpace(string(kh.AuthorizedKey)), comment.Encode()), nil
+}
+
+// UnmarshalKnownHosts returns a list of authorized hosts from the given known_hosts
+// file. Entries in the given file should adhere to the man sshd (8) known_hosts format,
+// a space-separated list of: marker, hosts, key, and comment.
+// For example:
+//
+//	@cert-authority proxy.example.com,cluster-a,*.cluster-a ssh-rsa AAA... type=host
+//
+// UnmarshalKnownHosts will try to guess the proxy host and cluster name for entries that
+// look like Teleport authorized host entries, generated with MarshalKnownHost.
+func UnmarshalKnownHosts(knownHostsFile [][]byte) ([]KnownHost, error) {
+	var knownHosts []KnownHost
+	for _, line := range knownHostsFile {
+		for {
+			_, hosts, publicKey, commentString, rest, err := ssh.ParseKnownHosts(line)
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
+			}
+
+			ah := KnownHost{
+				AuthorizedKey: ssh.MarshalAuthorizedKey(publicKey),
+			}
+
+			comment, err := url.ParseQuery(commentString)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			ah.Comment = map[string][]string(comment)
+
+			// Assuming the known host was generated from MarshalKnownHost,
+			// we can get the proxyHost and clusterName for the host.
+			switch len(hosts) {
+			case 1, 2:
+				ah.Hostname = hosts[0]
+			case 3:
+				ah.ProxyHost = hosts[0]
+				ah.Hostname = hosts[1]
+			}
+
+			knownHosts = append(knownHosts, ah)
+
+			line = rest
+		}
+	}
+
+	return knownHosts, nil
 }

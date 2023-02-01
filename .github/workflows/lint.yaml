@@ -5,9 +5,11 @@ on:
     branches:
       - master
   pull_request:
+  merge_group:
 
 jobs:
   lint:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
 
@@ -15,7 +17,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
       env:
         GO_LINT_FLAGS: --timeout=15m
 

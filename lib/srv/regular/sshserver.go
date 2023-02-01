@@ -66,11 +66,9 @@ import (
 
 const sftpSubsystem = "sftp"
 
-var (
-	log = logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentNode,
-	})
-)
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentNode,
+})
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
@@ -314,7 +312,6 @@ func (s *Server) close() {
 	if s.users != nil {
 		s.users.Shutdown()
 	}
-
 }
 
 // Close closes listening socket and stops accepting connections
@@ -325,6 +322,14 @@ func (s *Server) Close() error {
 
 // Shutdown performs graceful shutdown
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop heart beating immediately to prevent active connections
+	// from making the server appear alive and well.
+	if s.heartbeat != nil {
+		if err := s.heartbeat.Close(); err != nil {
+			s.Warningf("Failed to close heartbeat: %v", err)
+		}
+	}
+
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
 	s.close()
@@ -1205,6 +1210,16 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}()
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
+		// On regular server in "normal" mode "direct-tcpip" channels from
+		// SessionJoinPrincipal should be rejected, otherwise it's possible
+		// to use the "-teleport-internal-join" user to bypass RBAC.
+		if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+			s.Logger.Error("Connection rejected, direct-tcpip with SessionJoinPrincipal in regular node must be blocked")
+			rejectChannel(
+				nch, ssh.Prohibited,
+				fmt.Sprintf("attempted %v channel open in join-only mode", channelType))
+			return
+		}
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
 			s.Logger.Errorf("Failed to parse request data: %v, err: %v.", string(nch.ExtraData()), err)
@@ -1572,7 +1587,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
 	}
-
 	switch req.Type {
 	case tracessh.TracingRequest:
 		return nil
@@ -1680,11 +1694,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			Type: events.X11ForwardEvent,
 			Code: events.X11ForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        ctx.Identity.Login,
-			User:         ctx.Identity.TeleportUser,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),

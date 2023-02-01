@@ -152,6 +152,19 @@ func (r ResourcesWithLabels) AsServers() ([]Server, error) {
 	return servers, nil
 }
 
+// AsDatabases converts each resource into type Database.
+func (r ResourcesWithLabels) AsDatabases() ([]Database, error) {
+	dbs := make([]Database, 0, len(r))
+	for _, resource := range r {
+		db, ok := resource.(Database)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Database, got: %T", resource)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
+}
+
 // AsDatabaseServers converts each resource into type DatabaseServer.
 func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	dbs := make([]DatabaseServer, 0, len(r))
@@ -283,6 +296,31 @@ func (h *ResourceHeader) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (h *ResourceHeader) SetSubKind(s string) {
 	h.SubKind = s
+}
+
+// Origin returns the origin value of the resource.
+func (h *ResourceHeader) Origin() string {
+	return h.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (h *ResourceHeader) SetOrigin(origin string) {
+	h.Metadata.SetOrigin(origin)
+}
+
+// GetStaticLabels returns the static labels for the resource.
+func (h *ResourceHeader) GetStaticLabels() map[string]string {
+	return h.Metadata.Labels
+}
+
+// SetStaticLabels sets the static labels for the resource.
+func (h *ResourceHeader) SetStaticLabels(sl map[string]string) {
+	h.Metadata.Labels = sl
+}
+
+// GetAllLabels returns all labels from the resource..
+func (h *ResourceHeader) GetAllLabels() map[string]string {
+	return h.Metadata.Labels
 }
 
 func (h *ResourceHeader) CheckAndSetDefaults() error {
