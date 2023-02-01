@@ -2392,6 +2392,89 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+// TestSAMLIdPServiceProvidersCRUD tests SAMLIdPServiceProviders resource operations.
+func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create two SAML IdP service providers.
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: "<valid />",
+		})
+	require.NoError(t, err)
+
+	sp2, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp2",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: "<valid />",
+		})
+	require.NoError(t, err)
+
+	// Initially we expect no service providers.
+	listResp, nextKey, err := clt.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, listResp)
+
+	// Create both service providers
+	err = clt.CreateSAMLIdPServiceProvider(ctx, sp1)
+	require.NoError(t, err)
+	err = clt.CreateSAMLIdPServiceProvider(ctx, sp2)
+	require.NoError(t, err)
+
+	// Fetch all service providers
+	listResp, nextKey, err = clt.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, listResp,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Update a service provider.
+	sp1.SetEntityDescriptor("<updated />")
+
+	err = clt.UpdateSAMLIdPServiceProvider(ctx, sp1)
+	require.NoError(t, err)
+	listResp, nextKey, err = clt.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, listResp,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete a service provider.
+	err = clt.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName())
+	require.NoError(t, err)
+	listResp, nextKey, err = clt.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp2}, listResp,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to delete a service provider that doesn't exist.
+	err = clt.DeleteSAMLIdPServiceProvider(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Delete all service providers.
+	err = clt.DeleteAllSAMLIdPServiceProviders(ctx)
+	require.NoError(t, err)
+	listResp, nextKey, err = clt.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, listResp)
+}
+
 func TestListResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
