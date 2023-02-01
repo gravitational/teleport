@@ -161,10 +161,7 @@ func (p *PluginV1) SetMetadata(meta Metadata) {
 
 // Expiry returns expiry time for the object
 func (p *PluginV1) Expiry() time.Time {
-	if p.Metadata.Expires != nil {
-		return *p.Metadata.Expires
-	}
-	return time.Time{}
+	return p.Metadata.Expiry()
 }
 
 // SetExpiry sets expiry time for the object
