@@ -3972,7 +3972,7 @@ func (a *ServerWithRoles) DeleteDatabaseService(ctx context.Context, name string
 
 // UpsertDiscoveredServer creates or updates a new DiscoveredServer resource.
 func (a *ServerWithRoles) UpsertDiscoveredServer(ctx context.Context, service types.DiscoveredServer) (*types.KeepAlive, error) {
-	if err := a.action(service.GetNamespace(), types.KindDiscoveredServer, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindDiscoveredServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.UpsertDiscoveredServer(ctx, service)

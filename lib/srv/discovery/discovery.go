@@ -29,6 +29,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -418,7 +419,8 @@ func (s *Server) recordDiscoveredInstance(accountID string, instance *ec2.Instan
 	}
 	// Create discoveredServer resource
 	server, err := types.NewDiscoveredServerV1(types.Metadata{
-		Name: types.MetaNameDiscoveredServer,
+		Name:      types.MetaNameDiscoveredServer,
+		Namespace: apidefaults.Namespace,
 	}, discoveredServer)
 	if err != nil {
 		return trace.Wrap(err)
