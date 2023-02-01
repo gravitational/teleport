@@ -166,9 +166,9 @@ type webSuiteConfig struct {
 
 	disableDiskBasedRecording bool
 
-	// Custom "PreflightConnection" function. Can be used to avoid dialing app
+	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
-	PreflightConnection healthCheckAppServerFunc
+	HealthCheckAppServer healthCheckAppServerFunc
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -437,7 +437,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ProxySettings:                   &mockProxySettings{},
 		SessionControl:                  proxySessionController,
 		Router:                          router,
-		PreflightConnection:             cfg.PreflightConnection,
+		HealthCheckAppServer:            cfg.HealthCheckAppServer,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
@@ -4509,7 +4509,7 @@ func TestCreateAppSessionPreflightConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		PreflightConnection: func(_ context.Context, publicAddr string, _ string) error {
+		HealthCheckAppServer: func(_ context.Context, publicAddr string, _ string) error {
 			// Can only serve "validApp".
 			if publicAddr == validApp.GetPublicAddr() {
 				return nil
