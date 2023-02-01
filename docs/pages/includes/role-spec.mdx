@@ -148,11 +148,15 @@ spec:
       - kind: pod
         # The name of the Kubernetes namespace in which to allow access the
         # resources you specify with "name" and "kind". 
-        # The wildcard character "*" matches any sequence of characters.
+        # The wildcard character "*" matches any sequence of characters. 
+        # If the value begins with "^" and ends with "$", the Kubernetes
+        # Service will treat it as a regular expression.
         namespace: "*"
         # The name of the resource to allow access to.
         # The wildcard character "*" matches any sequence of characters.
-        name: "*"
+        # If the value begins with "^" and ends with "$", the Kubernetes
+        # Service will treat it as a regular expression.
+        name: "^nginx-[a-z0-9-]+$"
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']

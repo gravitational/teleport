@@ -369,9 +369,14 @@ fields:
   In the `kube-access` role, we are allowing access to a pod in the
   `production` namespace.
 - `name`: The name of the pod to allow access to. In `kube-access`, this is
-  the `webapp` pod. You can add a wildcard character (`*`) to replace any
-  sequences of characters. For example, `name: "pod-*-*"` matches pods named
-  `pod-1-a` and `pod-2-c`.
+  the `webapp` pod. 
+
+For both the `namespace` and `name` fields, you can add a wildcard character
+(`*`) to replace any sequence of characters. For example, `name: "pod-*-*"`
+matches pods named `pod-1-a` and `pod-2-c`. As with `kubernetes_labels`, if a
+value begins with `^` and ends in `$`, the Kubernetes Service will treat it as a
+regular expression using Go's `re2` syntax (see the `re2`
+[README](https://github.com/google/re2/wiki/Syntax)).
 
 ## How the Kubernetes Service evaluates Teleport roles
 

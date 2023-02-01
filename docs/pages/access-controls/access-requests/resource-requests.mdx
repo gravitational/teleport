@@ -416,6 +416,17 @@ namespace, run the following command:
 $ tsh request create --resources /teleport.example.com/pod/mycluster/development/nginx-1
 ```
 
+For the `NAMESPACE` and `POD_NAME` values, you can match ranges of characters by
+supplying a wildcard (`*`) or regular expression. Regular expressions must begin
+with `^` and end with `$`.
+
+For example, to create a request to access all pods in all namespaces that match
+the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
+
+```code
+$ tsh request create --resources /teleport.example.com/pod/mycluster/*/^nginx-[a-z0-9-]+$
+```
+
 <Notice type="warning">
 
 Teleport does not currently support `tsh request search --kind=pods`.
